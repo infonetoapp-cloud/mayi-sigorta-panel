@@ -21,6 +21,7 @@
 import {
   getPermissionDefinition,
   type PermissionCode,
+  type PermissionDefinition,
   type PermissionScopeKind,
 } from '../../shared/permissions';
 import { OptimisticConcurrencyError } from './optimistic';
@@ -215,6 +216,16 @@ function assertValidScopeForCatalog(
   }
 }
 
+function validatePersistedDependencyGrant(
+  grant: PermissionRow,
+  definition: PermissionDefinition,
+): void {
+  if (grant.permission_code !== definition.code) {
+    throw new UnknownPermissionError(grant.permission_code);
+  }
+  assertValidScopeForCatalog(grant.permission_code, grant.scope, definition.scopeKind);
+}
+
 /**
  * Bir üyeliğe yeni pozitif izin tanımlar.
  * Atomik olarak izin satırını ekler ve membership.permission_version değerini 1 artırır.
@@ -285,6 +296,7 @@ export async function grantPermission(
     } else {
       const explicitGrant = existingGrants.find((g) => g.permission_code === depCode);
       if (explicitGrant) {
+        validatePersistedDependencyGrant(explicitGrant, depDef);
         isSatisfied = true;
         depScope = explicitGrant.scope;
       }
@@ -520,7 +532,12 @@ export async function changePermissionScope(
     throw new MembershipNotFoundError(membershipId);
   }
 
-  // 4. Mevcut izinleri sorgula
+  // 4. OWNER için NORMAL izin satırı mutasyonu reddedilir (doğrudan SQL ile eklenmiş bozuk satır olsa dahi)
+  if (membership.type === 'OWNER' && definition.classification === 'NORMAL') {
+    throw new OwnerNormalPermissionProhibitedError(membershipId, permissionCode);
+  }
+
+  // 5. Mevcut izinleri sorgula
   const existingGrantsResult = await db
     .prepare(
       'SELECT id, membership_id, permission_code, scope FROM membership_permissions WHERE membership_id = ?',
@@ -534,6 +551,7 @@ export async function changePermissionScope(
   if (!existingTarget) {
     throw new MembershipPermissionNotFoundError(membershipId, permissionCode);
   }
+  validatePersistedDependencyGrant(existingTarget, definition);
 
   // 6. Kapsam Uyumluluk Doğrulaması (Scope Dependency Constraints):
   // 6a. İznin kendisinin doğrudan bağımlı olduğu izinlerin doğrulanması:
@@ -554,6 +572,7 @@ export async function changePermissionScope(
     } else {
       const depGrant = existingGrants.find((g) => g.permission_code === depCode);
       if (depGrant) {
+        validatePersistedDependencyGrant(depGrant, depDef);
         isSatisfied = true;
         depScope = depGrant.scope;
       }
@@ -575,13 +594,12 @@ export async function changePermissionScope(
     if (grant.permission_code === permissionCode) continue;
 
     const grantDef = getPermissionDefinition(grant.permission_code);
-    if (
-      grantDef &&
-      grantDef.dependencies.includes(permissionCode) &&
-      grantDef.scopeKind === 'RECORD_SCOPED'
-    ) {
-      if (scopeWeight(newScope) < scopeWeight(grant.scope)) {
-        throw new ActivePermissionDependencyError(permissionCode, grant.permission_code);
+    if (grantDef && grantDef.dependencies.includes(permissionCode)) {
+      validatePersistedDependencyGrant(grant, grantDef);
+      if (grantDef.scopeKind === 'RECORD_SCOPED') {
+        if (scopeWeight(newScope) < scopeWeight(grant.scope)) {
+          throw new ActivePermissionDependencyError(permissionCode, grant.permission_code);
+        }
       }
     }
   }

@@ -1188,5 +1188,185 @@ describe('M1-T04 Gerçek Yerel D1 İzin ve Kalıcılık Entegrasyon Testleri (Mi
       const versionAfter = await getPermissionVersion(corruptMemId);
       expect(versionAfter).toBe(versionBefore);
     });
+
+    it('Doğrudan SQL ile bozuk kapsamlı (ASSIGNED) eklenmiş sensitive.identity.read bağımlılığı grantPermission(write) tarafından yetki sayılamaz ve reddedilir', async () => {
+      const depMemberMemId = 'corrupt-dep-member-mem';
+      await addActiveMember('corrupt-dep', agencyId);
+
+      const versionBefore = await getPermissionVersion(depMemberMemId);
+
+      // Doğrudan SQL enjeksiyonu: sensitive.identity.read (katalogda UNSCOPED) hatalı biçimde ASSIGNED kapsamıyla eklenir
+      const corruptGrantId = crypto.randomUUID();
+      await db
+        .prepare(
+          `INSERT INTO membership_permissions (id, membership_id, permission_code, scope)
+           VALUES (?, ?, 'sensitive.identity.read', 'ASSIGNED')`,
+        )
+        .bind(corruptGrantId, depMemberMemId)
+        .run();
+
+      // sensitive.identity.write izni, önkoşulu olan sensitive.identity.read satırı yapısal olarak bozuk (ASSIGNED) olduğu için reddedilmelidir!
+      await expect(
+        grantPermission(db, {
+          agencyId,
+          membershipId: depMemberMemId,
+          permissionCode: 'sensitive.identity.write',
+          scope: 'UNSCOPED',
+          expectedPermissionVersion: versionBefore,
+        }),
+      ).rejects.toBeInstanceOf(InvalidPermissionScopeError);
+
+      // Veritabanı durumu kanıtı: write izni eklenmedi, versiyon değişmedi
+      const writeRow = await db
+        .prepare(
+          'SELECT id FROM membership_permissions WHERE membership_id = ? AND permission_code = ?',
+        )
+        .bind(depMemberMemId, 'sensitive.identity.write')
+        .first();
+      expect(writeRow).toBeNull();
+
+      const versionAfter = await getPermissionVersion(depMemberMemId);
+      expect(versionAfter).toBe(versionBefore);
+    });
+
+    it('OWNER üzerinde doğrudan SQL ile eklenmiş NORMAL izin (customer.read) için changePermissionScope reddedilir, revoke ile güvenli temizlik yapılabilir', async () => {
+      const ownerMemId = 'cycle3-owner-mem';
+      const versionBefore = await getPermissionVersion(ownerMemId);
+
+      // Doğrudan SQL enjeksiyonu: OWNER üyeliğine NORMAL izin (customer.read/ASSIGNED) eklenir
+      const corruptGrantId = crypto.randomUUID();
+      await db
+        .prepare(
+          `INSERT INTO membership_permissions (id, membership_id, permission_code, scope)
+           VALUES (?, ?, 'customer.read', 'ASSIGNED')`,
+        )
+        .bind(corruptGrantId, ownerMemId)
+        .run();
+
+      // 1. changePermissionScope OWNER ve NORMAL izni tespit edip reddetmelidir (OwnerNormalPermissionProhibitedError)
+      await expect(
+        changePermissionScope(db, {
+          agencyId,
+          membershipId: ownerMemId,
+          permissionCode: 'customer.read',
+          newScope: 'AGENCY',
+          expectedPermissionVersion: versionBefore,
+        }),
+      ).rejects.toBeInstanceOf(OwnerNormalPermissionProhibitedError);
+
+      // Veritabanı durumu kanıtı: satır kapsamı değişmedi (hala ASSIGNED), versiyon artmadı
+      const corruptRow = await db
+        .prepare('SELECT scope FROM membership_permissions WHERE id = ?')
+        .bind(corruptGrantId)
+        .first<{ scope: string }>();
+      expect(corruptRow?.scope).toBe('ASSIGNED');
+
+      const versionAfterFailedScope = await getPermissionVersion(ownerMemId);
+      expect(versionAfterFailedScope).toBe(versionBefore);
+
+      // 2. grantPermission da aynı şekilde NORMAL izni reddetmelidir
+      await expect(
+        grantPermission(db, {
+          agencyId,
+          membershipId: ownerMemId,
+          permissionCode: 'customer.update',
+          scope: 'ASSIGNED',
+          expectedPermissionVersion: versionBefore,
+        }),
+      ).rejects.toBeInstanceOf(OwnerNormalPermissionProhibitedError);
+
+      // 3. Güvenli revoke temizliği: RG-00 ile uyumlu olarak bozuk NORMAL satırı revokePermission ile kaldırılabilir
+      const revokeResult = await revokePermission(db, {
+        agencyId,
+        membershipId: ownerMemId,
+        permissionCode: 'customer.read',
+        expectedPermissionVersion: versionBefore,
+      });
+      expect(revokeResult.newPermissionVersion).toBe(versionBefore + 1);
+
+      // Satır tamamen silinmiş ve versiyon tam olarak 1 artmış olmalıdır
+      const deletedRow = await db
+        .prepare('SELECT id FROM membership_permissions WHERE id = ?')
+        .bind(corruptGrantId)
+        .first();
+      expect(deletedRow).toBeNull();
+
+      const versionAfterRevoke = await getPermissionVersion(ownerMemId);
+      expect(versionAfterRevoke).toBe(versionBefore + 1);
+    });
+
+    it('changePermissionScope ters bağımlılık taramasında bozuk satırı (customer.update/UNSCOPED) yetki saymaz ve fail-closed reddeder', async () => {
+      const revMemberMemId = 'corrupt-rev-member-mem';
+      await addActiveMember('corrupt-rev', agencyId);
+
+      const currentVersion = await getPermissionVersion(revMemberMemId);
+
+      // 1. customer.read AGENCY olarak verilir
+      const gRead = await grantPermission(db, {
+        agencyId,
+        membershipId: revMemberMemId,
+        permissionCode: 'customer.read',
+        scope: 'AGENCY',
+        expectedPermissionVersion: currentVersion,
+      });
+      expect(gRead.newPermissionVersion).toBe(currentVersion + 1);
+
+      // 2. Doğrudan SQL ile bağımlı customer.update izni bozuk/hatalı kapsamla (UNSCOPED) eklenir
+      const corruptUpdateId = crypto.randomUUID();
+      await db
+        .prepare(
+          `INSERT INTO membership_permissions (id, membership_id, permission_code, scope)
+           VALUES (?, ?, 'customer.update', 'UNSCOPED')`,
+        )
+        .bind(corruptUpdateId, revMemberMemId)
+        .run();
+
+      const versionBeforeChange = await getPermissionVersion(revMemberMemId);
+
+      // 3. Desteklenen changePermissionScope(customer.read -> ASSIGNED) çağrısı:
+      // customer.update katalogda RECORD_SCOPED olduğu için UNSCOPED kapsamı bozuktur.
+      // Mevcut açıkta scopeWeight(UNSCOPED)=0 olduğu için daraltma yanlışlıkla başarılı oluyordu.
+      // Bu çağrı fail-closed olarak InvalidPermissionScopeError fırlatmalıdır!
+      await expect(
+        changePermissionScope(db, {
+          agencyId,
+          membershipId: revMemberMemId,
+          permissionCode: 'customer.read',
+          newScope: 'ASSIGNED',
+          expectedPermissionVersion: versionBeforeChange,
+        }),
+      ).rejects.toBeInstanceOf(InvalidPermissionScopeError);
+
+      // 4. Veritabanı durumu kanıtı: customer.read kapsamı AGENCY olarak kaldı, versiyon değişmedi
+      const readRow = await db
+        .prepare(
+          'SELECT scope FROM membership_permissions WHERE membership_id = ? AND permission_code = ?',
+        )
+        .bind(revMemberMemId, 'customer.read')
+        .first<{ scope: string }>();
+      expect(readRow?.scope).toBe('AGENCY');
+
+      const versionAfterFailedScope = await getPermissionVersion(revMemberMemId);
+      expect(versionAfterFailedScope).toBe(versionBeforeChange);
+
+      // 5. Kontrollü revoke temizliği: Bozuk customer.update satırı revokePermission ile güvenle kaldırılabilir
+      const revokeUpdateResult = await revokePermission(db, {
+        agencyId,
+        membershipId: revMemberMemId,
+        permissionCode: 'customer.update',
+        expectedPermissionVersion: versionBeforeChange,
+      });
+      expect(revokeUpdateResult.newPermissionVersion).toBe(versionBeforeChange + 1);
+
+      // 6. Bozuk bağımlı kaldırıldıktan sonra customer.read meşru olarak ASSIGNED'a daraltılabilir
+      const cleanScopeResult = await changePermissionScope(db, {
+        agencyId,
+        membershipId: revMemberMemId,
+        permissionCode: 'customer.read',
+        newScope: 'ASSIGNED',
+        expectedPermissionVersion: revokeUpdateResult.newPermissionVersion,
+      });
+      expect(cleanScopeResult.scope).toBe('ASSIGNED');
+    });
   });
 });

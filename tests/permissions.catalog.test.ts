@@ -6,6 +6,7 @@ import {
   ONBOARDING_TEMPLATE_IDS,
   ONBOARDING_TEMPLATES,
   createOnboardingTemplateGrants,
+  STABLE_SCOPE_RESOLVERS,
   type PermissionDefinition,
   type OnboardingTemplateId,
 } from '../src/shared/permissions';
@@ -570,5 +571,13 @@ describe('M1-T04 Onboarding Şablonları Sözleşmesi (Bölüm 4.2 & RG-00)', ()
     expect(() =>
       createOnboardingTemplateGrants('gecersiz_sablon' as unknown as OnboardingTemplateId),
     ).toThrow(/Geçersiz onboarding şablonu/);
+  });
+
+  it('STABLE_SCOPE_RESOLVERS runtime Object.freeze ile dondurulmuş olmalıdır', () => {
+    expect(Object.isFrozen(STABLE_SCOPE_RESOLVERS)).toBe(true);
+    expect(() => {
+      // @ts-expect-error - dondurulmuş diziye eleman ekleme testi
+      STABLE_SCOPE_RESOLVERS.push('malicious_resolver');
+    }).toThrow();
   });
 });

@@ -60,7 +60,7 @@ export const PERMISSION_CODES = [
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
 
-export const STABLE_SCOPE_RESOLVERS = [
+export const STABLE_SCOPE_RESOLVERS = Object.freeze([
   'customer_record_resolver',
   'policy_record_resolver',
   'renewal_record_resolver',
@@ -69,7 +69,7 @@ export const STABLE_SCOPE_RESOLVERS = [
   'task_record_resolver',
   'document_record_resolver',
   'report_scope_resolver',
-] as const;
+] as const);
 
 export type StableScopeResolver = (typeof STABLE_SCOPE_RESOLVERS)[number];
 
