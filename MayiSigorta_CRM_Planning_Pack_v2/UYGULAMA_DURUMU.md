@@ -12,13 +12,14 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 - Çalışma alanı ve proje AGENTS dosyaları sonraki ajanları tek nihai plana yönlendiriyor.
 - M1-T01 için React/Vite/Hono/Worker temeli, strict TypeScript, kaynak sınırı doğrulayıcısı ve negatif güvenlik testleri oluşturuldu.
 - M1-T01 açık bulgularındaki canonical junction, Vite production env yükleme/öncelik/genişletme, gerçek production tsconfig alias ve process runtime sınırı düzeltildi. Process koruması alias taint takibi yerine istemci/paylaşılan kodda Node/CommonJS ve global nesne indirection kimliklerini fail-closed yasaklayan sade AST politikasına geçirildi.
+- M1-T02 için Worker-first aynı-origin routing temeli kuruldu. `/api` JSON sınırı, SPA fallback, statik asset miss davranışı, `/secure` rezervasyonu, canonical yol normalizasyonu ve HTTP `Accept` semantiği kalıcı testlerle ayrıştırıldı.
 
 ## Gerçek uygulama durumu
 
 | Faz | Durum |
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
-| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01 PASS, sırada M1-T02 |
+| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01 ve M1-T02 PASS; M1-T03 başlatılmadı |
 | Faz 2 — Müşteri/poliçe domain'i | BAŞLAMADI |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
@@ -26,7 +27,7 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
 | Faz 7 — Üretim kabulü | BAŞLAMADI |
 
-Yerel uygulama kabuğu ve otomatik testler vardır. DB migration, staging/production deployment, gerçek veri importu veya Cloudflare remote mutation yapılmadı. M1-T01 yerel kalite ve adversarial güvenlik kapılarını geçti; checkpoint sonrası M1-T02 Worker route/SPA/API sınırına geçilecektir.
+Yerel uygulama kabuğu ve otomatik testler vardır. DB migration, staging/production deployment, gerçek veri importu veya Cloudflare remote mutation yapılmadı. M1-T01 ve M1-T02 yerel kalite ve adversarial güvenlik kapılarını geçti. Yetkili çalışma sınırı gereği M1-T03 başlatılmadı.
 
 ## Doğrulama kanıtı
 
@@ -38,6 +39,8 @@ Yerel uygulama kabuğu ve otomatik testler vardır. DB migration, staging/produc
 - Son M1-T01 yerel kapısı: `npm ci`, format, lint, typecheck, 40/40 test, Vite production build, Wrangler `--dry-run` Worker build ve `verify:boundaries` başarılı.
 - `.env` ignore edildi ve tracked değil; dal `main`. Remote Cloudflare işlemi veya production veri kullanımı yapılmadı.
 - Son adversarial fixture matrisi 22/22 geçti: doğrudan/dolaylı process, global nesne zincirleri, Reflect ve require alias varyantları reddedildi; yerel shadow/property/string/comment örnekleri kabul edildi; junction, Vite genişletme/öncelik ve çift kodlanmış secret sızıntısı tekrar doğrulandı. BLOCKER veya IMPORTANT bulgu kalmadı.
+- Son M1-T02 yerel kapısı: `npm ci`, format, lint, typecheck, 67/67 test, Vite production build, Wrangler `--dry-run` Worker build ve `verify:boundaries` başarılı.
+- M1-T02 ilk adversarial incelemesindeki Wrangler asset redirect, encoded/dot-segment/duplicate-slash namespace, HTML `q=0` ve uzun asset uzantısı bulguları düzeltildi. Gerçek `wrangler dev --local` matrisi ile SPA direct navigation, API JSON ayrımı ve statik asset davranışı doğrulandı. Son geçici adversarial matriste 17/17 senaryo geçti; BLOCKER veya IMPORTANT bulgu kalmadı.
 
 ## Kurulum girdileri
 
@@ -45,7 +48,7 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki tek görev
 
-**M1-T02 Worker route / SPA / API boundary temelini uygula.** `/api/*` JSON sınırını SPA fallback'ten ayır; static asset, doğrudan SPA navigasyonu, route önceliği ve unsupported method davranışlarını Worker seviyesinde test et. M1-T03'e geçme.
+**Dur ve yeni kullanıcı yetkisini bekle.** Sonraki kontrollü görev M1-T03'tür; bu oturumda M1-T03 veya RG-00 yetkilendirme semantiğini başlatma.
 
 ## Gelecek ajanların güncelleme biçimi
 
