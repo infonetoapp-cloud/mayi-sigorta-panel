@@ -9,6 +9,9 @@ dist-client/
 build/
 *.local
 
+# Yerel tarihsel arşiv (kaynak repository kapsamı dışındadır)
+_archive/
+
 # Cloudflare & Wrangler yerel verileri
 .wrangler/
 .mf/
