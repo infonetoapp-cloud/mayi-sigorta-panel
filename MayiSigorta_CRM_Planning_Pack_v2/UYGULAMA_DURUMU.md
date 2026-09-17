@@ -15,13 +15,14 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 - M1-T02 için Worker-first aynı-origin routing temeli kuruldu. `/api` JSON sınırı, SPA fallback, statik asset miss davranışı, `/secure` rezervasyonu, canonical yol normalizasyonu ve HTTP `Accept` semantiği kalıcı testlerle ayrıştırıldı.
 - RG-00 authorization contract kesinleştirildi ve PASS oldu; kararlar `RG-00_AUTHORIZATION_CONTRACT.md` dosyasına kalıcı olarak yazıldı.
 - M1-T03 için Agency, User, AuthIdentity ve AgencyMembership Drizzle şeması ile sürümlü D1 migration'ı oluşturuldu. Unique/FK/CHECK/index/version kısıtları, bootstrap geçişi, hard-delete/row-replacement engelleri ve tüm owner azaltan yolları kapsayan DB trigger koruması gerçek yerel D1 testleriyle doğrulandı.
+- M1-T04 için immutable permission catalog, açık NORMAL/SENSITIVE metadata ve doğrulama kapısı, yalnız pozitif MembershipPermission kalıcılığı, atomik permission_version CAS mutasyonları ve MEMBER onboarding şablon snapshot'ları tamamlandı.
 
 ## Gerçek uygulama durumu
 
 | Faz | Durum |
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
-| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01, M1-T02, RG-00 ve M1-T03 PASS |
+| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01, M1-T02, RG-00, M1-T03 ve M1-T04 PASS |
 | Faz 2 — Müşteri/poliçe domain'i | BAŞLAMADI |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
@@ -45,6 +46,7 @@ Yerel uygulama kabuğu, D1 migration'ı ve otomatik testler vardır. Staging/pro
 - M1-T02 ilk adversarial incelemesindeki Wrangler asset redirect, encoded/dot-segment/duplicate-slash namespace, HTML `q=0` ve uzun asset uzantısı bulguları düzeltildi. Gerçek `wrangler dev --local` matrisi ile SPA direct navigation, API JSON ayrımı ve statik asset davranışı doğrulandı. Son geçici adversarial matriste 17/17 senaryo geçti; BLOCKER veya IMPORTANT bulgu kalmadı.
 - M1-T03 temiz ve tekrar uygulanan local D1 migration'ı, 17 kritik trigger envanteri ve 26 gerçek D1 entegrasyon/invariant senaryosuyla doğrulandı. Duplicate identity/membership, enum CHECK, FK, version varsayılanları, bootstrap, last-owner membership/User/identity bypass'ları, iki-owner azaltma, çok satırlı rollback, stale version, UPSERT/INSERT OR REPLACE, cross-agency taşıma ve hard-delete saldırıları reddedildi.
 - Son M1-T03 kapısı: `npm ci` ve audit 0 vulnerability; format, lint, typecheck, 97/97 test, production build, Wrangler Worker `--dry-run` ve `verify:boundaries` başarılı. Yalnız sentetik veri ve local D1 kullanıldı; Cloudflare remote mutation yapılmadı. Bağımsız adversarial incelemede BLOCKER/IMPORTANT bulunmadı.
+- Son M1-T04 kapısı: `npm ci` ve audit 0 vulnerability; format, lint, typecheck, 167/167 test, production build, Wrangler Worker `--dry-run`, `verify:boundaries` ve Drizzle migration drift kontrolü başarılı. Temiz local D1 migration, mevcut 0000 şemasından 0001 yükseltme, tekrar uygulamada no-op, gerçek Miniflare D1 CAS/rollback ve M1-T03 invariant regresyonları geçti. Yalnız sentetik veri kullanıldı; Cloudflare remote mutation yapılmadı. BLOCKER/IMPORTANT bulgu kalmadı.
 
 ## Kurulum girdileri
 
@@ -52,7 +54,7 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki tek görev
 
-**Dur ve yeni kullanıcı yetkisini bekle.** M1-T03 PASS olmuştur. Sonraki kontrollü görev M1-T04'tür; bu oturumda M1-T04'ü başlatma.
+**Dur ve bağımsız GPT-5.6 Sol High final review bekle.** M1-T04 PASS olmuştur. Sonraki kontrollü görev M1-T05'tir; Sol High final review tamamlanmadan M1-T05 implementasyonunu başlatma.
 
 ## Gelecek ajanların güncelleme biçimi
 

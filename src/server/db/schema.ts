@@ -142,7 +142,54 @@ export const agencyMemberships = sqliteTable(
   ],
 );
 
+export const membershipPermissions = sqliteTable(
+  'membership_permissions',
+  {
+    id: text('id').primaryKey(),
+    membershipId: text('membership_id')
+      .notNull()
+      .references(() => agencyMemberships.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    permissionCode: text('permission_code').notNull(),
+    scope: text('scope', { enum: ['UNSCOPED', 'ASSIGNED', 'AGENCY'] }).notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('membership_permissions_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('membership_permissions_code_nonempty', sql`length(trim(${table.permissionCode})) > 0`),
+    check(
+      'membership_permissions_scope_valid',
+      sql`${table.scope} IN ('UNSCOPED', 'ASSIGNED', 'AGENCY')`,
+    ),
+    check(
+      'membership_permissions_timestamps_ordered',
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+    uniqueIndex('membership_permissions_membership_code_uq').on(
+      table.membershipId,
+      table.permissionCode,
+    ),
+    index('membership_permissions_membership_idx').on(table.membershipId),
+  ],
+);
+
+export const d1CasAssertions = sqliteTable(
+  'd1_cas_assertions',
+  {
+    id: text('id').primaryKey(),
+    expected: integer('expected').notNull(),
+    actual: integer('actual').notNull(),
+    failureCode: text('failure_code').notNull().default('OPTIMISTIC_CONCURRENCY_CONFLICT'),
+  },
+  (table) => [
+    check('d1_cas_assertions_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('d1_cas_assertions_failure_code_nonempty', sql`length(trim(${table.failureCode})) > 0`),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
 export type AgencyMembership = typeof agencyMemberships.$inferSelect;
+export type MembershipPermission = typeof membershipPermissions.$inferSelect;
+export type D1CasAssertion = typeof d1CasAssertions.$inferSelect;
