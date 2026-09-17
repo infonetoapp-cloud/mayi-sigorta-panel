@@ -1,0 +1,7 @@
+dist/
+node_modules/
+.wrangler/
+package-lock.json
+_archive/
+MayiSigorta_CRM_Planning_Pack_v2/
+AGENTS.md

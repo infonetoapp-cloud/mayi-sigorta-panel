@@ -1,0 +1,43 @@
+# Bağımlılıklar
+node_modules/
+.pnp
+.pnp.js
+
+# Derleme çıktıları
+dist/
+dist-client/
+build/
+*.local
+
+# Cloudflare & Wrangler yerel verileri
+.wrangler/
+.mf/
+
+# Gizli anahtarlar ve ortam değişkenleri (KRİTİK GÜVENLİK - ASLA repoya eklenemez)
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Test & Raporlama
+coverage/
+
+# IDE & Editörler
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# İşletim sistemi kalıntıları
+.DS_Store
+Thumbs.db
+
+# Log dosyaları
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
