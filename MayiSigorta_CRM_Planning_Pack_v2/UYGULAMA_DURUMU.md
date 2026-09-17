@@ -16,14 +16,15 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 - RG-00 authorization contract kesinleştirildi ve PASS oldu; kararlar `RG-00_AUTHORIZATION_CONTRACT.md` dosyasına kalıcı olarak yazıldı.
 - M1-T03 için Agency, User, AuthIdentity ve AgencyMembership Drizzle şeması ile sürümlü D1 migration'ı oluşturuldu. Unique/FK/CHECK/index/version kısıtları, bootstrap geçişi, hard-delete/row-replacement engelleri ve tüm owner azaltan yolları kapsayan DB trigger koruması gerçek yerel D1 testleriyle doğrulandı.
 - M1-T04 için immutable permission catalog, açık NORMAL/SENSITIVE metadata ve doğrulama kapısı, yalnız pozitif MembershipPermission kalıcılığı, atomik permission_version CAS mutasyonları ve MEMBER onboarding şablon snapshot'ları tamamlandı. Bağımsız Sol High final kapısı PASS oldu.
-- M1-T05 için Cloudflare Access JWT doğrulama temeli tamamlandı; Sol Medium uygulama incelemesi ve adversarial kapısı PASS oldu. Bağımsız Sol High M1-T05 final kapısı bekleniyor; M1-T06 başlatılmadı.
+- M1-T05 için Cloudflare Access JWT doğrulama temeli tamamlandı; bağımsız Sol High final kapısı PASS oldu.
+- M1-T06 için exact `issuer + subject` kimlik çözümlemesi, aktif User/AuthIdentity/AgencyMembership/Agency bağlamı ve güvenli `/api/me` endpoint'i tamamlandı; bağımsız Sol High final kapısı PASS oldu.
 
 ## Gerçek uygulama durumu
 
 | Faz | Durum |
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
-| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01–M1-T04 ve RG-00 PASS; M1-T05 Sol Medium implementation/review PASS, independent Sol High final gate pending; M1-T06 başlamadı |
+| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01–M1-T06 ve RG-00 bağımsız final kapıları PASS; sıradaki görev M1-T07 |
 | Faz 2 — Müşteri/poliçe domain'i | BAŞLAMADI |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
@@ -31,7 +32,7 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
 | Faz 7 — Üretim kabulü | BAŞLAMADI |
 
-Yerel uygulama kabuğu, D1 migration'ı ve otomatik testler vardır. Staging/production deployment, gerçek veri importu veya Cloudflare remote mutation yapılmadı. M1-T01–M1-T05 yerel kalite ve adversarial güvenlik kapılarını geçti; M1-T05 bağımsız Sol High final kapısı henüz çalıştırılmadı.
+Yerel uygulama kabuğu, D1 migration'ı ve otomatik testler vardır. Staging/production deployment, gerçek veri importu veya Cloudflare remote mutation yapılmadı. M1-T01–M1-T06 yerel kalite, adversarial güvenlik ve bağımsız Sol High kapılarını geçti.
 
 ## Doğrulama kanıtı
 
@@ -49,7 +50,8 @@ Yerel uygulama kabuğu, D1 migration'ı ve otomatik testler vardır. Staging/pro
 - Son M1-T03 kapısı: `npm ci` ve audit 0 vulnerability; format, lint, typecheck, 97/97 test, production build, Wrangler Worker `--dry-run` ve `verify:boundaries` başarılı. Yalnız sentetik veri ve local D1 kullanıldı; Cloudflare remote mutation yapılmadı. Bağımsız adversarial incelemede BLOCKER/IMPORTANT bulunmadı.
 - M1-T04 final-review düzeltme kapısı: `npm ci` ve audit 0 vulnerability; format, lint, typecheck, 171/171 test, production build, Wrangler Worker `--dry-run`, `verify:boundaries` ve Drizzle migration drift kontrolü başarılı. Gerçek Miniflare D1 testlerinde bozuk dependency grant'i ve OWNER üzerindeki bozuk NORMAL grant scope mutasyonu fail-closed reddedildi; reddedilen işlemlerde satır/scope ve `permission_version` değişmedi, kontrollü revoke cleanup korundu. Temiz local D1 migration, mevcut 0000 şemasından 0001 yükseltme, tekrar uygulamada no-op, CAS/rollback ve M1-T03 invariant regresyonları geçti. Yalnız sentetik veri kullanıldı; Cloudflare remote mutation yapılmadı. Sol Medium incelemesinde BLOCKER/IMPORTANT kalmadı; bağımsız Sol High final kapısı bekleniyor.
 - M1-T04 bağımsız Sol High final kapısı PASS oldu: BLOCKER 0, IMPORTANT 0, OPTIONAL 0.
-- M1-T05 Sol Medium kapısı: `jose@6.2.12` tek JWT bağımlılığı olarak exact pinlendi; `npm ci`, audit 0 vulnerability, format, lint, typecheck, 105/105 odaklı Access testi, 276/276 tam test, production build, Wrangler Worker `--dry-run` ve `verify:boundaries` başarılı. Son bağımsız adversarial fixture 8/8 geçti; kanonik `Cf-Access-Jwt-Assertion`, RS256, issuer/audience/subject/time claim'leri, trusted JWKS/rotation/failure, NORMAL/SECURE ayrımı, yetki claim izolasyonu ve istemci sınırı doğrulandı. Yalnız sentetik anahtar/veri kullanıldı; Cloudflare remote mutation yapılmadı. Sol Medium incelemesinde BLOCKER/IMPORTANT kalmadı; bağımsız Sol High M1-T05 final kapısı bekleniyor. M1-T06 başlatılmadı.
+- M1-T05 bağımsız Sol High final kapısı PASS oldu: BLOCKER 0, IMPORTANT 0, OPTIONAL 2.
+- M1-T06 bağımsız Sol High final kapısı PASS oldu: BLOCKER 0, IMPORTANT 0, OPTIONAL 0. Exact dış kimlik anahtarı, lifecycle ve çoklu aktif üyelik davranışı gerçek yerel Miniflare D1 ile doğrulandı; `/api/me` güvenli DTO ve generic 401/403/503 sınırlarını korudu. Son odaklı T06 paketi 37/37, tam paket 313/313 ve bağımsız düzeltme fixture'ı 14/14 geçti; audit 0 vulnerability, format, lint, typecheck, build, Worker `--dry-run` ve boundary kapıları başarılı. Yalnız sentetik veri kullanıldı; migration veya Cloudflare remote mutation yapılmadı.
 
 ## Kurulum girdileri
 
@@ -57,7 +59,7 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki tek görev
 
-**Dur ve bağımsız GPT-5.6 Sol High M1-T05 final review bekle.** M1-T06'yı başlatma.
+**M1-T07 authorization evaluator uygulamasını başlat.** M1-T08'i M1-T07 bağımsız Sol High PASS olmadan başlatma.
 
 ## Gelecek ajanların güncelleme biçimi
 

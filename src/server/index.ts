@@ -1,7 +1,17 @@
 import { Hono } from 'hono';
 import { API_PREFIX } from '../shared/constants';
-import type { ApiResponse, HealthCheckData } from '../shared/types';
+import type { ApiResponse, HealthCheckData, UserMeDto } from '../shared/types';
 import { parseServerConfig } from './config';
+import { parseAccessConfig, type AccessConfig } from './auth/config';
+import { AccessVerificationError } from './auth/errors';
+import { createAccessVerifier, type AccessVerifier } from './auth/verifier';
+import {
+  createApplicationIdentityResolver,
+  IdentityResolutionError,
+  toUserMeDto,
+  type ApplicationIdentityResolver,
+} from './auth/identity';
+import type { VerifiedAccessPrincipal } from './auth/types';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -18,7 +28,10 @@ export interface Env {
   [key: string]: unknown;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+export interface AppDependencies {
+  readonly createVerifier?: (config: AccessConfig) => AccessVerifier;
+  readonly createResolver?: (db: D1Database) => ApplicationIdentityResolver;
+}
 
 function apiNotFoundResponse(): Response {
   return Response.json(
@@ -117,57 +130,187 @@ async function serveFrontend(
   return assets.fetch(indexRequest);
 }
 
-// Temel sistem sağlık kontrolü (Baseline Health Endpoint)
-app.get(`${API_PREFIX}/health`, (c) => {
-  const config = parseServerConfig(c.env);
-  const response: ApiResponse<HealthCheckData> = {
-    success: true,
-    data: {
-      status: 'healthy',
-      version: '0.1.0',
-      environment: config.APP_ENV,
+export function createApp(dependencies: AppDependencies = {}): Hono<{ Bindings: Env }> {
+  const app = new Hono<{ Bindings: Env }>();
+
+  // Temel sistem sağlık kontrolü (Baseline Health Endpoint)
+  app.get(`${API_PREFIX}/health`, (c) => {
+    const config = parseServerConfig(c.env);
+    const response: ApiResponse<HealthCheckData> = {
+      success: true,
+      data: {
+        status: 'healthy',
+        version: '0.1.0',
+        environment: config.APP_ENV,
+        timestamp: new Date().toISOString(),
+      },
       timestamp: new Date().toISOString(),
+    };
+    return c.json(response, 200);
+  });
+
+  // Doğrulanmış Kullanıcı ve Aktif Üyelik Bağlamı (M1-T06 - GET /api/me)
+  // Akış: Request -> Access Config -> Verifier -> Assertion Header -> Identity Resolver -> Safe DTO
+  app.get(`${API_PREFIX}/me`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+
+    if (!c.env.DB) {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Veritabanı bağlantısı kullanılamıyor.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 503);
+    }
+
+    let accessConfig: AccessConfig;
+    try {
+      accessConfig = parseAccessConfig(c.env);
+    } catch {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Kimlik doğrulama yapılandırması eksik veya geçersiz.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 503);
+    }
+
+    let principal: VerifiedAccessPrincipal;
+    try {
+      const verifier: AccessVerifier = dependencies.createVerifier
+        ? dependencies.createVerifier(accessConfig)
+        : createAccessVerifier({ config: accessConfig });
+
+      principal = await verifier.verify(c.req.raw);
+    } catch (err) {
+      if (err instanceof AccessVerificationError) {
+        if (err.code === 'JWKS_FETCH_FAILED' || err.code === 'CONFIGURATION_ERROR') {
+          const errorResponse: ApiResponse<never> = {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Kimlik doğrulama altyapısı geçici olarak kullanılamıyor.',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return c.json(errorResponse, 503);
+        }
+      }
+
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Kimlik doğrulaması sağlanamadı.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 401);
+    }
+
+    try {
+      const resolver: ApplicationIdentityResolver = dependencies.createResolver
+        ? dependencies.createResolver(c.env.DB)
+        : createApplicationIdentityResolver(c.env.DB);
+
+      const context = await resolver.resolve(principal);
+      const data = toUserMeDto(context);
+
+      const response: ApiResponse<UserMeDto> = {
+        success: true,
+        data,
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(response, 200);
+    } catch (err) {
+      if (err instanceof IdentityResolutionError) {
+        if (
+          err.code === 'DATABASE_ERROR' ||
+          err.code === 'CORRUPT_IDENTITY_DATA' ||
+          err.code === 'CORRUPT_MEMBERSHIP_DATA'
+        ) {
+          const errorResponse: ApiResponse<never> = {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Hizmet şu anda kullanılamıyor.',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return c.json(errorResponse, 503);
+        }
+
+        // Bilinmeyen / iptal edilmiş kimlik, inaktif kullanıcı veya aktif üyeliği olmayan durumlar:
+        // Ayrıntı sızdırmayan genel fail-closed 403 (do not reveal which lookup failed)
+        const errorResponse: ApiResponse<never> = {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Erişim reddedildi.',
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return c.json(errorResponse, 403);
+      }
+
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Beklenmeyen bir hata oluştu.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 500);
+    }
+  });
+
+  // Bilinmeyen /api/* isteklerini yakalayan güvenlik kapısı (Fail-Closed API Fallback)
+  // NIHAI_MIMARI_VE_UYGULAMA_PLANI Bölüm 9: "Bilinmeyen API yolu SPA HTML cevabına düşmez."
+  app.all(`${API_PREFIX}/*`, (_c) => {
+    return apiNotFoundResponse();
+  });
+
+  return app;
+}
+
+export const app = createApp();
+
+export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
+  return {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+      const url = new URL(request.url);
+      const canonicalPath = canonicalizeRoutePath(url.pathname);
+      const isApiRequest =
+        canonicalPath === null
+          ? url.pathname.startsWith(API_PREFIX)
+          : isNamespacePath(canonicalPath, API_PREFIX);
+      const isSecureRequest =
+        canonicalPath === null
+          ? url.pathname.startsWith('/secure')
+          : isNamespacePath(canonicalPath, '/secure');
+
+      // API veya güvenlik onay istekleri doğrudan Hono'ya yönlendirilir
+      if (isApiRequest || isSecureRequest) {
+        if (canonicalPath !== url.pathname && isApiRequest) return apiNotFoundResponse();
+        return appInstance.fetch(request, env, ctx);
+      }
+
+      // Statik varlıklar mevcutsa ASSETS binding'e yönlendirilir
+      if (env.ASSETS) {
+        return serveFrontend(request, env.ASSETS, canonicalPath);
+      }
+
+      return new Response('Static assets binding unavailable', { status: 503 });
     },
-    timestamp: new Date().toISOString(),
   };
-  return c.json(response, 200);
-});
+}
 
-// Bilinmeyen /api/* isteklerini yakalayan güvenlik kapısı (Fail-Closed API Fallback)
-// NIHAI_MIMARI_VE_UYGULAMA_PLANI Bölüm 9: "Bilinmeyen API yolu SPA HTML cevabına düşmez."
-app.all(`${API_PREFIX}/*`, (_c) => {
-  return apiNotFoundResponse();
-});
-
-// Cloudflare Worker export sözleşmesi
-const worker = {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    const canonicalPath = canonicalizeRoutePath(url.pathname);
-    const isApiRequest =
-      canonicalPath === null
-        ? url.pathname.startsWith(API_PREFIX)
-        : isNamespacePath(canonicalPath, API_PREFIX);
-    const isSecureRequest =
-      canonicalPath === null
-        ? url.pathname.startsWith('/secure')
-        : isNamespacePath(canonicalPath, '/secure');
-
-    // API veya güvenlik onay istekleri doğrudan Hono'ya yönlendirilir
-    if (isApiRequest || isSecureRequest) {
-      if (canonicalPath !== url.pathname && isApiRequest) return apiNotFoundResponse();
-      return app.fetch(request, env, ctx);
-    }
-
-    // Statik varlıklar mevcutsa ASSETS binding'e yönlendirilir
-    if (env.ASSETS) {
-      return serveFrontend(request, env.ASSETS, canonicalPath);
-    }
-
-    return new Response('Static assets binding unavailable', { status: 503 });
-  },
-};
-
+export const worker = createWorker(app);
 export default worker;
-
-export { app, worker };

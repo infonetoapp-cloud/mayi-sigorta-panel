@@ -28,3 +28,25 @@ export interface HealthCheckData {
   environment: string;
   timestamp: string;
 }
+
+/**
+ * Kimlik ve Aktif Üyelik Bağlamı DTO'ları (M1-T06 - GET /api/me).
+ *
+ * KRİTİK GÜVENLİK SÖZLEŞMESİ:
+ * - Yalnızca güvenli kimlik bilgileri, doğrulanmış e-posta ve aktif üyelik bağlamları içerir.
+ * - Ham belirteçler, veritabanı içsel alanları (timestamps/versions), izin hesaplama
+ *   veya yetki sonuçları bu DTO'ya KESİNLİKLE DAHİL EDİLEMEZ.
+ */
+export interface UserMeMembershipDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly type: 'OWNER' | 'MEMBER';
+  readonly status: 'ACTIVE';
+}
+
+export interface UserMeDto {
+  readonly userId: string;
+  readonly email?: string;
+  readonly assurance: 'NORMAL' | 'SECURE';
+  readonly memberships: readonly UserMeMembershipDto[];
+}
