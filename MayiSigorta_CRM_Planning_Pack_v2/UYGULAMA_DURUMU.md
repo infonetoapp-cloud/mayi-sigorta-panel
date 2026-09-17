@@ -1,6 +1,6 @@
 # Uygulama durumu
 
-Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0.
+Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
 
 ## Tamamlanan iş
 
@@ -13,13 +13,14 @@ Son güncelleme: **17 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 - M1-T01 için React/Vite/Hono/Worker temeli, strict TypeScript, kaynak sınırı doğrulayıcısı ve negatif güvenlik testleri oluşturuldu.
 - M1-T01 açık bulgularındaki canonical junction, Vite production env yükleme/öncelik/genişletme, gerçek production tsconfig alias ve process runtime sınırı düzeltildi. Process koruması alias taint takibi yerine istemci/paylaşılan kodda Node/CommonJS ve global nesne indirection kimliklerini fail-closed yasaklayan sade AST politikasına geçirildi.
 - M1-T02 için Worker-first aynı-origin routing temeli kuruldu. `/api` JSON sınırı, SPA fallback, statik asset miss davranışı, `/secure` rezervasyonu, canonical yol normalizasyonu ve HTTP `Accept` semantiği kalıcı testlerle ayrıştırıldı.
+- RG-00 authorization contract kesinleştirildi ve PASS oldu; kararlar `RG-00_AUTHORIZATION_CONTRACT.md` dosyasına kalıcı olarak yazıldı.
 
 ## Gerçek uygulama durumu
 
 | Faz | Durum |
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
-| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01 ve M1-T02 PASS; M1-T03 başlatılmadı |
+| Faz 1 — Güvenli temel | DEVAM EDİYOR — M1-T01, M1-T02 ve RG-00 PASS; M1-T03 başlatılmadı |
 | Faz 2 — Müşteri/poliçe domain'i | BAŞLAMADI |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
@@ -33,7 +34,7 @@ Yerel uygulama kabuğu ve otomatik testler vardır. DB migration, staging/produc
 
 - Taşıma sınırları: kaynak ve hedef mutlak yolları `C:/Users/sinan/Desktop/panel/` altında doğrulandı; mevcut hedefin üzerine yazılmadı, reparse point taşınmadı.
 - Dosya bütünlüğü: 22/22 SHA-256 eşleşti.
-- Son kontrol: aktif projede yalnız dört güncel Markdown dosyası var; nihai planın 20 ana bölümü mevcut, TODO/TBD yer tutucusu yok. Aktif dosyalar ve arşiv bilgi dosyasının yerel bağlantılarında kırık hedef bulunmadı. Arşiv manifest özeti bağımsız yeniden hesaplamada da eşleşti.
+- Son kontrol: aktif projede beş güncel Markdown dosyası var; nihai planın 20 ana bölümü mevcut, TODO/TBD yer tutucusu yok. Aktif dosyalar ve arşiv bilgi dosyasının yerel bağlantılarında kırık hedef bulunmadı. Arşiv manifest özeti bağımsız yeniden hesaplamada da eşleşti.
 - Sıralı eski göreli yol + SHA-256 manifest özeti: `BFBE2F1DE54D223101F698D8BFD56488C4344B3478BE6937779ACE73A65CE838`.
 - Bu aşamada doğrulama doküman, bağlantı ve arşiv bütünlüğü kapsamındadır; uygulama testleri faz kabul kapılarına bırakılmıştır.
 - Son M1-T01 yerel kapısı: `npm ci`, format, lint, typecheck, 40/40 test, Vite production build, Wrangler `--dry-run` Worker build ve `verify:boundaries` başarılı.
@@ -48,7 +49,7 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki tek görev
 
-**Dur ve yeni kullanıcı yetkisini bekle.** Sonraki kontrollü görev M1-T03'tür; bu oturumda M1-T03 veya RG-00 yetkilendirme semantiğini başlatma.
+**Dur ve yeni kullanıcı yetkisini bekle.** RG-00 PASS olmuştur. Sonraki kontrollü görev M1-T03'tür; bu oturumda M1-T03'ü başlatma.
 
 ## Gelecek ajanların güncelleme biçimi
 
