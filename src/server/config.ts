@@ -17,9 +17,6 @@ export const SYNTHETIC_SERVER_SECRET_MARKER =
 
 export const ServerConfigSchema = z.object({
   APP_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
-  CF_ACCESS_TEAM_DOMAIN: z.string().min(1).default('mayisigorta.cloudflareaccess.com'),
-  CF_ACCESS_AUDIENCE: z.string().min(1).default('synthetic-access-audience-placeholder'),
-  CF_ACCESS_SECURE_AUDIENCE: z.string().min(1).default('synthetic-secure-audience-placeholder'),
   SYNTHETIC_SECRET_KEY: z.string().min(1).default(SYNTHETIC_SERVER_SECRET_MARKER),
 });
 
@@ -32,3 +29,5 @@ export function parseServerConfig(env: Record<string, unknown> = {}): ServerConf
   }
   return result.data;
 }
+
+export { parseAccessConfig, type AccessConfig, AccessConfigError } from './auth/config';

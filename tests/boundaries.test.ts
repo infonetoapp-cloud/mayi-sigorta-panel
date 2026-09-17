@@ -96,8 +96,8 @@ describe('Mimari Sınır ve Güvenlik İzolasyon Testleri (Boundary & Security T
   it('Sunucu yapılandırma şeması varsayılan sentetik değerleri doğrulamalıdır', () => {
     const config = parseServerConfig({});
     expect(config.APP_ENV).toBe('development');
-    expect(config.CF_ACCESS_TEAM_DOMAIN).toBe('mayisigorta.cloudflareaccess.com');
     expect(config.SYNTHETIC_SECRET_KEY).toBe(SYNTHETIC_SERVER_SECRET_MARKER);
+    expect((config as Record<string, unknown>).CF_ACCESS_TEAM_DOMAIN).toBeUndefined();
   });
 });
 

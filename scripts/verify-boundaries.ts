@@ -322,7 +322,11 @@ function checkForbiddenSourceSymbols(
       (node.text === 'parseServerConfig' ||
         node.text === 'ServerConfig' ||
         node.text === 'ServerConfigSchema' ||
-        node.text === 'SYNTHETIC_SERVER_SECRET_MARKER')
+        node.text === 'SYNTHETIC_SERVER_SECRET_MARKER' ||
+        node.text === 'parseAccessConfig' ||
+        node.text === 'AccessConfig' ||
+        node.text === 'createAccessVerifier' ||
+        node.text === 'AccessVerifier')
     ) {
       violations.push({
         file: relFile,
