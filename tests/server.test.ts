@@ -73,7 +73,7 @@ describe('M1-T02 Worker route / SPA / API boundary', () => {
     return Promise.resolve(
       worker.fetch(
         new Request(`https://panel.mayisigorta.com${path}`, init),
-        { ASSETS: createAssetsBinding() },
+        { ASSETS: createAssetsBinding(), DB: {} as D1Database },
         {} as ExecutionContext,
       ),
     );
@@ -188,7 +188,7 @@ describe('M1-T02 Worker route / SPA / API boundary', () => {
       new Request('https://panel.mayisigorta.com/yenilemeler', {
         headers: { accept: 'text/html' },
       }),
-      {},
+      { DB: {} as D1Database },
       {} as ExecutionContext,
     );
     expect(response.status).toBe(503);

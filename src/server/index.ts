@@ -14,6 +14,7 @@ import { parseServerConfig } from './config';
 
 export interface Env {
   ASSETS?: Fetcher;
+  DB: D1Database;
   [key: string]: unknown;
 }
 
