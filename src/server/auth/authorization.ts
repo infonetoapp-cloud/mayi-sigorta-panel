@@ -6,6 +6,8 @@ import {
   type StableScopeResolver,
 } from '../../shared/permissions';
 import type { AuthenticatedUserContext, ActiveMembershipContext } from './identity';
+import { canonicalizePayload } from '../mutations/canonical';
+import { canonicalizeTargetIds, computeEvidenceHash } from '../mutations/grants';
 
 /**
  * Mayı Sigorta CRM — Merkezi Yetkilendirme Değerlendiricisi (M1-T07)
@@ -116,12 +118,20 @@ export interface EvaluationResource {
   readonly [key: string]: unknown;
 }
 
+export interface SecureGrantBinding {
+  readonly evidence: string;
+  readonly payload: unknown;
+  readonly targetIds: readonly string[];
+  readonly expectedTargetVersion: number | null;
+}
+
 export interface AuthorizationRequest {
   readonly context: AuthenticatedUserContext | unknown;
   readonly action?: unknown;
   readonly permissionCode?: unknown;
   readonly agencyId?: unknown;
   readonly resource?: EvaluationResource | unknown;
+  readonly secureGrantBinding?: SecureGrantBinding | unknown;
 }
 
 export interface ScopeResolutionContext {
@@ -1829,6 +1839,7 @@ export async function evaluateAuthorization(
   let capturedPermissionCode: unknown;
   let capturedAgencyId: unknown;
   let capturedResource: unknown;
+  let capturedSecureGrantBinding: unknown;
 
   try {
     const reqRecord = request as unknown as Record<string, unknown>;
@@ -1837,8 +1848,108 @@ export async function evaluateAuthorization(
     capturedPermissionCode = reqRecord.permissionCode;
     capturedAgencyId = reqRecord.agencyId;
     capturedResource = reqRecord.resource;
+    capturedSecureGrantBinding = reqRecord.secureGrantBinding;
   } catch {
     return deny('MALFORMED_INPUT');
+  }
+
+  // Güvenlik Onayı Zarfı (Secure Grant Binding) İlk Await Öncesinde Snapshot ve Doğrulama
+  let bindingProvided = false;
+  let bindingMalformed = false;
+  let bindingEvidence: string | undefined;
+  let bindingPayloadCanonical: string | undefined;
+  let bindingTargetIds: string[] | undefined;
+  let bindingExpectedTargetVersion: number | null | undefined;
+
+  if (capturedSecureGrantBinding !== undefined && capturedSecureGrantBinding !== null) {
+    bindingProvided = true;
+    if (!isNonArrayObject(capturedSecureGrantBinding)) {
+      bindingMalformed = true;
+    } else {
+      try {
+        const evidenceDescriptor = Object.getOwnPropertyDescriptor(
+          capturedSecureGrantBinding,
+          'evidence',
+        );
+        const payloadDescriptor = Object.getOwnPropertyDescriptor(
+          capturedSecureGrantBinding,
+          'payload',
+        );
+        const targetIdsDescriptor = Object.getOwnPropertyDescriptor(
+          capturedSecureGrantBinding,
+          'targetIds',
+        );
+        const versionDescriptor = Object.getOwnPropertyDescriptor(
+          capturedSecureGrantBinding,
+          'expectedTargetVersion',
+        );
+
+        if (
+          !evidenceDescriptor ||
+          !('value' in evidenceDescriptor) ||
+          typeof evidenceDescriptor.value !== 'string' ||
+          evidenceDescriptor.value.trim().length === 0
+        ) {
+          bindingMalformed = true;
+        } else {
+          bindingEvidence = evidenceDescriptor.value.trim();
+        }
+
+        if (!payloadDescriptor || !('value' in payloadDescriptor)) {
+          bindingMalformed = true;
+        } else {
+          bindingPayloadCanonical = canonicalizePayload(payloadDescriptor.value);
+        }
+
+        if (
+          !targetIdsDescriptor ||
+          !('value' in targetIdsDescriptor) ||
+          !Array.isArray(targetIdsDescriptor.value) ||
+          targetIdsDescriptor.value.length === 0
+        ) {
+          bindingMalformed = true;
+        } else {
+          const targetIds = targetIdsDescriptor.value;
+          bindingTargetIds = [];
+          const seen = new Set<string>();
+          for (let index = 0; index < targetIds.length; index += 1) {
+            const itemDescriptor = Object.getOwnPropertyDescriptor(targetIds, String(index));
+            if (!itemDescriptor || !('value' in itemDescriptor)) {
+              bindingMalformed = true;
+              break;
+            }
+            const item = itemDescriptor.value;
+            if (
+              typeof item !== 'string' ||
+              item.trim().length === 0 ||
+              item !== item.trim() ||
+              seen.has(item)
+            ) {
+              bindingMalformed = true;
+              break;
+            }
+            seen.add(item);
+            bindingTargetIds.push(item);
+          }
+        }
+
+        if (!versionDescriptor || !('value' in versionDescriptor)) {
+          bindingMalformed = true;
+        } else if (versionDescriptor.value === null) {
+          bindingExpectedTargetVersion = null;
+        } else if (
+          typeof versionDescriptor.value === 'number' &&
+          Number.isInteger(versionDescriptor.value) &&
+          versionDescriptor.value >= 0
+        ) {
+          bindingExpectedTargetVersion = versionDescriptor.value;
+        } else {
+          bindingMalformed = true;
+        }
+      } catch {
+        bindingMalformed = true;
+      }
+    }
   }
 
   // request nesnesi bundan sonra ASLA tekrar okunmaz veya başvurulmaz!
@@ -1899,9 +2010,7 @@ export async function evaluateAuthorization(
     return deny('UNKNOWN_ACTION');
   }
 
-  if (actionDef.assurance === 'SECURE_GRANT') {
-    return deny('SECURE_GRANT_REQUIRED');
-  }
+  let requiresSecureGrant = actionDef.assurance === 'SECURE_GRANT';
 
   // Gerekli izin grafiğini katalog üzerinden topla
   const graphResult = collectPermissionGraph(actionDef);
@@ -1910,10 +2019,26 @@ export async function evaluateAuthorization(
   }
   const graph = graphResult.graph;
 
-  // Grafikte SECURE_GRANT gerektiren herhangi bir izin varsa derhal fail-closed ret
+  // Grafikte SECURE_GRANT gerektiren herhangi bir izin varsa
   for (const desc of graph.values()) {
     if (desc.assurance === 'SECURE_GRANT') {
+      requiresSecureGrant = true;
+      break;
+    }
+  }
+
+  if (requiresSecureGrant) {
+    if (!bindingProvided) {
       return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (
+      bindingMalformed ||
+      !bindingEvidence ||
+      bindingPayloadCanonical === undefined ||
+      bindingTargetIds === undefined ||
+      bindingExpectedTargetVersion === undefined
+    ) {
+      return deny('MALFORMED_INPUT');
     }
   }
 
@@ -1995,6 +2120,148 @@ export async function evaluateAuthorization(
   );
   if (!lifecycleResult.success) {
     return deny(lifecycleResult.reason);
+  }
+
+  // 6.b SensitiveActionGrant Preflight Doğrulaması (RG-00 & M1-T09)
+  if (requiresSecureGrant) {
+    let computedPayloadHash: string;
+    try {
+      const payloadBytes = new TextEncoder().encode(bindingPayloadCanonical!);
+      const payloadDigest = await crypto.subtle.digest('SHA-256', payloadBytes);
+      computedPayloadHash = Array.from(new Uint8Array(payloadDigest))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
+    } catch {
+      return deny('MALFORMED_INPUT');
+    }
+
+    let canonicalTargetsJson: string;
+    try {
+      canonicalTargetsJson = canonicalizeTargetIds(bindingTargetIds!);
+    } catch {
+      return deny('MALFORMED_INPUT');
+    }
+
+    const presentedEvidenceHash = await computeEvidenceHash(bindingEvidence!);
+
+    let grantRow: Record<string, unknown> | undefined;
+    try {
+      const query = `
+        SELECT id, evidence_hash, agency_id, actor_user_id, actor_membership_id, action,
+               payload_hash, target_ids_json, expected_target_version, permission_version,
+               assurance, status, issued_at, expires_at, consumed_at, revoked_at, consumed_operation_id
+        FROM sensitive_action_grants
+        WHERE evidence_hash = ?
+      `;
+      grantRow =
+        (await stableDb
+          .prepare(query)
+          .bind(presentedEvidenceHash)
+          .first<Record<string, unknown>>()) ?? undefined;
+    } catch {
+      return deny('DATABASE_ERROR');
+    }
+
+    if (!grantRow) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    // Coercion içermeyen kesin tip ve durum denetimleri
+    if (
+      typeof grantRow.id !== 'string' ||
+      typeof grantRow.evidence_hash !== 'string' ||
+      typeof grantRow.agency_id !== 'string' ||
+      typeof grantRow.actor_user_id !== 'string' ||
+      typeof grantRow.actor_membership_id !== 'string' ||
+      typeof grantRow.action !== 'string' ||
+      typeof grantRow.payload_hash !== 'string' ||
+      typeof grantRow.target_ids_json !== 'string' ||
+      typeof grantRow.permission_version !== 'number' ||
+      typeof grantRow.assurance !== 'string' ||
+      typeof grantRow.status !== 'string' ||
+      typeof grantRow.issued_at !== 'string' ||
+      typeof grantRow.expires_at !== 'string'
+    ) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    if (grantRow.evidence_hash !== presentedEvidenceHash) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.status !== 'ISSUED') {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.assurance !== 'SECURE_GRANT') {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.revoked_at !== null && grantRow.revoked_at !== undefined) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.consumed_at !== null && grantRow.consumed_at !== undefined) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.consumed_operation_id !== null && grantRow.consumed_operation_id !== undefined) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.agency_id !== targetAgencyId) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.actor_user_id !== userContext.userId) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.actor_membership_id !== activeMembership.id) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.action !== rawActionCode) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.payload_hash !== computedPayloadHash) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+    if (grantRow.target_ids_json !== canonicalTargetsJson) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    if (bindingExpectedTargetVersion === null) {
+      if (
+        grantRow.expected_target_version !== null &&
+        grantRow.expected_target_version !== undefined
+      ) {
+        return deny('SECURE_GRANT_REQUIRED');
+      }
+    } else {
+      if (
+        typeof grantRow.expected_target_version !== 'number' ||
+        grantRow.expected_target_version !== bindingExpectedTargetVersion
+      ) {
+        return deny('SECURE_GRANT_REQUIRED');
+      }
+    }
+
+    if (grantRow.permission_version !== activeMembership.permissionVersion) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    const issuedAtMs = new Date(grantRow.issued_at).getTime();
+    const expiresAtMs = new Date(grantRow.expires_at).getTime();
+    if (
+      !Number.isFinite(issuedAtMs) ||
+      !Number.isFinite(expiresAtMs) ||
+      issuedAtMs <= 0 ||
+      expiresAtMs <= issuedAtMs
+    ) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    const grantTtlSec = (expiresAtMs - issuedAtMs) / 1000;
+    if (grantTtlSec < 1 || grantTtlSec > 180) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
+
+    const nowMs = Date.now();
+    if (nowMs < issuedAtMs || nowMs >= expiresAtMs) {
+      return deny('SECURE_GRANT_REQUIRED');
+    }
   }
 
   // 7. Eylem Yetki Düzeyi Denetimi (Action Authority Check - Finding 4)

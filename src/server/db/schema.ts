@@ -187,9 +187,166 @@ export const d1CasAssertions = sqliteTable(
   ],
 );
 
+export const auditEvents = sqliteTable(
+  'audit_events',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorMembershipId: text('actor_membership_id')
+      .notNull()
+      .references(() => agencyMemberships.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    idempotencyKey: text('idempotency_key'),
+    outcome: text('outcome', { enum: ['SUCCESS', 'FAILURE'] }).notNull(),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('audit_events_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('audit_events_action_nonempty', sql`length(trim(${table.action})) > 0`),
+    check('audit_events_target_type_nonempty', sql`length(trim(${table.targetType})) > 0`),
+    check('audit_events_target_id_nonempty', sql`length(trim(${table.targetId})) > 0`),
+    check('audit_events_correlation_id_nonempty', sql`length(trim(${table.correlationId})) > 0`),
+    check('audit_events_outcome_valid', sql`${table.outcome} IN ('SUCCESS', 'FAILURE')`),
+    index('audit_events_agency_created_idx').on(table.agencyId, table.createdAt),
+    index('audit_events_actor_created_idx').on(table.actorMembershipId, table.createdAt),
+    index('audit_events_target_idx').on(table.targetType, table.targetId),
+    index('audit_events_correlation_idx').on(table.correlationId),
+  ],
+);
+
+export const operationReceipts = sqliteTable(
+  'operation_receipts',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorMembershipId: text('actor_membership_id')
+      .notNull()
+      .references(() => agencyMemberships.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    action: text('action').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    payloadFingerprint: text('payload_fingerprint').notNull(),
+    status: text('status', { enum: ['IN_PROGRESS', 'COMPLETED', 'FAILED'] }).notNull(),
+    responseStatus: integer('response_status'),
+    responseBody: text('response_body'),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('operation_receipts_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('operation_receipts_action_nonempty', sql`length(trim(${table.action})) > 0`),
+    check('operation_receipts_key_nonempty', sql`length(trim(${table.idempotencyKey})) > 0`),
+    check(
+      'operation_receipts_fingerprint_nonempty',
+      sql`length(trim(${table.payloadFingerprint})) > 0`,
+    ),
+    check(
+      'operation_receipts_status_valid',
+      sql`${table.status} IN ('IN_PROGRESS', 'COMPLETED', 'FAILED')`,
+    ),
+    check('operation_receipts_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    uniqueIndex('operation_receipts_idem_uq').on(
+      table.agencyId,
+      table.actorUserId,
+      table.actorMembershipId,
+      table.action,
+      table.idempotencyKey,
+    ),
+    index('operation_receipts_agency_idx').on(table.agencyId),
+  ],
+);
+
+export const sensitiveActionGrants = sqliteTable(
+  'sensitive_action_grants',
+  {
+    id: text('id').primaryKey(),
+    evidenceHash: text('evidence_hash').notNull(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    actorMembershipId: text('actor_membership_id')
+      .notNull()
+      .references(() => agencyMemberships.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    action: text('action').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    targetIdsJson: text('target_ids_json').notNull(),
+    expectedTargetVersion: integer('expected_target_version'),
+    permissionVersion: integer('permission_version').notNull(),
+    assurance: text('assurance', { enum: ['SECURE_GRANT'] })
+      .notNull()
+      .default('SECURE_GRANT'),
+    status: text('status', { enum: ['ISSUED', 'CONSUMED', 'REVOKED'] })
+      .notNull()
+      .default('ISSUED'),
+    issuedAt: text('issued_at').notNull().default(utcNow),
+    expiresAt: text('expires_at').notNull(),
+    consumedAt: text('consumed_at'),
+    revokedAt: text('revoked_at'),
+    consumedOperationId: text('consumed_operation_id'),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('sensitive_action_grants_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('sensitive_action_grants_evidence_shape', sql`length(${table.evidenceHash}) = 64`),
+    check('sensitive_action_grants_action_nonempty', sql`length(trim(${table.action})) > 0`),
+    check('sensitive_action_grants_payload_shape', sql`length(${table.payloadHash}) = 64`),
+    check(
+      'sensitive_action_grants_permission_version_positive',
+      sql`${table.permissionVersion} > 0`,
+    ),
+    check('sensitive_action_grants_assurance_valid', sql`${table.assurance} = 'SECURE_GRANT'`),
+    check(
+      'sensitive_action_grants_status_valid',
+      sql`${table.status} IN ('ISSUED', 'CONSUMED', 'REVOKED')`,
+    ),
+    check('sensitive_action_grants_expiry_ordered', sql`${table.expiresAt} > ${table.issuedAt}`),
+    check(
+      'sensitive_action_grants_ttl_valid',
+      sql`(strftime('%s', ${table.expiresAt}) - strftime('%s', ${table.issuedAt})) <= 180 AND (strftime('%s', ${table.expiresAt}) - strftime('%s', ${table.issuedAt})) >= 1`,
+    ),
+    check(
+      'sensitive_action_grants_timestamps_ordered',
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      'sensitive_action_grants_lifecycle_consistent',
+      sql`(${table.status} = 'ISSUED' AND ${table.consumedAt} IS NULL AND ${table.revokedAt} IS NULL AND ${table.consumedOperationId} IS NULL)
+          OR (${table.status} = 'CONSUMED' AND ${table.consumedAt} IS NOT NULL AND ${table.revokedAt} IS NULL)
+          OR (${table.status} = 'REVOKED' AND ${table.revokedAt} IS NOT NULL)`,
+    ),
+    uniqueIndex('sensitive_action_grants_evidence_uq').on(table.evidenceHash),
+    index('sensitive_action_grants_lookup_idx').on(
+      table.agencyId,
+      table.actorMembershipId,
+      table.action,
+      table.status,
+    ),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
 export type AgencyMembership = typeof agencyMemberships.$inferSelect;
 export type MembershipPermission = typeof membershipPermissions.$inferSelect;
 export type D1CasAssertion = typeof d1CasAssertions.$inferSelect;
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type OperationReceipt = typeof operationReceipts.$inferSelect;
+export type SensitiveActionGrant = typeof sensitiveActionGrants.$inferSelect;
