@@ -15,9 +15,36 @@ import { z } from 'zod';
 export const SYNTHETIC_SERVER_SECRET_MARKER =
   'SYNTHETIC_SERVER_SECRET_MARKER_DO_NOT_LEAK_INTO_CLIENT_BUNDLE' as const;
 
+function isValidCanonicalHttpsOrigin(value: unknown): boolean {
+  if (typeof value !== 'string' || value.trim() !== value) return false;
+  if (!value.startsWith('https://')) return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      (url.pathname === '' || url.pathname === '/') &&
+      !value.endsWith('/') &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.origin === value
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const ServerConfigSchema = z.object({
   APP_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
   SYNTHETIC_SECRET_KEY: z.string().min(1).default(SYNTHETIC_SERVER_SECRET_MARKER),
+  PANEL_ORIGIN: z
+    .string()
+    .refine(
+      isValidCanonicalHttpsOrigin,
+      'PANEL_ORIGIN geçerli ve kanonik bir HTTPS origin olmalıdır (yol, sorgu veya kimlik bilgisi içeremez).',
+    )
+    .default('https://panel.mayisigorta.com'),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;

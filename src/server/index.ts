@@ -12,6 +12,7 @@ import {
   type ApplicationIdentityResolver,
 } from './auth/identity';
 import type { VerifiedAccessPrincipal } from './auth/types';
+import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './security';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -130,8 +131,14 @@ async function serveFrontend(
   return assets.fetch(indexRequest);
 }
 
-export function createApp(dependencies: AppDependencies = {}): Hono<{ Bindings: Env }> {
+export function createApp(
+  dependencies: AppDependencies = {},
+  configureRoutes?: (app: Hono<{ Bindings: Env }>) => void,
+): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
+
+  // İstek Güvenlik Sınırı ve Başlık Ara Yazılımı (M1-T08 Request Security Boundary)
+  app.use('*', createSecurityBoundaryMiddleware());
 
   // Temel sistem sağlık kontrolü (Baseline Health Endpoint)
   app.get(`${API_PREFIX}/health`, (c) => {
@@ -271,6 +278,10 @@ export function createApp(dependencies: AppDependencies = {}): Hono<{ Bindings: 
     }
   });
 
+  if (configureRoutes) {
+    configureRoutes(app);
+  }
+
   // Bilinmeyen /api/* isteklerini yakalayan güvenlik kapısı (Fail-Closed API Fallback)
   // NIHAI_MIMARI_VE_UYGULAMA_PLANI Bölüm 9: "Bilinmeyen API yolu SPA HTML cevabına düşmez."
   app.all(`${API_PREFIX}/*`, (_c) => {
@@ -296,18 +307,41 @@ export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
           ? url.pathname.startsWith('/secure')
           : isNamespacePath(canonicalPath, '/secure');
 
+      const appEnv =
+        (env?.APP_ENV as 'development' | 'test' | 'staging' | 'production' | undefined) ??
+        'development';
+      const isHttps = url.protocol === 'https:';
+
       // API veya güvenlik onay istekleri doğrudan Hono'ya yönlendirilir
       if (isApiRequest || isSecureRequest) {
-        if (canonicalPath !== url.pathname && isApiRequest) return apiNotFoundResponse();
+        if (canonicalPath !== url.pathname && isApiRequest) {
+          return applySecurityHeaders(apiNotFoundResponse(), {
+            appEnv,
+            isHttps,
+            isApi: true,
+          });
+        }
         return appInstance.fetch(request, env, ctx);
       }
 
       // Statik varlıklar mevcutsa ASSETS binding'e yönlendirilir
       if (env.ASSETS) {
-        return serveFrontend(request, env.ASSETS, canonicalPath);
+        const frontendResponse = await serveFrontend(request, env.ASSETS, canonicalPath);
+        return applySecurityHeaders(frontendResponse, {
+          appEnv,
+          isHttps,
+          isApi: false,
+        });
       }
 
-      return new Response('Static assets binding unavailable', { status: 503 });
+      return applySecurityHeaders(
+        new Response('Static assets binding unavailable', { status: 503 }),
+        {
+          appEnv,
+          isHttps,
+          isApi: false,
+        },
+      );
     },
   };
 }
