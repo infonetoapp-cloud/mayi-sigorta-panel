@@ -245,6 +245,42 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
       }
     });
 
+    it('yalnız canonical unpadded Base64URL token parçalarını kabul etmelidir', async () => {
+      const token = await generateIdentityBoundCsrfToken(
+        { subject: AUTHENTICATED_SUBJECT },
+        TEST_SECRET,
+      );
+      const [payload, signature] = token.split('.') as [string, string];
+      const base64UrlAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+      const canonicalLastIndex = base64UrlAlphabet.indexOf(signature.at(-1)!);
+      const equivalentNonCanonicalSignature = `${signature.slice(0, -1)}${base64UrlAlphabet[canonicalLastIndex + 1]}`;
+
+      await expect(
+        verifyIdentityBoundCsrfToken(token, AUTHENTICATED_SUBJECT, TEST_SECRET),
+      ).resolves.toMatchObject({ valid: true });
+
+      const malformedTokens = [
+        `${payload}.${signature}=`,
+        `${payload}=.${signature}`,
+        `${payload}.${signature.slice(0, -1)}+`,
+        `${payload}.${signature.slice(0, -1)}/`,
+        `${payload}.${signature} `,
+        `${payload}.${signature.slice(0, -1)}*`,
+        `${payload}.${signature.slice(0, -2)}`,
+        `${payload}.${equivalentNonCanonicalSignature}`,
+        `${payload}A.${signature}`,
+      ];
+
+      for (const malformedToken of malformedTokens) {
+        const verification = await verifyIdentityBoundCsrfToken(
+          malformedToken,
+          AUTHENTICATED_SUBJECT,
+          TEST_SECRET,
+        );
+        expect(verification.valid, malformedToken).toBe(false);
+      }
+    });
+
     it('farklı/uyuşmayan kimlik subject değeri için reddetmelidir', async () => {
       const token = await generateIdentityBoundCsrfToken(
         { subject: AUTHENTICATED_SUBJECT },
@@ -279,8 +315,9 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('süresi dolmuş (expired) token reddedilmelidir', async () => {
+      const now = Math.floor(Date.now() / 1000);
       const token = await generateIdentityBoundCsrfToken(
-        { subject: AUTHENTICATED_SUBJECT, ttlSeconds: -10 },
+        { subject: AUTHENTICATED_SUBJECT, issuedAt: now - 20, ttlSeconds: 10 },
         TEST_SECRET,
       );
       const verification = await verifyIdentityBoundCsrfToken(
@@ -292,6 +329,33 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
       if (!verification.valid) {
         expect(verification.code).toBe('EXPIRED_TOKEN');
       }
+    });
+
+    it('gelecekte üretilmiş veya azami ömrü aşan CSRF tokenlarını fail-closed reddetmelidir', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const futureToken = await generateIdentityBoundCsrfToken(
+        { subject: AUTHENTICATED_SUBJECT, issuedAt: now + 300, ttlSeconds: 60 },
+        TEST_SECRET,
+      );
+      const futureVerification = await verifyIdentityBoundCsrfToken(
+        futureToken,
+        AUTHENTICATED_SUBJECT,
+        TEST_SECRET,
+      );
+      expect(futureVerification.valid).toBe(false);
+
+      await expect(
+        generateIdentityBoundCsrfToken(
+          { subject: AUTHENTICATED_SUBJECT, ttlSeconds: 901 },
+          TEST_SECRET,
+        ),
+      ).rejects.toThrow();
+      await expect(
+        generateIdentityBoundCsrfToken(
+          { subject: AUTHENTICATED_SUBJECT, ttlSeconds: 0 },
+          TEST_SECRET,
+        ),
+      ).rejects.toThrow();
     });
 
     it('bozuk veya geçersiz biçimli token fail-closed reddedilmelidir', async () => {
@@ -559,8 +623,9 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('süresi dolmuş CSRF token ile yapılan mutasyon 403 ile reddedilmelidir', async () => {
+      const now = Math.floor(Date.now() / 1000);
       const expiredToken = await generateIdentityBoundCsrfToken(
-        { subject: AUTHENTICATED_SUBJECT, ttlSeconds: -50 },
+        { subject: AUTHENTICATED_SUBJECT, issuedAt: now - 60, ttlSeconds: 10 },
         TEST_SECRET,
       );
 

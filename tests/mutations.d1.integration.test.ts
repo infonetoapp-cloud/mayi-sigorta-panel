@@ -2,16 +2,24 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Hono } from 'hono';
 import miniflare from 'miniflare';
 import { issueAndPersistSensitiveActionGrant } from '../src/server/mutations/grants';
 import { computePayloadHash } from '../src/server/mutations/canonical';
-import { executeAtomicMutation } from '../src/server/mutations/executor';
+import { executeAtomicMutation } from './support/atomic-executor-fixture';
+import {
+  executeProtectedPermissionMutation,
+  type PermissionMutationOperation,
+} from '../src/server/mutations/internal/protected-permission-executor';
+import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
+import { registerProtectedPermissionMutationRoute } from '../src/server/mutations/protected-route';
 import { OptimisticConcurrencyError } from '../src/server/db/optimistic';
 import { evaluateAuthorization } from '../src/server/auth/authorization';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
+const CSRF_SECRET = 'mutation-d1-integration-secret-32-chars';
 
 describe('M1-T09 Real Miniflare/D1 Mutation Security Foundation', () => {
   let mf: miniflare.Miniflare;
@@ -24,20 +32,23 @@ describe('M1-T09 Real Miniflare/D1 Mutation Security Foundation', () => {
         script: 'export default { fetch() { return new Response(null); } }',
         d1Databases: {
           DB: '00000000-0000-0000-0000-000000000001',
+          UPGRADE_DB: '00000000-0000-0000-0000-000000000002',
+          CONFLICT_UPGRADE_DB: '00000000-0000-0000-0000-000000000003',
         },
       }),
     );
     db = await mf.getD1Database('DB');
 
-    // Run migrations 0000, 0001, 0002 sequentially
+    // Run migrations 0000, 0001, 0002, 0003 sequentially
     const m0 = readFileSync(resolve(rootDir, 'db/migrations/0000_good_hammerhead.sql'), 'utf8');
     const m1 = readFileSync(
       resolve(rootDir, 'db/migrations/0001_chunky_blazing_skull.sql'),
       'utf8',
     );
     const m2 = readFileSync(resolve(rootDir, 'db/migrations/0002_productive_arclight.sql'), 'utf8');
+    const m3 = readFileSync(resolve(rootDir, 'db/migrations/0003_lonely_zzzax.sql'), 'utf8');
 
-    for (const sql of [m0, m1, m2]) {
+    for (const sql of [m0, m1, m2, m3]) {
       const stmts = sql
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
@@ -148,6 +159,77 @@ describe('M1-T09 Real Miniflare/D1 Mutation Security Foundation', () => {
         },
       ],
     };
+  }
+
+  async function createProtectedRequest(subject: string): Promise<Request> {
+    const csrfToken = await generateIdentityBoundCsrfToken({ subject }, CSRF_SECRET);
+    return new Request('https://panel.mayisigorta.com/api/permission', {
+      method: 'POST',
+      headers: { 'x-csrf-token': csrfToken },
+    });
+  }
+
+  async function seedRecoveryOwner(prefix: string, agencyId: string): Promise<void> {
+    const userId = `${prefix}-recovery-user`;
+    const membershipId = `${prefix}-recovery-mem`;
+    await db
+      .prepare("INSERT INTO users (id, status, version) VALUES (?, 'ACTIVE', 1)")
+      .bind(userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO auth_identities (id, user_id, issuer, subject, verified_email, status)
+         VALUES (?, ?, 'https://synthetic.cloudflareaccess.com', ?, ?, 'ACTIVE')`,
+      )
+      .bind(
+        `${prefix}-recovery-ident`,
+        userId,
+        `${prefix}-recovery-sub`,
+        `${prefix}-recovery@example.test`,
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO agency_memberships (
+           id, agency_id, user_id, type, status, invitation_email, invitation_expires_at,
+           activated_at, version, permission_version
+         ) VALUES (?, ?, ?, 'OWNER', 'ACTIVE', ?, '2099-01-01T00:00:00.000Z',
+           '2026-09-17T00:00:00.000Z', 1, 1)`,
+      )
+      .bind(membershipId, agencyId, userId, `${prefix}-recovery@example.test`)
+      .run();
+  }
+
+  async function seedTargetMember(prefix: string, agencyId: string) {
+    const userId = `${prefix}-target-user`;
+    const membershipId = `${prefix}-target-mem`;
+    await db
+      .prepare("INSERT INTO users (id, status, version) VALUES (?, 'ACTIVE', 1)")
+      .bind(userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO auth_identities (id, user_id, issuer, subject, verified_email, status)
+         VALUES (?, ?, 'https://synthetic.cloudflareaccess.com', ?, ?, 'ACTIVE')`,
+      )
+      .bind(
+        `${prefix}-target-ident`,
+        userId,
+        `${prefix}-target-sub`,
+        `${prefix}-target@example.test`,
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO agency_memberships (
+           id, agency_id, user_id, type, status, invitation_email, invitation_expires_at,
+           activated_at, version, permission_version
+         ) VALUES (?, ?, ?, 'MEMBER', 'ACTIVE', ?, '2099-01-01T00:00:00.000Z',
+           '2026-09-17T00:00:00.000Z', 1, 1)`,
+      )
+      .bind(membershipId, agencyId, userId, `${prefix}-target@example.test`)
+      .run();
+    return { membershipId, permissionVersion: 1 };
   }
 
   // 1. Valid consume: grant + business mutation + idempotency + audit in 1 atomic batch
@@ -1054,5 +1136,933 @@ describe('M1-T09 Real Miniflare/D1 Mutation Security Foundation', () => {
         .bind(crypto.randomUUID(), 'b'.repeat(64), agencyId, userId, membershipId, 'a'.repeat(64))
         .run(),
     ).rejects.toThrow();
+  });
+
+  it.each([
+    {
+      name: 'permission_version preflight sonrasında değişirse',
+      prefix: 'race-permission-version',
+      race: async (actors: Awaited<ReturnType<typeof seedTestActors>>) => {
+        await db
+          .prepare(
+            `UPDATE agency_memberships
+             SET permission_version = permission_version + 1, version = version + 1
+             WHERE id = ?`,
+          )
+          .bind(actors.membershipId)
+          .run();
+      },
+    },
+    {
+      name: 'membership preflight sonrasında SUSPENDED olursa',
+      prefix: 'race-membership-status',
+      race: async (actors: Awaited<ReturnType<typeof seedTestActors>>) => {
+        await db
+          .prepare(
+            `UPDATE agency_memberships
+             SET status = 'SUSPENDED', suspended_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+                 permission_version = permission_version + 1, version = version + 1
+             WHERE id = ?`,
+          )
+          .bind(actors.membershipId)
+          .run();
+      },
+    },
+    {
+      name: 'User preflight sonrasında INACTIVE olursa',
+      prefix: 'race-user-status',
+      race: async (actors: Awaited<ReturnType<typeof seedTestActors>>) => {
+        await db
+          .prepare(
+            `UPDATE users
+             SET status = 'INACTIVE', version = version + 1
+             WHERE id = ?`,
+          )
+          .bind(actors.userId)
+          .run();
+      },
+    },
+  ])(
+    '14. Atomic final authority: $name bütün korunan işlemi geri alır',
+    async ({ prefix, race }) => {
+      const actors = await seedTestActors(prefix);
+      await seedRecoveryOwner(prefix, actors.agencyId);
+      const target = await seedTargetMember(prefix, actors.agencyId);
+      const operation: PermissionMutationOperation = {
+        kind: 'GRANT_PERMISSION',
+        membershipId: target.membershipId,
+        permissionCode: 'customer.read',
+        scope: 'ASSIGNED',
+        expectedPermissionVersion: target.permissionVersion,
+      };
+      const payload = { ...operation };
+      const payloadHash = await computePayloadHash(payload);
+      const { grantToken, grantRecord } = await issueAndPersistSensitiveActionGrant(
+        db,
+        createSecureContext(actors),
+        {
+          agencyId: actors.agencyId,
+          action: 'permission.grant',
+          payloadHash,
+          targetIds: [target.membershipId],
+          expectedTargetVersion: target.permissionVersion,
+        },
+      );
+      let intercepted = false;
+      const racingDb = {
+        prepare: db.prepare.bind(db),
+        batch: async (statements: D1PreparedStatement[]) => {
+          intercepted = true;
+          await race(actors);
+          return db.batch(statements);
+        },
+      } as unknown as D1Database;
+
+      await expect(
+        executeProtectedPermissionMutation(racingDb, {
+          request: await createProtectedRequest(actors.identityId),
+          csrfSecret: CSRF_SECRET,
+          authenticatedSubject: actors.identityId,
+          context: createSecureContext(actors),
+          resolveMutation: async () => ({
+            agencyId: actors.agencyId,
+            correlationId: `${prefix}-correlation`,
+            idempotencyKey: `${prefix}-idempotency`,
+            grantEvidenceToken: grantToken,
+            operation,
+          }),
+        }),
+      ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
+      expect(intercepted).toBe(true);
+
+      const grantAfter = await db
+        .prepare('SELECT status, consumed_at FROM sensitive_action_grants WHERE id = ?')
+        .bind(grantRecord.id)
+        .first<{ status: string; consumed_at: string | null }>();
+      const businessCount = await db
+        .prepare(
+          `SELECT count(*) AS count FROM membership_permissions
+         WHERE membership_id = ? AND permission_code = 'customer.read'`,
+        )
+        .bind(target.membershipId)
+        .first<{ count: number }>();
+      const receiptCount = await db
+        .prepare('SELECT count(*) AS count FROM operation_receipts WHERE idempotency_key = ?')
+        .bind(`${prefix}-idempotency`)
+        .first<{ count: number }>();
+      const auditCount = await db
+        .prepare('SELECT count(*) AS count FROM audit_events WHERE correlation_id = ?')
+        .bind(`${prefix}-correlation`)
+        .first<{ count: number }>();
+
+      expect(grantAfter).toEqual({ status: 'ISSUED', consumed_at: null });
+      expect(businessCount?.count).toBe(0);
+      expect(receiptCount?.count).toBe(0);
+      expect(auditCount?.count).toBe(0);
+    },
+  );
+
+  it('15. Atomic target version: hedef preflight sonrasında değişirse bütün korunan işlemi geri alır', async () => {
+    const actors = await seedTestActors('race-target-version');
+    const target = await seedTargetMember('race-target-version', actors.agencyId);
+    const operation: PermissionMutationOperation = {
+      kind: 'GRANT_PERMISSION',
+      membershipId: target.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      expectedPermissionVersion: 1,
+    };
+    const payload = { ...operation };
+    const payloadHash = await computePayloadHash(payload);
+    const { grantToken, grantRecord } = await issueAndPersistSensitiveActionGrant(
+      db,
+      createSecureContext(actors),
+      {
+        agencyId: actors.agencyId,
+        action: 'permission.grant',
+        payloadHash,
+        targetIds: [target.membershipId],
+        expectedTargetVersion: 1,
+      },
+    );
+    const racingDb = {
+      prepare: db.prepare.bind(db),
+      batch: async (statements: D1PreparedStatement[]) => {
+        await db
+          .prepare(
+            `UPDATE agency_memberships
+             SET version = version + 1, permission_version = permission_version + 1
+             WHERE id = ?`,
+          )
+          .bind(target.membershipId)
+          .run();
+        return db.batch(statements);
+      },
+    } as unknown as D1Database;
+
+    await expect(
+      executeProtectedPermissionMutation(racingDb, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: 'race-target-version-correlation',
+          idempotencyKey: 'race-target-version-idempotency',
+          grantEvidenceToken: grantToken,
+          operation,
+        }),
+      }),
+    ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
+
+    const grantAfter = await db
+      .prepare('SELECT status, consumed_at FROM sensitive_action_grants WHERE id = ?')
+      .bind(grantRecord.id)
+      .first<{ status: string; consumed_at: string | null }>();
+    const receiptCount = await db
+      .prepare('SELECT count(*) AS count FROM operation_receipts WHERE idempotency_key = ?')
+      .bind('race-target-version-idempotency')
+      .first<{ count: number }>();
+    const businessCount = await db
+      .prepare(
+        `SELECT count(*) AS count FROM membership_permissions
+         WHERE membership_id = ? AND permission_code = 'customer.read'`,
+      )
+      .bind(target.membershipId)
+      .first<{ count: number }>();
+    const auditCount = await db
+      .prepare('SELECT count(*) AS count FROM audit_events WHERE correlation_id = ?')
+      .bind('race-target-version-correlation')
+      .first<{ count: number }>();
+
+    expect(grantAfter).toEqual({ status: 'ISSUED', consumed_at: null });
+    expect(businessCount?.count).toBe(0);
+    expect(receiptCount?.count).toBe(0);
+    expect(auditCount?.count).toBe(0);
+  });
+
+  it('16. Korumalı permission grant intent/action/payload/target bağını korur ve atomik başarı kaydeder', async () => {
+    const actors = await seedTestActors('protected-grant');
+    const target = await seedTargetMember('protected-grant', actors.agencyId);
+    const operation: PermissionMutationOperation = {
+      kind: 'GRANT_PERMISSION',
+      membershipId: target.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      expectedPermissionVersion: 1,
+    };
+    const payloadHash = await computePayloadHash({ ...operation });
+    const { grantToken, grantRecord } = await issueAndPersistSensitiveActionGrant(
+      db,
+      createSecureContext(actors),
+      {
+        agencyId: actors.agencyId,
+        action: 'permission.grant',
+        payloadHash,
+        targetIds: [target.membershipId],
+        expectedTargetVersion: 1,
+      },
+    );
+    const mismatches: PermissionMutationOperation[] = [
+      { ...operation, kind: 'REVOKE_PERMISSION' },
+      { ...operation, scope: 'AGENCY' },
+      { ...operation, membershipId: `${target.membershipId}-wrong` },
+      { ...operation, expectedPermissionVersion: 2 },
+    ];
+    for (const mismatch of mismatches) {
+      const request = await createProtectedRequest(actors.identityId);
+      await expect(
+        executeProtectedPermissionMutation(db, {
+          request,
+          csrfSecret: CSRF_SECRET,
+          authenticatedSubject: actors.identityId,
+          context: createSecureContext(actors),
+          resolveMutation: async () => ({
+            agencyId: actors.agencyId,
+            correlationId: 'protected-grant-correlation',
+            idempotencyKey: 'protected-grant-idempotency',
+            grantEvidenceToken: grantToken,
+            operation: mismatch,
+          }),
+        }),
+      ).rejects.toThrow();
+    }
+
+    const result = await executeProtectedPermissionMutation(db, {
+      request: await createProtectedRequest(actors.identityId),
+      csrfSecret: CSRF_SECRET,
+      authenticatedSubject: actors.identityId,
+      context: createSecureContext(actors),
+      resolveMutation: async () => ({
+        agencyId: actors.agencyId,
+        correlationId: 'protected-grant-correlation',
+        idempotencyKey: 'protected-grant-idempotency',
+        grantEvidenceToken: grantToken,
+        operation,
+      }),
+    });
+    expect(result).toMatchObject({ executed: true, replayed: false, status: 200 });
+
+    const replay = await executeProtectedPermissionMutation(db, {
+      request: await createProtectedRequest(actors.identityId),
+      csrfSecret: CSRF_SECRET,
+      authenticatedSubject: actors.identityId,
+      context: createSecureContext(actors),
+      resolveMutation: async () => ({
+        agencyId: actors.agencyId,
+        correlationId: 'protected-grant-retry-correlation',
+        idempotencyKey: 'protected-grant-idempotency',
+        grantEvidenceToken: grantToken,
+        operation,
+      }),
+    });
+    expect(replay).toEqual({
+      executed: false,
+      replayed: true,
+      status: 200,
+      body: result.body,
+    });
+
+    await expect(
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: 'protected-grant-payload-conflict',
+          idempotencyKey: 'protected-grant-idempotency',
+          grantEvidenceToken: grantToken,
+          operation: { ...operation, scope: 'AGENCY' },
+        }),
+      }),
+    ).rejects.toThrow('IDEMPOTENCY_PAYLOAD_MISMATCH');
+
+    await expect(
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: 'protected-grant-action-conflict',
+          idempotencyKey: 'protected-grant-idempotency',
+          grantEvidenceToken: grantToken,
+          operation: { ...operation, kind: 'REVOKE_PERMISSION' },
+        }),
+      }),
+    ).rejects.toThrow('IDEMPOTENCY_ACTION_MISMATCH');
+
+    const wrongActorContext = {
+      ...createSecureContext(actors),
+      userId: `${actors.userId}-wrong`,
+    };
+    await expect(
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: wrongActorContext,
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: 'protected-grant-actor-reuse',
+          idempotencyKey: 'protected-grant-idempotency',
+          grantEvidenceToken: grantToken,
+          operation,
+        }),
+      }),
+    ).rejects.toThrow();
+
+    const wrongMembershipContext = {
+      ...createSecureContext(actors),
+      memberships: createSecureContext(actors).memberships.map((membership) => ({
+        ...membership,
+        id: `${membership.id}-wrong`,
+      })),
+    };
+    await expect(
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: wrongMembershipContext,
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: 'protected-grant-membership-reuse',
+          idempotencyKey: 'protected-grant-idempotency',
+          grantEvidenceToken: grantToken,
+          operation,
+        }),
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: `${actors.agencyId}-wrong`,
+          correlationId: 'protected-grant-agency-reuse',
+          idempotencyKey: 'protected-grant-idempotency',
+          grantEvidenceToken: grantToken,
+          operation,
+        }),
+      }),
+    ).rejects.toThrow();
+
+    const grantAfter = await db
+      .prepare('SELECT status, consumed_operation_id FROM sensitive_action_grants WHERE id = ?')
+      .bind(grantRecord.id)
+      .first<{ status: string; consumed_operation_id: string | null }>();
+    const businessRow = await db
+      .prepare(
+        `SELECT scope FROM membership_permissions
+         WHERE membership_id = ? AND permission_code = 'customer.read'`,
+      )
+      .bind(target.membershipId)
+      .first<{ scope: string }>();
+    const receiptCount = await db
+      .prepare('SELECT count(*) AS count FROM operation_receipts WHERE idempotency_key = ?')
+      .bind('protected-grant-idempotency')
+      .first<{ count: number }>();
+    const auditCount = await db
+      .prepare('SELECT count(*) AS count FROM audit_events WHERE correlation_id = ?')
+      .bind('protected-grant-correlation')
+      .first<{ count: number }>();
+
+    expect(grantAfter).toEqual({
+      status: 'CONSUMED',
+      consumed_operation_id: 'protected-grant-correlation',
+    });
+    expect(businessRow).toEqual({ scope: 'ASSIGNED' });
+    expect(receiptCount?.count).toBe(1);
+    expect(auditCount?.count).toBe(1);
+  });
+
+  it('17. Desteklenen protected route internal executor üzerinden tek etkili mutasyon çalıştırır', async () => {
+    const actors = await seedTestActors('protected-route-success');
+    const target = await seedTargetMember('protected-route-success', actors.agencyId);
+    const operation: PermissionMutationOperation = {
+      kind: 'GRANT_PERMISSION',
+      membershipId: target.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      expectedPermissionVersion: 1,
+    };
+    const { grantToken } = await issueAndPersistSensitiveActionGrant(
+      db,
+      createSecureContext(actors),
+      {
+        agencyId: actors.agencyId,
+        action: 'permission.grant',
+        payloadHash: await computePayloadHash({ ...operation }),
+        targetIds: [target.membershipId],
+        expectedTargetVersion: 1,
+      },
+    );
+    const app = new Hono<{ Bindings: { DB: D1Database } }>();
+    registerProtectedPermissionMutationRoute(app, {
+      method: 'POST',
+      path: '/secure/api/permission',
+      authenticate: async () => ({
+        context: createSecureContext(actors),
+        subject: actors.identityId,
+      }),
+      resolveCsrfSecret: () => CSRF_SECRET,
+      parseRequest: async (context) => context.req.json(),
+    });
+    const csrfToken = await generateIdentityBoundCsrfToken(
+      { subject: actors.identityId },
+      CSRF_SECRET,
+    );
+    const requestBody = {
+      agencyId: actors.agencyId,
+      correlationId: 'protected-route-success-correlation',
+      idempotencyKey: 'protected-route-success-idempotency',
+      grantEvidenceToken: grantToken,
+      operation,
+    };
+    const send = () =>
+      app.request(
+        'https://panel.mayisigorta.com/secure/api/permission',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'https://panel.mayisigorta.com',
+            'sec-fetch-site': 'same-origin',
+            'sec-fetch-mode': 'cors',
+            'x-csrf-token': csrfToken,
+          },
+          body: JSON.stringify(requestBody),
+        },
+        { DB: db },
+      );
+    const responses = await Promise.all([send(), send()]);
+    const responseBodies = await Promise.all(
+      responses.map((response) =>
+        response.json<{
+          success: boolean;
+          replayed: boolean;
+          data: Readonly<Record<string, string | number>>;
+        }>(),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(responseBodies.every((body) => body.success)).toBe(true);
+    expect(responseBodies.filter((body) => body.replayed)).toHaveLength(1);
+    expect(responseBodies[0]?.data).toMatchObject({
+      membershipId: target.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      newPermissionVersion: 2,
+    });
+    const businessCount = await db
+      .prepare(
+        `SELECT count(*) AS count FROM membership_permissions
+         WHERE membership_id = ? AND permission_code = 'customer.read'`,
+      )
+      .bind(target.membershipId)
+      .first<{ count: number }>();
+    expect(businessCount?.count).toBe(1);
+    const receiptCount = await db
+      .prepare('SELECT count(*) AS count FROM operation_receipts WHERE idempotency_key = ?')
+      .bind('protected-route-success-idempotency')
+      .first<{ count: number }>();
+    const auditCount = await db
+      .prepare('SELECT count(*) AS count FROM audit_events WHERE idempotency_key = ?')
+      .bind('protected-route-success-idempotency')
+      .first<{ count: number }>();
+    expect(receiptCount?.count).toBe(1);
+    expect(auditCount?.count).toBe(1);
+  });
+
+  it('18. Eşzamanlı aynı scope/key farklı action işlemlerinden yalnız biri anahtarı sahiplenir', async () => {
+    const actors = await seedTestActors('different-action-race');
+    const grantTarget = await seedTargetMember('different-action-race-grant', actors.agencyId);
+    const revokeTarget = await seedTargetMember('different-action-race-revoke', actors.agencyId);
+    await db
+      .prepare(
+        `INSERT INTO membership_permissions (
+           id, membership_id, permission_code, scope
+         ) VALUES (?, ?, 'customer.read', 'ASSIGNED')`,
+      )
+      .bind(crypto.randomUUID(), revokeTarget.membershipId)
+      .run();
+
+    const grantOperation: PermissionMutationOperation = {
+      kind: 'GRANT_PERMISSION',
+      membershipId: grantTarget.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      expectedPermissionVersion: 1,
+    };
+    const revokeOperation: PermissionMutationOperation = {
+      kind: 'REVOKE_PERMISSION',
+      membershipId: revokeTarget.membershipId,
+      permissionCode: 'customer.read',
+      expectedPermissionVersion: 1,
+    };
+    const [{ grantToken: grantToken }, { grantToken: revokeToken }] = await Promise.all([
+      issueAndPersistSensitiveActionGrant(db, createSecureContext(actors), {
+        agencyId: actors.agencyId,
+        action: 'permission.grant',
+        payloadHash: await computePayloadHash({ ...grantOperation }),
+        targetIds: [grantTarget.membershipId],
+        expectedTargetVersion: 1,
+      }),
+      issueAndPersistSensitiveActionGrant(db, createSecureContext(actors), {
+        agencyId: actors.agencyId,
+        action: 'permission.revoke',
+        payloadHash: await computePayloadHash({ ...revokeOperation }),
+        targetIds: [revokeTarget.membershipId],
+        expectedTargetVersion: 1,
+      }),
+    ]);
+    const idempotencyKey = 'different-action-race-key';
+    const execute = async (
+      operation: PermissionMutationOperation,
+      grantEvidenceToken: string,
+      correlationId: string,
+    ) =>
+      executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId,
+          idempotencyKey,
+          grantEvidenceToken,
+          operation,
+        }),
+      });
+
+    const outcomes = await Promise.allSettled([
+      execute(grantOperation, grantToken, 'different-action-race-grant-correlation'),
+      execute(revokeOperation, revokeToken, 'different-action-race-revoke-correlation'),
+    ]);
+    const fulfilled = outcomes.filter(
+      (outcome): outcome is PromiseFulfilledResult<Awaited<ReturnType<typeof execute>>> =>
+        outcome.status === 'fulfilled',
+    );
+    const rejected = outcomes.filter(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({
+      name: 'IdempotencyConflictError',
+      code: 'IDEMPOTENCY_ACTION_MISMATCH',
+    });
+
+    const receipts = await db
+      .prepare(
+        `SELECT action, status FROM operation_receipts
+         WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ?
+           AND idempotency_key = ?`,
+      )
+      .bind(actors.agencyId, actors.userId, actors.membershipId, idempotencyKey)
+      .all<{ action: string; status: string }>();
+    const auditCount = await db
+      .prepare('SELECT count(*) AS count FROM audit_events WHERE idempotency_key = ?')
+      .bind(idempotencyKey)
+      .first<{ count: number }>();
+    const consumedGrantCount = await db
+      .prepare(
+        `SELECT count(*) AS count FROM sensitive_action_grants
+         WHERE id IN (
+           SELECT id FROM sensitive_action_grants
+           WHERE actor_membership_id = ? AND action IN ('permission.grant', 'permission.revoke')
+         ) AND status = 'CONSUMED'`,
+      )
+      .bind(actors.membershipId)
+      .first<{ count: number }>();
+    const businessRows = await db
+      .prepare(
+        `SELECT membership_id FROM membership_permissions
+         WHERE permission_code = 'customer.read' AND membership_id IN (?, ?)
+         ORDER BY membership_id`,
+      )
+      .bind(grantTarget.membershipId, revokeTarget.membershipId)
+      .all<{ membership_id: string }>();
+
+    expect(receipts.results).toHaveLength(1);
+    expect(receipts.results[0]?.status).toBe('COMPLETED');
+    expect(auditCount?.count).toBe(1);
+    expect(consumedGrantCount?.count).toBe(1);
+    if (receipts.results[0]?.action === 'permission.grant') {
+      expect(businessRows.results.map((row) => row.membership_id)).toEqual([
+        grantTarget.membershipId,
+        revokeTarget.membershipId,
+      ]);
+    } else {
+      expect(receipts.results[0]?.action).toBe('permission.revoke');
+      expect(businessRows.results).toEqual([]);
+    }
+  });
+
+  it('19. Eşzamanlı aynı scope/key farklı target payload işlemlerinden yalnız biri çalışır', async () => {
+    const actors = await seedTestActors('different-payload-race');
+    const firstTarget = await seedTargetMember('different-payload-race-first', actors.agencyId);
+    const secondTarget = await seedTargetMember('different-payload-race-second', actors.agencyId);
+    const operations: PermissionMutationOperation[] = [firstTarget, secondTarget].map((target) => ({
+      kind: 'GRANT_PERMISSION',
+      membershipId: target.membershipId,
+      permissionCode: 'customer.read',
+      scope: 'ASSIGNED',
+      expectedPermissionVersion: 1,
+    }));
+    const grants = await Promise.all(
+      operations.map(async (operation) =>
+        issueAndPersistSensitiveActionGrant(db, createSecureContext(actors), {
+          agencyId: actors.agencyId,
+          action: 'permission.grant',
+          payloadHash: await computePayloadHash({ ...operation }),
+          targetIds: [operation.membershipId],
+          expectedTargetVersion: operation.expectedPermissionVersion,
+        }),
+      ),
+    );
+    const idempotencyKey = 'different-payload-race-key';
+    const execute = async (index: number) => {
+      const operation = operations[index]!;
+      return executeProtectedPermissionMutation(db, {
+        request: await createProtectedRequest(actors.identityId),
+        csrfSecret: CSRF_SECRET,
+        authenticatedSubject: actors.identityId,
+        context: createSecureContext(actors),
+        resolveMutation: async () => ({
+          agencyId: actors.agencyId,
+          correlationId: `different-payload-race-${index}`,
+          idempotencyKey,
+          grantEvidenceToken: grants[index]!.grantToken,
+          operation,
+        }),
+      });
+    };
+
+    const outcomes = await Promise.allSettled([execute(0), execute(1)]);
+    const fulfilled = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+    const rejected = outcomes.filter(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toMatchObject({
+      name: 'IdempotencyConflictError',
+      code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+    });
+
+    const receipt = await db
+      .prepare(
+        `SELECT response_body FROM operation_receipts
+         WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ?
+           AND idempotency_key = ?`,
+      )
+      .bind(actors.agencyId, actors.userId, actors.membershipId, idempotencyKey)
+      .first<{ response_body: string }>();
+    const auditCount = await db
+      .prepare('SELECT count(*) AS count FROM audit_events WHERE idempotency_key = ?')
+      .bind(idempotencyKey)
+      .first<{ count: number }>();
+    const consumedGrantCount = await db
+      .prepare(
+        `SELECT count(*) AS count FROM sensitive_action_grants
+         WHERE actor_membership_id = ? AND action = 'permission.grant'
+           AND status = 'CONSUMED' AND id IN (?, ?)`,
+      )
+      .bind(actors.membershipId, grants[0]!.grantRecord.id, grants[1]!.grantRecord.id)
+      .first<{ count: number }>();
+    const businessRows = await db
+      .prepare(
+        `SELECT membership_id FROM membership_permissions
+         WHERE permission_code = 'customer.read' AND membership_id IN (?, ?)`,
+      )
+      .bind(firstTarget.membershipId, secondTarget.membershipId)
+      .all<{ membership_id: string }>();
+    const winner = JSON.parse(receipt?.response_body ?? '{}') as { membershipId?: string };
+
+    expect(receipt).not.toBeNull();
+    expect(auditCount?.count).toBe(1);
+    expect(consumedGrantCount?.count).toBe(1);
+    expect(businessRows.results).toEqual([{ membership_id: winner.membershipId }]);
+  });
+
+  it('20. Mevcut 0000/0001/0002 verisini koruyarak 0003 idempotency namespace şemasına yükseltir', async () => {
+    const upgradeDb = await mf.getD1Database('UPGRADE_DB');
+    const migrationPaths = [
+      'db/migrations/0000_good_hammerhead.sql',
+      'db/migrations/0001_chunky_blazing_skull.sql',
+    ];
+    for (const migrationPath of migrationPaths) {
+      const sql = readFileSync(resolve(rootDir, migrationPath), 'utf8');
+      for (const statement of sql
+        .split('--> statement-breakpoint')
+        .map((item) => item.trim())
+        .filter(Boolean)) {
+        await upgradeDb.prepare(statement).run();
+      }
+    }
+    await upgradeDb
+      .prepare(
+        "INSERT INTO agencies (id, status, version) VALUES ('upgrade-agency', 'PROVISIONING', 7)",
+      )
+      .run();
+
+    const migration2 = readFileSync(
+      resolve(rootDir, 'db/migrations/0002_productive_arclight.sql'),
+      'utf8',
+    );
+    for (const statement of migration2
+      .split('--> statement-breakpoint')
+      .map((item) => item.trim())
+      .filter(Boolean)) {
+      await upgradeDb.prepare(statement).run();
+    }
+
+    await upgradeDb
+      .prepare("INSERT INTO users (id, status, version) VALUES ('upgrade-user', 'INACTIVE', 1)")
+      .run();
+    await upgradeDb
+      .prepare(
+        `INSERT INTO agency_memberships (
+           id, agency_id, user_id, type, status, invitation_email, invitation_expires_at,
+           version, permission_version
+         ) VALUES (
+           'upgrade-membership', 'upgrade-agency', 'upgrade-user', 'OWNER', 'INVITED',
+           'upgrade@example.test', '2099-01-01T00:00:00.000Z', 1, 1
+         )`,
+      )
+      .run();
+    await upgradeDb
+      .prepare(
+        `INSERT INTO operation_receipts (
+           id, agency_id, actor_user_id, actor_membership_id, action,
+           idempotency_key, payload_fingerprint, status, response_status, response_body
+         ) VALUES (
+           'upgrade-receipt', 'upgrade-agency', 'upgrade-user', 'upgrade-membership',
+           'permission.grant', 'upgrade-key', 'upgrade-fingerprint', 'COMPLETED', 200, '{}'
+         )`,
+      )
+      .run();
+
+    const migration3 = readFileSync(
+      resolve(rootDir, 'db/migrations/0003_lonely_zzzax.sql'),
+      'utf8',
+    );
+    const migration3Statements = migration3
+      .split('--> statement-breakpoint')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    for (const statement of migration3Statements) {
+      await upgradeDb.prepare(statement).run();
+    }
+    for (const statement of migration3Statements) {
+      await upgradeDb.prepare(statement).run();
+    }
+
+    const preservedAgency = await upgradeDb
+      .prepare("SELECT id, status, version FROM agencies WHERE id = 'upgrade-agency'")
+      .first<{ id: string; status: string; version: number }>();
+    const securityObjects = await upgradeDb
+      .prepare(
+        `SELECT type, name FROM sqlite_master
+         WHERE name IN (
+           'audit_events_no_update',
+           'operation_receipts_update_guard',
+           'sensitive_action_grants_update_guard',
+           'sensitive_action_grants'
+         )
+         ORDER BY name`,
+      )
+      .all<{ type: string; name: string }>();
+    const preservedReceipt = await upgradeDb
+      .prepare(
+        `SELECT action, idempotency_key, payload_fingerprint, status
+         FROM operation_receipts WHERE id = 'upgrade-receipt'`,
+      )
+      .first<{
+        action: string;
+        idempotency_key: string;
+        payload_fingerprint: string;
+        status: string;
+      }>();
+    const idempotencyIndex = await upgradeDb
+      .prepare("PRAGMA index_info('operation_receipts_idem_uq')")
+      .all<{ seqno: number; name: string }>();
+
+    expect(preservedAgency).toEqual({
+      id: 'upgrade-agency',
+      status: 'PROVISIONING',
+      version: 7,
+    });
+    expect(preservedReceipt).toEqual({
+      action: 'permission.grant',
+      idempotency_key: 'upgrade-key',
+      payload_fingerprint: 'upgrade-fingerprint',
+      status: 'COMPLETED',
+    });
+    expect(idempotencyIndex.results.map((column) => column.name)).toEqual([
+      'agency_id',
+      'actor_user_id',
+      'actor_membership_id',
+      'idempotency_key',
+    ]);
+    expect(securityObjects.results).toEqual([
+      { type: 'trigger', name: 'audit_events_no_update' },
+      { type: 'trigger', name: 'operation_receipts_update_guard' },
+      { type: 'table', name: 'sensitive_action_grants' },
+      { type: 'trigger', name: 'sensitive_action_grants_update_guard' },
+    ]);
+  });
+
+  it('21. 0003 eski cross-action duplicate key verisini silmeden atomik olarak reddeder', async () => {
+    const conflictDb = await mf.getD1Database('CONFLICT_UPGRADE_DB');
+    for (const migrationPath of [
+      'db/migrations/0000_good_hammerhead.sql',
+      'db/migrations/0001_chunky_blazing_skull.sql',
+      'db/migrations/0002_productive_arclight.sql',
+    ]) {
+      const sql = readFileSync(resolve(rootDir, migrationPath), 'utf8');
+      for (const statement of sql
+        .split('--> statement-breakpoint')
+        .map((item) => item.trim())
+        .filter(Boolean)) {
+        await conflictDb.prepare(statement).run();
+      }
+    }
+    await conflictDb
+      .prepare(
+        "INSERT INTO agencies (id, status, version) VALUES ('conflict-agency', 'PROVISIONING', 1)",
+      )
+      .run();
+    await conflictDb
+      .prepare("INSERT INTO users (id, status, version) VALUES ('conflict-user', 'INACTIVE', 1)")
+      .run();
+    await conflictDb
+      .prepare(
+        `INSERT INTO agency_memberships (
+           id, agency_id, user_id, type, status, invitation_email, invitation_expires_at,
+           version, permission_version
+         ) VALUES (
+           'conflict-membership', 'conflict-agency', 'conflict-user', 'OWNER', 'INVITED',
+           'conflict@example.test', '2099-01-01T00:00:00.000Z', 1, 1
+         )`,
+      )
+      .run();
+    for (const [id, action, fingerprint] of [
+      ['conflict-receipt-grant', 'permission.grant', 'grant-fingerprint'],
+      ['conflict-receipt-revoke', 'permission.revoke', 'revoke-fingerprint'],
+    ]) {
+      await conflictDb
+        .prepare(
+          `INSERT INTO operation_receipts (
+             id, agency_id, actor_user_id, actor_membership_id, action,
+             idempotency_key, payload_fingerprint, status, response_status, response_body
+           ) VALUES (?, 'conflict-agency', 'conflict-user', 'conflict-membership', ?,
+             'duplicate-key', ?, 'COMPLETED', 200, '{}')`,
+        )
+        .bind(id, action, fingerprint)
+        .run();
+    }
+
+    const migration3Statements = readFileSync(
+      resolve(rootDir, 'db/migrations/0003_lonely_zzzax.sql'),
+      'utf8',
+    )
+      .split('--> statement-breakpoint')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((statement) => conflictDb.prepare(statement));
+    await expect(conflictDb.batch(migration3Statements)).rejects.toThrow();
+
+    const preservedRows = await conflictDb
+      .prepare(
+        `SELECT id, action FROM operation_receipts
+         WHERE idempotency_key = 'duplicate-key' ORDER BY action`,
+      )
+      .all<{ id: string; action: string }>();
+    const preservedIndex = await conflictDb
+      .prepare("PRAGMA index_info('operation_receipts_idem_uq')")
+      .all<{ name: string }>();
+    expect(preservedRows.results).toEqual([
+      { id: 'conflict-receipt-grant', action: 'permission.grant' },
+      { id: 'conflict-receipt-revoke', action: 'permission.revoke' },
+    ]);
+    expect(preservedIndex.results.map((column) => column.name)).toEqual([
+      'agency_id',
+      'actor_user_id',
+      'actor_membership_id',
+      'action',
+      'idempotency_key',
+    ]);
   });
 });

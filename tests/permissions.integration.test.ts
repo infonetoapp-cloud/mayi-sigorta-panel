@@ -16,7 +16,7 @@ import {
   MissingPermissionDependencyError,
   IncompatibleDependencyScopeError,
   ActivePermissionDependencyError,
-} from '../src/server/db/permissions';
+} from './support/permissions-fixture';
 import { OptimisticConcurrencyError } from '../src/server/db/optimistic';
 import { isPermissionCode, getPermissionDefinition } from '../src/shared/permissions';
 

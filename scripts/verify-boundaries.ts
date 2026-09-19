@@ -678,6 +678,92 @@ export function checkSourceBoundaries(options?: CheckBoundariesOptions): Boundar
   return violations;
 }
 
+/**
+ * Protected permission executor yalnız merkezi route composer tarafından kullanılabilir.
+ * Test kodu bu production kaynak taramasına dahil değildir.
+ */
+export function checkProtectedMutationExecutorBoundaries(
+  options?: Pick<CheckBoundariesOptions, 'rootDir' | 'tsConfigPath'>,
+): BoundaryViolation[] {
+  const effectiveRootDir = options?.rootDir || rootDir;
+  const serverDir = resolve(effectiveRootDir, 'src/server');
+  const internalExecutor = canonicalizePath(
+    resolve(serverDir, 'mutations/internal/protected-permission-executor.ts'),
+  );
+  const authorizedImporter = canonicalizePath(resolve(serverDir, 'mutations/protected-route.ts'));
+  const violations: BoundaryViolation[] = [];
+  if (!existsSync(serverDir) || !existsSync(internalExecutor)) return violations;
+
+  let compilerOptions: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowJs: true,
+  };
+  const tsconfigPath = options?.tsConfigPath || resolve(effectiveRootDir, 'tsconfig.json');
+  if (existsSync(tsconfigPath)) {
+    const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+    if (!configFile.error) {
+      compilerOptions = {
+        ...compilerOptions,
+        ...ts.parseJsonConfigFileContent(configFile.config, ts.sys, effectiveRootDir).options,
+      };
+    }
+  }
+  const resolutionHost: ts.ModuleResolutionHost = {
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    directoryExists: ts.sys.directoryExists,
+    getCurrentDirectory: () => effectiveRootDir,
+    getDirectories: ts.sys.getDirectories,
+    useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+  };
+
+  for (const filePath of getAllFiles(serverDir)) {
+    if (!/\.(?:[cm]?[jt]sx?)$/.test(filePath)) continue;
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      readFileSync(filePath, 'utf-8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const extractionViolations: BoundaryViolation[] = [];
+    const specifiers = extractImportSpecifiers(
+      sourceFile,
+      filePath,
+      effectiveRootDir,
+      extractionViolations,
+    );
+    // Bu production sınırında çözülemeyen bir computed import hedefinin internal
+    // executor olmadığını kanıtlayamayız. Extractor'ın fail-closed ihlallerini
+    // yutmadan doğrudan sonuca taşı.
+    violations.push(...extractionViolations);
+    for (const { specifier } of specifiers) {
+      const resolved = ts.resolveModuleName(specifier, filePath, compilerOptions, resolutionHost);
+      if (!resolved.resolvedModule) continue;
+      const resolvedPath = canonicalizePath(resolved.resolvedModule.resolvedFileName);
+      if (
+        normalizePathForComparison(resolvedPath) !== normalizePathForComparison(internalExecutor)
+      ) {
+        continue;
+      }
+      if (
+        normalizePathForComparison(canonicalizePath(filePath)) ===
+        normalizePathForComparison(authorizedImporter)
+      ) {
+        continue;
+      }
+      violations.push({
+        file: relative(effectiveRootDir, filePath).replace(/\\/g, '/'),
+        importPath: specifier,
+        resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
+        reason:
+          'Internal protected mutation executor yalnız src/server/mutations/protected-route.ts tarafından içe aktarılabilir.',
+      });
+    }
+  }
+  return violations;
+}
+
 export interface ProjectEnvLoadOptions {
   rootDir?: string;
   envPath?: string;
@@ -867,11 +953,12 @@ export function runVerification(): void {
   console.info('[Güvenlik Sınırı Denetimi] Başlatılıyor...');
 
   // 1. Kaynak modül sınırlarını denetle
-  const boundaryViolations = checkSourceBoundaries();
+  const boundaryViolations = [
+    ...checkSourceBoundaries(),
+    ...checkProtectedMutationExecutorBoundaries(),
+  ];
   if (boundaryViolations.length > 0) {
-    console.error(
-      'HATA: Mimari sınır ihlali tespit edildi! İstemci/paylaşılan kod sunucu modüllerini içe aktaramaz:',
-    );
+    console.error('HATA: Mimari kaynak sınırı ihlali tespit edildi:');
     for (const v of boundaryViolations) {
       console.error(`  -> Dosya: ${v.file} | İthalat/Neden: ${v.importPath} | ${v.reason ?? ''}`);
     }

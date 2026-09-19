@@ -252,96 +252,142 @@ describe('M1-T09 RG-00 SensitiveActionGrant Issuance & Context Verification (IMP
   });
 });
 
-describe('M1-T09 Executor Assurance Discriminator & Idempotency Key Obligation (BLOCKER 3)', () => {
-  it('rejects SECURE_GRANT execution when grantEvidenceToken is omitted, and requires non-empty idempotency key', async () => {
-    const { executeAtomicMutation } = await import('../src/server/mutations/executor');
+describe('M1-T10 Mandatory Protected Mutation Surface', () => {
+  it('does not expose caller-selected assurance or arbitrary SQL mutation entry points', async () => {
+    const executorModule = await import('../src/server/mutations/executor');
+    expect(
+      (executorModule as unknown as Record<string, unknown>).executeAtomicMutation,
+    ).toBeUndefined();
+    expect(
+      (executorModule as unknown as Record<string, unknown>).authorizePermissionMutation,
+    ).toBeUndefined();
+    expect(
+      (executorModule as unknown as Record<string, unknown>).executePermissionMutation,
+    ).toBeUndefined();
+    expect(
+      (executorModule as unknown as Record<string, unknown>).executeProtectedPermissionMutation,
+    ).toBeUndefined();
+  });
 
-    const mockDb = {
-      prepare: () => ({
-        bind: () => ({
-          first: async () => null,
-          run: async () => ({ success: true }),
-        }),
-      }),
-      batch: async () => [],
-    } as unknown as D1Database;
-
-    // 1. Missing idempotencyKey must throw
-    await expect(
-      executeAtomicMutation({
-        db: mockDb,
-        assurance: 'NORMAL_SESSION',
-        agencyId: 'agency-1',
-        actorUserId: 'user-1',
-        actorMembershipId: 'mem-1',
-        action: 'customer.create',
-        correlationId: 'req-1',
-        idempotencyKey: '', // Empty!
-        payload: { name: 'Test' },
-        targetType: 'customers',
-        targetId: 'cust-1',
-        businessOperations: [],
-        resultProducer: () => ({ status: 200, body: {} }),
-      }),
-    ).rejects.toThrow('IDEMPOTENCY_KEY_REQUIRED');
-
-    // 2. SECURE_GRANT mode without grantEvidenceToken must throw
-    await expect(
-      executeAtomicMutation({
-        db: mockDb,
+  it('derives SECURE_GRANT from canonical permission mutation action metadata', async () => {
+    const { DEFAULT_ACTION_REGISTRY } = await import('../src/server/auth/authorization');
+    for (const action of ['permission.grant', 'permission.revoke', 'permission.scope.change']) {
+      expect(DEFAULT_ACTION_REGISTRY.get(action)).toMatchObject({
+        code: action,
+        authority: 'OWNER_ONLY',
         assurance: 'SECURE_GRANT',
-        agencyId: 'agency-1',
-        actorUserId: 'user-1',
-        actorMembershipId: 'mem-1',
-        action: 'membership.role.change',
-        correlationId: 'req-2',
-        idempotencyKey: 'idem-2',
-        payload: { targetMembershipId: 'mem-2' },
-        targetType: 'agency_memberships',
-        targetId: 'mem-2',
-        businessOperations: [],
-        resultProducer: () => ({ status: 200, body: {} }),
-      }),
-    ).rejects.toThrow('GRANT_EVIDENCE_REQUIRED');
+      });
+    }
+  });
 
-    // 3. SECURE_GRANT mode looks up grant in DB by evidence_hash (never trusts caller record)
-    await expect(
-      executeAtomicMutation({
-        db: mockDb, // mock returns null for first()
-        assurance: 'SECURE_GRANT',
-        agencyId: 'agency-1',
-        actorUserId: 'user-1',
-        actorMembershipId: 'mem-1',
-        action: 'membership.role.change',
-        correlationId: 'req-3',
-        idempotencyKey: 'idem-3',
-        payload: { targetMembershipId: 'mem-2' },
-        grantEvidenceToken: 'forged-or-nonexistent-token',
-        targetType: 'agency_memberships',
-        targetId: 'mem-2',
-        businessOperations: [{ statement: mockDb.prepare(''), expectedChanges: 1 }],
-        resultProducer: () => ({ status: 200, body: {} }),
-      }),
-    ).rejects.toThrow('GRANT_NOT_FOUND');
+  it('does not export direct permission mutation helpers from the production persistence module', async () => {
+    const permissionsModule = await import('../src/server/db/permissions');
+    expect(
+      (permissionsModule as unknown as Record<string, unknown>).grantPermission,
+    ).toBeUndefined();
+    expect(
+      (permissionsModule as unknown as Record<string, unknown>).revokePermission,
+    ).toBeUndefined();
+    expect(
+      (permissionsModule as unknown as Record<string, unknown>).changePermissionScope,
+    ).toBeUndefined();
+  });
 
-    // 4. Rejects empty businessOperations for executed mutation
-    await expect(
-      executeAtomicMutation({
-        db: mockDb,
-        assurance: 'NORMAL_SESSION',
-        agencyId: 'agency-1',
-        actorUserId: 'user-1',
-        actorMembershipId: 'mem-1',
-        action: 'customer.create',
-        correlationId: 'req-4',
-        idempotencyKey: 'idem-4',
-        payload: { name: 'Test' },
-        targetType: 'customers',
-        targetId: 'cust-1',
-        businessOperations: [], // Empty!
-        resultProducer: () => ({ status: 200, body: {} }),
+  it('does not export caller-supplied grant preflight authority', async () => {
+    const grantsModule = await import('../src/server/mutations/grants');
+    expect(
+      (grantsModule as unknown as Record<string, unknown>).validateGrantPreflight,
+    ).toBeUndefined();
+  });
+
+  it('exports the central protected permission route composer', async () => {
+    const routeModule = await import('../src/server/mutations/protected-route');
+    expect(routeModule.registerProtectedPermissionMutationRoute).toBeTypeOf('function');
+    expect(
+      (routeModule as unknown as Record<string, unknown>).executeProtectedPermissionMutation,
+    ).toBeUndefined();
+  });
+
+  it('central protected permission route rejects mutation before parsing when CSRF is absent', async () => {
+    const { Hono } = await import('hono');
+    const { registerProtectedPermissionMutationRoute } =
+      await import('../src/server/mutations/protected-route');
+    const app = new Hono<{ Bindings: { DB: D1Database } }>();
+    let parsed = false;
+    registerProtectedPermissionMutationRoute(app, {
+      method: 'POST',
+      path: '/permission',
+      authenticate: async () => ({
+        subject: 'subject-1',
+        context: {
+          userId: 'user-1',
+          identityId: 'identity-1',
+          email: 'user@example.test',
+          assurance: 'SECURE',
+          memberships: [],
+        },
       }),
-    ).rejects.toThrow('BUSINESS_OPERATIONS_REQUIRED');
+      resolveCsrfSecret: () => 's'.repeat(32),
+      parseRequest: async () => {
+        parsed = true;
+        throw new Error('MUST_NOT_PARSE_WITHOUT_CSRF');
+      },
+    });
+
+    const response = await app.request(
+      'https://panel.mayisigorta.com/permission',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://panel.mayisigorta.com',
+          'sec-fetch-site': 'same-origin',
+          'sec-fetch-mode': 'cors',
+        },
+      },
+      { DB: {} as D1Database },
+    );
+
+    expect(response.status).toBe(403);
+    expect(parsed).toBe(false);
+  });
+
+  it('central protected permission route rejects hostile cross-site Origin before authentication or parsing', async () => {
+    const { Hono } = await import('hono');
+    const { registerProtectedPermissionMutationRoute } =
+      await import('../src/server/mutations/protected-route');
+    const app = new Hono<{ Bindings: { DB: D1Database } }>();
+    let authenticated = false;
+    let parsed = false;
+    registerProtectedPermissionMutationRoute(app, {
+      method: 'POST',
+      path: '/permission',
+      authenticate: async () => {
+        authenticated = true;
+        throw new Error('MUST_NOT_AUTHENTICATE_CROSS_SITE');
+      },
+      resolveCsrfSecret: () => 's'.repeat(32),
+      parseRequest: async () => {
+        parsed = true;
+        throw new Error('MUST_NOT_PARSE_CROSS_SITE');
+      },
+    });
+
+    const response = await app.request(
+      'https://panel.mayisigorta.com/permission',
+      {
+        method: 'POST',
+        headers: {
+          origin: 'https://evil.example',
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'cors',
+        },
+      },
+      { DB: {} as D1Database },
+    );
+
+    expect(response.status).toBe(403);
+    expect(authenticated).toBe(false);
+    expect(parsed).toBe(false);
   });
 });
 

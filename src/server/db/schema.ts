@@ -262,7 +262,6 @@ export const operationReceipts = sqliteTable(
       table.agencyId,
       table.actorUserId,
       table.actorMembershipId,
-      table.action,
       table.idempotencyKey,
     ),
     index('operation_receipts_agency_idx').on(table.agencyId),

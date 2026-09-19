@@ -1,6 +1,7 @@
 import prettier from 'prettier';
 import { describe, it, expect } from 'vitest';
 import {
+  checkProtectedMutationExecutorBoundaries,
   checkSourceBoundaries,
   checkClientBundleForSecrets,
   loadProjectEnvSecrets,
@@ -81,6 +82,10 @@ describe('Mimari Sınır ve Güvenlik İzolasyon Testleri (Boundary & Security T
     expect(violations).toEqual([]);
   });
 
+  it('internal protected mutation executor yalnız protected route composer tarafından içe aktarılmalıdır', () => {
+    expect(checkProtectedMutationExecutorBoundaries()).toEqual([]);
+  });
+
   it('Sentetik gizli anahtar işaretçisi src/app veya src/shared kaynak kodlarında bulunmamalıdır', () => {
     const clientFiles = getAllSourceFiles(join(rootDir, 'src', 'app'));
     const sharedFiles = getAllSourceFiles(join(rootDir, 'src', 'shared'));
@@ -98,6 +103,107 @@ describe('Mimari Sınır ve Güvenlik İzolasyon Testleri (Boundary & Security T
     expect(config.APP_ENV).toBe('development');
     expect(config.SYNTHETIC_SECRET_KEY).toBe(SYNTHETIC_SERVER_SECRET_MARKER);
     expect((config as Record<string, unknown>).CF_ACCESS_TEAM_DOMAIN).toBeUndefined();
+  });
+});
+
+describe('Protected mutation internal executor kaynak sınırı', () => {
+  const internalExecutor = 'src/server/mutations/internal/protected-permission-executor.ts';
+  const authorizedRoute = 'src/server/mutations/protected-route.ts';
+
+  function protectedBoundaryFixture(files: Record<string, string>): Record<string, string> {
+    return {
+      [internalExecutor]: 'export function executeProtectedPermissionMutation() {}\n',
+      [authorizedRoute]:
+        "import { executeProtectedPermissionMutation } from './internal/protected-permission-executor';\nvoid executeProtectedPermissionMutation;\n",
+      ...files,
+    };
+  }
+
+  it('doğrudan production server importunu reddetmelidir', () => {
+    runWithTempFixture(
+      protectedBoundaryFixture({
+        'src/server/unsafe-bypass.ts':
+          "import { executeProtectedPermissionMutation } from './mutations/internal/protected-permission-executor';\nvoid executeProtectedPermissionMutation;\n",
+      }),
+      (tempDir) => {
+        const violations = checkProtectedMutationExecutorBoundaries({ rootDir: tempDir });
+        expect(violations).toHaveLength(1);
+        expect(violations[0]).toMatchObject({
+          file: 'src/server/unsafe-bypass.ts',
+          resolvedPath: 'src/server/mutations/internal/protected-permission-executor.ts',
+        });
+      },
+    );
+  });
+
+  it('production server static re-exportunu reddetmelidir', () => {
+    runWithTempFixture(
+      protectedBoundaryFixture({
+        'src/server/unsafe-reexport.ts':
+          "export { executeProtectedPermissionMutation } from './mutations/internal/protected-permission-executor';\n",
+      }),
+      (tempDir) => {
+        const violations = checkProtectedMutationExecutorBoundaries({ rootDir: tempDir });
+        expect(violations).toHaveLength(1);
+        expect(violations[0]?.file).toBe('src/server/unsafe-reexport.ts');
+      },
+    );
+  });
+
+  it.each([
+    [
+      'const değişken',
+      "const target = './mutations/internal/protected-permission-executor';\nexport const load = () => import(target);\n",
+    ],
+    [
+      'hesaplanmış template literal',
+      "const name = 'protected-permission-executor';\nexport const load = () => import(`./mutations/internal/${name}`);\n",
+    ],
+    [
+      'string birleştirme',
+      "export const load = () => import('./mutations/internal/' + 'protected-permission-executor');\n",
+    ],
+  ])('production server %s dynamic importunu fail-closed reddetmelidir', (_case, source) => {
+    runWithTempFixture(
+      protectedBoundaryFixture({ 'src/server/unsafe-dynamic.ts': source }),
+      (tempDir) => {
+        const violations = checkProtectedMutationExecutorBoundaries({ rootDir: tempDir });
+        expect(violations).toContainEqual(
+          expect.objectContaining({
+            file: 'src/server/unsafe-dynamic.ts',
+            importPath: '<computed-dynamic-import>',
+          }),
+        );
+      },
+    );
+  });
+
+  it('authorized protected route ve ilgisiz literal production importlarını kabul etmelidir', () => {
+    runWithTempFixture(
+      protectedBoundaryFixture({
+        'src/server/safe-dependency.ts': 'export const safe = true;\n',
+        'src/server/safe-consumer.ts': "import { safe } from './safe-dependency';\nvoid safe;\n",
+      }),
+      (tempDir) => {
+        expect(checkProtectedMutationExecutorBoundaries({ rootDir: tempDir })).toEqual([]);
+      },
+    );
+  });
+
+  it('tests/support erişimini production ağacına taşındığında muaf tutmamalıdır', () => {
+    runWithTempFixture(
+      protectedBoundaryFixture({
+        'tests/support/executor-fixture.ts':
+          "export { executeProtectedPermissionMutation } from '../../src/server/mutations/internal/protected-permission-executor';\n",
+        'src/server/tests/support/unsafe-fixture.ts':
+          "export { executeProtectedPermissionMutation } from '../../mutations/internal/protected-permission-executor';\n",
+      }),
+      (tempDir) => {
+        const violations = checkProtectedMutationExecutorBoundaries({ rootDir: tempDir });
+        expect(violations).toHaveLength(1);
+        expect(violations[0]?.file).toBe('src/server/tests/support/unsafe-fixture.ts');
+      },
+    );
   });
 });
 

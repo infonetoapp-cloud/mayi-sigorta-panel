@@ -17,7 +17,7 @@ import {
   type ScopeResolverRegistry,
 } from '../src/server/auth/authorization';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import { grantPermission } from '../src/server/db/permissions';
+import { grantPermission } from './support/permissions-fixture';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');

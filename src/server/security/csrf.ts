@@ -9,6 +9,8 @@ interface CsrfPayload {
 }
 
 const DEFAULT_CSRF_TTL_SECONDS = 900; // 15 dakika
+const MAX_CSRF_TTL_SECONDS = 900;
+const MAX_CLOCK_SKEW_SECONDS = 60;
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
@@ -22,6 +24,15 @@ function base64UrlEncode(bytes: Uint8Array): string {
 }
 
 function base64UrlDecode(str: string): Uint8Array | null {
+  if (
+    typeof str !== 'string' ||
+    str.length === 0 ||
+    !/^[A-Za-z0-9_-]+$/.test(str) ||
+    str.length % 4 === 1
+  ) {
+    return null;
+  }
+
   try {
     let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
     while (base64.length % 4 !== 0) {
@@ -32,7 +43,7 @@ function base64UrlDecode(str: string): Uint8Array | null {
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
-    return bytes;
+    return base64UrlEncode(bytes) === str ? bytes : null;
   } catch {
     return null;
   }
@@ -62,6 +73,20 @@ export async function generateIdentityBoundCsrfToken(
 ): Promise<string> {
   const now = options.issuedAt ?? Math.floor(Date.now() / 1000);
   const ttl = options.ttlSeconds ?? DEFAULT_CSRF_TTL_SECONDS;
+
+  if (
+    typeof options.subject !== 'string' ||
+    options.subject.trim() === '' ||
+    options.subject !== options.subject.trim() ||
+    !Number.isInteger(now) ||
+    !Number.isInteger(ttl) ||
+    ttl < 1 ||
+    ttl > MAX_CSRF_TTL_SECONDS ||
+    typeof secret !== 'string' ||
+    secret.length < 32
+  ) {
+    throw new Error('INVALID_CSRF_TOKEN_INPUT');
+  }
 
   const nonceBytes = new Uint8Array(16);
   crypto.getRandomValues(nonceBytes);
@@ -168,6 +193,27 @@ export async function verifyIdentityBoundCsrfToken(
     };
   }
 
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload) ||
+    typeof payload.sub !== 'string' ||
+    payload.sub.trim() === '' ||
+    payload.sub !== payload.sub.trim() ||
+    !Number.isInteger(payload.iat) ||
+    !Number.isInteger(payload.exp) ||
+    typeof payload.nonce !== 'string' ||
+    !/^[A-Za-z0-9_-]{20,24}$/.test(payload.nonce) ||
+    payload.exp <= payload.iat ||
+    payload.exp - payload.iat > MAX_CSRF_TTL_SECONDS
+  ) {
+    return {
+      valid: false,
+      code: 'MALFORMED_TOKEN',
+      message: 'CSRF belirteci güvenlik sınırlarını karşılamıyor.',
+    };
+  }
+
   // 1. Kimlik eşleşmesi (Identity-Bound)
   if (payload.sub !== expectedSubject) {
     return {
@@ -179,7 +225,15 @@ export async function verifyIdentityBoundCsrfToken(
 
   // 2. Süre dolumu denetimi (Short-Lived)
   const now = Math.floor(Date.now() / 1000);
-  if (now > payload.exp) {
+  if (payload.iat > now + MAX_CLOCK_SKEW_SECONDS) {
+    return {
+      valid: false,
+      code: 'MALFORMED_TOKEN',
+      message: 'CSRF belirteci henüz geçerli değil.',
+    };
+  }
+
+  if (now >= payload.exp) {
     return {
       valid: false,
       code: 'EXPIRED_TOKEN',
@@ -240,7 +294,7 @@ export async function verifyCsrfMutationGuard(
 
   const rawToken = request.headers.get('x-csrf-token') ?? request.headers.get(CSRF_HEADER_NAME);
 
-  if (!rawToken || rawToken.trim().length === 0) {
+  if (!rawToken || rawToken.length === 0 || rawToken !== rawToken.trim()) {
     return {
       allowed: false,
       status: 403,
@@ -250,7 +304,7 @@ export async function verifyCsrfMutationGuard(
   }
 
   const verification = await verifyIdentityBoundCsrfToken(
-    rawToken.trim(),
+    rawToken,
     authenticatedSubject.trim(),
     secret,
   );

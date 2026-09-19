@@ -1097,17 +1097,21 @@
           "name": "sensitive_action_grants_id_nonempty",
           "value": "length(trim(\"sensitive_action_grants\".\"id\")) > 0"
         },
-        "sensitive_action_grants_evidence_nonempty": {
-          "name": "sensitive_action_grants_evidence_nonempty",
-          "value": "length(trim(\"sensitive_action_grants\".\"evidence_hash\")) > 0"
+        "sensitive_action_grants_evidence_shape": {
+          "name": "sensitive_action_grants_evidence_shape",
+          "value": "length(\"sensitive_action_grants\".\"evidence_hash\") = 64"
         },
         "sensitive_action_grants_action_nonempty": {
           "name": "sensitive_action_grants_action_nonempty",
           "value": "length(trim(\"sensitive_action_grants\".\"action\")) > 0"
         },
-        "sensitive_action_grants_payload_hash_nonempty": {
-          "name": "sensitive_action_grants_payload_hash_nonempty",
-          "value": "length(trim(\"sensitive_action_grants\".\"payload_hash\")) > 0"
+        "sensitive_action_grants_payload_shape": {
+          "name": "sensitive_action_grants_payload_shape",
+          "value": "length(\"sensitive_action_grants\".\"payload_hash\") = 64"
+        },
+        "sensitive_action_grants_permission_version_positive": {
+          "name": "sensitive_action_grants_permission_version_positive",
+          "value": "\"sensitive_action_grants\".\"permission_version\" > 0"
         },
         "sensitive_action_grants_assurance_valid": {
           "name": "sensitive_action_grants_assurance_valid",
@@ -1120,6 +1124,10 @@
         "sensitive_action_grants_expiry_ordered": {
           "name": "sensitive_action_grants_expiry_ordered",
           "value": "\"sensitive_action_grants\".\"expires_at\" > \"sensitive_action_grants\".\"issued_at\""
+        },
+        "sensitive_action_grants_ttl_valid": {
+          "name": "sensitive_action_grants_ttl_valid",
+          "value": "(strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) <= 180 AND (strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) >= 1"
         },
         "sensitive_action_grants_timestamps_ordered": {
           "name": "sensitive_action_grants_timestamps_ordered",

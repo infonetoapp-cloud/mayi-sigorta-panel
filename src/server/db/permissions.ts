@@ -230,7 +230,7 @@ function validatePersistedDependencyGrant(
  * Bir üyeliğe yeni pozitif izin tanımlar.
  * Atomik olarak izin satırını ekler ve membership.permission_version değerini 1 artırır.
  */
-export async function grantPermission(
+async function grantPermission(
   db: D1Database,
   input: GrantPermissionInput,
 ): Promise<GrantPermissionResult> {
@@ -380,7 +380,7 @@ export async function grantPermission(
  * Bir üyelikten mevcut pozitif izni kaldırır (revoke).
  * Atomik olarak izin satırını siler ve membership.permission_version değerini 1 artırır.
  */
-export async function revokePermission(
+async function revokePermission(
   db: D1Database,
   input: RevokePermissionInput,
 ): Promise<RevokePermissionResult> {
@@ -499,7 +499,7 @@ export async function revokePermission(
  * Bir üyeliğin kayıt kapsamlı (RECORD_SCOPED) izninin kapsamını günceller.
  * Atomik olarak kapsamı (ASSIGNED <-> AGENCY) günceller ve membership.permission_version değerini 1 artırır.
  */
-export async function changePermissionScope(
+async function changePermissionScope(
   db: D1Database,
   input: ChangePermissionScopeInput,
 ): Promise<ChangePermissionScopeResult> {
@@ -674,3 +674,9 @@ export async function changePermissionScope(
     newPermissionVersion: expectedPermissionVersion + 1,
   };
 }
+
+// T04 kalıcılık regresyonları için uygulamalar modül içinde tutulur; üretim istek
+// koduna doğrudan mutasyon API'si açılmaz. Desteklenen yol korumalı yürütücüdür.
+void grantPermission;
+void revokePermission;
+void changePermissionScope;

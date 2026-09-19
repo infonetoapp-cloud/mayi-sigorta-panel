@@ -779,6 +779,18 @@ export function createDefaultActionRegistry(): ActionRegistry {
     }
   }
 
+  for (const code of ['permission.grant', 'permission.revoke', 'permission.scope.change']) {
+    normalActions.push(
+      validateAndCreateActionDefinition({
+        code,
+        authority: 'OWNER_ONLY',
+        requiredNormalPermissions: ['agency.settings.manage'],
+        requiredSensitivePermissions: [],
+        assurance: 'SECURE_GRANT',
+      }),
+    );
+  }
+
   return createActionRegistry(normalActions);
 }
 

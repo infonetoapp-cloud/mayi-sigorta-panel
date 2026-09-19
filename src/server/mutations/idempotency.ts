@@ -2,9 +2,9 @@
  * Mayı Sigorta CRM — Deterministik Idempotency Yöneticisi (M1-T09)
  *
  * KRİTİK GÜVENLİK VE TUTARLILIK KURALLARI:
- * 1. Idempotency anahtarı daima (agencyId + actorUserId + actorMembershipId + action + idempotencyKey) bileşimine bağlıdır.
- * 2. Kanonik payload parmak izi (payloadFingerprint) eşleşirse aynı sonuç deterministik olarak tekrarlanır (replay).
- * 3. Aynı anahtar ile farklı payload parmak izi gelirse derhal CONFLICT ('IDEMPOTENCY_PAYLOAD_MISMATCH') üretilir.
+ * 1. Idempotency anahtarı daima (agencyId + actorUserId + actorMembershipId + idempotencyKey) namespace'ine bağlıdır.
+ * 2. Aynı namespace/key içinde action ve kanonik payload parmak izi aynıysa sonuç deterministik olarak tekrarlanır.
+ * 3. Aynı anahtar ile farklı action veya payload gelirse deterministik CONFLICT üretilir.
  * 4. Devam eden işlem varsa 'IDEMPOTENCY_IN_PROGRESS' çatışması fırlatılır.
  * 5. Eşzamanlı mükerrer isteklerde en fazla bir iş etkisi ve bir başarı denetimi gerçekleşir.
  */
@@ -36,6 +36,7 @@ export type ReceiptCheckResult =
 
 interface OperationReceiptRow {
   readonly id: string;
+  readonly action: string;
   readonly status: 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
   readonly payload_fingerprint: string;
   readonly response_status: number | null;
@@ -47,28 +48,28 @@ export async function checkIdempotencyReceipt(
   input: CheckReceiptInput,
 ): Promise<ReceiptCheckResult> {
   const query = `
-    SELECT id, status, payload_fingerprint, response_status, response_body
+    SELECT id, action, status, payload_fingerprint, response_status, response_body
     FROM operation_receipts
     WHERE agency_id = ?
       AND actor_user_id = ?
       AND actor_membership_id = ?
-      AND action = ?
       AND idempotency_key = ?
   `;
 
   const row = await db
     .prepare(query)
-    .bind(
-      input.agencyId,
-      input.actorUserId,
-      input.actorMembershipId,
-      input.action,
-      input.idempotencyKey,
-    )
+    .bind(input.agencyId, input.actorUserId, input.actorMembershipId, input.idempotencyKey)
     .first<OperationReceiptRow>();
 
   if (!row) {
     return { kind: 'NEW' };
+  }
+
+  if (row.action !== input.action) {
+    return {
+      kind: 'CONFLICT',
+      code: 'IDEMPOTENCY_ACTION_MISMATCH',
+    };
   }
 
   if (row.status === 'COMPLETED') {

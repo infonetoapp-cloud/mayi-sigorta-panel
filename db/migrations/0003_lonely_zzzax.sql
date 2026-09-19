@@ -1,0 +1,2 @@
+DROP INDEX `operation_receipts_idem_uq`;--> statement-breakpoint
+CREATE UNIQUE INDEX `operation_receipts_idem_uq` ON `operation_receipts` (`agency_id`,`actor_user_id`,`actor_membership_id`,`idempotency_key`);
