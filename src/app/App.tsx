@@ -8,8 +8,14 @@ import type {
   CustomerListResponseData,
   ApiResponse,
 } from '../shared/types';
+import { CustomerIdentitySection } from './components/CustomerIdentitySection';
+import { CustomerAssignmentSection } from './components/CustomerAssignmentSection';
+import { CustomerExternalReferencesSection } from './components/CustomerExternalReferencesSection';
+import { SensitiveSearchPanel } from './components/SensitiveSearchPanel';
+import { CatalogsPanel } from './components/CatalogsPanel';
+import { AgencySettingsPanel } from './components/AgencySettingsPanel';
 
-type TabType = 'overview' | 'customers';
+type TabType = 'overview' | 'customers' | 'catalogs' | 'agency-settings';
 
 const STYLES = {
   container: {
@@ -219,7 +225,8 @@ const STYLES = {
 export interface AppErrorInfo {
   readonly message: string;
   readonly isRetryable: boolean;
-  readonly category: 'FORBIDDEN' | 'CONFLICT' | 'VALIDATION' | 'SERVER_OR_NETWORK';
+  readonly category:
+    'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'DUPLICATE' | 'VALIDATION' | 'SERVER_OR_NETWORK';
 }
 
 interface MutationRequestSnapshot {
@@ -247,6 +254,23 @@ export function parseAppError(
     };
   }
 
+  const csrfFailureCodes = new Set([
+    'MISSING_CSRF_TOKEN',
+    'MALFORMED_TOKEN',
+    'INVALID_SIGNATURE',
+    'SUBJECT_MISMATCH',
+    'EXPIRED_TOKEN',
+  ]);
+  if (status === 403 && errorObj?.code && csrfFailureCodes.has(errorObj.code)) {
+    invalidateCsrfToken();
+    return {
+      message:
+        'Güvenlik oturumu yenilenmeli. Aynı işlemi güvenli biçimde yeniden denemek için Tekrar Dene seçeneğini kullanınız.',
+      isRetryable: true,
+      category: 'SERVER_OR_NETWORK',
+    };
+  }
+
   if (status === 403) {
     return {
       message: 'Bu işlem için yetkiniz bulunmamaktadır veya erişim reddedildi.',
@@ -256,6 +280,13 @@ export function parseAppError(
   }
 
   if (status === 409) {
+    if (errorObj?.code === 'DUPLICATE_EXTERNAL_REFERENCE') {
+      return {
+        message: 'Bu harici referans zaten mevcut.',
+        isRetryable: false,
+        category: 'DUPLICATE',
+      };
+    }
     return {
       message:
         'Veri başka bir işlem tarafından güncellenmiş veya işlem çakışması tespit edildi. Lütfen sayfayı yenileyip güncel durumu kontrol ediniz.',
@@ -264,15 +295,17 @@ export function parseAppError(
     };
   }
 
-  if (status >= 400 && status < 500) {
-    const rawMsg = errorObj?.message || '';
-    const isRawDb = /sql|syntax|constraint|d1_|table|column|foreign key|assertion/i.test(rawMsg);
-    const safeMessage =
-      isRawDb || !rawMsg
-        ? 'Girdi doğrulama hatası: Geçersiz veya eksik veri sağlandı.'
-        : `Girdi doğrulama hatası: ${rawMsg}`;
+  if (status === 404) {
     return {
-      message: safeMessage,
+      message: 'Kayıt kullanılamıyor veya bu kaydı görme yetkiniz bulunmuyor.',
+      isRetryable: false,
+      category: 'NOT_FOUND',
+    };
+  }
+
+  if (status >= 400 && status < 500) {
+    return {
+      message: 'Girdi doğrulama hatası: Geçersiz veya eksik veri sağlandı.',
       isRetryable: false,
       category: 'VALIDATION',
     };
@@ -309,6 +342,7 @@ export function invalidateCsrfToken(): void {
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [showSensitiveSearch, setShowSensitiveSearch] = useState<boolean>(false);
 
   // Müşteri listesi durumu
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
@@ -649,9 +683,32 @@ export const App: React.FC = () => {
             <button
               type="button"
               style={STYLES.navButton(activeTab === 'customers')}
-              onClick={() => setActiveTab('customers')}
+              onClick={() => {
+                setShowSensitiveSearch(false);
+                setActiveTab('customers');
+              }}
             >
               Müşteriler
+            </button>
+            <button
+              type="button"
+              style={STYLES.navButton(activeTab === 'catalogs')}
+              onClick={() => {
+                setShowSensitiveSearch(false);
+                setActiveTab('catalogs');
+              }}
+            >
+              Kataloglar
+            </button>
+            <button
+              type="button"
+              style={STYLES.navButton(activeTab === 'agency-settings')}
+              onClick={() => {
+                setShowSensitiveSearch(false);
+                setActiveTab('agency-settings');
+              }}
+            >
+              Acente Ayarları
             </button>
           </nav>
         </div>
@@ -869,6 +926,14 @@ export const App: React.FC = () => {
 
                 <button
                   type="button"
+                  style={STYLES.btnSecondary}
+                  onClick={() => setShowSensitiveSearch((visible) => !visible)}
+                >
+                  {showSensitiveSearch ? 'Hassas Aramayı Kapat' : 'TCKN/VKN ile Ara'}
+                </button>
+
+                <button
+                  type="button"
                   style={STYLES.btnPrimary}
                   onClick={() => setShowCreateModal(true)}
                   data-testid="add-customer-button"
@@ -877,6 +942,16 @@ export const App: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {showSensitiveSearch && (
+              <SensitiveSearchPanel
+                onSelectCustomer={(customerId) => {
+                  setShowSensitiveSearch(false);
+                  void loadCustomerDetail(customerId);
+                }}
+                onClose={() => setShowSensitiveSearch(false)}
+              />
+            )}
 
             {/* Müşteri Listesi Tablosu */}
             <div style={{ ...STYLES.card, padding: 0, overflow: 'hidden' }}>
@@ -987,6 +1062,9 @@ export const App: React.FC = () => {
             </div>
           </div>
         )}
+
+        {activeTab === 'catalogs' && <CatalogsPanel />}
+        {activeTab === 'agency-settings' && <AgencySettingsPanel />}
       </main>
 
       {/* YENİ MÜŞTERİ OLUŞTURMA MODALI */}
@@ -1304,6 +1382,8 @@ export const App: React.FC = () => {
                   setSelectedCustomerId(null);
                   setSelectedCustomer(null);
                   setShowAddContact(false);
+                  setContactActionError(null);
+                  setContactRetryAttempt(null);
                 }}
               >
                 ✕
@@ -1372,6 +1452,22 @@ export const App: React.FC = () => {
                     <span style={{ fontWeight: 500 }}>{selectedCustomer.address || '—'}</span>
                   </div>
                 </div>
+
+                <CustomerIdentitySection
+                  customer={selectedCustomer}
+                  onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                  styles={STYLES}
+                />
+
+                <CustomerAssignmentSection
+                  customer={selectedCustomer}
+                  onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                />
+
+                <CustomerExternalReferencesSection
+                  customer={selectedCustomer}
+                  onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                />
 
                 {/* Kurumsal Müşteri İse Yetkililer Bölümü */}
                 {selectedCustomer.type === 'COMPANY' && (

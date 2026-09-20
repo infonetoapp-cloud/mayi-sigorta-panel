@@ -25,9 +25,40 @@ export function sanitizeAuditMetadata(metadata: unknown): Record<string, unknown
       key === 'customerId' ||
       key === 'contactId' ||
       key === 'eventCode' ||
-      key === 'safeCode'
+      key === 'safeCode' ||
+      key === 'afterAssigneeMembershipId' ||
+      key === 'referenceId' ||
+      key === 'sourceNamespace' ||
+      key === 'externalKey' ||
+      key === 'customerType' ||
+      key === 'entityId' ||
+      key === 'insurerId' ||
+      key === 'branchId' ||
+      key === 'productId' ||
+      key === 'paymentMethodId' ||
+      key === 'lossReasonId' ||
+      key === 'settingsId' ||
+      key === 'semanticCode' ||
+      key === 'entityCode' ||
+      key === 'code' ||
+      key === 'status' ||
+      key === 'activeResult'
     ) {
       if (typeof val === 'string' && SAFE_TOKEN_REGEX.test(val)) {
+        result[key] = val;
+      }
+    } else if (
+      key === 'beforeAssigneeMembershipId' ||
+      key === 'identityType' ||
+      key === 'beforeDefaultInsurerId' ||
+      key === 'afterDefaultInsurerId' ||
+      key === 'oldDefaultInsurerId' ||
+      key === 'newDefaultInsurerId' ||
+      key === 'defaultInsurerId'
+    ) {
+      if (val === null) {
+        result[key] = null;
+      } else if (typeof val === 'string' && SAFE_TOKEN_REGEX.test(val)) {
         result[key] = val;
       }
     } else if (key === 'changedFieldCount') {
@@ -44,11 +75,16 @@ export function sanitizeAuditMetadata(metadata: unknown): Record<string, unknown
         }
         result[key] = safeFields;
       }
-    } else if (key === 'targetVersion') {
+    } else if (key === 'targetVersion' || key === 'targetCustomerVersion') {
       if (typeof val === 'number' && Number.isInteger(val) && val >= 0 && val <= 1_000_000_000) {
         result[key] = val;
       }
-    } else if (key === 'replayed') {
+    } else if (
+      key === 'replayed' ||
+      key === 'hasIdentity' ||
+      key === 'deactivatedOldDefault' ||
+      key === 'oldDefaultDeactivated'
+    ) {
       if (typeof val === 'boolean') {
         result[key] = val;
       }

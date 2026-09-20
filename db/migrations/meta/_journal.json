@@ -36,6 +36,20 @@
       "when": 1789851416161,
       "tag": "0004_thankful_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789898010351,
+      "tag": "0005_graceful_northstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789908337156,
+      "tag": "0006_parched_proteus",
+      "breakpoints": true
     }
   ]
 }

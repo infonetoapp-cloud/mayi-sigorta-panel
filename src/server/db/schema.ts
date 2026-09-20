@@ -365,6 +365,12 @@ export const customers = sqliteTable(
     phone: text('phone'),
     address: text('address'),
     assigneeMembershipId: text('assignee_membership_id').notNull(),
+    identityType: text('identity_type', { enum: ['TCKN', 'VKN'] }),
+    identityCiphertext: text('identity_ciphertext'),
+    identityIv: text('identity_iv'),
+    identityTag: text('identity_tag'),
+    identitySearchHash: text('identity_search_hash'),
+    identityKeyVersion: integer('identity_key_version'),
     version: integer('version').notNull().default(1),
     createdAt: text('created_at').notNull().default(utcNow),
     updatedAt: text('updated_at').notNull().default(utcNow),
@@ -397,6 +403,7 @@ export const customers = sqliteTable(
     index('customers_agency_assignee_idx').on(table.agencyId, table.assigneeMembershipId),
     index('customers_agency_created_idx').on(table.agencyId, table.createdAt),
     index('customers_agency_display_name_idx').on(table.agencyId, table.displayName),
+    index('customers_agency_identity_search_hash_idx').on(table.agencyId, table.identitySearchHash),
   ],
 );
 
@@ -452,6 +459,246 @@ export const companyContacts = sqliteTable(
   ],
 );
 
+export const externalCustomerReferences = sqliteTable(
+  'external_customer_references',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    customerId: text('customer_id').notNull(),
+    sourceNamespace: text('source_namespace').notNull(),
+    externalKey: text('external_key').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('ext_cust_refs_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'ext_cust_refs_source_namespace_nonempty',
+      sql`length(trim(${table.sourceNamespace})) > 0`,
+    ),
+    check('ext_cust_refs_external_key_nonempty', sql`length(trim(${table.externalKey})) > 0`),
+    check('ext_cust_refs_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'ext_cust_refs_agency_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('ext_cust_refs_agency_source_key_uq').on(
+      table.agencyId,
+      table.sourceNamespace,
+      table.externalKey,
+    ),
+    index('ext_cust_refs_agency_customer_idx').on(table.agencyId, table.customerId),
+    index('ext_cust_refs_agency_source_key_idx').on(
+      table.agencyId,
+      table.sourceNamespace,
+      table.externalKey,
+    ),
+  ],
+);
+
+export const insurers = sqliteTable(
+  'insurers',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('insurers_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('insurers_code_nonempty', sql`length(trim(${table.code})) > 0`),
+    check('insurers_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check('insurers_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('insurers_version_positive', sql`${table.version} >= 1`),
+    check('insurers_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    uniqueIndex('insurers_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('insurers_agency_code_uq').on(table.agencyId, table.code),
+    index('insurers_agency_status_idx').on(table.agencyId, table.status),
+  ],
+);
+
+export const insuranceBranches = sqliteTable(
+  'insurance_branches',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('insurance_branches_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('insurance_branches_code_nonempty', sql`length(trim(${table.code})) > 0`),
+    check('insurance_branches_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check('insurance_branches_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('insurance_branches_version_positive', sql`${table.version} >= 1`),
+    check('insurance_branches_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    uniqueIndex('insurance_branches_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('insurance_branches_agency_code_uq').on(table.agencyId, table.code),
+    index('insurance_branches_agency_status_idx').on(table.agencyId, table.status),
+  ],
+);
+
+export const insuranceProducts = sqliteTable(
+  'insurance_products',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    insurerId: text('insurer_id').notNull(),
+    branchId: text('branch_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('insurance_products_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('insurance_products_code_nonempty', sql`length(trim(${table.code})) > 0`),
+    check('insurance_products_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check('insurance_products_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('insurance_products_version_positive', sql`${table.version} >= 1`),
+    check('insurance_products_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    foreignKey({
+      columns: [table.agencyId, table.insurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+      name: 'insurance_products_agency_insurer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.branchId],
+      foreignColumns: [insuranceBranches.agencyId, insuranceBranches.id],
+      name: 'insurance_products_agency_branch_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('insurance_products_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('insurance_products_agency_code_uq').on(table.agencyId, table.code),
+    index('insurance_products_agency_insurer_idx').on(table.agencyId, table.insurerId),
+    index('insurance_products_agency_branch_idx').on(table.agencyId, table.branchId),
+    index('insurance_products_agency_status_idx').on(table.agencyId, table.status),
+  ],
+);
+
+export const paymentMethods = sqliteTable(
+  'payment_methods',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('payment_methods_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('payment_methods_code_nonempty', sql`length(trim(${table.code})) > 0`),
+    check('payment_methods_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check('payment_methods_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('payment_methods_version_positive', sql`${table.version} >= 1`),
+    check('payment_methods_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    uniqueIndex('payment_methods_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('payment_methods_agency_code_uq').on(table.agencyId, table.code),
+    index('payment_methods_agency_status_idx').on(table.agencyId, table.status),
+  ],
+);
+
+export const lossReasons = sqliteTable(
+  'loss_reasons',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('loss_reasons_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('loss_reasons_code_nonempty', sql`length(trim(${table.code})) > 0`),
+    check('loss_reasons_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check('loss_reasons_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('loss_reasons_version_positive', sql`${table.version} >= 1`),
+    check('loss_reasons_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    uniqueIndex('loss_reasons_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('loss_reasons_agency_code_uq').on(table.agencyId, table.code),
+    index('loss_reasons_agency_status_idx').on(table.agencyId, table.status),
+  ],
+);
+
+export const agencySettings = sqliteTable(
+  'agency_settings',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    defaultInsurerId: text('default_insurer_id'),
+    timezone: text('timezone').notNull().default('Europe/Istanbul'),
+    renewalWindowDays: integer('renewal_window_days').notNull().default(30),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('agency_settings_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('agency_settings_timezone_nonempty', sql`length(trim(${table.timezone})) > 0`),
+    check(
+      'agency_settings_renewal_window_days_range',
+      sql`${table.renewalWindowDays} >= 1 AND ${table.renewalWindowDays} <= 120`,
+    ),
+    check('agency_settings_version_positive', sql`${table.version} >= 1`),
+    check('agency_settings_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    foreignKey({
+      columns: [table.agencyId, table.defaultInsurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+      name: 'agency_settings_agency_default_insurer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('agency_settings_agency_id_uq').on(table.agencyId),
+    index('agency_settings_default_insurer_idx').on(table.agencyId, table.defaultInsurerId),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
@@ -463,3 +710,10 @@ export type OperationReceipt = typeof operationReceipts.$inferSelect;
 export type SensitiveActionGrant = typeof sensitiveActionGrants.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type CompanyContact = typeof companyContacts.$inferSelect;
+export type ExternalCustomerReference = typeof externalCustomerReferences.$inferSelect;
+export type Insurer = typeof insurers.$inferSelect;
+export type InsuranceBranch = typeof insuranceBranches.$inferSelect;
+export type InsuranceProduct = typeof insuranceProducts.$inferSelect;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type LossReason = typeof lossReasons.$inferSelect;
+export type AgencySettings = typeof agencySettings.$inferSelect;

@@ -767,7 +767,9 @@ export function checkProtectedMutationExecutorBoundaries(
 /**
  * Domain mutation executor sınırı (BLOCKER B):
  * Internal customer domain executor (src/server/mutations/internal/customer-domain-executor.ts)
- * yalnız `src/server/customers/service.ts` tarafından içe aktarılabilir.
+ * yalnız `src/server/customers/service.ts` tarafından,
+ * Internal catalog domain executor (src/server/mutations/internal/catalog-domain-executor.ts)
+ * yalnız `src/server/catalogs/service.ts` tarafından içe aktarılabilir.
  * Başka hiçbir production sunucu dosyası, route handler veya harici modül doğrudan erişemez.
  * AST ve module-resolution ile statik import, export-from, literal dynamic import
  * ve computed/unresolved import bypassları fail-closed yakalanır.
@@ -777,11 +779,15 @@ export function checkDomainMutationExecutorBoundaries(
 ): BoundaryViolation[] {
   const effectiveRootDir = options?.rootDir || rootDir;
   const serverDir = resolve(effectiveRootDir, 'src/server');
-  const internalExecutor = canonicalizePath(
+  const internalCustomerExecutor = canonicalizePath(
     resolve(serverDir, 'mutations/internal/customer-domain-executor.ts'),
   );
+  const internalCatalogExecutor = canonicalizePath(
+    resolve(serverDir, 'mutations/internal/catalog-domain-executor.ts'),
+  );
   const deprecatedExecutor = canonicalizePath(resolve(serverDir, 'mutations/domain-executor.ts'));
-  const authorizedImporter = canonicalizePath(resolve(serverDir, 'customers/service.ts'));
+  const authorizedCustomerImporter = canonicalizePath(resolve(serverDir, 'customers/service.ts'));
+  const authorizedCatalogImporter = canonicalizePath(resolve(serverDir, 'catalogs/service.ts'));
   const violations: BoundaryViolation[] = [];
 
   if (!existsSync(serverDir)) return violations;
@@ -804,7 +810,32 @@ export function checkDomainMutationExecutorBoundaries(
     }
   }
 
-  if (!existsSync(internalExecutor)) return violations;
+  const executorsToCheck: Array<{
+    executorPath: string;
+    authorizedImporter: string;
+    name: string;
+    targetModule: string;
+  }> = [];
+
+  if (existsSync(internalCustomerExecutor)) {
+    executorsToCheck.push({
+      executorPath: internalCustomerExecutor,
+      authorizedImporter: authorizedCustomerImporter,
+      name: 'customer',
+      targetModule: 'src/server/customers/service.ts',
+    });
+  }
+
+  if (existsSync(internalCatalogExecutor)) {
+    executorsToCheck.push({
+      executorPath: internalCatalogExecutor,
+      authorizedImporter: authorizedCatalogImporter,
+      name: 'catalog',
+      targetModule: 'src/server/catalogs/service.ts',
+    });
+  }
+
+  if (executorsToCheck.length === 0) return violations;
 
   let compilerOptions: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,
@@ -853,21 +884,23 @@ export function checkDomainMutationExecutorBoundaries(
       if (!resolved.resolvedModule) continue;
       const resolvedPath = canonicalizePath(resolved.resolvedModule.resolvedFileName);
 
-      // A. Internal customer executor kontrolü
-      if (
-        normalizePathForComparison(resolvedPath) === normalizePathForComparison(internalExecutor)
-      ) {
+      // A. Internal domain executors kontrolü
+      for (const executor of executorsToCheck) {
         if (
-          normalizePathForComparison(canonicalizePath(filePath)) !==
-          normalizePathForComparison(authorizedImporter)
+          normalizePathForComparison(resolvedPath) ===
+          normalizePathForComparison(executor.executorPath)
         ) {
-          violations.push({
-            file: relative(effectiveRootDir, filePath).replace(/\\/g, '/'),
-            importPath: specifier,
-            resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
-            reason:
-              'Internal customer domain executor yalnız src/server/customers/service.ts tarafından içe aktarılabilir.',
-          });
+          if (
+            normalizePathForComparison(canonicalizePath(filePath)) !==
+            normalizePathForComparison(executor.authorizedImporter)
+          ) {
+            violations.push({
+              file: relative(effectiveRootDir, filePath).replace(/\\/g, '/'),
+              importPath: specifier,
+              resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
+              reason: `Internal ${executor.name} domain executor yalnız ${executor.targetModule} tarafından içe aktarılabilir.`,
+            });
+          }
         }
       }
 
@@ -880,7 +913,7 @@ export function checkDomainMutationExecutorBoundaries(
           importPath: specifier,
           resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
           reason:
-            'Mühürlü domain-executor.ts içe aktarılamaz. Yalnızca internal/customer-domain-executor ve customer service kullanılmalıdır.',
+            'Mühürlü domain-executor.ts içe aktarılamaz. Yalnızca internal domain executorlar ve yetkili servisler kullanılmalıdır.',
         });
       }
     }

@@ -808,6 +808,79 @@ export function createDefaultActionRegistry(): ActionRegistry {
     );
   }
 
+  // M2-T02 Kanonik Bileşik Eylemler (Canonical Compound Actions)
+  normalActions.push(
+    validateAndCreateActionDefinition({
+      code: 'customer.identity.read',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['customer.read'],
+      requiredSensitivePermissions: ['sensitive.identity.read'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'customer.identity.update',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['customer.update'],
+      requiredSensitivePermissions: ['sensitive.identity.read', 'sensitive.identity.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'customer.identity.search',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['customer.read'],
+      requiredSensitivePermissions: ['sensitive.identity.read'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'customer.external_reference.create',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['customer.update'],
+      requiredSensitivePermissions: [],
+      assurance: 'NORMAL_SESSION',
+    }),
+  );
+
+  // M2-T03 Kanonik Katalog ve Acente Ayarları Eylemleri (M2-T03 Canonical Actions)
+  const catalogManageActions = [
+    'catalog.insurer.create',
+    'catalog.insurer.update',
+    'catalog.insurer.deactivate',
+    'catalog.branch.create',
+    'catalog.branch.update',
+    'catalog.branch.deactivate',
+    'catalog.product.create',
+    'catalog.product.update',
+    'catalog.product.deactivate',
+    'catalog.payment_method.create',
+    'catalog.payment_method.update',
+    'catalog.payment_method.deactivate',
+    'catalog.loss_reason.create',
+    'catalog.loss_reason.update',
+    'catalog.loss_reason.deactivate',
+  ];
+
+  for (const code of catalogManageActions) {
+    normalActions.push(
+      validateAndCreateActionDefinition({
+        code,
+        authority: 'MEMBERSHIP_AUTHORIZED',
+        requiredNormalPermissions: ['catalog.manage'],
+        requiredSensitivePermissions: [],
+        assurance: 'NORMAL_SESSION',
+      }),
+    );
+  }
+
+  normalActions.push(
+    validateAndCreateActionDefinition({
+      code: 'agency.settings.update_operations',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['agency.settings.manage'],
+      requiredSensitivePermissions: [],
+      assurance: 'NORMAL_SESSION',
+    }),
+  );
+
   return createActionRegistry(normalActions);
 }
 
@@ -985,7 +1058,12 @@ export function customerRecordResolver(context: ScopeResolutionContext): boolean
 
     // 3. ASSIGNED kapsamı:
     if (effectiveScope === 'ASSIGNED') {
-      // A. Müşteri oluşturma (create): sunucudan türetilmiş önerilen agency ve assignee
+      // A. Koleksiyon veya arama filtresi: Aynı acente içinde sorgulama (sonuç kümesi SQL'de assignee_membership_id ile filtrelenecektir)
+      if (res.isCollection === true) {
+        return true;
+      }
+
+      // B. Müşteri oluşturma (create): sunucudan türetilmiş önerilen agency ve assignee
       if (res.isCreate === true) {
         return (
           typeof res.assigneeMembershipId === 'string' && res.assigneeMembershipId === membershipId

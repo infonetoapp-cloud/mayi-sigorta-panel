@@ -103,6 +103,31 @@ export type CustomerDomainCommand =
       readonly customerId: string;
       readonly contactId: string;
       readonly expectedVersion: number;
+    }
+  | {
+      readonly kind: 'customer.identity.update';
+      readonly customerId: string;
+      readonly expectedVersion: number;
+      readonly identityType: 'TCKN' | 'VKN' | null;
+      readonly identityCiphertext: string | null;
+      readonly identityIv: string | null;
+      readonly identityTag: string | null;
+      readonly identitySearchHash: string | null;
+      readonly identityKeyVersion: number | null;
+    }
+  | {
+      readonly kind: 'customer.assign';
+      readonly customerId: string;
+      readonly expectedVersion: number;
+      readonly targetAssigneeMembershipId: string;
+    }
+  | {
+      readonly kind: 'customer.external_reference.create';
+      readonly customerId: string;
+      readonly referenceId: string;
+      readonly expectedVersion: number;
+      readonly sourceNamespace: string;
+      readonly externalKey: string;
     };
 
 export interface ExecuteCustomerDomainCommandInput<TResult = unknown> {
@@ -123,6 +148,115 @@ export interface CustomerDomainCommandResult<TResult = unknown> {
   readonly replayed: boolean;
   readonly status: number;
   readonly body: TResult;
+}
+
+type CustomerDomainCommandKind = CustomerDomainCommand['kind'];
+
+interface IdempotencyLookup<TResult> {
+  readonly action: string;
+  readonly payloadFingerprint: string;
+  readonly trimmedIdempotencyKey: string;
+  readonly replay: CustomerDomainCommandResult<TResult> | null;
+}
+
+function actionForCommandKind(kind: CustomerDomainCommandKind): string {
+  switch (kind) {
+    case 'customer.create':
+    case 'customer.update':
+    case 'company_contact.create':
+    case 'company_contact.update':
+    case 'company_contact.set_primary':
+    case 'company_contact.deactivate':
+    case 'customer.identity.update':
+    case 'customer.assign':
+    case 'customer.external_reference.create':
+      return kind;
+    default: {
+      const exhaustiveCheck: never = kind;
+      throw new Error(`UNSUPPORTED_DOMAIN_COMMAND_KIND: ${String(exhaustiveCheck)}`);
+    }
+  }
+}
+
+async function lookupIdempotency<TResult>(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly idempotencyKey: string;
+  readonly payload: unknown;
+  readonly commandKind: CustomerDomainCommandKind;
+}): Promise<IdempotencyLookup<TResult>> {
+  if (
+    !input.idempotencyKey ||
+    typeof input.idempotencyKey !== 'string' ||
+    input.idempotencyKey.trim().length === 0
+  ) {
+    throw new Error('IDEMPOTENCY_KEY_REQUIRED');
+  }
+
+  const trimmedIdempotencyKey = input.idempotencyKey.trim();
+  const action = actionForCommandKind(input.commandKind);
+  const payloadFingerprint = await computePayloadHash(input.payload);
+  const existingReceipt = await input.db
+    .prepare(
+      `SELECT action, payload_fingerprint, status, response_status, response_body
+       FROM operation_receipts
+       WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ? AND idempotency_key = ?
+       LIMIT 1`,
+    )
+    .bind(input.agencyId, input.actorUserId, input.actorMembershipId, trimmedIdempotencyKey)
+    .first<{
+      action: string;
+      payload_fingerprint: string;
+      status: string;
+      response_status: number;
+      response_body: string;
+    }>();
+
+  if (!existingReceipt) {
+    return { action, payloadFingerprint, trimmedIdempotencyKey, replay: null };
+  }
+  if (existingReceipt.action !== action) {
+    throw new IdempotencyConflictError('IDEMPOTENCY_ACTION_MISMATCH');
+  }
+  if (existingReceipt.payload_fingerprint !== payloadFingerprint) {
+    throw new IdempotencyConflictError('IDEMPOTENCY_PAYLOAD_MISMATCH');
+  }
+  if (existingReceipt.status !== 'COMPLETED') {
+    throw new IdempotencyConflictError('IDEMPOTENCY_IN_PROGRESS');
+  }
+
+  let parsedBody: TResult;
+  try {
+    parsedBody = JSON.parse(existingReceipt.response_body) as TResult;
+  } catch {
+    parsedBody = existingReceipt.response_body as unknown as TResult;
+  }
+  return {
+    action,
+    payloadFingerprint,
+    trimmedIdempotencyKey,
+    replay: {
+      executed: false,
+      replayed: true,
+      status: existingReceipt.response_status,
+      body: parsedBody,
+    },
+  };
+}
+
+/** Authoritative completed-receipt phase for service prechecks. */
+export async function replayCompletedCustomerDomainCommand<TResult>(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly idempotencyKey: string;
+  readonly payload: unknown;
+  readonly commandKind: CustomerDomainCommandKind;
+}): Promise<CustomerDomainCommandResult<TResult> | null> {
+  return (await lookupIdempotency<TResult>(input)).replay;
 }
 
 interface CommandExecutionPlan {
@@ -539,6 +673,233 @@ async function planCommand(
       };
     }
 
+    case 'customer.identity.update': {
+      const customer = await db
+        .prepare('SELECT id, type, version FROM customers WHERE id = ? AND agency_id = ?')
+        .bind(command.customerId, agencyId)
+        .first<{ id: string; type: 'INDIVIDUAL' | 'COMPANY'; version: number }>();
+
+      if (!customer) {
+        throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
+      }
+
+      if (command.identityType !== null) {
+        if (customer.type === 'INDIVIDUAL' && command.identityType !== 'TCKN') {
+          throw new DomainConstraintViolationError(
+            'IDENTITY_TYPE_MISMATCH',
+            'Bireysel müşteriler yalnızca TCKN tipinde kimlik alabilir.',
+          );
+        }
+        if (customer.type === 'COMPANY' && command.identityType !== 'VKN') {
+          throw new DomainConstraintViolationError(
+            'IDENTITY_TYPE_MISMATCH',
+            'Tüzel müşteriler yalnızca VKN tipinde kimlik alabilir.',
+          );
+        }
+      }
+
+      const nextVersion = command.expectedVersion + 1;
+      const updateStmt = db
+        .prepare(
+          `UPDATE customers
+           SET identity_type = ?,
+               identity_ciphertext = ?,
+               identity_iv = ?,
+               identity_tag = ?,
+               identity_search_hash = ?,
+               identity_key_version = ?,
+               version = ?,
+               updated_at = ?
+           WHERE id = ? AND agency_id = ? AND version = ?`,
+        )
+        .bind(
+          command.identityType,
+          command.identityCiphertext,
+          command.identityIv,
+          command.identityTag,
+          command.identitySearchHash,
+          command.identityKeyVersion,
+          nextVersion,
+          now,
+          command.customerId,
+          agencyId,
+          command.expectedVersion,
+        );
+
+      return {
+        action: 'customer.identity.update',
+        targetType: 'customers',
+        targetId: command.customerId,
+        targetCustomerId: command.customerId,
+        isCreate: false,
+        auditCode: command.identityType ? 'customer.identity.updated' : 'customer.identity.cleared',
+        auditMetadata: {
+          customerId: command.customerId,
+          targetVersion: nextVersion,
+          identityType: command.identityType,
+          hasIdentity: command.identityType !== null,
+        },
+        businessStatements: [
+          {
+            statement: updateStmt,
+            expectedChanges: 1,
+            failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
+          },
+        ],
+      };
+    }
+
+    case 'customer.assign': {
+      const customer = await db
+        .prepare(
+          'SELECT id, assignee_membership_id, version FROM customers WHERE id = ? AND agency_id = ?',
+        )
+        .bind(command.customerId, agencyId)
+        .first<{ id: string; assignee_membership_id: string | null; version: number }>();
+
+      if (!customer) {
+        throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
+      }
+
+      const targetMember = await db
+        .prepare(
+          `SELECT m.id, m.status, u.status AS user_status
+           FROM agency_memberships m
+           INNER JOIN users u ON u.id = m.user_id
+           WHERE m.id = ? AND m.agency_id = ?`,
+        )
+        .bind(command.targetAssigneeMembershipId, agencyId)
+        .first<{ id: string; status: string; user_status: string }>();
+
+      if (!targetMember) {
+        throw new DomainConstraintViolationError(
+          'ASSIGNEE_MEMBERSHIP_NOT_FOUND',
+          'Hedef temsilci üyeliği bulunamadı veya farklı acenteye ait.',
+        );
+      }
+      if (targetMember.status !== 'ACTIVE' || targetMember.user_status !== 'ACTIVE') {
+        throw new DomainConstraintViolationError(
+          'INACTIVE_ASSIGNEE_PROHIBITED',
+          'Yalnızca aktif acente üyelerine müşteri atanabilir.',
+        );
+      }
+
+      const nextVersion = command.expectedVersion + 1;
+      const updateStmt = db
+        .prepare(
+          `UPDATE customers
+           SET assignee_membership_id = ?, version = ?, updated_at = ?
+           WHERE id = ? AND agency_id = ? AND version = ?`,
+        )
+        .bind(
+          command.targetAssigneeMembershipId,
+          nextVersion,
+          now,
+          command.customerId,
+          agencyId,
+          command.expectedVersion,
+        );
+
+      return {
+        action: 'customer.assign',
+        targetType: 'customers',
+        targetId: command.customerId,
+        targetCustomerId: command.customerId,
+        isCreate: false,
+        auditCode: 'customer.assigned',
+        auditMetadata: {
+          customerId: command.customerId,
+          targetVersion: nextVersion,
+          beforeAssigneeMembershipId: customer.assignee_membership_id,
+          afterAssigneeMembershipId: command.targetAssigneeMembershipId,
+        },
+        businessStatements: [
+          {
+            statement: updateStmt,
+            expectedChanges: 1,
+            failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
+          },
+        ],
+      };
+    }
+
+    case 'customer.external_reference.create': {
+      const customer = await db
+        .prepare('SELECT id, version FROM customers WHERE id = ? AND agency_id = ?')
+        .bind(command.customerId, agencyId)
+        .first<{ id: string; version: number }>();
+
+      if (!customer) {
+        throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
+      }
+
+      const existingRef = await db
+        .prepare(
+          `SELECT id FROM external_customer_references
+           WHERE agency_id = ? AND source_namespace = ? AND external_key = ?`,
+        )
+        .bind(agencyId, command.sourceNamespace, command.externalKey)
+        .first<{ id: string }>();
+
+      if (existingRef) {
+        throw new DomainConstraintViolationError(
+          'DUPLICATE_EXTERNAL_REFERENCE',
+          'Bu acente için harici kaynak ve referans anahtarı zaten tanımlı.',
+        );
+      }
+
+      const nextVersion = command.expectedVersion + 1;
+      const updateCustStmt = db
+        .prepare(
+          `UPDATE customers
+           SET version = ?, updated_at = ?
+           WHERE id = ? AND agency_id = ? AND version = ?`,
+        )
+        .bind(nextVersion, now, command.customerId, agencyId, command.expectedVersion);
+
+      const insertRefStmt = db
+        .prepare(
+          `INSERT INTO external_customer_references (
+             id, agency_id, customer_id, source_namespace, external_key, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          command.referenceId,
+          agencyId,
+          command.customerId,
+          command.sourceNamespace,
+          command.externalKey,
+          now,
+        );
+
+      return {
+        action: 'customer.external_reference.create',
+        targetType: 'external_customer_references',
+        targetId: command.referenceId,
+        targetCustomerId: command.customerId,
+        isCreate: false,
+        auditCode: 'customer.external_reference.created',
+        auditMetadata: {
+          customerId: command.customerId,
+          referenceId: command.referenceId,
+          sourceNamespace: command.sourceNamespace,
+          targetCustomerVersion: nextVersion,
+        },
+        businessStatements: [
+          {
+            statement: updateCustStmt,
+            expectedChanges: 1,
+            failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
+          },
+          {
+            statement: insertRefStmt,
+            expectedChanges: 1,
+            failureCode: 'DUPLICATE_EXTERNAL_REFERENCE',
+          },
+        ],
+      };
+    }
+
     default: {
       const exhaustiveCheck: never = command;
       throw new Error(`UNSUPPORTED_DOMAIN_COMMAND: ${JSON.stringify(exhaustiveCheck)}`);
@@ -563,57 +924,39 @@ export async function executeCustomerDomainCommand<TResult>(
     command,
   } = input;
 
-  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.trim().length === 0) {
-    throw new Error('IDEMPOTENCY_KEY_REQUIRED');
+  // Authoritative completed replay must precede DB-dependent planning and domain prechecks.
+  const idempotency = await lookupIdempotency<TResult>({
+    db,
+    agencyId,
+    actorUserId,
+    actorMembershipId,
+    idempotencyKey,
+    payload: input.payload,
+    commandKind: command.kind,
+  });
+  if (idempotency.replay) return idempotency.replay;
+  const { action, payloadFingerprint, trimmedIdempotencyKey } = idempotency;
+
+  let plan: CommandExecutionPlan;
+  try {
+    plan = await planCommand(db, agencyId, actorMembershipId, command);
+  } catch (planningError) {
+    // A concurrent exact request may commit after the first receipt lookup but
+    // before a state-dependent plan precheck. Re-read the authoritative receipt.
+    const afterFailure = await lookupIdempotency<TResult>({
+      db,
+      agencyId,
+      actorUserId,
+      actorMembershipId,
+      idempotencyKey,
+      payload: input.payload,
+      commandKind: command.kind,
+    });
+    if (afterFailure.replay) return afterFailure.replay;
+    throw planningError;
   }
-
-  const trimmedIdempotencyKey = idempotencyKey.trim();
-
-  // 1. Komut Planını Oluştur (Server-Owned Mapping)
-  const plan = await planCommand(db, agencyId, actorMembershipId, command);
-
-  // 2. Kanonik Payload Parmak İzi
-  const payloadFingerprint = await computePayloadHash(input.payload);
-
-  // 3. Deterministik Idempotency Kontrolü
-  const existingReceipt = await db
-    .prepare(
-      `SELECT action, payload_fingerprint, status, response_status, response_body
-       FROM operation_receipts
-       WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ? AND idempotency_key = ?
-       LIMIT 1`,
-    )
-    .bind(agencyId, actorUserId, actorMembershipId, trimmedIdempotencyKey)
-    .first<{
-      action: string;
-      payload_fingerprint: string;
-      status: string;
-      response_status: number;
-      response_body: string;
-    }>();
-
-  if (existingReceipt) {
-    if (existingReceipt.action !== plan.action) {
-      throw new IdempotencyConflictError('IDEMPOTENCY_ACTION_MISMATCH');
-    }
-    if (existingReceipt.payload_fingerprint !== payloadFingerprint) {
-      throw new IdempotencyConflictError('IDEMPOTENCY_PAYLOAD_MISMATCH');
-    }
-    if (existingReceipt.status === 'COMPLETED') {
-      let parsedBody: TResult;
-      try {
-        parsedBody = JSON.parse(existingReceipt.response_body) as TResult;
-      } catch {
-        parsedBody = existingReceipt.response_body as unknown as TResult;
-      }
-      return {
-        executed: false,
-        replayed: true,
-        status: existingReceipt.response_status,
-        body: parsedBody,
-      };
-    }
-    throw new IdempotencyConflictError('IDEMPOTENCY_IN_PROGRESS');
+  if (plan.action !== action) {
+    throw new Error('DOMAIN_COMMAND_ACTION_MAPPING_MISMATCH');
   }
 
   // 4. Canlı DB Yaşam Döngüsü ve Üyelik Doğrulaması (Pre-flight)
@@ -664,7 +1007,6 @@ export async function executeCustomerDomainCommand<TResult>(
   //    ve her ASSIGNED yükümlülüğü CANLI customer'ın assignee_membership_id'sine göre
   //    aktörün üyeliğiyle eşleşmeli (concurrent re-assign yarışında fail-closed).
   // 4. permission_version snapshot'ı tam eşleşmelidir (stale snapshot rollback).
-  const isCreateInt = plan.isCreate ? 1 : 0;
   const finalAuthorityRecheckStmt = db
     .prepare(
       `INSERT INTO d1_cas_assertions (id, expected, actual, failure_code)
@@ -682,13 +1024,32 @@ export async function executeCustomerDomainCommand<TResult>(
              AND a.status = 'ACTIVE'
              AND m.permission_version = ?
              AND (
-               (m.type = 'OWNER')
+               (
+                 m.type = 'OWNER'
+                 AND (
+                   ? != 'customer.identity.update'
+                   OR (
+                     EXISTS (
+                       SELECT 1 FROM membership_permissions sp_read
+                       WHERE sp_read.membership_id = m.id
+                         AND sp_read.permission_code = 'sensitive.identity.read'
+                         AND sp_read.scope = 'UNSCOPED'
+                     )
+                     AND EXISTS (
+                       SELECT 1 FROM membership_permissions sp_write
+                       WHERE sp_write.membership_id = m.id
+                         AND sp_write.permission_code = 'sensitive.identity.write'
+                         AND sp_write.scope = 'UNSCOPED'
+                     )
+                   )
+                 )
+               )
                OR (
                  m.type = 'MEMBER'
                  AND (
                    -- CASE 1: customer.create
                    (
-                     ? = 1
+                     ? = 'customer.create'
                      AND EXISTS (
                        SELECT 1 FROM membership_permissions p_create
                        WHERE p_create.membership_id = m.id
@@ -703,9 +1064,65 @@ export async function executeCustomerDomainCommand<TResult>(
                      )
                    )
                    OR
-                   -- CASE 2: customer.update ve company_contact.*
+                   -- CASE 2: customer.assign
                    (
-                     ? = 0
+                     ? = 'customer.assign'
+                     AND EXISTS (
+                       SELECT 1
+                       FROM customers c
+                       INNER JOIN membership_permissions p_assign
+                         ON p_assign.membership_id = m.id
+                         AND p_assign.permission_code = 'customer.assign'
+                         AND p_assign.scope IN ('ASSIGNED', 'AGENCY')
+                       INNER JOIN membership_permissions p_read
+                         ON p_read.membership_id = m.id
+                         AND p_read.permission_code = 'customer.read'
+                         AND p_read.scope IN ('ASSIGNED', 'AGENCY')
+                       WHERE c.id = ?
+                         AND c.agency_id = ?
+                         AND (p_read.scope = 'AGENCY' OR p_assign.scope = 'ASSIGNED')
+                         AND (p_assign.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                         AND (p_read.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                     )
+                   )
+                   OR
+                   -- CASE 3: customer.identity.update
+                   (
+                     ? = 'customer.identity.update'
+                     AND EXISTS (
+                       SELECT 1 FROM membership_permissions sp_read
+                       WHERE sp_read.membership_id = m.id
+                         AND sp_read.permission_code = 'sensitive.identity.read'
+                         AND sp_read.scope = 'UNSCOPED'
+                     )
+                     AND EXISTS (
+                       SELECT 1 FROM membership_permissions sp_write
+                       WHERE sp_write.membership_id = m.id
+                         AND sp_write.permission_code = 'sensitive.identity.write'
+                         AND sp_write.scope = 'UNSCOPED'
+                     )
+                     AND EXISTS (
+                       SELECT 1
+                       FROM customers c
+                       INNER JOIN membership_permissions p_upd
+                         ON p_upd.membership_id = m.id
+                         AND p_upd.permission_code = 'customer.update'
+                         AND p_upd.scope IN ('ASSIGNED', 'AGENCY')
+                       INNER JOIN membership_permissions p_read
+                         ON p_read.membership_id = m.id
+                         AND p_read.permission_code = 'customer.read'
+                         AND p_read.scope IN ('ASSIGNED', 'AGENCY')
+                       WHERE c.id = ?
+                         AND c.agency_id = ?
+                         AND (p_read.scope = 'AGENCY' OR p_upd.scope = 'ASSIGNED')
+                         AND (p_upd.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                         AND (p_read.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                     )
+                   )
+                   OR
+                   -- CASE 4: customer.update, customer.external_reference.create, ve company_contact.*
+                   (
+                     ? NOT IN ('customer.create', 'customer.assign', 'customer.identity.update')
                      AND EXISTS (
                        SELECT 1
                        FROM customers c
@@ -736,12 +1153,39 @@ export async function executeCustomerDomainCommand<TResult>(
       agencyId,
       actorUserId,
       expectedPermissionVersion,
-      isCreateInt,
-      isCreateInt,
+      plan.action,
+      plan.action,
+      plan.action,
+      plan.targetCustomerId,
+      agencyId,
+      plan.action,
+      plan.targetCustomerId,
+      agencyId,
+      plan.action,
       plan.targetCustomerId,
       agencyId,
     );
   batchStatements.push(finalAuthorityRecheckStmt);
+
+  if (command.kind === 'customer.assign') {
+    const targetAssigneeAssertionStmt = db
+      .prepare(
+        `INSERT INTO d1_cas_assertions (id, expected, actual, failure_code)
+         SELECT ?, 1,
+           CASE WHEN EXISTS (
+             SELECT 1
+             FROM agency_memberships m
+             INNER JOIN users u ON u.id = m.user_id
+             WHERE m.id = ?
+               AND m.agency_id = ?
+               AND m.status = 'ACTIVE'
+               AND u.status = 'ACTIVE'
+           ) THEN 1 ELSE 0 END,
+           'INACTIVE_OR_CROSS_AGENCY_ASSIGNEE'`,
+      )
+      .bind(crypto.randomUUID(), command.targetAssigneeMembershipId, agencyId);
+    batchStatements.push(targetAssigneeAssertionStmt);
+  }
 
   // B. Sonuç Nesnesi Üretimi
   const mutationResult = input.resultProducer();
@@ -862,6 +1306,23 @@ export async function executeCustomerDomainCommand<TResult>(
     }
     if (errorMsg.includes('CONTACT_NOT_FOUND')) {
       throw new DomainConstraintViolationError('CONTACT_NOT_FOUND', 'Şirket yetkilisi bulunamadı.');
+    }
+    if (errorMsg.includes('INACTIVE_OR_CROSS_AGENCY_ASSIGNEE')) {
+      throw new DomainConstraintViolationError(
+        'INACTIVE_ASSIGNEE_PROHIBITED',
+        'Yalnızca aktif acente üyelerine müşteri atanabilir.',
+      );
+    }
+    if (
+      errorMsg.includes('DUPLICATE_EXTERNAL_REFERENCE') ||
+      errorMsg.includes('ext_cust_refs_agency_source_key_uq') ||
+      errorMsg.includes('external_customer_references_unique_key') ||
+      errorMsg.includes('UNIQUE constraint failed: external_customer_references')
+    ) {
+      throw new DomainConstraintViolationError(
+        'DUPLICATE_EXTERNAL_REFERENCE',
+        'Bu acente için harici kaynak ve referans anahtarı zaten tanımlı.',
+      );
     }
 
     if (

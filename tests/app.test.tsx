@@ -592,7 +592,7 @@ describe('İstemci Bileşen Testleri (Client Component Tests)', () => {
     await screen.findByText('Şirket Yetkilileri (Contacts)');
 
     fireEvent.click(screen.getByRole('button', { name: '+ Yeni Yetkili Ekle' }));
-    const contactForm = document.querySelector('form');
+    const contactForm = screen.getByRole('button', { name: 'Yetkiliyi Kaydet' }).closest('form');
     expect(contactForm).not.toBeNull();
     const contactInputs = contactForm!.querySelectorAll('input');
     fireEvent.change(contactInputs[0]!, { target: { value: 'Yeni' } });

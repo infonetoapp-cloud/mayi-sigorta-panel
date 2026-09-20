@@ -16,6 +16,7 @@ import type { AuthenticatedUserContext } from '../auth/identity';
 import { evaluateAuthorization } from '../auth/authorization';
 import {
   executeCustomerDomainCommand,
+  replayCompletedCustomerDomainCommand,
   DomainConstraintViolationError,
 } from '../mutations/internal/customer-domain-executor';
 export { DomainConstraintViolationError };
@@ -26,7 +27,18 @@ import type {
   CustomerListResponseData,
   CustomerType,
   CompanyContactStatus,
+  CustomerIdentityRevealDto,
+  ExternalCustomerReferenceDto,
+  CustomerAssignmentOptionDto,
 } from '../../shared/types';
+import {
+  maskIdentity,
+  validateIdentityFormat,
+  encryptIdentity,
+  decryptIdentity,
+  computeIdentitySearchHash,
+  type IdentityCryptoConfig,
+} from '../security/identity-crypto';
 
 export class CustomerNotFoundError extends Error {
   constructor() {
@@ -85,6 +97,44 @@ export const UpdateCustomerSchema = z
     email: z.string().trim().email('Geçerli bir e-posta giriniz').optional().nullable(),
     phone: z.string().trim().min(1).max(50).optional().nullable(),
     address: z.string().trim().max(1000).optional().nullable(),
+  })
+  .strict();
+
+export const UpdateIdentitySchema = z.union([
+  z
+    .object({
+      expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
+      identityType: z.enum(['TCKN', 'VKN']),
+      identityValue: z.string().trim().min(1, 'Kimlik numarası boş olamaz'),
+    })
+    .strict(),
+  z
+    .object({
+      expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
+      clear: z.literal(true),
+    })
+    .strict(),
+]);
+
+export const SearchSensitiveCustomerSchema = z
+  .object({
+    identityType: z.enum(['TCKN', 'VKN']),
+    identityValue: z.string().trim().min(1, 'Kimlik numarası boş olamaz'),
+  })
+  .strict();
+
+export const AssignCustomerSchema = z
+  .object({
+    expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
+    assigneeMembershipId: z.string().trim().min(1, 'assigneeMembershipId zorunludur'),
+  })
+  .strict();
+
+export const CreateExternalReferenceSchema = z
+  .object({
+    expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
+    sourceNamespace: z.string().trim().min(1, 'sourceNamespace zorunludur').max(50),
+    externalKey: z.string().trim().min(1, 'externalKey zorunludur').max(100),
   })
   .strict();
 
@@ -172,6 +222,12 @@ export interface RawCustomerRow {
   phone: string | null;
   address: string | null;
   assignee_membership_id: string;
+  identity_type?: string | null;
+  identity_ciphertext?: string | null;
+  identity_iv?: string | null;
+  identity_tag?: string | null;
+  identity_search_hash?: string | null;
+  identity_key_version?: number | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -194,6 +250,7 @@ export interface RawContactRow {
 }
 
 export function toCustomerDto(row: RawCustomerRow): CustomerDto {
+  const hasIdentity = Boolean(row.identity_ciphertext);
   return {
     id: row.id,
     agencyId: row.agency_id,
@@ -206,6 +263,8 @@ export function toCustomerDto(row: RawCustomerRow): CustomerDto {
     phone: row.phone,
     address: row.address,
     assigneeMembershipId: row.assignee_membership_id,
+    hasIdentity,
+    identityMasked: maskIdentity(hasIdentity),
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -312,6 +371,8 @@ export async function createCustomer(
     phone: data.phone ?? null,
     address: data.address ?? null,
     assigneeMembershipId,
+    hasIdentity: false,
+    identityMasked: null,
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -392,7 +453,6 @@ export async function updateCustomer(
   }
   const data = parsed.data;
 
-  // Müşteri türünün değiştirilemezliği kontrolü
   if (data.type !== undefined && data.type !== existing.type) {
     throw new DomainConstraintViolationError(
       'CANNOT_CHANGE_CUSTOMER_TYPE',
@@ -450,6 +510,7 @@ export async function updateCustomer(
   const nextVersion = data.expectedVersion + 1;
   const now = new Date().toISOString();
 
+  const hasIdentity = Boolean(existing.identity_ciphertext);
   const updatedDto: CustomerDto = {
     id: existing.id,
     agencyId: existing.agency_id,
@@ -462,6 +523,8 @@ export async function updateCustomer(
     phone: data.phone !== undefined ? data.phone : existing.phone,
     address: data.address !== undefined ? data.address : existing.address,
     assigneeMembershipId: existing.assignee_membership_id,
+    hasIdentity,
+    identityMasked: maskIdentity(hasIdentity),
     version: nextVersion,
     createdAt: existing.created_at,
     updatedAt: now,
@@ -1102,4 +1165,589 @@ export async function deactivateCompanyContact(
   });
 
   return mutationResult.body;
+}
+
+// ---------------------- M2-T02 HASSAS KİMLİK, ATAMA VE HARİCİ REFERANS HİZMETLERİ ----------------------
+
+export async function getCustomerIdentity(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  cryptoConfig: IdentityCryptoConfig,
+): Promise<CustomerIdentityRevealDto> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+
+  if (!existing) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.identity.read',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Kimlik bilgilerini görüntüleme yetkiniz bulunmamaktadır.');
+  }
+
+  if (
+    !existing.identity_ciphertext ||
+    !existing.identity_iv ||
+    !existing.identity_tag ||
+    !existing.identity_type ||
+    existing.identity_key_version === null ||
+    existing.identity_key_version === undefined
+  ) {
+    throw new CustomerNotFoundError();
+  }
+
+  const identityValue = await decryptIdentity(
+    {
+      ciphertext: existing.identity_ciphertext,
+      iv: existing.identity_iv,
+      tag: existing.identity_tag,
+      keyVersion: existing.identity_key_version,
+    },
+    cryptoConfig,
+  );
+
+  return {
+    customerId: existing.id,
+    identityType: existing.identity_type as 'TCKN' | 'VKN',
+    identityValue,
+  };
+}
+
+export async function updateCustomerIdentity(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  rawPayload: unknown,
+  options: CustomerMutationOptions,
+  cryptoConfig: IdentityCryptoConfig,
+): Promise<{ customerId: string; hasIdentity: boolean; identityType: 'TCKN' | 'VKN' | null }> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const parsed = UpdateIdentitySchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    const details: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      details[issue.path.join('.')] = issue.message;
+    }
+    throw new ValidationError('Geçersiz kimlik güncelleme verisi', details);
+  }
+  const data = parsed.data;
+
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+
+  if (!existing) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.identity.update',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Kimlik güncelleme yetkiniz bulunmamaktadır.');
+  }
+
+  if ('clear' in data && data.clear) {
+    const surrogatePayload = {
+      customerId: existing.id,
+      expectedVersion: data.expectedVersion,
+      op: 'clear',
+    };
+
+    const mutationResult = await executeCustomerDomainCommand({
+      db,
+      agencyId,
+      actorUserId: context.userId,
+      actorMembershipId: activeMembership.id,
+      expectedPermissionVersion: activeMembership.permissionVersion,
+      correlationId: options.correlationId,
+      idempotencyKey: options.idempotencyKey,
+      payload: surrogatePayload,
+      command: {
+        kind: 'customer.identity.update',
+        customerId: existing.id,
+        expectedVersion: data.expectedVersion,
+        identityType: null,
+        identityCiphertext: null,
+        identityIv: null,
+        identityTag: null,
+        identitySearchHash: null,
+        identityKeyVersion: null,
+      },
+      resultProducer: () => ({
+        status: 200,
+        body: {
+          customerId: existing.id,
+          hasIdentity: false,
+          identityType: null,
+        },
+      }),
+    });
+    return mutationResult.body;
+  }
+
+  // Set identity
+  const { identityType, identityValue } = data as {
+    expectedVersion: number;
+    identityType: 'TCKN' | 'VKN';
+    identityValue: string;
+  };
+  if (!validateIdentityFormat(identityType, identityValue)) {
+    throw new ValidationError(
+      identityType === 'TCKN'
+        ? 'TCKN 11 haneli sayısal değer olmalıdır.'
+        : 'VKN 10 haneli sayısal değer olmalıdır.',
+      { identityValue: 'Geçersiz kimlik formatı' },
+    );
+  }
+
+  if (existing.type === 'INDIVIDUAL' && identityType !== 'TCKN') {
+    throw new ValidationError('Bireysel müşteriler yalnızca TCKN tipi kimlik alabilir.');
+  }
+  if (existing.type === 'COMPANY' && identityType !== 'VKN') {
+    throw new ValidationError('Tüzel müşteriler yalnızca VKN tipi kimlik alabilir.');
+  }
+
+  const encrypted = await encryptIdentity(identityValue, cryptoConfig);
+
+  const surrogatePayload = {
+    customerId: existing.id,
+    expectedVersion: data.expectedVersion,
+    op: 'set',
+    identityType,
+    searchHash: encrypted.searchHash,
+  };
+
+  const mutationResult = await executeCustomerDomainCommand({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    expectedPermissionVersion: activeMembership.permissionVersion,
+    correlationId: options.correlationId,
+    idempotencyKey: options.idempotencyKey,
+    payload: surrogatePayload,
+    command: {
+      kind: 'customer.identity.update',
+      customerId: existing.id,
+      expectedVersion: data.expectedVersion,
+      identityType,
+      identityCiphertext: encrypted.ciphertext,
+      identityIv: encrypted.iv,
+      identityTag: encrypted.tag,
+      identitySearchHash: encrypted.searchHash,
+      identityKeyVersion: encrypted.keyVersion,
+    },
+    resultProducer: () => ({
+      status: 200,
+      body: {
+        customerId: existing.id,
+        hasIdentity: true,
+        identityType,
+      },
+    }),
+  });
+
+  return mutationResult.body;
+}
+
+export async function searchSensitiveCustomers(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  rawPayload: unknown,
+  cryptoConfig: IdentityCryptoConfig,
+): Promise<CustomerDto[]> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const parsed = SearchSensitiveCustomerSchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    const details: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      details[issue.path.join('.')] = issue.message;
+    }
+    throw new ValidationError('Geçersiz arama parametreleri', details);
+  }
+  const { identityType, identityValue } = parsed.data;
+
+  if (!validateIdentityFormat(identityType, identityValue)) {
+    throw new ValidationError(
+      identityType === 'TCKN'
+        ? 'TCKN 11 haneli sayısal değer olmalıdır.'
+        : 'VKN 10 haneli sayısal değer olmalıdır.',
+      { identityValue: 'Geçersiz kimlik formatı' },
+    );
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.identity.search',
+    resource: {
+      agencyId,
+      isCollection: true,
+      assigneeMembershipId: activeMembership.id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Hassas arama yetkiniz bulunmamaktadır.');
+  }
+
+  const searchHash = await computeIdentitySearchHash(identityValue, cryptoConfig);
+
+  const isAssignedOnly = authz.effectiveScope === 'ASSIGNED';
+  const sql = isAssignedOnly
+    ? `SELECT * FROM customers WHERE agency_id = ? AND identity_type = ? AND identity_search_hash = ? AND assignee_membership_id = ?`
+    : `SELECT * FROM customers WHERE agency_id = ? AND identity_type = ? AND identity_search_hash = ?`;
+
+  const bindings = isAssignedOnly
+    ? [agencyId, identityType, searchHash, activeMembership.id]
+    : [agencyId, identityType, searchHash];
+
+  const queryResult = await db
+    .prepare(sql)
+    .bind(...bindings)
+    .all<RawCustomerRow>();
+  return (queryResult.results || []).map(toCustomerDto);
+}
+
+export async function assignCustomer(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  rawPayload: unknown,
+  options: CustomerMutationOptions,
+): Promise<CustomerDto> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const parsed = AssignCustomerSchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    const details: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      details[issue.path.join('.')] = issue.message;
+    }
+    throw new ValidationError('Geçersiz atama parametreleri', details);
+  }
+  const data = parsed.data;
+  const idempotencyPayload = { customerId, ...data };
+
+  const completedReplay = await replayCompletedCustomerDomainCommand<CustomerDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    commandKind: 'customer.assign',
+  });
+  if (completedReplay) return completedReplay.body;
+
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+
+  if (!existing) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.assign',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Müşteri atama yetkiniz bulunmamaktadır.');
+  }
+
+  const nextVersion = data.expectedVersion + 1;
+  const now = new Date().toISOString();
+  const hasIdentity = Boolean(existing.identity_ciphertext);
+
+  const updatedDto: CustomerDto = {
+    id: existing.id,
+    agencyId: existing.agency_id,
+    type: existing.type as CustomerType,
+    displayName: existing.display_name,
+    firstName: existing.first_name,
+    lastName: existing.last_name,
+    companyTitle: existing.company_title,
+    email: existing.email,
+    phone: existing.phone,
+    address: existing.address,
+    assigneeMembershipId: data.assigneeMembershipId,
+    hasIdentity,
+    identityMasked: maskIdentity(hasIdentity),
+    version: nextVersion,
+    createdAt: existing.created_at,
+    updatedAt: now,
+  };
+
+  const mutationResult = await executeCustomerDomainCommand({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    expectedPermissionVersion: activeMembership.permissionVersion,
+    correlationId: options.correlationId,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    command: {
+      kind: 'customer.assign',
+      customerId: existing.id,
+      expectedVersion: data.expectedVersion,
+      targetAssigneeMembershipId: data.assigneeMembershipId,
+    },
+    resultProducer: () => ({ status: 200, body: updatedDto }),
+  });
+
+  return mutationResult.body;
+}
+
+export async function listCustomerAssignmentOptions(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+): Promise<CustomerAssignmentOptionDto[]> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+
+  const customer = await db
+    .prepare(
+      'SELECT id, agency_id, assignee_membership_id FROM customers WHERE id = ? AND agency_id = ?',
+    )
+    .bind(customerId, activeMembership.agencyId)
+    .first<{ id: string; agency_id: string; assignee_membership_id: string }>();
+  if (!customer) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.assign',
+    resource: {
+      agencyId: customer.agency_id,
+      id: customer.id,
+      assigneeMembershipId: customer.assignee_membership_id,
+    },
+  });
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Müşteri atama yetkiniz bulunmamaktadır.');
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT id, invitation_email, type
+       FROM agency_memberships
+       WHERE agency_id = ? AND status = 'ACTIVE'
+       ORDER BY invitation_email ASC, id ASC`,
+    )
+    .bind(activeMembership.agencyId)
+    .all<{ id: string; invitation_email: string; type: 'OWNER' | 'MEMBER' }>();
+
+  return (result.results || []).map((row) => ({
+    membershipId: row.id,
+    label: row.invitation_email,
+    membershipType: row.type,
+  }));
+}
+
+export async function createExternalReference(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  rawPayload: unknown,
+  options: CustomerMutationOptions,
+): Promise<ExternalCustomerReferenceDto> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const parsed = CreateExternalReferenceSchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    const details: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      details[issue.path.join('.')] = issue.message;
+    }
+    throw new ValidationError('Geçersiz harici referans verisi', details);
+  }
+  const data = parsed.data;
+  const idempotencyPayload = { customerId, ...data };
+
+  const completedReplay = await replayCompletedCustomerDomainCommand<ExternalCustomerReferenceDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    commandKind: 'customer.external_reference.create',
+  });
+  if (completedReplay) return completedReplay.body;
+
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+
+  if (!existing) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.external_reference.create',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Harici referans oluşturma yetkiniz bulunmamaktadır.');
+  }
+
+  const referenceId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const refDto: ExternalCustomerReferenceDto = {
+    id: referenceId,
+    agencyId,
+    customerId: existing.id,
+    sourceNamespace: data.sourceNamespace,
+    externalKey: data.externalKey,
+    createdAt: now,
+  };
+
+  const mutationResult = await executeCustomerDomainCommand({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    expectedPermissionVersion: activeMembership.permissionVersion,
+    correlationId: options.correlationId,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    command: {
+      kind: 'customer.external_reference.create',
+      customerId: existing.id,
+      referenceId,
+      expectedVersion: data.expectedVersion,
+      sourceNamespace: data.sourceNamespace,
+      externalKey: data.externalKey,
+    },
+    resultProducer: () => ({ status: 201, body: refDto }),
+  });
+
+  return mutationResult.body;
+}
+
+export async function listExternalReferences(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+): Promise<ExternalCustomerReferenceDto[]> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const agencyId = activeMembership.agencyId;
+
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+
+  if (!existing) {
+    throw new CustomerNotFoundError();
+  }
+
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.read',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerNotFoundError();
+  }
+
+  const queryResult = await db
+    .prepare(
+      `SELECT id, agency_id, customer_id, source_namespace, external_key, created_at
+       FROM external_customer_references
+       WHERE agency_id = ? AND customer_id = ?
+       ORDER BY created_at DESC`,
+    )
+    .bind(agencyId, customerId)
+    .all<{
+      id: string;
+      agency_id: string;
+      customer_id: string;
+      source_namespace: string;
+      external_key: string;
+      created_at: string;
+    }>();
+
+  return (queryResult.results || []).map((r) => ({
+    id: r.id,
+    agencyId: r.agency_id,
+    customerId: r.customer_id,
+    sourceNamespace: r.source_namespace,
+    externalKey: r.external_key,
+    createdAt: r.created_at,
+  }));
 }
