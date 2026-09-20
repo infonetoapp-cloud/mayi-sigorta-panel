@@ -2,12 +2,17 @@ import prettier from 'prettier';
 import { describe, it, expect } from 'vitest';
 import {
   checkProtectedMutationExecutorBoundaries,
+  checkDomainMutationExecutorBoundaries,
   checkSourceBoundaries,
   checkClientBundleForSecrets,
   loadProjectEnvSecrets,
   SYNTHETIC_SECRET_MARKER,
 } from '../scripts/verify-boundaries';
-import { parseServerConfig, SYNTHETIC_SERVER_SECRET_MARKER } from '../src/server/config';
+import {
+  parseCsrfConfig,
+  parseServerConfig,
+  SYNTHETIC_SERVER_SECRET_MARKER,
+} from '../src/server/config';
 import {
   readFileSync,
   readdirSync,
@@ -86,6 +91,10 @@ describe('Mimari Sınır ve Güvenlik İzolasyon Testleri (Boundary & Security T
     expect(checkProtectedMutationExecutorBoundaries()).toEqual([]);
   });
 
+  it('internal customer domain executor yalnız customer service tarafından içe aktarılmalıdır', () => {
+    expect(checkDomainMutationExecutorBoundaries()).toEqual([]);
+  });
+
   it('Sentetik gizli anahtar işaretçisi src/app veya src/shared kaynak kodlarında bulunmamalıdır', () => {
     const clientFiles = getAllSourceFiles(join(rootDir, 'src', 'app'));
     const sharedFiles = getAllSourceFiles(join(rootDir, 'src', 'shared'));
@@ -103,6 +112,15 @@ describe('Mimari Sınır ve Güvenlik İzolasyon Testleri (Boundary & Security T
     expect(config.APP_ENV).toBe('development');
     expect(config.SYNTHETIC_SECRET_KEY).toBe(SYNTHETIC_SERVER_SECRET_MARKER);
     expect((config as Record<string, unknown>).CF_ACCESS_TEAM_DOMAIN).toBeUndefined();
+    expect((config as Record<string, unknown>).CSRF_SECRET).toBeUndefined();
+  });
+
+  it('CSRF yapılandırması yalnız CSRF işlevi çağrıldığında gerçek secret gerektirmelidir', () => {
+    expect(() => parseCsrfConfig({})).toThrow(/CSRF secret eksik veya geçersiz/);
+    expect(
+      parseCsrfConfig({ CSRF_SECRET: 'synthetic-csrf-secret-key-at-least-32-chars-long' })
+        .CSRF_SECRET,
+    ).toBe('synthetic-csrf-secret-key-at-least-32-chars-long');
   });
 });
 
@@ -204,6 +222,94 @@ describe('Protected mutation internal executor kaynak sınırı', () => {
         expect(violations[0]?.file).toBe('src/server/tests/support/unsafe-fixture.ts');
       },
     );
+  });
+
+  describe('Customer Domain Mutation Executor Boundary (BLOCKER B)', () => {
+    function customerBoundaryFixture(
+      extraFiles: Record<string, string> = {},
+    ): Record<string, string> {
+      return {
+        'src/server/mutations/internal/customer-domain-executor.ts':
+          'export const executeCustomerDomainCommand = () => {};\n',
+        'src/server/customers/service.ts':
+          "import { executeCustomerDomainCommand } from '../mutations/internal/customer-domain-executor';\nvoid executeCustomerDomainCommand;\n",
+        'src/server/mutations/domain-executor.ts': 'export {};\n',
+        ...extraFiles,
+      };
+    }
+
+    it('yetkisiz production server dosyasının doğrudan importunu reddetmelidir', () => {
+      runWithTempFixture(
+        customerBoundaryFixture({
+          'src/server/unsafe-customer-bypass.ts':
+            "import { executeCustomerDomainCommand } from './mutations/internal/customer-domain-executor';\nvoid executeCustomerDomainCommand;\n",
+        }),
+        (tempDir) => {
+          const violations = checkDomainMutationExecutorBoundaries({ rootDir: tempDir });
+          expect(violations).toHaveLength(1);
+          expect(violations[0]).toMatchObject({
+            file: 'src/server/unsafe-customer-bypass.ts',
+            resolvedPath: 'src/server/mutations/internal/customer-domain-executor.ts',
+          });
+        },
+      );
+    });
+
+    it('production server re-exportunu reddetmelidir', () => {
+      runWithTempFixture(
+        customerBoundaryFixture({
+          'src/server/unsafe-customer-reexport.ts':
+            "export { executeCustomerDomainCommand } from './mutations/internal/customer-domain-executor';\n",
+        }),
+        (tempDir) => {
+          const violations = checkDomainMutationExecutorBoundaries({ rootDir: tempDir });
+          expect(violations).toHaveLength(1);
+          expect(violations[0]?.file).toBe('src/server/unsafe-customer-reexport.ts');
+        },
+      );
+    });
+
+    it('hesaplanmış veya dinamik import bypassını fail-closed reddetmelidir', () => {
+      runWithTempFixture(
+        customerBoundaryFixture({
+          'src/server/unsafe-dynamic.ts':
+            "const target = './mutations/internal/customer-domain-executor';\nexport const load = () => import(target);\n",
+        }),
+        (tempDir) => {
+          const violations = checkDomainMutationExecutorBoundaries({ rootDir: tempDir });
+          expect(violations).toContainEqual(
+            expect.objectContaining({
+              file: 'src/server/unsafe-dynamic.ts',
+              importPath: '<computed-dynamic-import>',
+            }),
+          );
+        },
+      );
+    });
+
+    it('yalnız authorized customer service importunu kabul etmelidir', () => {
+      runWithTempFixture(customerBoundaryFixture(), (tempDir) => {
+        expect(checkDomainMutationExecutorBoundaries({ rootDir: tempDir })).toEqual([]);
+      });
+    });
+
+    it('mühürlü domain-executor.ts içine export konulmasını reddetmelidir', () => {
+      runWithTempFixture(
+        customerBoundaryFixture({
+          'src/server/mutations/domain-executor.ts':
+            'export const executeCustomerDomainCommand = () => {};\n',
+        }),
+        (tempDir) => {
+          const violations = checkDomainMutationExecutorBoundaries({ rootDir: tempDir });
+          expect(violations).toContainEqual(
+            expect.objectContaining({
+              file: 'src/server/mutations/domain-executor.ts',
+              importPath: '<deprecated-executor-export>',
+            }),
+          );
+        },
+      );
+    });
   });
 });
 

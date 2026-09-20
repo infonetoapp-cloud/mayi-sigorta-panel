@@ -29,6 +29,10 @@ export interface HealthCheckData {
   timestamp: string;
 }
 
+export interface CsrfTokenDto {
+  readonly token: string;
+}
+
 /**
  * Kimlik ve Aktif Üyelik Bağlamı DTO'ları (M1-T06 - GET /api/me).
  *
@@ -49,4 +53,51 @@ export interface UserMeDto {
   readonly email?: string;
   readonly assurance: 'NORMAL' | 'SECURE';
   readonly memberships: readonly UserMeMembershipDto[];
+}
+
+export type CustomerType = 'INDIVIDUAL' | 'COMPANY';
+export type CompanyContactStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface CustomerDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly type: CustomerType;
+  readonly displayName: string;
+  readonly firstName: string | null;
+  readonly lastName: string | null;
+  readonly companyTitle: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly address: string | null;
+  readonly assigneeMembershipId: string;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CompanyContactDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly customerId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly role: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly isPrimary: boolean;
+  readonly status: CompanyContactStatus;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CustomerDetailDto extends CustomerDto {
+  readonly contacts?: readonly CompanyContactDto[];
+}
+
+export interface CustomerListResponseData {
+  readonly items: readonly CustomerDto[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
+  readonly total?: number;
 }

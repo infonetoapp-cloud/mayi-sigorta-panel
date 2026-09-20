@@ -764,6 +764,131 @@ export function checkProtectedMutationExecutorBoundaries(
   return violations;
 }
 
+/**
+ * Domain mutation executor sınırı (BLOCKER B):
+ * Internal customer domain executor (src/server/mutations/internal/customer-domain-executor.ts)
+ * yalnız `src/server/customers/service.ts` tarafından içe aktarılabilir.
+ * Başka hiçbir production sunucu dosyası, route handler veya harici modül doğrudan erişemez.
+ * AST ve module-resolution ile statik import, export-from, literal dynamic import
+ * ve computed/unresolved import bypassları fail-closed yakalanır.
+ */
+export function checkDomainMutationExecutorBoundaries(
+  options?: Pick<CheckBoundariesOptions, 'rootDir' | 'tsConfigPath'>,
+): BoundaryViolation[] {
+  const effectiveRootDir = options?.rootDir || rootDir;
+  const serverDir = resolve(effectiveRootDir, 'src/server');
+  const internalExecutor = canonicalizePath(
+    resolve(serverDir, 'mutations/internal/customer-domain-executor.ts'),
+  );
+  const deprecatedExecutor = canonicalizePath(resolve(serverDir, 'mutations/domain-executor.ts'));
+  const authorizedImporter = canonicalizePath(resolve(serverDir, 'customers/service.ts'));
+  const violations: BoundaryViolation[] = [];
+
+  if (!existsSync(serverDir)) return violations;
+
+  // 1. Deprecated modülde keyfi fonksiyon/interface dışa aktarımı kontrolü
+  if (existsSync(deprecatedExecutor)) {
+    const content = readFileSync(deprecatedExecutor, 'utf-8');
+    if (
+      content.includes('export function') ||
+      content.includes('export const') ||
+      content.includes('export type') ||
+      content.includes('export interface')
+    ) {
+      violations.push({
+        file: relative(effectiveRootDir, deprecatedExecutor).replace(/\\/g, '/'),
+        importPath: '<deprecated-executor-export>',
+        reason:
+          'src/server/mutations/domain-executor.ts boş ve mühürlü (sealed) olmalıdır. Hiçbir capability export edemez.',
+      });
+    }
+  }
+
+  if (!existsSync(internalExecutor)) return violations;
+
+  let compilerOptions: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    allowJs: true,
+  };
+  const tsconfigPath = options?.tsConfigPath || resolve(effectiveRootDir, 'tsconfig.json');
+  if (existsSync(tsconfigPath)) {
+    const configFile = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+    if (!configFile.error) {
+      compilerOptions = {
+        ...compilerOptions,
+        ...ts.parseJsonConfigFileContent(configFile.config, ts.sys, effectiveRootDir).options,
+      };
+    }
+  }
+  const resolutionHost: ts.ModuleResolutionHost = {
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    directoryExists: ts.sys.directoryExists,
+    getCurrentDirectory: () => effectiveRootDir,
+    getDirectories: ts.sys.getDirectories,
+    useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+  };
+
+  for (const filePath of getAllFiles(serverDir)) {
+    if (!/\.(?:[cm]?[jt]sx?)$/.test(filePath)) continue;
+    const sourceFile = ts.createSourceFile(
+      filePath,
+      readFileSync(filePath, 'utf-8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const extractionViolations: BoundaryViolation[] = [];
+    const specifiers = extractImportSpecifiers(
+      sourceFile,
+      filePath,
+      effectiveRootDir,
+      extractionViolations,
+    );
+    // Computed / dinamik import fail-closed
+    violations.push(...extractionViolations);
+
+    for (const { specifier } of specifiers) {
+      const resolved = ts.resolveModuleName(specifier, filePath, compilerOptions, resolutionHost);
+      if (!resolved.resolvedModule) continue;
+      const resolvedPath = canonicalizePath(resolved.resolvedModule.resolvedFileName);
+
+      // A. Internal customer executor kontrolü
+      if (
+        normalizePathForComparison(resolvedPath) === normalizePathForComparison(internalExecutor)
+      ) {
+        if (
+          normalizePathForComparison(canonicalizePath(filePath)) !==
+          normalizePathForComparison(authorizedImporter)
+        ) {
+          violations.push({
+            file: relative(effectiveRootDir, filePath).replace(/\\/g, '/'),
+            importPath: specifier,
+            resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
+            reason:
+              'Internal customer domain executor yalnız src/server/customers/service.ts tarafından içe aktarılabilir.',
+          });
+        }
+      }
+
+      // B. Deprecated executor import kontrolü
+      if (
+        normalizePathForComparison(resolvedPath) === normalizePathForComparison(deprecatedExecutor)
+      ) {
+        violations.push({
+          file: relative(effectiveRootDir, filePath).replace(/\\/g, '/'),
+          importPath: specifier,
+          resolvedPath: relative(effectiveRootDir, resolvedPath).replace(/\\/g, '/'),
+          reason:
+            'Mühürlü domain-executor.ts içe aktarılamaz. Yalnızca internal/customer-domain-executor ve customer service kullanılmalıdır.',
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 export interface ProjectEnvLoadOptions {
   rootDir?: string;
   envPath?: string;
@@ -956,6 +1081,7 @@ export function runVerification(): void {
   const boundaryViolations = [
     ...checkSourceBoundaries(),
     ...checkProtectedMutationExecutorBoundaries(),
+    ...checkDomainMutationExecutorBoundaries(),
   ];
   if (boundaryViolations.length > 0) {
     console.error('HATA: Mimari kaynak sınırı ihlali tespit edildi:');

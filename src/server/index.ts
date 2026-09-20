@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { API_PREFIX } from '../shared/constants';
-import type { ApiResponse, HealthCheckData, UserMeDto } from '../shared/types';
-import { parseServerConfig } from './config';
+import type { ApiResponse, CsrfTokenDto, HealthCheckData, UserMeDto } from '../shared/types';
+import { parseCsrfConfig, parseServerConfig } from './config';
 import { parseAccessConfig, type AccessConfig } from './auth/config';
 import { AccessVerificationError } from './auth/errors';
 import { createAccessVerifier, type AccessVerifier } from './auth/verifier';
@@ -13,6 +13,8 @@ import {
 } from './auth/identity';
 import type { VerifiedAccessPrincipal } from './auth/types';
 import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './security';
+import { generateIdentityBoundCsrfToken } from './security/csrf';
+import { registerCustomerRoutes } from './customers/routes';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -277,6 +279,163 @@ export function createApp(
       return c.json(errorResponse, 500);
     }
   });
+
+  // Doğrulanmış Kullanıcı ve Aktif Üyelik Bağlamına Bağlı CSRF Belirteci Sağlama (GET /api/csrf-token)
+  // Akış: Request -> Security Boundary -> Access Config -> Verifier -> Identity Resolver -> Identity-Bound CSRF Token
+  app.get(`${API_PREFIX}/csrf-token`, async (c) => {
+    c.header('Cache-Control', 'no-store, private');
+    c.header('Pragma', 'no-cache');
+
+    if (!c.env.DB) {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Veritabanı bağlantısı kullanılamıyor.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 503);
+    }
+
+    let accessConfig: AccessConfig;
+    try {
+      accessConfig = parseAccessConfig(c.env);
+    } catch {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Kimlik doğrulama yapılandırması eksik veya geçersiz.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 503);
+    }
+
+    let principal: VerifiedAccessPrincipal;
+    try {
+      const verifier: AccessVerifier = dependencies.createVerifier
+        ? dependencies.createVerifier(accessConfig)
+        : createAccessVerifier({ config: accessConfig });
+
+      principal = await verifier.verify(c.req.raw);
+    } catch (err) {
+      if (err instanceof AccessVerificationError) {
+        if (err.code === 'JWKS_FETCH_FAILED' || err.code === 'CONFIGURATION_ERROR') {
+          const errorResponse: ApiResponse<never> = {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Kimlik doğrulama altyapısı geçici olarak kullanılamıyor.',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return c.json(errorResponse, 503);
+        }
+      }
+
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Kimlik doğrulaması sağlanamadı.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 401);
+    }
+
+    try {
+      const resolver: ApplicationIdentityResolver = dependencies.createResolver
+        ? dependencies.createResolver(c.env.DB)
+        : createApplicationIdentityResolver(c.env.DB);
+
+      await resolver.resolve(principal);
+    } catch (err) {
+      if (err instanceof IdentityResolutionError) {
+        if (
+          err.code === 'DATABASE_ERROR' ||
+          err.code === 'CORRUPT_IDENTITY_DATA' ||
+          err.code === 'CORRUPT_MEMBERSHIP_DATA'
+        ) {
+          const errorResponse: ApiResponse<never> = {
+            success: false,
+            error: {
+              code: 'SERVICE_UNAVAILABLE',
+              message: 'Hizmet şu anda kullanılamıyor.',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return c.json(errorResponse, 503);
+        }
+
+        const errorResponse: ApiResponse<never> = {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Erişim reddedildi.',
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return c.json(errorResponse, 403);
+      }
+
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Beklenmeyen bir hata oluştu.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 500);
+    }
+
+    let csrfSecret: string;
+    try {
+      csrfSecret = parseCsrfConfig(c.env).CSRF_SECRET;
+    } catch {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'CSRF güvenlik yapılandırması eksik veya geçersiz.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 503);
+    }
+
+    try {
+      const token = await generateIdentityBoundCsrfToken(
+        { subject: principal.subject },
+        csrfSecret,
+      );
+
+      const response: ApiResponse<CsrfTokenDto> = {
+        success: true,
+        data: {
+          token,
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(response, 200);
+    } catch {
+      const errorResponse: ApiResponse<never> = {
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'CSRF belirteci üretilemedi.',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return c.json(errorResponse, 500);
+    }
+  });
+
+  // M2-T01 Müşteri ve Kişi API Rotaları (Customer & CompanyContact Domain Routes)
+  registerCustomerRoutes(app, dependencies);
 
   if (configureRoutes) {
     configureRoutes(app);

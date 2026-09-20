@@ -20,13 +20,29 @@ export function sanitizeAuditMetadata(metadata: unknown): Record<string, unknown
   const obj = metadata as Record<string, unknown>;
 
   for (const [key, val] of Object.entries(obj)) {
-    if (CODE_FIELDS.has(key)) {
+    if (
+      CODE_FIELDS.has(key) ||
+      key === 'customerId' ||
+      key === 'contactId' ||
+      key === 'eventCode' ||
+      key === 'safeCode'
+    ) {
       if (typeof val === 'string' && SAFE_TOKEN_REGEX.test(val)) {
         result[key] = val;
       }
     } else if (key === 'changedFieldCount') {
       if (typeof val === 'number' && Number.isInteger(val) && val >= 0 && val <= 1000) {
         result[key] = val;
+      }
+    } else if (key === 'changedFields') {
+      if (Array.isArray(val) && val.length <= 50) {
+        const safeFields: string[] = [];
+        for (const item of val) {
+          if (typeof item === 'string' && /^[A-Za-z0-9_]{1,32}$/.test(item)) {
+            safeFields.push(item);
+          }
+        }
+        result[key] = safeFields;
       }
     } else if (key === 'targetVersion') {
       if (typeof val === 'number' && Number.isInteger(val) && val >= 0 && val <= 1_000_000_000) {

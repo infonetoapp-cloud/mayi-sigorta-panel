@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 const utcNow = sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`;
 
@@ -136,6 +144,7 @@ export const agencyMemberships = sqliteTable(
           OR (${table.status} = 'SUSPENDED' AND ${table.activatedAt} IS NOT NULL AND ${table.suspendedAt} IS NOT NULL)
           OR (${table.status} = 'INACTIVE' AND ${table.inactivatedAt} IS NOT NULL)`,
     ),
+    uniqueIndex('agency_memberships_agency_id_id_uq').on(table.agencyId, table.id),
     uniqueIndex('agency_memberships_agency_user_uq').on(table.agencyId, table.userId),
     index('agency_memberships_owner_lookup_idx').on(table.agencyId, table.type, table.status),
     index('agency_memberships_user_status_idx').on(table.userId, table.status),
@@ -340,6 +349,109 @@ export const sensitiveActionGrants = sqliteTable(
   ],
 );
 
+export const customers = sqliteTable(
+  'customers',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    type: text('type', { enum: ['INDIVIDUAL', 'COMPANY'] }).notNull(),
+    displayName: text('display_name').notNull(),
+    firstName: text('first_name'),
+    lastName: text('last_name'),
+    companyTitle: text('company_title'),
+    email: text('email'),
+    phone: text('phone'),
+    address: text('address'),
+    assigneeMembershipId: text('assignee_membership_id').notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('customers_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('customers_type_valid', sql`${table.type} IN ('INDIVIDUAL', 'COMPANY')`),
+    check('customers_display_name_nonempty', sql`length(trim(${table.displayName})) > 0`),
+    check('customers_version_positive', sql`${table.version} >= 1`),
+    check('customers_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    check(
+      'customers_type_fields_valid',
+      sql`(${table.type} = 'INDIVIDUAL' AND ${table.companyTitle} IS NULL)
+          OR (${table.type} = 'COMPANY' AND ${table.firstName} IS NULL AND ${table.lastName} IS NULL)`,
+    ),
+    check(
+      'customers_email_shape',
+      sql`${table.email} IS NULL OR (length(trim(${table.email})) > 3 AND instr(${table.email}, '@') > 1)`,
+    ),
+    check('customers_phone_shape', sql`${table.phone} IS NULL OR length(trim(${table.phone})) > 0`),
+    foreignKey({
+      columns: [table.agencyId, table.assigneeMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'customers_agency_assignee_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('customers_agency_id_id_uq').on(table.agencyId, table.id),
+    index('customers_agency_type_idx').on(table.agencyId, table.type),
+    index('customers_agency_assignee_idx').on(table.agencyId, table.assigneeMembershipId),
+    index('customers_agency_created_idx').on(table.agencyId, table.createdAt),
+    index('customers_agency_display_name_idx').on(table.agencyId, table.displayName),
+  ],
+);
+
+export const companyContacts = sqliteTable(
+  'company_contacts',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    customerId: text('customer_id').notNull(),
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name').notNull(),
+    role: text('role'),
+    email: text('email'),
+    phone: text('phone'),
+    isPrimary: integer('is_primary').notNull().default(0),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('company_contacts_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('company_contacts_first_name_nonempty', sql`length(trim(${table.firstName})) > 0`),
+    check('company_contacts_last_name_nonempty', sql`length(trim(${table.lastName})) > 0`),
+    check('company_contacts_is_primary_valid', sql`${table.isPrimary} IN (0, 1)`),
+    check('company_contacts_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('company_contacts_version_positive', sql`${table.version} >= 1`),
+    check('company_contacts_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    check(
+      'company_contacts_email_shape',
+      sql`${table.email} IS NULL OR (length(trim(${table.email})) > 3 AND instr(${table.email}, '@') > 1)`,
+    ),
+    check(
+      'company_contacts_phone_shape',
+      sql`${table.phone} IS NULL OR length(trim(${table.phone})) > 0`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'company_contacts_agency_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('company_contacts_active_primary_uq')
+      .on(table.agencyId, table.customerId)
+      .where(sql`${table.isPrimary} = 1 AND ${table.status} = 'ACTIVE'`),
+    index('company_contacts_agency_customer_idx').on(table.agencyId, table.customerId),
+    index('company_contacts_customer_status_idx').on(table.customerId, table.status),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
@@ -349,3 +461,5 @@ export type D1CasAssertion = typeof d1CasAssertions.$inferSelect;
 export type AuditEvent = typeof auditEvents.$inferSelect;
 export type OperationReceipt = typeof operationReceipts.$inferSelect;
 export type SensitiveActionGrant = typeof sensitiveActionGrants.$inferSelect;
+export type Customer = typeof customers.$inferSelect;
+export type CompanyContact = typeof companyContacts.$inferSelect;

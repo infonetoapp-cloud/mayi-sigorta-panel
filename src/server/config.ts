@@ -47,12 +47,25 @@ export const ServerConfigSchema = z.object({
     .default('https://panel.mayisigorta.com'),
 });
 
+export const CsrfConfigSchema = z.object({
+  CSRF_SECRET: z.string().min(32),
+});
+
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
+export type CsrfConfig = z.infer<typeof CsrfConfigSchema>;
 
 export function parseServerConfig(env: Record<string, unknown> = {}): ServerConfig {
   const result = ServerConfigSchema.safeParse(env);
   if (!result.success) {
     throw new Error(`[Geçersiz Sunucu Yapılandırması] ${JSON.stringify(result.error.format())}`);
+  }
+  return result.data;
+}
+
+export function parseCsrfConfig(env: Record<string, unknown> = {}): CsrfConfig {
+  const result = CsrfConfigSchema.safeParse(env);
+  if (!result.success) {
+    throw new Error('[Geçersiz CSRF Yapılandırması] CSRF secret eksik veya geçersiz.');
   }
   return result.data;
 }

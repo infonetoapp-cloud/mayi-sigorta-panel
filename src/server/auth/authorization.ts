@@ -185,7 +185,7 @@ interface RawPermissionGrantRow {
   scope: unknown;
 }
 
-const CANONICAL_CODE_REGEX = /^[a-z]+(\.[a-z0-9_]+)+$/;
+const CANONICAL_CODE_REGEX = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 const MAX_ACTION_REGISTRY_ENTRIES = 1000;
 
 function isNonArrayObject(value: unknown): value is Record<PropertyKey, unknown> {
@@ -791,6 +791,23 @@ export function createDefaultActionRegistry(): ActionRegistry {
     );
   }
 
+  for (const code of [
+    'company_contact.create',
+    'company_contact.update',
+    'company_contact.set_primary',
+    'company_contact.deactivate',
+  ] as const) {
+    normalActions.push(
+      validateAndCreateActionDefinition({
+        code,
+        authority: 'MEMBERSHIP_AUTHORIZED',
+        requiredNormalPermissions: ['customer.update'],
+        requiredSensitivePermissions: [],
+        assurance: 'NORMAL_SESSION',
+      }),
+    );
+  }
+
   return createActionRegistry(normalActions);
 }
 
@@ -936,6 +953,65 @@ function createActionRegistrySnapshot(actions?: AuthorizationOptions['actions'])
 }
 
 /**
+ * Gerçek müşteri ve kişi kayıt kapsamı çözümleyicisi (M2-T01).
+ *
+ * MİMARİ SÖZLEŞME:
+ * - AGENCY kapsamı: Kaynak aktörle aynı acenteye ait olmalıdır.
+ * - ASSIGNED kapsamı:
+ *   - Müşteri oluşturma: Sunucudan türetilmiş acente ve atanan üyelik doğrulanır.
+ *   - Müşteri okuma/güncelleme: Müşterinin assignee_membership_id değeri aktörün üyeliğiyle eşleşmelidir.
+ *   - Şirket yetkilisi (Contact): Üst şirketin (parent customer) kapsamı devralınır (parentAssigneeMembershipId).
+ * - Bozuk, eksik, farklı acenteye ait veriler veya beklenmeyen hatalarda FAIL-CLOSED ret (false) üretir.
+ */
+export function customerRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const { agencyId, membershipId, effectiveScope, resource } = context;
+
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)) {
+      return false;
+    }
+
+    const res = resource as Record<string, unknown>;
+
+    // 1. Aynı acente kontrolü zorunludur (Cross-agency erişim derhal reddedilir)
+    if (typeof res.agencyId !== 'string' || res.agencyId !== agencyId) {
+      return false;
+    }
+
+    // 2. AGENCY kapsamı: Acente içi tüm kayıtlara erişim sağlar
+    if (effectiveScope === 'AGENCY') {
+      return true;
+    }
+
+    // 3. ASSIGNED kapsamı:
+    if (effectiveScope === 'ASSIGNED') {
+      // A. Müşteri oluşturma (create): sunucudan türetilmiş önerilen agency ve assignee
+      if (res.isCreate === true) {
+        return (
+          typeof res.assigneeMembershipId === 'string' && res.assigneeMembershipId === membershipId
+        );
+      }
+
+      // B. Şirket yetkilisi (Contact): üst müşterinin assignee_membership_id'si kontrol edilir
+      if (typeof res.parentAssigneeMembershipId === 'string') {
+        return res.parentAssigneeMembershipId === membershipId;
+      }
+
+      // C. Mevcut müşteri kaydı: atanan üyelik aktörün üyeliği olmalıdır
+      if (typeof res.assigneeMembershipId === 'string') {
+        return res.assigneeMembershipId === membershipId;
+      }
+
+      return false;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Varsayılan stabil kayıt kapsam çözümleyicileri.
  * Üretim varsayılanı fail-closed ret üretir (() => false).
  */
@@ -943,7 +1019,7 @@ export function createDefaultScopeResolvers(): ScopeResolverRegistry {
   const failClosedResolver: ScopeResolverFunction = () => false;
 
   return Object.freeze({
-    customer_record_resolver: failClosedResolver,
+    customer_record_resolver: customerRecordResolver,
     policy_record_resolver: failClosedResolver,
     renewal_record_resolver: failClosedResolver,
     quote_record_resolver: failClosedResolver,
