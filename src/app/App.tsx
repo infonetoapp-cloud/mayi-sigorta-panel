@@ -14,8 +14,10 @@ import { CustomerExternalReferencesSection } from './components/CustomerExternal
 import { SensitiveSearchPanel } from './components/SensitiveSearchPanel';
 import { CatalogsPanel } from './components/CatalogsPanel';
 import { AgencySettingsPanel } from './components/AgencySettingsPanel';
+import { PolicyPanel } from './components/PolicyPanel';
+import { CustomerArchiveSection } from './components/CustomerArchiveSection';
 
-type TabType = 'overview' | 'customers' | 'catalogs' | 'agency-settings';
+type TabType = 'overview' | 'customers' | 'policies' | 'catalogs' | 'agency-settings';
 
 const STYLES = {
   container: {
@@ -343,6 +345,10 @@ export function invalidateCsrfToken(): void {
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [showSensitiveSearch, setShowSensitiveSearch] = useState<boolean>(false);
+  const [policyCustomer, setPolicyCustomer] = useState<{
+    readonly id: string;
+    readonly displayName: string;
+  } | null>(null);
 
   // Müşteri listesi durumu
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
@@ -689,6 +695,17 @@ export const App: React.FC = () => {
               }}
             >
               Müşteriler
+            </button>
+            <button
+              type="button"
+              style={STYLES.navButton(activeTab === 'policies')}
+              onClick={() => {
+                setShowSensitiveSearch(false);
+                setPolicyCustomer(null);
+                setActiveTab('policies');
+              }}
+            >
+              Poliçeler
             </button>
             <button
               type="button"
@@ -1065,6 +1082,12 @@ export const App: React.FC = () => {
 
         {activeTab === 'catalogs' && <CatalogsPanel />}
         {activeTab === 'agency-settings' && <AgencySettingsPanel />}
+        {activeTab === 'policies' && (
+          <PolicyPanel
+            initialCustomer={policyCustomer}
+            onInitialCustomerConsumed={() => setPolicyCustomer(null)}
+          />
+        )}
       </main>
 
       {/* YENİ MÜŞTERİ OLUŞTURMA MODALI */}
@@ -1453,24 +1476,53 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                <CustomerIdentitySection
-                  customer={selectedCustomer}
-                  onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
-                  styles={STYLES}
-                />
+                {selectedCustomer.archivedAt == null && (
+                  <>
+                    <CustomerIdentitySection
+                      customer={selectedCustomer}
+                      onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                      styles={STYLES}
+                    />
 
-                <CustomerAssignmentSection
-                  customer={selectedCustomer}
-                  onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
-                />
+                    <CustomerAssignmentSection
+                      customer={selectedCustomer}
+                      onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                    />
 
-                <CustomerExternalReferencesSection
+                    <CustomerExternalReferencesSection
+                      customer={selectedCustomer}
+                      onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
+                    />
+                  </>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {selectedCustomer.archivedAt == null && (
+                    <button
+                      type="button"
+                      style={STYLES.btnPrimary}
+                      onClick={() => {
+                        setPolicyCustomer({
+                          id: selectedCustomer.id,
+                          displayName: selectedCustomer.displayName,
+                        });
+                        setSelectedCustomerId(null);
+                        setSelectedCustomer(null);
+                        setActiveTab('policies');
+                      }}
+                    >
+                      + Poliçe Ekle
+                    </button>
+                  )}
+                </div>
+
+                <CustomerArchiveSection
                   customer={selectedCustomer}
                   onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}
                 />
 
                 {/* Kurumsal Müşteri İse Yetkililer Bölümü */}
-                {selectedCustomer.type === 'COMPANY' && (
+                {selectedCustomer.type === 'COMPANY' && selectedCustomer.archivedAt == null && (
                   <div>
                     <div
                       style={{

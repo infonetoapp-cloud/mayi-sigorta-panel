@@ -130,6 +130,13 @@ export const AssignCustomerSchema = z
   })
   .strict();
 
+export const ArchiveCustomerSchema = z
+  .object({
+    expectedVersion: z.number().int().min(1),
+    reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+  })
+  .strict();
+
 export const CreateExternalReferenceSchema = z
   .object({
     expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
@@ -222,6 +229,9 @@ export interface RawCustomerRow {
   phone: string | null;
   address: string | null;
   assignee_membership_id: string;
+  archived_at: string | null;
+  archived_by_membership_id: string | null;
+  archive_reason_code: string | null;
   identity_type?: string | null;
   identity_ciphertext?: string | null;
   identity_iv?: string | null;
@@ -263,6 +273,9 @@ export function toCustomerDto(row: RawCustomerRow): CustomerDto {
     phone: row.phone,
     address: row.address,
     assigneeMembershipId: row.assignee_membership_id,
+    archivedAt: row.archived_at,
+    archivedByMembershipId: row.archived_by_membership_id,
+    archiveReasonCode: row.archive_reason_code,
     hasIdentity,
     identityMasked: maskIdentity(hasIdentity),
     version: row.version,
@@ -371,6 +384,9 @@ export async function createCustomer(
     phone: data.phone ?? null,
     address: data.address ?? null,
     assigneeMembershipId,
+    archivedAt: null,
+    archivedByMembershipId: null,
+    archiveReasonCode: null,
     hasIdentity: false,
     identityMasked: null,
     version: 1,
@@ -383,6 +399,7 @@ export async function createCustomer(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -523,6 +540,9 @@ export async function updateCustomer(
     phone: data.phone !== undefined ? data.phone : existing.phone,
     address: data.address !== undefined ? data.address : existing.address,
     assigneeMembershipId: existing.assignee_membership_id,
+    archivedAt: existing.archived_at,
+    archivedByMembershipId: existing.archived_by_membership_id,
+    archiveReasonCode: existing.archive_reason_code,
     hasIdentity,
     identityMasked: maskIdentity(hasIdentity),
     version: nextVersion,
@@ -535,6 +555,7 @@ export async function updateCustomer(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -830,6 +851,7 @@ export async function createCompanyContact(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -945,6 +967,7 @@ export async function updateCompanyContact(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -1051,6 +1074,7 @@ export async function setPrimaryCompanyContact(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -1151,6 +1175,7 @@ export async function deactivateCompanyContact(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -1291,6 +1316,7 @@ export async function updateCustomerIdentity(
       agencyId,
       actorUserId: context.userId,
       actorMembershipId: activeMembership.id,
+      actorIdentityId: context.identityId,
       expectedPermissionVersion: activeMembership.permissionVersion,
       correlationId: options.correlationId,
       idempotencyKey: options.idempotencyKey,
@@ -1355,6 +1381,7 @@ export async function updateCustomerIdentity(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -1470,17 +1497,6 @@ export async function assignCustomer(
   const data = parsed.data;
   const idempotencyPayload = { customerId, ...data };
 
-  const completedReplay = await replayCompletedCustomerDomainCommand<CustomerDto>({
-    db,
-    agencyId,
-    actorUserId: context.userId,
-    actorMembershipId: activeMembership.id,
-    idempotencyKey: options.idempotencyKey,
-    payload: idempotencyPayload,
-    commandKind: 'customer.assign',
-  });
-  if (completedReplay) return completedReplay.body;
-
   const existing = await db
     .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
     .bind(customerId, agencyId)
@@ -1488,6 +1504,12 @@ export async function assignCustomer(
 
   if (!existing) {
     throw new CustomerNotFoundError();
+  }
+  if (existing.archived_at != null) {
+    throw new DomainConstraintViolationError(
+      'CUSTOMER_ARCHIVED',
+      'Arşivlenmiş müşteri değiştirilemez.',
+    );
   }
 
   const authz = await evaluateAuthorization(db, {
@@ -1503,6 +1525,17 @@ export async function assignCustomer(
   if (authz.decision !== 'ALLOW') {
     throw new CustomerForbiddenError('Müşteri atama yetkiniz bulunmamaktadır.');
   }
+
+  const completedReplay = await replayCompletedCustomerDomainCommand<CustomerDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    commandKind: 'customer.assign',
+  });
+  if (completedReplay) return completedReplay.body;
 
   const nextVersion = data.expectedVersion + 1;
   const now = new Date().toISOString();
@@ -1520,6 +1553,9 @@ export async function assignCustomer(
     phone: existing.phone,
     address: existing.address,
     assigneeMembershipId: data.assigneeMembershipId,
+    archivedAt: existing.archived_at,
+    archivedByMembershipId: existing.archived_by_membership_id,
+    archiveReasonCode: existing.archive_reason_code,
     hasIdentity,
     identityMasked: maskIdentity(hasIdentity),
     version: nextVersion,
@@ -1532,6 +1568,7 @@ export async function assignCustomer(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
@@ -1546,6 +1583,83 @@ export async function assignCustomer(
   });
 
   return mutationResult.body;
+}
+
+export async function archiveCustomer(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  rawPayload: unknown,
+  options: CustomerMutationOptions,
+): Promise<CustomerDto> {
+  const activeMembership = context.memberships[0];
+  if (!activeMembership || activeMembership.status !== 'ACTIVE') {
+    throw new CustomerForbiddenError('Aktif üyelik bulunamadı.');
+  }
+  const parsed = ArchiveCustomerSchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    const details: Record<string, string> = {};
+    for (const issue of parsed.error.issues) details[issue.path.join('.')] = issue.message;
+    throw new ValidationError('Geçersiz arşivleme parametreleri', details);
+  }
+  const data = parsed.data;
+  const agencyId = activeMembership.agencyId;
+  const payload = { customerId, ...data };
+  const existing = await db
+    .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
+    .bind(customerId, agencyId)
+    .first<RawCustomerRow>();
+  if (!existing) throw new CustomerNotFoundError();
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.archive',
+    resource: {
+      agencyId: existing.agency_id,
+      id: existing.id,
+      assigneeMembershipId: existing.assignee_membership_id,
+    },
+  });
+  if (authz.decision !== 'ALLOW') {
+    throw new CustomerForbiddenError('Müşteri arşivleme yetkiniz bulunmamaktadır.');
+  }
+  const replay = await replayCompletedCustomerDomainCommand<CustomerDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    idempotencyKey: options.idempotencyKey,
+    payload,
+    commandKind: 'customer.archive',
+  });
+  if (replay) return replay.body;
+  const now = new Date().toISOString();
+  const archived: CustomerDto = {
+    ...toCustomerDto(existing),
+    archivedAt: now,
+    archivedByMembershipId: activeMembership.id,
+    archiveReasonCode: data.reasonCode,
+    version: existing.version + 1,
+    updatedAt: now,
+  };
+  const result = await executeCustomerDomainCommand({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    expectedPermissionVersion: activeMembership.permissionVersion,
+    correlationId: options.correlationId,
+    idempotencyKey: options.idempotencyKey,
+    payload,
+    command: {
+      kind: 'customer.archive',
+      customerId,
+      expectedVersion: data.expectedVersion,
+      reasonCode: data.reasonCode,
+    },
+    resultProducer: () => ({ status: 200, body: archived }),
+  });
+  return result.body;
 }
 
 export async function listCustomerAssignmentOptions(
@@ -1673,6 +1787,7 @@ export async function createExternalReference(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,

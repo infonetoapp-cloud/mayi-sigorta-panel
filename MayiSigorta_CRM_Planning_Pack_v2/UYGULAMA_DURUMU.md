@@ -1,6 +1,6 @@
 # Uygulama durumu
 
-Son güncelleme: **20 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
+Son güncelleme: **23 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
 
 ## Milestone 1 kabul durumu
 
@@ -27,7 +27,10 @@ Son güncelleme: **20 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | M2-T01 | Customer + CompanyContact (DB schema 0004, domain/API/UI) | PASS / COMPLETE — BLOCKER 0, IMPORTANT 0, OPTIONAL 2 |
 | M2-T02 | Hassas kimlik, müşteri atama ve harici referans | **PASS / COMPLETE — BLOCKER 0, IMPORTANT 0** |
 | M2-T03 | Kataloglar ve operasyonel acente ayarları | **PASS / COMPLETE — BLOCKER 0, IMPORTANT 0** |
-| M2-T04+ | Policy / Amendment / Renewal Domain modelleri | BAŞLAMADI |
+| M2-T04 | Tek sözleşme dönemi Policy çekirdeği, UI ve güvenli kimlik varyantı | **COMPLETE — Batch-B kabul edildi** |
+| M2-T05 | Policy ilişkileri/lifecycle ve UI (PolicyParty, Amendment, external reference, assignment/archive) | **COMPLETE — Batch-B kabul edildi** |
+| M2 Batch-B | T04+T05 UI, entegrasyon, regresyon ve kalite kapısı | **COMPLETE — BLOCKER 0, IMPORTANT 0, OPTIONAL 0** |
+| M2-T06 | Renewal ve sonraki domain modelleri | **NEXT — BAŞLAMADI** |
 
 ## Gerçek uygulama durumu
 
@@ -35,7 +38,7 @@ Son güncelleme: **20 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
-| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01, M2-T02 ve M2-T03 COMPLETE; M2-T04 BAŞLAMADI) |
+| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–M2-T05 ve M2 Batch-B COMPLETE; M2-T06 başlamadı) |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
@@ -55,6 +58,24 @@ Durum: **M2-T02 PASS / COMPLETE; M2-T03 PASS / COMPLETE**. Milestone 2 tamamlanm
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries` ve production client + Worker dry-run `npm run build`: PASS.
 - 0005 ve 0006 SQL içerikleri değiştirilmedi; doğrulanan SHA-256 değerleri sırasıyla `f5c1717b78c0d7fe9f5b3576616283311709d35e29eb24a7d786b8b1cc7dfd51` ve `d6cd62cbb4b3fc9980e415f1de32431e65830f89a7415d2e64ba393209fafdf7`; 0007 yok. Önceden kabul edilen gerçek-runner migration kanıtı yeniden çalıştırılmadı.
 - Remote Cloudflare/D1/DNS işlemi, staging/production deployment veya gerçek veri aktarımı yapılmadı.
+
+## M2-T04 CORE kabul kanıtı — 21 Eylül 2026
+
+Durum: **M2-T04 CORE COMPLETE — UI/BATCH GATE DEFERRED**. M2 tamamlanmadı; M2-T05 başlamadı.
+
+- `policies` tablosu additive `0007_robust_scalphunter.sql` migration'ıyla eklendi. Policy tek sigorta sözleşme dönemidir; policyholder Customer, insurer, product+branch, payment method ve assignee ilişkileri same-agency composite FK'lerle korunur. Global `UNIQUE(policy_number)` yoktur.
+- Varsayılan aday kimliği `(agency, insurer, normalized_policy_number, end_date, identity_variant)` unique sözleşmesidir; `identity_variant=0` varsayılandır. Aynı numaranın farklı dönemleri kabul edilir, eşzamanlı aynı aday yaratımı en fazla bir business effect üretir.
+- Normal create/update/assign yolları server-owned kapalı Policy komutları, canlı identity/membership/permission/scope recheck, expectedVersion CAS, namespaced idempotency, audit ve business effect'i tek D1 batch içinde uygular. Generic PATCH assignee veya `identity_variant` kabul etmez.
+- `policy.identity_variant.create` yalnız secure audience + accepted SensitiveActionGrant + `policy.update` AGENCY effective scope + gerekçe + expectedVersion ile çalışır. Grant action/payload/target/version/permission_version bağları, tek kullanım, exact replay yetki recheck'i ve grant+variant+receipt+audit rollback atomikliği gerçek D1 testlerinde doğrulandı.
+- `policy_record_resolver` AGENCY ve ASSIGNED (Policy assignee veya policyholder Customer assignee) davranışını uygular. Health eylemleri normal Policy yetkisine ek `sensitive.health.read/write` gerektirir; OWNER için hassas izin örtük değildir.
+- Primler integer minor unit olarak saklanır ve decimal string BigInt ile deterministik ayrıştırılır; geçersiz hassasiyet, bilimsel gösterim, NaN/Infinity ve overflow reddedilir. Sözleşme tarihleri canonical `YYYY-MM-DD` olarak timezone dönüşümü olmadan saklanır. ISO 4217 kodu allowlist ile doğrulanır.
+- Katalog sözleşmesi branch health classification ile payment method installment capability/max limit alanlarını API/domain düzeyinde taşır. Yeni Policy ve güvenli varyant aktif same-agency catalog gerektirir; tarihsel inaktif referanslar okunabilir kalır.
+- Odak T04 paketi: **4 dosya / 29 test PASS**. Paylaşılan authorization regresyonu: **3 dosya / 210 test PASS**. Değişen catalog mutation/API regresyonu: **2 dosya / 22 test PASS**.
+- Migration gerçek Wrangler local runner testi: 0006→0007 upgrade + Customer/T03 seed korunumu, clean apply ve ikinci runner `No migrations to apply`: PASS. 0000–0006 SHA-256 koruması PASS; geçici klon üzerinde Drizzle generate `No schema changes, nothing to migrate`: PASS; 0008 yok.
+- `npm run lint`, `npm run typecheck`, `npm run verify:boundaries` ve `git diff --check`: PASS. Geniş Level-B/full suite/full build kullanıcı talimatıyla Batch-B sonuna ertelendi.
+- Git commit/push/deploy yapılmadı. `HEAD` ve `origin/main` `de5eeaa74567f8f49ef1ec8c76a4f41008367d4b`; T04 çalışması Batch B için uncommitted bırakıldı. `.env` tracked değil; Cloudflare deploy, remote D1, DNS veya production data işlemi yapılmadı.
+
+Sonraki tek görev: **M2-T05**; T04 UI ve geniş Batch-B kabul kapısı T05 sonrasında birlikte tamamlanacak.
 
 ## M2-T02 CORE recovery kanıtı — 20 Eylül 2026
 
@@ -120,8 +141,34 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki aşama
 
-M2-T02 ve M2-T03 Batch-A kabulü tamamlandı. M2-T04 **BAŞLAMADI**; yeni kullanıcı yetkisi olmadan başlatılmayacaktır.
+M2-T02 ve M2-T03 Batch-A kabulü tamamlandı. M2-T04, M2-T05 ve M2 Batch-B tamamlandı. Sıradaki tek görev **M2-T06**'dır; bu çalışma sırasında başlatılmadı. Milestone 2 tamamlanmadı.
 
 ## Gelecek ajanların güncelleme biçimi
 
 Her çalışma sonunda tarih/kapsam, değişen dosyalar, çalıştırılan test ve sonuç, migration ortamı, deploy durumu, varsa somut engel ve sonraki tek görevi buraya kaydet. Mimariyi bu dosyada tekrar tanımlama. Fazı yalnız kendi kabul kapısı gerçekten geçtiğinde TAMAMLANDI yap.
+
+## M2-T05 CORE kabul kanıtı — 21 Eylül 2026
+
+Durum: **M2-T05 CORE COMPLETE — UI/BATCH GATE DEFERRED**. M2 tamamlanmadı; M2-T06 başlatılmadı.
+
+- Additive `0008_fearless_giant_girl.sql`; `policy_parties`, minimal `policy_amendments` ve `policy_external_references` tablolarını, Customer archive alanlarını ve Policy archive bütünlük tetikleyicilerini ekledi. Same-agency composite ilişkiler, arşivli parent/customer insert-reparent retleri, reason-code biçimi ve Customer `OPEN_DEPENDENCIES` simetrisi gerçek D1 üzerinde doğrulandı.
+- Relationship create/deactivate, amendment, external-reference, Policy assignment/archive ve Customer assignment/archive yolları expectedVersion CAS, route-target bağlı idempotency, canlı identity/membership/permission/scope recheck, dependency-scope sırası, audit ve receipt ile atomik çalışıyor. Losing-writer, audit failure rollback ve exact replay senaryoları kalıcı gerçek-D1 testlerinde geçiyor.
+- PolicyParty yalnız bağlı Policy için ad/rol özeti sağlıyor; ilgili Customer'ın portföyünü veya diğer poliçelerini açmıyor. Lifecycle status ile archive state ayrı tutuluyor ve tarihsel child satırları korunuyor.
+- T05 + migration + boundary odak paketi: **6 dosya / 72 test PASS**. T04 ve seçili Customer/UI regresyon paketi: **6 dosya / 58 test PASS**.
+- Migration 0007+0008 paketi: **2 dosya / 6 test PASS**; clean apply, 0007→0008 upgrade ve seed korunumu, ikinci uygulamada gerçek no-op, 0000–0007 SHA-256 bütünlüğü ve Drizzle no-drift doğrulandı.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries` ve `git diff --check`: PASS. İki bağımsız son inceleme turunun nihai sonucu **BLOCKER 0, IMPORTANT-CORE 0, OPTIONAL 0 — PASS**.
+- Commit/push/deploy yapılmadı. `HEAD` ve `origin/main` `de5eeaa74567f8f49ef1ec8c76a4f41008367d4b`; T04+T05 Batch-B çalışması bilerek uncommitted bırakıldı. `.env` tracked değil; remote Cloudflare/D1/DNS veya gerçek veri işlemi yapılmadı.
+
+## M2 Batch-B kabul kanıtı — 23 Eylül 2026
+
+Durum: **M2-T04 COMPLETE; M2-T05 COMPLETE; M2 Batch-B COMPLETE**. Milestone 2 tamamlanmadı; M2-T06 sıradaki görevdir ve başlatılmadı.
+
+- Kesintili çalışmadan korunan mevcut iş: T04/T05 backend, additive 0007/0008 şeması, policy UI iskeleti, müşteri arşiv UI'si ve Batch-B UI/regresyon testleri. Recovery sırasında tamamlanmış parçalar yeniden yazılmadı.
+- Poliçe listesi/oluşturma/detay/düzenleme/atama, Customer → Poliçe Ekle, health-sensitive uyarı ve secure kimlik varyantı akışı; PolicyParty INSURED/BENEFICIARY, Amendment, external reference ve iki arşiv akışı doğrulandı. Arşiv dışı bırakma OPEN_DEPENDENCIES hatası güvenli metinle sunulur; yeni yenileme/poliçe dönemi oluşturulmaz.
+- Batch-B UI: **19/19 PASS**. Müşteri atama UI kapsaması önceki M2-T02 UI testinde korunarak dahil edildi.
+- Uygulama/test regresyonları: migration testleri hariç **787/787 PASS (34 dosya)**. Ayrı tek-worker migration doğrulaması: 0005 **6/6**, 0007+0008 **6/6 PASS**; 0007/0008 gerçek-runner kanıtı kabul edilen additive migration'lardır. İlk tüm-suite paralel çağrısındaki Wrangler migration test timeout'ları izole tekrarında geçmiştir.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (Worker dry-run dahil) ve `git diff --check`: PASS.
+- Migration/schema değişikliği Batch-B UI sırasında yapılmadı; 0007/0008 T04/T05 CORE kapsamındaki additive migration'lardır. Tarihsel 0000–0006 migration SQL dosyaları değişmedi; remote D1/migration, deployment, DNS veya gerçek veri işlemi yapılmadı.
+- Güvenlik/diff kapanış incelemesi: BLOCKER **0**, IMPORTANT **0**, OPTIONAL **0**. `.env` tracked değil; `command(*)`/`permissions.allow` unsafe artifact ve Gemini/Antigravity artifact bulunmadı; `node_modules`, `dist` veya `_archive/` değişikliği yok.
+
+M2 BATCH-B COMPLETE — READY FOR M2-T06

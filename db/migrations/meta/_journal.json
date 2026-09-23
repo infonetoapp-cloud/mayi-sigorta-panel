@@ -50,6 +50,20 @@
       "when": 1789908337156,
       "tag": "0006_parched_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789927679970,
+      "tag": "0007_robust_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789944974293,
+      "tag": "0008_fearless_giant_girl",
+      "breakpoints": true
     }
   ]
 }

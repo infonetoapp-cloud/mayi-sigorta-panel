@@ -122,6 +122,12 @@ export type CustomerDomainCommand =
       readonly targetAssigneeMembershipId: string;
     }
   | {
+      readonly kind: 'customer.archive';
+      readonly customerId: string;
+      readonly expectedVersion: number;
+      readonly reasonCode: string;
+    }
+  | {
       readonly kind: 'customer.external_reference.create';
       readonly customerId: string;
       readonly referenceId: string;
@@ -135,6 +141,7 @@ export interface ExecuteCustomerDomainCommandInput<TResult = unknown> {
   readonly agencyId: string;
   readonly actorUserId: string;
   readonly actorMembershipId: string;
+  readonly actorIdentityId: string;
   readonly expectedPermissionVersion: number;
   readonly correlationId: string;
   readonly idempotencyKey: string;
@@ -169,6 +176,7 @@ function actionForCommandKind(kind: CustomerDomainCommandKind): string {
     case 'company_contact.deactivate':
     case 'customer.identity.update':
     case 'customer.assign':
+    case 'customer.archive':
     case 'customer.external_reference.create':
       return kind;
     default: {
@@ -823,6 +831,52 @@ async function planCommand(
       };
     }
 
+    case 'customer.archive': {
+      const customer = await db
+        .prepare('SELECT id FROM customers WHERE id = ? AND agency_id = ?')
+        .bind(command.customerId, agencyId)
+        .first<{ id: string }>();
+      if (!customer) {
+        throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
+      }
+      const updateStmt = db
+        .prepare(
+          `UPDATE customers
+           SET archived_at = ?, archived_by_membership_id = ?, archive_reason_code = ?,
+               version = version + 1, updated_at = ?
+           WHERE id = ? AND agency_id = ? AND version = ? AND archived_at IS NULL`,
+        )
+        .bind(
+          now,
+          actorMembershipId,
+          command.reasonCode,
+          now,
+          command.customerId,
+          agencyId,
+          command.expectedVersion,
+        );
+      return {
+        action: 'customer.archive',
+        targetType: 'customers',
+        targetId: command.customerId,
+        targetCustomerId: command.customerId,
+        isCreate: false,
+        auditCode: 'customer.archived',
+        auditMetadata: {
+          customerId: command.customerId,
+          reasonCode: command.reasonCode,
+          targetVersion: command.expectedVersion + 1,
+        },
+        businessStatements: [
+          {
+            statement: updateStmt,
+            expectedChanges: 1,
+            failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
+          },
+        ],
+      };
+    }
+
     case 'customer.external_reference.create': {
       const customer = await db
         .prepare('SELECT id, version FROM customers WHERE id = ? AND agency_id = ?')
@@ -918,6 +972,7 @@ export async function executeCustomerDomainCommand<TResult>(
     agencyId,
     actorUserId,
     actorMembershipId,
+    actorIdentityId,
     expectedPermissionVersion,
     correlationId,
     idempotencyKey,
@@ -1023,6 +1078,10 @@ export async function executeCustomerDomainCommand<TResult>(
              AND u.status = 'ACTIVE'
              AND a.status = 'ACTIVE'
              AND m.permission_version = ?
+             AND EXISTS (
+               SELECT 1 FROM auth_identities ai
+               WHERE ai.id = ? AND ai.user_id = u.id AND ai.status = 'ACTIVE'
+             )
              AND (
                (
                  m.type = 'OWNER'
@@ -1086,7 +1145,28 @@ export async function executeCustomerDomainCommand<TResult>(
                      )
                    )
                    OR
-                   -- CASE 3: customer.identity.update
+                   -- CASE 3: customer.archive
+                   (
+                     ? = 'customer.archive'
+                     AND EXISTS (
+                       SELECT 1
+                       FROM customers c
+                       INNER JOIN membership_permissions p_archive
+                         ON p_archive.membership_id = m.id
+                         AND p_archive.permission_code = 'customer.archive'
+                         AND p_archive.scope IN ('ASSIGNED', 'AGENCY')
+                       INNER JOIN membership_permissions p_read
+                         ON p_read.membership_id = m.id
+                         AND p_read.permission_code = 'customer.read'
+                         AND p_read.scope IN ('ASSIGNED', 'AGENCY')
+                       WHERE c.id = ? AND c.agency_id = ?
+                         AND (p_read.scope = 'AGENCY' OR p_archive.scope = 'ASSIGNED')
+                         AND (p_archive.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                         AND (p_read.scope = 'AGENCY' OR c.assignee_membership_id = m.id)
+                     )
+                   )
+                   OR
+                   -- CASE 4: customer.identity.update
                    (
                      ? = 'customer.identity.update'
                      AND EXISTS (
@@ -1120,9 +1200,9 @@ export async function executeCustomerDomainCommand<TResult>(
                      )
                    )
                    OR
-                   -- CASE 4: customer.update, customer.external_reference.create, ve company_contact.*
+                   -- CASE 5: customer.update, customer.external_reference.create, ve company_contact.*
                    (
-                     ? NOT IN ('customer.create', 'customer.assign', 'customer.identity.update')
+                     ? NOT IN ('customer.create', 'customer.assign', 'customer.archive', 'customer.identity.update')
                      AND EXISTS (
                        SELECT 1
                        FROM customers c
@@ -1153,8 +1233,12 @@ export async function executeCustomerDomainCommand<TResult>(
       agencyId,
       actorUserId,
       expectedPermissionVersion,
+      actorIdentityId,
       plan.action,
       plan.action,
+      plan.action,
+      plan.targetCustomerId,
+      agencyId,
       plan.action,
       plan.targetCustomerId,
       agencyId,
@@ -1239,7 +1323,7 @@ export async function executeCustomerDomainCommand<TResult>(
     agencyId,
     actorUserId,
     actorMembershipId,
-    action: plan.action,
+    action: plan.action === 'customer.archive' ? plan.auditCode : plan.action,
     targetType: plan.targetType,
     targetId: plan.targetId,
     correlationId,
@@ -1303,6 +1387,12 @@ export async function executeCustomerDomainCommand<TResult>(
     }
     if (errorMsg.includes('CUSTOMER_NOT_FOUND')) {
       throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
+    }
+    if (errorMsg.includes('OPEN_DEPENDENCIES')) {
+      throw new DomainConstraintViolationError(
+        'OPEN_DEPENDENCIES',
+        'Müşteri açık poliçe bağımlılıkları nedeniyle arşivlenemez.',
+      );
     }
     if (errorMsg.includes('CONTACT_NOT_FOUND')) {
       throw new DomainConstraintViolationError('CONTACT_NOT_FOUND', 'Şirket yetkilisi bulunamadı.');

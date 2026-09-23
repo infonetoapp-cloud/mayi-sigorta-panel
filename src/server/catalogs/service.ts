@@ -104,6 +104,7 @@ export const CreateBranchSchema = z
       .trim()
       .min(1, 'İsim boş olamaz')
       .max(255, 'İsim en fazla 255 karakter olabilir'),
+    dataClassification: z.enum(['GENERAL', 'HEALTH']).default('GENERAL'),
   })
   .strict();
 
@@ -162,6 +163,8 @@ export const CreatePaymentMethodSchema = z
       .trim()
       .min(1, 'İsim boş olamaz')
       .max(255, 'İsim en fazla 255 karakter olabilir'),
+    supportsInstallments: z.boolean().default(false),
+    maxInstallments: z.number().int().min(2).max(36).default(12),
   })
   .strict();
 
@@ -172,9 +175,13 @@ export const UpdatePaymentMethodSchema = z
       .string()
       .trim()
       .min(1, 'İsim boş olamaz')
-      .max(255, 'İsim en fazla 255 karakter olabilir'),
+      .max(255, 'İsim en fazla 255 karakter olabilir')
+      .optional(),
+    supportsInstallments: z.boolean().optional(),
+    maxInstallments: z.number().int().min(2).max(36).optional(),
   })
-  .strict();
+  .strict()
+  .refine((input) => Object.keys(input).length > 1, 'En az bir değişiklik zorunludur.');
 
 export const CreateLossReasonSchema = z
   .object({
@@ -361,7 +368,7 @@ export async function listBranches(
 
   const rows = await db
     .prepare(
-      `SELECT id, agency_id, code, name, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, data_classification, status, version, created_at, updated_at
        FROM insurance_branches
        WHERE agency_id = ? ${statusFilter}
        ORDER BY name ASC`,
@@ -372,6 +379,7 @@ export async function listBranches(
       agency_id: string;
       code: string;
       name: string;
+      data_classification: 'GENERAL' | 'HEALTH';
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
@@ -383,6 +391,7 @@ export async function listBranches(
     agencyId: r.agency_id,
     code: r.code,
     name: r.name,
+    dataClassification: r.data_classification,
     status: r.status,
     version: r.version,
     createdAt: r.created_at,
@@ -398,7 +407,7 @@ export async function getBranch(
   const mem = getActiveMembership(context);
   const row = await db
     .prepare(
-      `SELECT id, agency_id, code, name, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, data_classification, status, version, created_at, updated_at
        FROM insurance_branches
        WHERE id = ? AND agency_id = ?`,
     )
@@ -408,6 +417,7 @@ export async function getBranch(
       agency_id: string;
       code: string;
       name: string;
+      data_classification: 'GENERAL' | 'HEALTH';
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
@@ -423,6 +433,7 @@ export async function getBranch(
     agencyId: row.agency_id,
     code: row.code,
     name: row.name,
+    dataClassification: row.data_classification,
     status: row.status,
     version: row.version,
     createdAt: row.created_at,
@@ -537,7 +548,7 @@ export async function listPaymentMethods(
 
   const rows = await db
     .prepare(
-      `SELECT id, agency_id, code, name, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, supports_installments, max_installments, status, version, created_at, updated_at
        FROM payment_methods
        WHERE agency_id = ? ${statusFilter}
        ORDER BY name ASC`,
@@ -548,6 +559,8 @@ export async function listPaymentMethods(
       agency_id: string;
       code: string;
       name: string;
+      supports_installments: number;
+      max_installments: number;
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
@@ -559,6 +572,8 @@ export async function listPaymentMethods(
     agencyId: r.agency_id,
     code: r.code,
     name: r.name,
+    supportsInstallments: r.supports_installments === 1,
+    maxInstallments: r.max_installments,
     status: r.status,
     version: r.version,
     createdAt: r.created_at,
@@ -574,7 +589,7 @@ export async function getPaymentMethod(
   const mem = getActiveMembership(context);
   const row = await db
     .prepare(
-      `SELECT id, agency_id, code, name, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, supports_installments, max_installments, status, version, created_at, updated_at
        FROM payment_methods
        WHERE id = ? AND agency_id = ?`,
     )
@@ -584,6 +599,8 @@ export async function getPaymentMethod(
       agency_id: string;
       code: string;
       name: string;
+      supports_installments: number;
+      max_installments: number;
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
@@ -599,6 +616,8 @@ export async function getPaymentMethod(
     agencyId: row.agency_id,
     code: row.code,
     name: row.name,
+    supportsInstallments: row.supports_installments === 1,
+    maxInstallments: row.max_installments,
     status: row.status,
     version: row.version,
     createdAt: row.created_at,
@@ -982,6 +1001,7 @@ export async function createBranch(
       branchId,
       code: parsed.data.code,
       name: parsed.data.name,
+      dataClassification: parsed.data.dataClassification,
     },
     resultProducer: () => {
       const now = new Date().toISOString();
@@ -992,6 +1012,7 @@ export async function createBranch(
           agencyId: mem.agencyId,
           code: parsed.data.code,
           name: parsed.data.name,
+          dataClassification: parsed.data.dataClassification,
           status: 'ACTIVE',
           version: 1,
           createdAt: now,
@@ -1295,6 +1316,8 @@ export async function createPaymentMethod(
       paymentMethodId,
       code: parsed.data.code,
       name: parsed.data.name,
+      supportsInstallments: parsed.data.supportsInstallments,
+      maxInstallments: parsed.data.maxInstallments,
     },
     resultProducer: () => {
       const now = new Date().toISOString();
@@ -1305,6 +1328,8 @@ export async function createPaymentMethod(
           agencyId: mem.agencyId,
           code: parsed.data.code,
           name: parsed.data.name,
+          supportsInstallments: parsed.data.supportsInstallments,
+          maxInstallments: parsed.data.maxInstallments,
           status: 'ACTIVE',
           version: 1,
           createdAt: now,
@@ -1348,7 +1373,9 @@ export async function updatePaymentMethod(
       paymentMethodId: id,
       expectedVersion: parsed.data.expectedVersion,
       name: parsed.data.name,
-      changedFields: ['name'],
+      supportsInstallments: parsed.data.supportsInstallments,
+      maxInstallments: parsed.data.maxInstallments,
+      changedFields: Object.keys(parsed.data).filter((field) => field !== 'expectedVersion'),
     },
     resultProducer: () => {
       const now = new Date().toISOString();
@@ -1356,7 +1383,13 @@ export async function updatePaymentMethod(
         status: 200,
         body: {
           ...current,
-          name: parsed.data.name,
+          ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+          ...(parsed.data.supportsInstallments !== undefined
+            ? { supportsInstallments: parsed.data.supportsInstallments }
+            : {}),
+          ...(parsed.data.maxInstallments !== undefined
+            ? { maxInstallments: parsed.data.maxInstallments }
+            : {}),
           version: parsed.data.expectedVersion + 1,
           updatedAt: now,
         },

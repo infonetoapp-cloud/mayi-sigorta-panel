@@ -78,6 +78,7 @@ export interface IssueAndPersistGrantInput {
   readonly expectedTargetVersion?: number | null;
   readonly ttlSeconds?: number;
   readonly now?: Date;
+  readonly evidenceToken?: string;
 }
 
 export async function issueAndPersistSensitiveActionGrant(
@@ -162,7 +163,8 @@ export async function issueAndPersistSensitiveActionGrant(
   const issuedAtStr = now.toISOString();
   const expiresAtStr = new Date(nowMs + requestedTtl * 1000).toISOString();
 
-  const grantToken = generateSecureRandomToken();
+  const grantToken = input.evidenceToken ?? generateSecureRandomToken();
+  if (!/^[a-f0-9]{64}$/.test(grantToken)) throw new Error('MALFORMED_GRANT_EVIDENCE');
   const evidenceHash = await computeEvidenceHash(grantToken);
   const grantId = crypto.randomUUID();
 

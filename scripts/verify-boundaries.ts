@@ -785,9 +785,16 @@ export function checkDomainMutationExecutorBoundaries(
   const internalCatalogExecutor = canonicalizePath(
     resolve(serverDir, 'mutations/internal/catalog-domain-executor.ts'),
   );
+  const internalPolicyExecutor = canonicalizePath(
+    resolve(serverDir, 'mutations/internal/policy-domain-executor.ts'),
+  );
+  const internalPolicyRelationshipExecutor = canonicalizePath(
+    resolve(serverDir, 'mutations/internal/policy-relationship-executor.ts'),
+  );
   const deprecatedExecutor = canonicalizePath(resolve(serverDir, 'mutations/domain-executor.ts'));
   const authorizedCustomerImporter = canonicalizePath(resolve(serverDir, 'customers/service.ts'));
   const authorizedCatalogImporter = canonicalizePath(resolve(serverDir, 'catalogs/service.ts'));
+  const authorizedPolicyImporter = canonicalizePath(resolve(serverDir, 'policies/service.ts'));
   const violations: BoundaryViolation[] = [];
 
   if (!existsSync(serverDir)) return violations;
@@ -832,6 +839,24 @@ export function checkDomainMutationExecutorBoundaries(
       authorizedImporter: authorizedCatalogImporter,
       name: 'catalog',
       targetModule: 'src/server/catalogs/service.ts',
+    });
+  }
+
+  if (existsSync(internalPolicyExecutor)) {
+    executorsToCheck.push({
+      executorPath: internalPolicyExecutor,
+      authorizedImporter: authorizedPolicyImporter,
+      name: 'policy',
+      targetModule: 'src/server/policies/service.ts',
+    });
+  }
+
+  if (existsSync(internalPolicyRelationshipExecutor)) {
+    executorsToCheck.push({
+      executorPath: internalPolicyRelationshipExecutor,
+      authorizedImporter: authorizedPolicyImporter,
+      name: 'policy relationship',
+      targetModule: 'src/server/policies/service.ts',
     });
   }
 

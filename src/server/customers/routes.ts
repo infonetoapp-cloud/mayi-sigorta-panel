@@ -36,6 +36,7 @@ import {
   updateCustomerIdentity,
   searchSensitiveCustomers,
   assignCustomer,
+  archiveCustomer,
   listCustomerAssignmentOptions,
   createExternalReference,
   listExternalReferences,
@@ -267,7 +268,8 @@ export function registerCustomerRoutes(
     if (err instanceof DomainConstraintViolationError) {
       const status =
         err.code === 'MULTIPLE_ACTIVE_PRIMARY_CONTACTS_PROHIBITED' ||
-        err.code === 'DUPLICATE_EXTERNAL_REFERENCE'
+        err.code === 'DUPLICATE_EXTERNAL_REFERENCE' ||
+        err.code === 'OPEN_DEPENDENCIES'
           ? 409
           : err.code === 'INDIVIDUAL_CONTACT_PROHIBITED'
             ? 400
@@ -1006,6 +1008,50 @@ export function registerCustomerRoutes(
         },
         200,
       );
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.post(`${API_PREFIX}/customers/:id/archive`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    const csrfError = await checkCsrf(c, auth.principal.subject);
+    if (csrfError) return csrfError;
+    const idempotencyKey = c.req.header('Idempotency-Key');
+    if (!idempotencyKey?.trim()) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'IDEMPOTENCY_KEY_REQUIRED',
+            message: 'Idempotency-Key başlığı zorunludur.',
+          },
+          timestamp: new Date().toISOString(),
+        },
+        400,
+      );
+    }
+    let rawBody: unknown;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.json(
+        {
+          success: false,
+          error: { code: 'MALFORMED_JSON', message: 'Geçersiz JSON gövdesi.' },
+          timestamp: new Date().toISOString(),
+        },
+        400,
+      );
+    }
+    try {
+      const archived = await archiveCustomer(c.env.DB, auth.context, c.req.param('id'), rawBody, {
+        correlationId: crypto.randomUUID(),
+        idempotencyKey: idempotencyKey.trim(),
+      });
+      return c.json({ success: true, data: archived, timestamp: new Date().toISOString() }, 200);
     } catch (err) {
       return handleError(c, err);
     }

@@ -293,6 +293,31 @@ describe('Protected mutation internal executor kaynak sınırı', () => {
       });
     });
 
+    it('policy relationship executor importunu yalnız policy service için kabul etmelidir', () => {
+      runWithTempFixture(
+        {
+          'src/server/mutations/internal/policy-relationship-executor.ts':
+            'export const executePolicyRelationshipCommand = () => {};\n',
+          'src/server/policies/service.ts':
+            "import { executePolicyRelationshipCommand } from '../mutations/internal/policy-relationship-executor';\nvoid executePolicyRelationshipCommand;\n",
+          'src/server/unsafe-policy-relationship-bypass.ts':
+            "import { executePolicyRelationshipCommand } from './mutations/internal/policy-relationship-executor';\nvoid executePolicyRelationshipCommand;\n",
+        },
+        (tempDir) => {
+          const violations = checkDomainMutationExecutorBoundaries({ rootDir: tempDir });
+          expect(violations).toContainEqual(
+            expect.objectContaining({
+              file: 'src/server/unsafe-policy-relationship-bypass.ts',
+              resolvedPath: 'src/server/mutations/internal/policy-relationship-executor.ts',
+            }),
+          );
+          expect(violations.some((item) => item.file === 'src/server/policies/service.ts')).toBe(
+            false,
+          );
+        },
+      );
+    });
+
     it('mühürlü domain-executor.ts içine export konulmasını reddetmelidir', () => {
       runWithTempFixture(
         customerBoundaryFixture({

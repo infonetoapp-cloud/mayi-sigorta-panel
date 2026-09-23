@@ -39,7 +39,7 @@ describe('M2-T03 Catalogs & Agency Settings Domain Mutations on Real D1', () => 
     );
     db = await mf.getD1Database('DB');
 
-    // Apply migrations 0000-0006
+    // Apply migrations 0000-0007 for the current catalog contract.
 
     for (const file of [
       '0000_good_hammerhead.sql',
@@ -59,13 +59,15 @@ describe('M2-T03 Catalogs & Agency Settings Domain Mutations on Real D1', () => 
       }
     }
 
-    // Try 0006 if exists
+    // Apply generated current migrations.
     try {
       const { readdirSync } = await import('node:fs');
       const migDir = resolve(rootDir, 'db/migrations');
-      const mig0006 = readdirSync(migDir).find((f) => f.startsWith('0006_') && f.endsWith('.sql'));
-      if (mig0006) {
-        const sql = readFileSync(resolve(migDir, mig0006), 'utf8');
+      const generated = readdirSync(migDir)
+        .filter((file) => /^000[67]_.*\.sql$/.test(file))
+        .sort();
+      for (const file of generated) {
+        const sql = readFileSync(resolve(migDir, file), 'utf8');
         const stmts = sql
           .split('--> statement-breakpoint')
           .map((s) => s.trim())
@@ -75,7 +77,7 @@ describe('M2-T03 Catalogs & Agency Settings Domain Mutations on Real D1', () => 
         }
       }
     } catch {
-      // 0006 not generated yet, will fail in RED test
+      // Generated migration absent: focused tests will fail at the affected contract.
     }
 
     async function seedAgency(agId: string, uId: string, mId: string, email: string) {

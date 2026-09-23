@@ -16,6 +16,7 @@ import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './securi
 import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
 import { registerCatalogRoutes } from './catalogs/routes';
+import { registerPolicyRoutes } from './policies/routes';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -440,6 +441,9 @@ export function createApp(
 
   // M2-T03 Katalog ve Acente Ayarları API Rotaları (Catalog & Agency Settings Domain Routes)
   registerCatalogRoutes(app, dependencies);
+
+  // M2-T04 Policy CORE API routes
+  registerPolicyRoutes(app, dependencies);
 
   if (configureRoutes) {
     configureRoutes(app);

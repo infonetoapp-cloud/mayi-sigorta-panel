@@ -365,6 +365,9 @@ export const customers = sqliteTable(
     phone: text('phone'),
     address: text('address'),
     assigneeMembershipId: text('assignee_membership_id').notNull(),
+    archivedAt: text('archived_at'),
+    archivedByMembershipId: text('archived_by_membership_id'),
+    archiveReasonCode: text('archive_reason_code'),
     identityType: text('identity_type', { enum: ['TCKN', 'VKN'] }),
     identityCiphertext: text('identity_ciphertext'),
     identityIv: text('identity_iv'),
@@ -539,6 +542,9 @@ export const insuranceBranches = sqliteTable(
       .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    dataClassification: text('data_classification', { enum: ['GENERAL', 'HEALTH'] })
+      .notNull()
+      .default('GENERAL'),
     status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
       .notNull()
       .default('ACTIVE'),
@@ -550,6 +556,10 @@ export const insuranceBranches = sqliteTable(
     check('insurance_branches_id_nonempty', sql`length(trim(${table.id})) > 0`),
     check('insurance_branches_code_nonempty', sql`length(trim(${table.code})) > 0`),
     check('insurance_branches_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check(
+      'insurance_branches_data_classification_valid',
+      sql`${table.dataClassification} IN ('GENERAL', 'HEALTH')`,
+    ),
     check('insurance_branches_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
     check('insurance_branches_version_positive', sql`${table.version} >= 1`),
     check('insurance_branches_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
@@ -599,6 +609,12 @@ export const insuranceProducts = sqliteTable(
       .onDelete('restrict')
       .onUpdate('restrict'),
     uniqueIndex('insurance_products_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('insurance_products_policy_relation_uq').on(
+      table.agencyId,
+      table.id,
+      table.insurerId,
+      table.branchId,
+    ),
     uniqueIndex('insurance_products_agency_code_uq').on(table.agencyId, table.code),
     index('insurance_products_agency_insurer_idx').on(table.agencyId, table.insurerId),
     index('insurance_products_agency_branch_idx').on(table.agencyId, table.branchId),
@@ -615,6 +631,8 @@ export const paymentMethods = sqliteTable(
       .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    supportsInstallments: integer('supports_installments').notNull().default(0),
+    maxInstallments: integer('max_installments').notNull().default(12),
     status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
       .notNull()
       .default('ACTIVE'),
@@ -626,6 +644,14 @@ export const paymentMethods = sqliteTable(
     check('payment_methods_id_nonempty', sql`length(trim(${table.id})) > 0`),
     check('payment_methods_code_nonempty', sql`length(trim(${table.code})) > 0`),
     check('payment_methods_name_nonempty', sql`length(trim(${table.name})) > 0`),
+    check(
+      'payment_methods_supports_installments_valid',
+      sql`${table.supportsInstallments} IN (0, 1)`,
+    ),
+    check(
+      'payment_methods_max_installments_range',
+      sql`${table.maxInstallments} >= 2 AND ${table.maxInstallments} <= 36`,
+    ),
     check('payment_methods_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
     check('payment_methods_version_positive', sql`${table.version} >= 1`),
     check('payment_methods_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
@@ -699,6 +725,273 @@ export const agencySettings = sqliteTable(
   ],
 );
 
+export const policies = sqliteTable(
+  'policies',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    insurerId: text('insurer_id').notNull(),
+    productId: text('product_id').notNull(),
+    branchId: text('branch_id').notNull(),
+    paymentMethodId: text('payment_method_id').notNull(),
+    assigneeMembershipId: text('assignee_membership_id').notNull(),
+    policyNumber: text('policy_number').notNull(),
+    normalizedPolicyNumber: text('normalized_policy_number').notNull(),
+    startDate: text('start_date').notNull(),
+    endDate: text('end_date').notNull(),
+    grossPremiumMinor: integer('gross_premium_minor').notNull(),
+    currency: text('currency').notNull(),
+    installmentCount: integer('installment_count'),
+    status: text('status', { enum: ['ACTIVE', 'CANCELLED', 'VOIDED'] })
+      .notNull()
+      .default('ACTIVE'),
+    identityVariant: integer('identity_variant').notNull().default(0),
+    identityVariantReason: text('identity_variant_reason'),
+    archivedAt: text('archived_at'),
+    archivedByMembershipId: text('archived_by_membership_id'),
+    archiveReason: text('archive_reason'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('policies_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('policies_number_nonempty', sql`length(trim(${table.policyNumber})) > 0`),
+    check('policies_normalized_number_nonempty', sql`length(${table.normalizedPolicyNumber}) > 0`),
+    check(
+      'policies_date_shape',
+      sql`${table.startDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ${table.endDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`,
+    ),
+    check('policies_period_ordered', sql`${table.startDate} <= ${table.endDate}`),
+    check(
+      'policies_premium_safe',
+      sql`${table.grossPremiumMinor} >= 0 AND ${table.grossPremiumMinor} <= 9007199254740991`,
+    ),
+    check(
+      'policies_currency_shape',
+      sql`length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`,
+    ),
+    check('policies_status_valid', sql`${table.status} IN ('ACTIVE', 'CANCELLED', 'VOIDED')`),
+    check('policies_identity_variant_nonnegative', sql`${table.identityVariant} >= 0`),
+    check(
+      'policies_identity_variant_reason_consistent',
+      sql`(${table.identityVariant} = 0 AND ${table.identityVariantReason} IS NULL) OR (${table.identityVariant} > 0 AND length(trim(${table.identityVariantReason})) >= 3)`,
+    ),
+    check(
+      'policies_installment_range',
+      sql`${table.installmentCount} IS NULL OR (${table.installmentCount} >= 2 AND ${table.installmentCount} <= 36)`,
+    ),
+    check(
+      'policies_archive_consistent',
+      sql`(${table.archivedAt} IS NULL AND ${table.archivedByMembershipId} IS NULL AND ${table.archiveReason} IS NULL) OR (${table.archivedAt} IS NOT NULL AND ${table.archivedByMembershipId} IS NOT NULL AND length(trim(${table.archiveReason})) > 0)`,
+    ),
+    check('policies_version_positive', sql`${table.version} >= 1`),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'policies_agency_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.insurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+      name: 'policies_agency_insurer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.branchId],
+      foreignColumns: [insuranceBranches.agencyId, insuranceBranches.id],
+      name: 'policies_agency_branch_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.paymentMethodId],
+      foreignColumns: [paymentMethods.agencyId, paymentMethods.id],
+      name: 'policies_agency_payment_method_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.assigneeMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'policies_agency_assignee_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.archivedByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'policies_agency_archived_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.productId, table.insurerId, table.branchId],
+      foreignColumns: [
+        insuranceProducts.agencyId,
+        insuranceProducts.id,
+        insuranceProducts.insurerId,
+        insuranceProducts.branchId,
+      ],
+      name: 'policies_product_relation_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('policies_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('policies_candidate_uq').on(
+      table.agencyId,
+      table.insurerId,
+      table.normalizedPolicyNumber,
+      table.endDate,
+      table.identityVariant,
+    ),
+    index('policies_agency_end_id_idx').on(table.agencyId, table.endDate, table.id),
+    index('policies_agency_customer_end_idx').on(table.agencyId, table.customerId, table.endDate),
+    index('policies_agency_assignee_idx').on(table.agencyId, table.assigneeMembershipId),
+  ],
+);
+
+export const policyParties = sqliteTable(
+  'policy_parties',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    role: text('role', { enum: ['INSURED', 'BENEFICIARY'] }).notNull(),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    deactivatedAt: text('deactivated_at'),
+    deactivatedByMembershipId: text('deactivated_by_membership_id'),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('policy_parties_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('policy_parties_role_valid', sql`${table.role} IN ('INSURED', 'BENEFICIARY')`),
+    check('policy_parties_status_valid', sql`${table.status} IN ('ACTIVE', 'INACTIVE')`),
+    check('policy_parties_version_positive', sql`${table.version} >= 1`),
+    check(
+      'policy_parties_lifecycle_consistent',
+      sql`(${table.status}='ACTIVE' AND ${table.deactivatedAt} IS NULL AND ${table.deactivatedByMembershipId} IS NULL) OR (${table.status}='INACTIVE' AND ${table.deactivatedAt} IS NOT NULL AND ${table.deactivatedByMembershipId} IS NOT NULL)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'policy_parties_agency_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'policy_parties_agency_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.deactivatedByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'policy_parties_agency_deactivated_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('policy_parties_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('policy_parties_active_relation_uq')
+      .on(table.agencyId, table.policyId, table.customerId, table.role)
+      .where(sql`${table.status}='ACTIVE'`),
+    index('policy_parties_policy_idx').on(table.agencyId, table.policyId, table.status),
+  ],
+);
+
+export const policyAmendments = sqliteTable(
+  'policy_amendments',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    externalReference: text('external_reference').notNull(),
+    effectiveDate: text('effective_date').notNull(),
+    description: text('description').notNull(),
+    premiumDifferenceMinor: integer('premium_difference_minor'),
+    currency: text('currency'),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('policy_amendments_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'policy_amendments_external_reference_nonempty',
+      sql`length(trim(${table.externalReference})) > 0`,
+    ),
+    check('policy_amendments_description_nonempty', sql`length(trim(${table.description})) > 0`),
+    check(
+      'policy_amendments_date_shape',
+      sql`${table.effectiveDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`,
+    ),
+    check(
+      'policy_amendments_premium_safe',
+      sql`${table.premiumDifferenceMinor} IS NULL OR (${table.premiumDifferenceMinor} >= -9007199254740991 AND ${table.premiumDifferenceMinor} <= 9007199254740991)`,
+    ),
+    check(
+      'policy_amendments_money_consistent',
+      sql`(${table.premiumDifferenceMinor} IS NULL AND ${table.currency} IS NULL) OR (${table.premiumDifferenceMinor} IS NOT NULL AND length(${table.currency})=3 AND ${table.currency}=upper(${table.currency}))`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'policy_amendments_agency_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('policy_amendments_agency_id_id_uq').on(table.agencyId, table.id),
+    index('policy_amendments_policy_date_idx').on(
+      table.agencyId,
+      table.policyId,
+      table.effectiveDate,
+    ),
+  ],
+);
+
+export const policyExternalReferences = sqliteTable(
+  'policy_external_references',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    sourceNamespace: text('source_namespace').notNull(),
+    externalKey: text('external_key').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('policy_external_references_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'policy_external_references_namespace_nonempty',
+      sql`length(trim(${table.sourceNamespace})) > 0`,
+    ),
+    check('policy_external_references_key_nonempty', sql`length(trim(${table.externalKey})) > 0`),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'policy_external_references_agency_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('policy_external_references_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('policy_external_references_namespace_key_uq').on(
+      table.agencyId,
+      table.sourceNamespace,
+      table.externalKey,
+    ),
+    index('policy_external_references_policy_idx').on(table.agencyId, table.policyId),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
@@ -717,3 +1010,7 @@ export type InsuranceProduct = typeof insuranceProducts.$inferSelect;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type LossReason = typeof lossReasons.$inferSelect;
 export type AgencySettings = typeof agencySettings.$inferSelect;
+export type Policy = typeof policies.$inferSelect;
+export type PolicyParty = typeof policyParties.$inferSelect;
+export type PolicyAmendment = typeof policyAmendments.$inferSelect;
+export type PolicyExternalReference = typeof policyExternalReferences.$inferSelect;

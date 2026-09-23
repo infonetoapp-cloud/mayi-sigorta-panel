@@ -70,6 +70,9 @@ export interface CustomerDto {
   readonly phone: string | null;
   readonly address: string | null;
   readonly assigneeMembershipId: string;
+  readonly archivedAt: string | null;
+  readonly archivedByMembershipId: string | null;
+  readonly archiveReasonCode: string | null;
   readonly hasIdentity: boolean;
   readonly identityMasked: string | null;
   readonly version: number;
@@ -144,6 +147,7 @@ export interface InsuranceBranchDto {
   readonly agencyId: string;
   readonly code: string;
   readonly name: string;
+  readonly dataClassification: 'GENERAL' | 'HEALTH';
   readonly status: CatalogLifecycleStatus;
   readonly version: number;
   readonly createdAt: string;
@@ -168,6 +172,8 @@ export interface PaymentMethodDto {
   readonly agencyId: string;
   readonly code: string;
   readonly name: string;
+  readonly supportsInstallments: boolean;
+  readonly maxInstallments: number;
   readonly status: CatalogLifecycleStatus;
   readonly version: number;
   readonly createdAt: string;
@@ -203,4 +209,99 @@ export interface SelectableCatalogsDto {
   readonly paymentMethods: readonly PaymentMethodDto[];
   readonly lossReasons: readonly LossReasonDto[];
   readonly defaultInsurerId: string | null;
+}
+
+export type PolicyStatus = 'ACTIVE' | 'CANCELLED' | 'VOIDED';
+export interface PolicyDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly customerId: string;
+  readonly insurerId: string;
+  readonly productId: string;
+  readonly branchId: string;
+  readonly paymentMethodId: string;
+  readonly assigneeMembershipId: string;
+  readonly policyNumber: string;
+  readonly normalizedPolicyNumber: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly grossPremiumMinor: number;
+  readonly currency: string;
+  readonly installmentCount: number | null;
+  readonly status: PolicyStatus;
+  readonly identityVariant: number;
+  readonly archivedAt: string | null;
+  readonly archivedByMembershipId: string | null;
+  readonly archiveReason: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type PolicyPartyRole = 'INSURED' | 'BENEFICIARY';
+export interface PolicyPartyDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly policyId: string;
+  readonly customerId: string;
+  readonly customerDisplayName: string;
+  readonly role: PolicyPartyRole;
+  readonly status: 'ACTIVE' | 'INACTIVE';
+  readonly version: number;
+  readonly deactivatedAt: string | null;
+  readonly deactivatedByMembershipId: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface PolicyAmendmentDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly policyId: string;
+  readonly externalReference: string;
+  readonly effectiveDate: string;
+  readonly description: string;
+  readonly premiumDifferenceMinor: number | null;
+  readonly currency: string | null;
+  readonly createdAt: string;
+}
+
+export interface PolicyExternalReferenceDto {
+  readonly id: string;
+  readonly agencyId: string;
+  readonly policyId: string;
+  readonly sourceNamespace: string;
+  readonly externalKey: string;
+  readonly createdAt: string;
+}
+
+export interface PolicyDetailDto extends PolicyDto {
+  readonly customer: { readonly id: string; readonly displayName: string };
+  readonly insurer: {
+    readonly id: string;
+    readonly name: string;
+    readonly status: CatalogLifecycleStatus;
+  };
+  readonly product: {
+    readonly id: string;
+    readonly name: string;
+    readonly status: CatalogLifecycleStatus;
+  };
+  readonly branch: {
+    readonly id: string;
+    readonly name: string;
+    readonly status: CatalogLifecycleStatus;
+    readonly dataClassification: 'GENERAL' | 'HEALTH';
+  };
+  readonly paymentMethod: {
+    readonly id: string;
+    readonly name: string;
+    readonly status: CatalogLifecycleStatus;
+  };
+}
+
+export interface PolicyListResponseData {
+  readonly items: readonly PolicyDto[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
 }

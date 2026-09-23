@@ -59,6 +59,7 @@ export type CatalogDomainCommand =
       readonly branchId: string;
       readonly code: string;
       readonly name: string;
+      readonly dataClassification?: 'GENERAL' | 'HEALTH';
     }
   | {
       readonly kind: 'branch.update';
@@ -98,12 +99,16 @@ export type CatalogDomainCommand =
       readonly paymentMethodId: string;
       readonly code: string;
       readonly name: string;
+      readonly supportsInstallments?: boolean;
+      readonly maxInstallments?: number;
     }
   | {
       readonly kind: 'payment_method.update';
       readonly paymentMethodId: string;
       readonly expectedVersion: number;
       readonly name?: string;
+      readonly supportsInstallments?: boolean;
+      readonly maxInstallments?: number;
       readonly changedFields: readonly string[];
     }
   | {
@@ -429,10 +434,18 @@ async function planCommand(
       const insertStmt = db
         .prepare(
           `INSERT INTO insurance_branches (
-             id, agency_id, code, name, status, version, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+             id, agency_id, code, name, data_classification, status, version, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
         )
-        .bind(command.branchId, agencyId, command.code, command.name, now, now);
+        .bind(
+          command.branchId,
+          agencyId,
+          command.code,
+          command.name,
+          command.dataClassification ?? 'GENERAL',
+          now,
+          now,
+        );
 
       return {
         action,
@@ -680,10 +693,19 @@ async function planCommand(
       const insertStmt = db
         .prepare(
           `INSERT INTO payment_methods (
-             id, agency_id, code, name, status, version, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+             id, agency_id, code, name, supports_installments, max_installments, status, version, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
         )
-        .bind(command.paymentMethodId, agencyId, command.code, command.name, now, now);
+        .bind(
+          command.paymentMethodId,
+          agencyId,
+          command.code,
+          command.name,
+          command.supportsInstallments === true ? 1 : 0,
+          command.maxInstallments ?? 12,
+          now,
+          now,
+        );
 
       return {
         action,
@@ -708,6 +730,10 @@ async function planCommand(
       const nextVersion = command.expectedVersion + 1;
       const updates: Array<{ col: string; val: unknown }> = [];
       if (command.name !== undefined) updates.push({ col: 'name', val: command.name });
+      if (command.supportsInstallments !== undefined)
+        updates.push({ col: 'supports_installments', val: command.supportsInstallments ? 1 : 0 });
+      if (command.maxInstallments !== undefined)
+        updates.push({ col: 'max_installments', val: command.maxInstallments });
 
       const setClauses = updates
         .map((u) => `${u.col} = ?`)

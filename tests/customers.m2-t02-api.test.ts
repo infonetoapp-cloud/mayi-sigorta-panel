@@ -922,8 +922,11 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           { expectedVersion: 1, assigneeMembershipId: MEMBER_OTHER_MEM },
         ),
       );
-      expect(assignmentReplay.status).toBe(200);
-      expect(asSuccess<CustomerDto>(await assignmentReplay.json()).data).toEqual(reassignedCust);
+      expect(assignmentReplay.status).toBe(403);
+      expect(await assignmentReplay.json()).toMatchObject({
+        success: false,
+        error: { code: 'FORBIDDEN' },
+      });
 
       const memberOtherJwt = await makeJwt(MEMBER_OTHER_SUB, 'mem-oth@test.com');
       const newAssigneeRead = await send(

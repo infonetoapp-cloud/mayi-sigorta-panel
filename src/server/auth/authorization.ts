@@ -840,6 +840,61 @@ export function createDefaultActionRegistry(): ActionRegistry {
     }),
   );
 
+  normalActions.push(
+    validateAndCreateActionDefinition({
+      code: 'policy.health.read',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['policy.read'],
+      requiredSensitivePermissions: ['sensitive.health.read'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'policy.health.create',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['policy.create'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'policy.health.update',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['policy.update'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'policy.health.archive',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['policy.archive'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'policy.identity_variant.create',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['policy.update'],
+      requiredSensitivePermissions: [],
+      assurance: 'SECURE_GRANT',
+    }),
+  );
+
+  for (const code of [
+    'policy_party.create',
+    'policy_party.deactivate',
+    'policy_amendment.create',
+    'policy_external_reference.create',
+  ] as const) {
+    normalActions.push(
+      validateAndCreateActionDefinition({
+        code,
+        authority: 'MEMBERSHIP_AUTHORIZED',
+        requiredNormalPermissions: ['policy.update'],
+        requiredSensitivePermissions: [],
+        assurance: 'NORMAL_SESSION',
+      }),
+    );
+  }
+
   // M2-T03 Kanonik Katalog ve Acente Ayarları Eylemleri (M2-T03 Canonical Actions)
   const catalogManageActions = [
     'catalog.insurer.create',
@@ -1089,6 +1144,24 @@ export function customerRecordResolver(context: ScopeResolutionContext): boolean
   }
 }
 
+export function policyRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const { agencyId, membershipId, effectiveScope, resource } = context;
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return false;
+    const record = resource as Record<string, unknown>;
+    if (record.agencyId !== agencyId) return false;
+    if (effectiveScope === 'AGENCY') return true;
+    if (effectiveScope !== 'ASSIGNED') return false;
+    if (record.isCollection === true) return true;
+    return (
+      record.assigneeMembershipId === membershipId ||
+      record.customerAssigneeMembershipId === membershipId
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Varsayılan stabil kayıt kapsam çözümleyicileri.
  * Üretim varsayılanı fail-closed ret üretir (() => false).
@@ -1098,7 +1171,7 @@ export function createDefaultScopeResolvers(): ScopeResolverRegistry {
 
   return Object.freeze({
     customer_record_resolver: customerRecordResolver,
-    policy_record_resolver: failClosedResolver,
+    policy_record_resolver: policyRecordResolver,
     renewal_record_resolver: failClosedResolver,
     quote_record_resolver: failClosedResolver,
     interaction_record_resolver: failClosedResolver,
