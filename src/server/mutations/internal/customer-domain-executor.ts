@@ -26,6 +26,7 @@
  * 5. Güvenli Denetim (Safe Audit): Asla PII loglanmaz.
  */
 
+import { z } from 'zod';
 import { computePayloadHash } from '../canonical';
 import { IdempotencyConflictError } from '../idempotency';
 import { buildSafeAuditRecord } from '../audit';
@@ -225,6 +226,29 @@ function isCanonicalReceiptTimestamp(value: unknown): value is string {
   }
 }
 
+function isCanonicalTrimmedString(
+  value: unknown,
+  maxLength: number,
+  allowEmpty = false,
+): value is string {
+  return (
+    typeof value === 'string' &&
+    value === value.trim() &&
+    value.length <= maxLength &&
+    (allowEmpty || value.length > 0)
+  );
+}
+
+function isNullableCanonicalTrimmedString(
+  value: unknown,
+  maxLength: number,
+  allowEmpty = false,
+): value is string | null {
+  return value === null || isCanonicalTrimmedString(value, maxLength, allowEmpty);
+}
+
+const CREATE_RECEIPT_EMAIL_SCHEMA = z.string().email();
+
 function parseCustomerCreateReceiptDto(
   responseBody: string,
   responseStatus: number,
@@ -256,17 +280,16 @@ function parseCustomerCreateReceiptDto(
     dto.id !== dto.id.trim() ||
     dto.agencyId !== agencyId ||
     (dto.type !== 'INDIVIDUAL' && dto.type !== 'COMPANY') ||
-    typeof dto.displayName !== 'string' ||
-    dto.displayName.trim() === '' ||
-    (dto.firstName !== null && typeof dto.firstName !== 'string') ||
-    (dto.lastName !== null && typeof dto.lastName !== 'string') ||
-    (dto.companyTitle !== null && typeof dto.companyTitle !== 'string') ||
-    (typeof dto.firstName === 'string' && dto.firstName.trim() === '') ||
-    (typeof dto.lastName === 'string' && dto.lastName.trim() === '') ||
-    (typeof dto.companyTitle === 'string' && dto.companyTitle.trim() === '') ||
+    !isCanonicalTrimmedString(dto.displayName, 255) ||
+    !isNullableCanonicalTrimmedString(dto.firstName, 100) ||
+    !isNullableCanonicalTrimmedString(dto.lastName, 100) ||
+    !isNullableCanonicalTrimmedString(dto.companyTitle, 255) ||
     !isNullableString(dto.email) ||
-    !isNullableString(dto.phone) ||
-    !isNullableString(dto.address) ||
+    (typeof dto.email === 'string' &&
+      (dto.email !== dto.email.trim() ||
+        !CREATE_RECEIPT_EMAIL_SCHEMA.safeParse(dto.email).success)) ||
+    !isNullableCanonicalTrimmedString(dto.phone, 50) ||
+    !isNullableCanonicalTrimmedString(dto.address, 1000, true) ||
     typeof dto.assigneeMembershipId !== 'string' ||
     dto.assigneeMembershipId.trim() === '' ||
     dto.assigneeMembershipId !== dto.assigneeMembershipId.trim() ||
@@ -276,12 +299,8 @@ function parseCustomerCreateReceiptDto(
     dto.hasIdentity !== false ||
     dto.identityMasked !== null ||
     dto.version !== 1 ||
-    typeof dto.createdAt !== 'string' ||
-    dto.createdAt.trim() === '' ||
-    typeof dto.updatedAt !== 'string' ||
-    dto.updatedAt.trim() === '' ||
-    !Number.isFinite(Date.parse(dto.createdAt)) ||
-    !Number.isFinite(Date.parse(dto.updatedAt)) ||
+    !isCanonicalReceiptTimestamp(dto.createdAt) ||
+    !isCanonicalReceiptTimestamp(dto.updatedAt) ||
     dto.createdAt !== dto.updatedAt ||
     dto.assigneeMembershipId !== actorMembershipId
   ) {
@@ -358,7 +377,9 @@ function parseCompanyContactCreateReceiptDto(
     !isNullableString(dto.role) ||
     (typeof dto.role === 'string' && (dto.role !== dto.role.trim() || dto.role.length > 100)) ||
     !isNullableString(dto.email) ||
-    (typeof dto.email === 'string' && dto.email !== dto.email.trim()) ||
+    (typeof dto.email === 'string' &&
+      (dto.email !== dto.email.trim() ||
+        !CREATE_RECEIPT_EMAIL_SCHEMA.safeParse(dto.email).success)) ||
     !isNullableString(dto.phone) ||
     (typeof dto.phone === 'string' &&
       (dto.phone === '' || dto.phone !== dto.phone.trim() || dto.phone.length > 50)) ||

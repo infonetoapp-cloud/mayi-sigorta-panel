@@ -731,6 +731,32 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
   });
 
+  it('fails closed when a completed Contact receipt contains an invalid email', async () => {
+    const customer = await createReplayCompany('malformed-email-receipt');
+    const payload = {
+      firstName: 'Receipt',
+      lastName: 'Email',
+      email: 'valid.contact@example.test',
+      isPrimary: false,
+    };
+    const key = 'company-contact-malformed-email-receipt';
+    const original = await createCompanyContact(db, ownerContext, customer.id, payload, {
+      correlationId: 'company-contact-malformed-email-first',
+      idempotencyKey: key,
+    });
+    await db
+      .prepare('UPDATE operation_receipts SET response_body = ? WHERE idempotency_key = ?')
+      .bind(JSON.stringify({ ...original, email: 'not-an-email' }), key)
+      .run();
+
+    await expect(
+      createCompanyContact(db, ownerContext, customer.id, payload, {
+        correlationId: 'company-contact-malformed-email-retry',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
   it('fails closed when persisted Contact and SUCCESS audit targets belong to a different parent than the fingerprint target', async () => {
     const expectedCustomer = await createReplayCompany('cross-parent-expected');
     const actualCustomer = await createReplayCompany('cross-parent-actual');
@@ -950,6 +976,95 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       createCustomer(db, ownerContext, auditlessPayload, {
         correlationId: 'create-auditless-receipt-retry',
         idempotencyKey: auditlessKey,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
+  it('fails closed when a completed Customer receipt contains an invalid email', async () => {
+    const payload = {
+      type: 'COMPANY' as const,
+      companyTitle: 'Malformed Email Receipt',
+      email: 'valid.customer@example.test',
+    };
+    const key = 'customer-create-malformed-email-receipt';
+    const original = await createCustomer(db, ownerContext, payload, {
+      correlationId: 'customer-create-malformed-email-first',
+      idempotencyKey: key,
+    });
+    await db
+      .prepare('UPDATE operation_receipts SET response_body = ? WHERE idempotency_key = ?')
+      .bind(JSON.stringify({ ...original, email: 'not-an-email' }), key)
+      .run();
+
+    await expect(
+      createCustomer(db, ownerContext, payload, {
+        correlationId: 'customer-create-malformed-email-retry',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
+  it('fails closed when completed Customer receipts violate create-field canonical bounds', async () => {
+    const payload = {
+      type: 'INDIVIDUAL' as const,
+      firstName: 'Receipt',
+      lastName: 'Bounds',
+      email: 'valid.bounds@example.test',
+      phone: '5551234567',
+      address: 'Kısa adres',
+    };
+    const key = 'customer-create-invalid-receipt-bounds';
+    const original = await createCustomer(db, ownerContext, payload, {
+      correlationId: 'customer-create-invalid-receipt-bounds-first',
+      idempotencyKey: key,
+    });
+    const invalidDtos = [
+      { ...original, displayName: `${original.displayName} ` },
+      { ...original, displayName: 'x'.repeat(256) },
+      { ...original, firstName: ` ${original.firstName}` },
+      { ...original, firstName: 'x'.repeat(101) },
+      { ...original, lastName: 'x'.repeat(101) },
+      { ...original, phone: '' },
+      { ...original, phone: 'x'.repeat(51) },
+      { ...original, address: 'x'.repeat(1001) },
+      { ...original, address: ' Kısa adres ' },
+      {
+        ...original,
+        createdAt: 'Thu, 01 Jan 1970 00:00:00 GMT',
+        updatedAt: 'Thu, 01 Jan 1970 00:00:00 GMT',
+      },
+    ];
+
+    for (const [index, invalidDto] of invalidDtos.entries()) {
+      await db
+        .prepare('UPDATE operation_receipts SET response_body = ? WHERE idempotency_key = ?')
+        .bind(JSON.stringify(invalidDto), key)
+        .run();
+      await expect(
+        createCustomer(db, ownerContext, payload, {
+          correlationId: `customer-create-invalid-receipt-bounds-${index}`,
+          idempotencyKey: key,
+        }),
+      ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+    }
+
+    const companyPayload = {
+      type: 'COMPANY' as const,
+      companyTitle: 'Company Receipt Bounds',
+    };
+    const companyKey = 'customer-create-invalid-company-title-receipt';
+    const companyOriginal = await createCustomer(db, ownerContext, companyPayload, {
+      correlationId: 'customer-create-invalid-company-title-first',
+      idempotencyKey: companyKey,
+    });
+    await db
+      .prepare('UPDATE operation_receipts SET response_body = ? WHERE idempotency_key = ?')
+      .bind(JSON.stringify({ ...companyOriginal, companyTitle: 'x'.repeat(256) }), companyKey)
+      .run();
+    await expect(
+      createCustomer(db, ownerContext, companyPayload, {
+        correlationId: 'customer-create-invalid-company-title-retry',
+        idempotencyKey: companyKey,
       }),
     ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
   });
