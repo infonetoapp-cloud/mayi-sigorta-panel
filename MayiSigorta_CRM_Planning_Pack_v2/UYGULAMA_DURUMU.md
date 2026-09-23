@@ -30,7 +30,7 @@ Son güncelleme: **23 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | M2-T04 | Tek sözleşme dönemi Policy çekirdeği, UI ve güvenli kimlik varyantı | **COMPLETE — Batch-B kabul edildi** |
 | M2-T05 | Policy ilişkileri/lifecycle ve UI (PolicyParty, Amendment, external reference, assignment/archive) | **COMPLETE — Batch-B kabul edildi** |
 | M2 Batch-B | T04+T05 UI, entegrasyon, regresyon ve kalite kapısı | **COMPLETE — BLOCKER 0, IMPORTANT 0, OPTIONAL 0** |
-| M2-T06 | Renewal ve sonraki domain modelleri | **NEXT — BAŞLAMADI** |
+| M2-T06 | Milestone 2 final integrated acceptance gate (later-phase scope excluded) | **DETERMINISTIC GATES COMPLETE — READY FOR FINAL INDEPENDENT REVIEW** |
 
 ## Gerçek uygulama durumu
 
@@ -38,7 +38,7 @@ Son güncelleme: **23 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
-| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–M2-T05 ve M2 Batch-B COMPLETE; M2-T06 başlamadı) |
+| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–T05 ve Batch-B COMPLETE; M2-T06 deterministic gates complete; independent review pending) |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
@@ -141,7 +141,7 @@ Yeni mimari karar sorusu yoktur. Nihai planın 17. bölümündeki gerçek owner 
 
 ## Sonraki aşama
 
-M2-T02 ve M2-T03 Batch-A kabulü tamamlandı. M2-T04, M2-T05 ve M2 Batch-B tamamlandı. Sıradaki tek görev **M2-T06**'dır; bu çalışma sırasında başlatılmadı. Milestone 2 tamamlanmadı.
+M2-T02 ve M2-T03 Batch-A kabulü tamamlandı. M2-T04, M2-T05 ve M2 Batch-B tamamlandı. M2-T06 deterministic final gate tamamlandı; sıradaki tek adım ayrı bir GPT-6 Sol High bağımsız incelemedir. Bu inceleme bu çalışmada başlatılmadı. Milestone 2 henüz tamamlanmadı.
 
 ## Gelecek ajanların güncelleme biçimi
 
@@ -171,4 +171,19 @@ Durum: **M2-T04 COMPLETE; M2-T05 COMPLETE; M2 Batch-B COMPLETE**. Milestone 2 ta
 - Migration/schema değişikliği Batch-B UI sırasında yapılmadı; 0007/0008 T04/T05 CORE kapsamındaki additive migration'lardır. Tarihsel 0000–0006 migration SQL dosyaları değişmedi; remote D1/migration, deployment, DNS veya gerçek veri işlemi yapılmadı.
 - Güvenlik/diff kapanış incelemesi: BLOCKER **0**, IMPORTANT **0**, OPTIONAL **0**. `.env` tracked değil; `command(*)`/`permissions.allow` unsafe artifact ve Gemini/Antigravity artifact bulunmadı; `node_modules`, `dist` veya `_archive/` değişikliği yok.
 
-M2 BATCH-B COMPLETE — READY FOR M2-T06
+## M2-T06 final integrated gate — 23 Eylül 2026
+
+Durum: **M2-T06 DETERMINISTIC GATES COMPLETE — READY FOR FINAL INDEPENDENT REVIEW**. Milestone 2 tamamlanmadı; M3 başlamadı.
+
+- Başlangıçta `HEAD == origin/main == e2838547621de8698f9b6a87d10495e8dcaea1fd`; çalışma ağacı temizdi. T06 sırasında uygulama/domain/migration kaynak kodu değiştirilmedi.
+- Tam `npm run test`: **799/799 PASS, 37/37 dosya**. Tam `npm run test:d1`: **26/26 PASS, 1/1 dosya**. Önceki paralel Wrangler timeout'ları bu tam koşuda tekrarlanmadı. Migration yüzeyinin tek-worker kontrollü tekrarı **20/20 PASS, 5/5 dosya**; daha dar 0005/0007/0008 tekrarı **12/12 PASS**. Bu kanıt correctness hatası göstermiyor; geçmiş timeout'ların yalnız contention kaynaklı olduğu kesin olarak kanıtlanmış sayılmıyor.
+- Migration zinciri `0000`–`0008` (9 SQL dosyası): temiz apply PASS; 0003 tabanından 0004–0008 yükseltmesi PASS ve seed Agency/Membership durumu korundu; ikinci apply `No migrations to apply` PASS. 0008 temiz apply/rerun ve Drizzle no-drift testleri PASS. `npx drizzle-kit generate`: **No schema changes, nothing to migrate**. Historical migration SQL değiştirilmedi; 0009 oluşturulmadı. Migration/constraint/trigger/FK/index inventory testleri tam suite'te PASS.
+- Integrated Flow A (Individual Customer, kimlik/assignment, Policy create/list/detail/update/assignment, secure identity variant ve archive) mevcut T02/T04/T05 gerçek-D1 domain, API ve Batch-B UI testleriyle PASS; Batch-B UI **19/19 PASS**. Flow B (Company/CompanyContact, Policy, PolicyParty, Amendment, external reference, okuma/list/detail ve lifecycle) aynı gerçek-D1 domain ve UI regresyonlarıyla PASS; yeni sonraki-faz modeli eklenmedi.
+- Authorization ve hassas veri olumsuz matrisleri: tam test suite PASS; agency/record scope, OWNER NORMAL ve açık SENSITIVE izin ayrımı, explicit MEMBER grants, canlı ASSIGNED değişimi, health sınıflandırma ve izin geri alma, secure grant audience/binding/version/single-use/replay, arşivli kayıt ve PolicyParty portföy kapsamı test yüzeyleri PASS.
+- Idempotency/concurrency/rollback ve arşiv/lifecycle: tam suite'teki gerçek D1 testleri PASS; exact replay/conflict, same-candidate eşzamanlı create, CAS, audit/receipt/grant rollback, archive dependency/race, arşiv ≠ CANCELLED/VOIDED ve ilişki korumaları PASS.
+- Performans: Miniflare yerel D1 üzerinde, gerçek `listPolicies` domain/list path'i ve **15.000** sentetik Policy, 100 Customer, sayfa boyutu 50; dört sorgu şeklinin her biri için 31 sıcak ölçüm. p95: acente + end-date sıralı sayfa **332.94 ms**; insurer + end-date aralığı **358.54 ms**; müşteri poliçe geçmişi **374.08 ms**; status filtresi + created-at sırası **361.51 ms**. Bunlar local D1 ölçümüdür; 20 eşzamanlı Türkiye ağ/production kapasite testi değildir.
+- Kalite: `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (client + Wrangler Worker dry-run) ve `git diff --check`: **PASS**.
+- Güvenlik/işletim sınırı: tracked `.env` **NO**; `command(*)` **NOT FOUND**; `permissions.allow` **NOT FOUND**; client/server boundary PASS; tracked `node_modules`, `dist`, `_archive` değişikliği veya geçici benchmark dosyası yok. Remote deployment, remote D1, DNS, gerçek veri işlemi yapılmadı.
+- T06 bulguları: **BLOCKER 0, IMPORTANT 0, OPTIONAL 0**. Commit/push yapılmadı; yalnız bu durum/evidence dokümantasyonu T06 kapanışında güncellendi.
+
+M2-T06 DETERMINISTIC GATES COMPLETE — READY FOR FINAL INDEPENDENT REVIEW
