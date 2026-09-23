@@ -186,32 +186,42 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
   const [externalKey, setExternalKey] = useState('');
   const [archiveReason, setArchiveReason] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [policySearch, setPolicySearch] = useState('');
   const activePolicyIdRef = useRef<string | null>(null);
   const choicesRequestRef = useRef(0);
+  const activePolicySearchRef = useRef('');
 
-  const loadList = useCallback(async (cursor?: string | null) => {
-    setListLoading(true);
-    setListError(null);
-    try {
-      const url = `/api/policies?pageSize=20&sort=end_date_asc${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
-      const res = await fetch(url);
-      const json = await safeJson<PolicyListResponseData>(res);
-      if (!res.ok || !json?.success) {
+  const loadList = useCallback(
+    async (cursor?: string | null, search = activePolicySearchRef.current) => {
+      setListLoading(true);
+      setListError(null);
+      try {
+        const params = new URLSearchParams({ pageSize: '20', sort: 'end_date_asc' });
+        if (search) params.set('search', search);
+        if (cursor) params.set('cursor', cursor);
+        const url = `/api/policies?${params.toString()}`;
+        const res = await fetch(url);
+        const json = await safeJson<PolicyListResponseData>(res);
+        if (!res.ok || !json?.success) {
+          setFailedListCursor(cursor ?? null);
+          setListError(canonicalError(res.status, json));
+          return;
+        }
+        setFailedListCursor(null);
+        setPolicies((current) =>
+          cursor ? [...current, ...json.data.items] : [...json.data.items],
+        );
+        setNextCursor(json.data.nextCursor);
+        setHasMore(json.data.hasMore);
+      } catch (cause) {
         setFailedListCursor(cursor ?? null);
-        setListError(canonicalError(res.status, json));
-        return;
+        setListError(parseAppError(undefined, undefined, cause));
+      } finally {
+        setListLoading(false);
       }
-      setFailedListCursor(null);
-      setPolicies((current) => (cursor ? [...current, ...json.data.items] : [...json.data.items]));
-      setNextCursor(json.data.nextCursor);
-      setHasMore(json.data.hasMore);
-    } catch (cause) {
-      setFailedListCursor(cursor ?? null);
-      setListError(parseAppError(undefined, undefined, cause));
-    } finally {
-      setListLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const loadChoices = useCallback(
     async (search = '') => {
@@ -936,6 +946,31 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
           </button>
         </div>
       )}
+      <form
+        style={card}
+        onSubmit={(event) => {
+          event.preventDefault();
+          const search = policySearch.trim();
+          activePolicySearchRef.current = search;
+          setPolicies([]);
+          setNextCursor(null);
+          void loadList(null, search);
+        }}
+      >
+        <label style={field}>
+          Poliçe numarası ara
+          <input
+            aria-label="Poliçe numarası ara"
+            style={input}
+            type="text"
+            value={policySearch}
+            onChange={(event) => setPolicySearch(event.target.value)}
+          />
+        </label>
+        <button type="submit" style={secondary} disabled={listLoading}>
+          Poliçelerde Ara
+        </button>
+      </form>
       <div style={card}>
         {listLoading && policies.length === 0 ? (
           'Poliçeler yükleniyor...'

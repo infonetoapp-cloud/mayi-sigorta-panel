@@ -137,6 +137,20 @@ export const policyListQuerySchema = z
     customerId: id.optional(),
     insurerId: id.optional(),
     status: policyStatus.optional(),
+    search: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .refine((value) => {
+        try {
+          normalizePolicyNumber(value);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .optional(),
     endFrom: dateOnly.optional(),
     endTo: dateOnly.optional(),
     sort: z.enum(['end_date_asc', 'end_date_desc', 'created_at_desc']).default('end_date_asc'),

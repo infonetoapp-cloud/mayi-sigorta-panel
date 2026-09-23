@@ -181,6 +181,14 @@ describe('M2-T04 policy domain on real D1', () => {
     });
   });
 
+  it('searches policy numbers by normalized exact value and prefix within the authorized portfolio', async () => {
+    await createPolicy(ctx, db, { ...input, policyNumber: 'İLK-2026/001' }, 'search-policy');
+    const prefix = await listPolicies(ctx, db, { search: 'İLK-2026' });
+    const exact = await listPolicies(ctx, db, { search: 'İLK 2026/001' });
+    expect(prefix.items.map((item) => item.normalizedPolicyNumber)).toContain('İLK2026001');
+    expect(exact.items.map((item) => item.normalizedPolicyNumber)).toEqual(['İLK2026001']);
+  });
+
   it('enforces payment semantics, active consistent catalogs, and same-agency database relations', async () => {
     await expect(
       createPolicy(
@@ -550,6 +558,8 @@ describe('M2-T04 policy domain on real D1', () => {
       'assigned-hidden',
     );
     await expect(getPolicy(workerCtx, db, hidden.data.id)).rejects.toThrow();
+    const hiddenSearch = await listPolicies(workerCtx, db, { search: 'ASSIGNED-HIDDEN' });
+    expect(hiddenSearch.items.map((item) => item.id)).not.toContain(hidden.data.id);
     await expect(
       createPolicy(
         workerCtx,

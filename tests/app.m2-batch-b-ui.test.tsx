@@ -236,6 +236,28 @@ describe('M2 Batch-B policy/customer lifecycle UI', () => {
     expect(await screen.findByText('P-2026-002')).toBeTruthy();
   });
 
+  it('searches the policy list by policy number through the server query', async () => {
+    let searchUrl = '';
+    installBaseFetch((url) => {
+      if (url.includes('&search=')) {
+        searchUrl = url;
+        return response({
+          success: true,
+          data: { items: [policy], nextCursor: null, hasMore: false },
+        });
+      }
+      return undefined;
+    });
+    render(<PolicyPanel />);
+    await screen.findByText('P-2026-001');
+    fireEvent.change(screen.getByRole('textbox', { name: /Poliçe numarası ara/i }), {
+      target: { value: 'P-2026' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Poliçelerde Ara/i }));
+    await waitFor(() => expect(searchUrl).toContain('search=P-2026'));
+    expect(await screen.findByText('P-2026-001')).toBeTruthy();
+  });
+
   it('creates a policy from Customer -> Add Policy with real CSRF and no authority fields', async () => {
     let captured: {
       url?: string;

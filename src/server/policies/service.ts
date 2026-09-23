@@ -22,6 +22,7 @@ import {
   secureVariantSchema,
   secureVariantGrantSchema,
   type PolicyCreateInput,
+  normalizePolicyNumber,
 } from './validation';
 import {
   executePolicyCommand,
@@ -867,6 +868,10 @@ export async function listPolicies(
   if (query.status) {
     where.push('p.status=?');
     values.push(query.status);
+  }
+  if (query.search) {
+    where.push('p.normalized_policy_number LIKE ?');
+    values.push(`${normalizePolicyNumber(query.search)}%`);
   }
   if (query.endFrom) {
     where.push('p.end_date>=?');
