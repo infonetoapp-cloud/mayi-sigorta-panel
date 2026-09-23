@@ -10,7 +10,7 @@ import {
 import { OptimisticConcurrencyError } from '../src/server/db/optimistic';
 import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
 import { computePayloadHash } from '../src/server/mutations/canonical';
-import { createCustomer } from '../src/server/customers/service';
+import { createCompanyContact, createCustomer } from '../src/server/customers/service';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
@@ -250,6 +250,109 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     ],
   };
 
+  async function seedContactReplayMember(
+    suffix: string,
+    scope: 'ASSIGNED' | 'AGENCY',
+  ): Promise<{
+    userId: string;
+    membershipId: string;
+    identityId: string;
+    context: AuthenticatedUserContext;
+  }> {
+    const userId = `contact-replay-user-${suffix}`;
+    const membershipId = `contact-replay-member-${suffix}`;
+    const identityId = `contact-replay-identity-${suffix}`;
+    const email = `contact-replay-${suffix}@test.com`;
+    await db
+      .prepare("INSERT INTO users(id,status,version) VALUES(?,'ACTIVE',1)")
+      .bind(userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO agency_memberships(
+           id,agency_id,user_id,type,status,invitation_email,invitation_expires_at,
+           activated_at,version,permission_version
+         ) VALUES(?,?,?,'MEMBER','ACTIVE',?,'2099-01-01T00:00:00.000Z','2026-09-17T00:00:00.000Z',1,1)`,
+      )
+      .bind(membershipId, AGENCY_ID, userId, email)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status)
+         VALUES(?,?,?, ?, ?, 'ACTIVE')`,
+      )
+      .bind(identityId, userId, `https://contact-replay-${suffix}.test`, `sub-${suffix}`, email)
+      .run();
+    for (const permissionCode of ['customer.read', 'customer.update']) {
+      await db
+        .prepare(
+          'INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,?)',
+        )
+        .bind(crypto.randomUUID(), membershipId, permissionCode, scope)
+        .run();
+    }
+    return {
+      userId,
+      membershipId,
+      identityId,
+      context: memberContext(userId, identityId, membershipId, 1),
+    };
+  }
+
+  async function createReplayCompany(suffix: string) {
+    return createCustomer(
+      db,
+      ownerContext,
+      { type: 'COMPANY', companyTitle: `Contact Replay Company ${suffix}` },
+      {
+        correlationId: `contact-replay-company-${suffix}`,
+        idempotencyKey: `contact-replay-company-${suffix}`,
+      },
+    );
+  }
+
+  type ContactReplayPayload = {
+    firstName: string;
+    lastName: string;
+    role?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    isPrimary?: boolean;
+  };
+
+  async function replayContactThroughExecutor(input: {
+    actor: Awaited<ReturnType<typeof seedContactReplayMember>>;
+    customerId: string;
+    payload: ContactReplayPayload;
+    idempotencyKey: string;
+  }) {
+    const membership = input.actor.context.memberships[0];
+    if (!membership) throw new Error('MISSING_TEST_MEMBERSHIP');
+    return executeCustomerDomainCommand({
+      db,
+      agencyId: AGENCY_ID,
+      actorUserId: input.actor.userId,
+      actorMembershipId: input.actor.membershipId,
+      actorIdentityId: input.actor.identityId,
+      expectedPermissionVersion: membership.permissionVersion,
+      correlationId: `contact-replay-direct-${input.idempotencyKey}`,
+      idempotencyKey: input.idempotencyKey,
+      payload: input.payload,
+      command: {
+        kind: 'company_contact.create',
+        customerId: input.customerId,
+        contactId: crypto.randomUUID(),
+        firstName: input.payload.firstName,
+        lastName: input.payload.lastName,
+        role: input.payload.role ?? null,
+        email: input.payload.email ?? null,
+        phone: input.payload.phone ?? null,
+        isPrimary: input.payload.isPrimary ?? false,
+      },
+      resultProducer: () => ({ status: 201, body: { id: 'unexpected-new-result' } }),
+    });
+  }
+
   it('authorizes customer.create replay against the original live Customer record', async () => {
     const payload = {
       type: 'COMPANY' as const,
@@ -448,6 +551,317 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
         idempotencyKey: identityKey,
       }),
     ).rejects.toThrow();
+  });
+
+  it('replays company_contact.create for current AGENCY authority using the original Contact DTO', async () => {
+    const actor = await seedContactReplayMember('agency-valid', 'AGENCY');
+    const customer = await createReplayCompany('agency-valid');
+    const payload = {
+      firstName: 'Original',
+      lastName: 'Agency Contact',
+      role: 'Yetkili',
+      email: 'agency.contact@example.test',
+      isPrimary: false,
+    };
+    const key = 'company-contact-agency-exact-replay';
+    const options = (correlationId: string) => ({ correlationId, idempotencyKey: key });
+
+    const first = await createCompanyContact(
+      db,
+      actor.context,
+      customer.id,
+      payload,
+      options('agency-first'),
+    );
+    const replay = await createCompanyContact(
+      db,
+      actor.context,
+      customer.id,
+      payload,
+      options('agency-replay'),
+    );
+    expect(replay).toEqual(first);
+    expect(
+      (
+        await db
+          .prepare(
+            'SELECT count(*) AS count FROM company_contacts WHERE customer_id = ? AND agency_id = ?',
+          )
+          .bind(customer.id, AGENCY_ID)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE action = 'company_contact.create' AND target_id = ? AND idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(first.id, key)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+  });
+
+  it('denies direct completed Contact replay after current permission, membership, or identity loss', async () => {
+    const payload = {
+      firstName: 'Current',
+      lastName: 'Authority',
+      role: null,
+      email: null,
+      phone: null,
+      isPrimary: false,
+    };
+    for (const authorityLoss of ['permission', 'membership', 'identity'] as const) {
+      const actor = await seedContactReplayMember(`lost-${authorityLoss}`, 'AGENCY');
+      const customer = await createReplayCompany(`lost-${authorityLoss}`);
+      const key = `company-contact-lost-${authorityLoss}`;
+      await createCompanyContact(db, actor.context, customer.id, payload, {
+        correlationId: `company-contact-lost-${authorityLoss}-first`,
+        idempotencyKey: key,
+      });
+
+      if (authorityLoss === 'permission') {
+        await db
+          .prepare(
+            "DELETE FROM membership_permissions WHERE membership_id = ? AND permission_code = 'customer.update'",
+          )
+          .bind(actor.membershipId)
+          .run();
+        await db
+          .prepare(
+            'UPDATE agency_memberships SET permission_version = permission_version + 1, version = version + 1 WHERE id = ?',
+          )
+          .bind(actor.membershipId)
+          .run();
+      } else if (authorityLoss === 'membership') {
+        await db
+          .prepare(
+            "UPDATE agency_memberships SET status = 'INACTIVE', inactivated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), permission_version = permission_version + 1, version = version + 1 WHERE id = ?",
+          )
+          .bind(actor.membershipId)
+          .run();
+      } else {
+        await db
+          .prepare(
+            "UPDATE auth_identities SET status = 'REVOKED', revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), version = version + 1 WHERE id = ?",
+          )
+          .bind(actor.identityId)
+          .run();
+      }
+
+      await expect(
+        replayContactThroughExecutor({
+          actor,
+          customerId: customer.id,
+          payload,
+          idempotencyKey: key,
+        }),
+      ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+    }
+  });
+
+  it('fails closed for malformed Contact DTOs and a Contact ID that disagrees with immutable SUCCESS audit evidence', async () => {
+    const customer = await createReplayCompany('corrupt-evidence');
+    const payload = {
+      firstName: 'Receipt',
+      lastName: 'Evidence',
+      role: 'Yetkili',
+      isPrimary: false,
+    };
+    const malformedKey = 'company-contact-malformed-dto';
+    const malformedContact = await createCompanyContact(db, ownerContext, customer.id, payload, {
+      correlationId: 'company-contact-malformed-first',
+      idempotencyKey: malformedKey,
+    });
+    await db
+      .prepare(
+        'UPDATE operation_receipts SET response_body = ?, updated_at = ? WHERE idempotency_key = ?',
+      )
+      .bind(
+        JSON.stringify({ ...malformedContact, firstName: null }),
+        '2099-01-01T00:00:00.000Z',
+        malformedKey,
+      )
+      .run();
+    await expect(
+      createCompanyContact(db, ownerContext, customer.id, payload, {
+        correlationId: 'company-contact-malformed-retry',
+        idempotencyKey: malformedKey,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+
+    const mismatchKey = 'company-contact-audit-target-mismatch';
+    const mismatchPayload = { ...payload, firstName: 'Audit' };
+    const original = await createCompanyContact(db, ownerContext, customer.id, mismatchPayload, {
+      correlationId: 'company-contact-audit-mismatch-first',
+      idempotencyKey: mismatchKey,
+    });
+    const otherTarget = await createCompanyContact(
+      db,
+      ownerContext,
+      customer.id,
+      { ...payload, firstName: 'Other' },
+      {
+        correlationId: 'company-contact-other-target',
+        idempotencyKey: 'company-contact-other-target',
+      },
+    );
+    await expect(
+      db
+        .prepare('UPDATE audit_events SET target_id = ? WHERE idempotency_key = ?')
+        .bind(otherTarget.id, mismatchKey)
+        .run(),
+    ).rejects.toThrow(/AUDIT_LOG_IMMUTABLE/);
+    await db
+      .prepare(
+        'UPDATE operation_receipts SET response_body = ?, updated_at = ? WHERE idempotency_key = ?',
+      )
+      .bind(
+        JSON.stringify({ ...original, id: otherTarget.id }),
+        '2099-01-01T00:00:00.000Z',
+        mismatchKey,
+      )
+      .run();
+    await expect(
+      createCompanyContact(db, ownerContext, customer.id, mismatchPayload, {
+        correlationId: 'company-contact-audit-mismatch-retry',
+        idempotencyKey: mismatchKey,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
+  it('fails closed when persisted Contact and SUCCESS audit targets belong to a different parent than the fingerprint target', async () => {
+    const expectedCustomer = await createReplayCompany('cross-parent-expected');
+    const actualCustomer = await createReplayCompany('cross-parent-actual');
+    const payload = {
+      firstName: 'Cross',
+      lastName: 'Parent',
+      role: 'Yetkili',
+      isPrimary: false,
+    };
+    const actualContact = await createCompanyContact(db, ownerContext, actualCustomer.id, payload, {
+      correlationId: 'company-contact-cross-parent-real',
+      idempotencyKey: 'company-contact-cross-parent-real',
+    });
+    const key = 'company-contact-cross-parent-evidence';
+    const fingerprint = await computePayloadHash({
+      target: { customerId: expectedCustomer.id },
+      expectedVersion: null,
+      payload,
+    });
+    await db
+      .prepare(
+        `INSERT INTO operation_receipts (
+           id, agency_id, actor_user_id, actor_membership_id, action, idempotency_key,
+           payload_fingerprint, status, response_status, response_body
+         ) VALUES (?, ?, ?, ?, 'company_contact.create', ?, ?, 'COMPLETED', 201, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        AGENCY_ID,
+        OWNER_USER_ID,
+        OWNER_MEM_ID,
+        key,
+        fingerprint,
+        JSON.stringify(actualContact),
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO audit_events (
+           id, agency_id, actor_user_id, actor_membership_id, action, target_type, target_id,
+           correlation_id, idempotency_key, outcome, metadata_json
+         ) VALUES (?, ?, ?, ?, 'company_contact.create', 'company_contacts', ?, ?, ?, 'SUCCESS', '{}')`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        AGENCY_ID,
+        OWNER_USER_ID,
+        OWNER_MEM_ID,
+        actualContact.id,
+        'company-contact-cross-parent-evidence',
+        key,
+      )
+      .run();
+
+    expect(
+      (
+        await db
+          .prepare('SELECT customer_id FROM company_contacts WHERE id = ? AND agency_id = ?')
+          .bind(actualContact.id, AGENCY_ID)
+          .first<{ customer_id: string }>()
+      )?.customer_id,
+    ).toBe(actualCustomer.id);
+    await expect(
+      createCompanyContact(db, ownerContext, expectedCustomer.id, payload, {
+        correlationId: 'company-contact-cross-parent-evidence-retry',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
+  it('binds contact-create idempotency to parent and payload, not the retry-generated Contact ID', async () => {
+    const firstCustomer = await createReplayCompany('fingerprint-first');
+    const otherCustomer = await createReplayCompany('fingerprint-other');
+    const payload = {
+      firstName: 'Fingerprint',
+      lastName: 'Contact',
+      role: 'Yetkili',
+      isPrimary: false,
+    };
+    const key = 'company-contact-parent-fingerprint';
+    const first = await createCompanyContact(db, ownerContext, firstCustomer.id, payload, {
+      correlationId: 'company-contact-fingerprint-first',
+      idempotencyKey: key,
+    });
+    const exactReplay = await createCompanyContact(db, ownerContext, firstCustomer.id, payload, {
+      correlationId: 'company-contact-fingerprint-replay',
+      idempotencyKey: key,
+    });
+    expect(exactReplay).toEqual(first);
+
+    await expect(
+      createCompanyContact(db, ownerContext, otherCustomer.id, payload, {
+        correlationId: 'company-contact-fingerprint-other-parent',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' });
+    await expect(
+      createCompanyContact(
+        db,
+        ownerContext,
+        firstCustomer.id,
+        { ...payload, lastName: 'Changed' },
+        { correlationId: 'company-contact-fingerprint-changed-body', idempotencyKey: key },
+      ),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' });
+    await expect(
+      createCustomer(
+        db,
+        ownerContext,
+        { type: 'COMPANY', companyTitle: 'Wrong Action' },
+        { correlationId: 'company-contact-fingerprint-changed-action', idempotencyKey: key },
+      ),
+    ).rejects.toMatchObject({ code: 'IDEMPOTENCY_ACTION_MISMATCH' });
+    expect(
+      (
+        await db
+          .prepare('SELECT count(*) AS count FROM company_contacts WHERE customer_id = ?')
+          .bind(firstCustomer.id)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE action = 'company_contact.create' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(key)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
   });
 
   it('fails closed when a completed customer.create receipt has malformed target evidence', async () => {

@@ -954,6 +954,230 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       contact1Id = json.data.id;
     });
 
+    it('replays an exact company-contact create through the API with the original 201 DTO', async () => {
+      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const csrf = await getCsrf(OWNER_1_SUB);
+      const customerResponse = await testApp.fetch(
+        mutationRequest(
+          'https://crm.local/api/customers',
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': jwt,
+            'X-CSRF-Token': csrf,
+            'Idempotency-Key': 'ik-exact-contact-replay-customer',
+          },
+          { type: 'COMPANY', companyTitle: 'Exact Contact Replay Customer' },
+        ),
+        getEnv(),
+      );
+      expect(customerResponse.status).toBe(201);
+      const replayCustomer = asSuccess<CustomerDto>(await customerResponse.json()).data;
+      const payload = {
+        firstName: 'Replay',
+        lastName: 'Contact',
+        role: 'Yetkili',
+        email: 'replay.contact@atlas.test',
+        isPrimary: false,
+      };
+      const key = 'ik-company-contact-exact-replay';
+      const request = () =>
+        mutationRequest(
+          `https://crm.local/api/customers/${replayCustomer.id}/contacts`,
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': jwt,
+            'X-CSRF-Token': csrf,
+            'Idempotency-Key': key,
+          },
+          payload,
+        );
+
+      const firstResponse = await testApp.fetch(request(), getEnv());
+      expect(firstResponse.status).toBe(201);
+      const first = asSuccess<CompanyContactDto>(await firstResponse.json()).data;
+
+      const replayResponse = await testApp.fetch(request(), getEnv());
+      expect(replayResponse.status).toBe(201);
+      const replay = asSuccess<CompanyContactDto>(await replayResponse.json()).data;
+      expect(replay).toEqual(first);
+
+      expect(
+        (
+          await db
+            .prepare(
+              'SELECT count(*) AS count FROM company_contacts WHERE id = ? AND agency_id = ?',
+            )
+            .bind(first.id, AGENCY_1)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+      expect(
+        (
+          await db
+            .prepare(
+              "SELECT count(*) AS count FROM audit_events WHERE action = 'company_contact.create' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+            )
+            .bind(key)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+    });
+
+    it('denies an exact contact-create replay after the parent leaves the actor ASSIGNED scope', async () => {
+      const ownerJwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const ownerCsrf = await getCsrf(OWNER_1_SUB);
+      const memberJwt = await createJwt(MEMBER_ASSIGNED_SUB, 'member-assigned@mayisigorta.test');
+      const memberCsrf = await getCsrf(MEMBER_ASSIGNED_SUB);
+      const customerResponse = await testApp.fetch(
+        mutationRequest(
+          'https://crm.local/api/customers',
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': ownerJwt,
+            'X-CSRF-Token': ownerCsrf,
+            'Idempotency-Key': 'ik-contact-reassign-customer-create',
+          },
+          { type: 'COMPANY', companyTitle: 'Contact Replay Scope Customer' },
+        ),
+        getEnv(),
+      );
+      expect(customerResponse.status).toBe(201);
+      const customer = asSuccess<CustomerDto>(await customerResponse.json()).data;
+
+      const assignToMember = await testApp.fetch(
+        mutationRequest(
+          `https://crm.local/api/customers/${customer.id}/assign`,
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': ownerJwt,
+            'X-CSRF-Token': ownerCsrf,
+            'Idempotency-Key': 'ik-contact-reassign-to-member',
+          },
+          { expectedVersion: 1, assigneeMembershipId: MEMBER_ASSIGNED_MEM },
+        ),
+        getEnv(),
+      );
+      expect(assignToMember.status).toBe(200);
+
+      const payload = {
+        firstName: 'Scope',
+        lastName: 'Evidence',
+        role: 'Yetkili',
+        isPrimary: false,
+      };
+      const key = 'ik-company-contact-assigned-replay';
+      const contactRequest = () =>
+        mutationRequest(
+          `https://crm.local/api/customers/${customer.id}/contacts`,
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': memberJwt,
+            'X-CSRF-Token': memberCsrf,
+            'Idempotency-Key': key,
+          },
+          payload,
+        );
+      const firstResponse = await testApp.fetch(contactRequest(), getEnv());
+      expect(firstResponse.status).toBe(201);
+      const first = asSuccess<CompanyContactDto>(await firstResponse.json()).data;
+
+      const assignAway = await testApp.fetch(
+        mutationRequest(
+          `https://crm.local/api/customers/${customer.id}/assign`,
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': ownerJwt,
+            'X-CSRF-Token': ownerCsrf,
+            'Idempotency-Key': 'ik-contact-reassign-away',
+          },
+          { expectedVersion: 2, assigneeMembershipId: OWNER_1_MEM },
+        ),
+        getEnv(),
+      );
+      expect(assignAway.status).toBe(200);
+
+      const replayResponse = await testApp.fetch(contactRequest(), getEnv());
+      expect(replayResponse.status).toBe(404);
+      const replayError = asError(await replayResponse.json());
+      expect(replayError.error.code).toBe('NOT_FOUND');
+      expect(replayError.error.message).toBe('Kayıt bulunamadı.');
+      expect(JSON.stringify(replayError)).not.toContain(first.id);
+      expect(JSON.stringify(replayError)).not.toContain(first.firstName);
+      expect(
+        (
+          await db
+            .prepare('SELECT count(*) AS count FROM company_contacts WHERE customer_id = ?')
+            .bind(customer.id)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+      expect(
+        (
+          await db
+            .prepare(
+              "SELECT count(*) AS count FROM audit_events WHERE action = 'company_contact.create' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+            )
+            .bind(key)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+    });
+
+    it('replays an exact contact-create request for a MEMBER with current AGENCY authority', async () => {
+      const ownerJwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const ownerCsrf = await getCsrf(OWNER_1_SUB);
+      const customerResponse = await testApp.fetch(
+        mutationRequest(
+          'https://crm.local/api/customers',
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': ownerJwt,
+            'X-CSRF-Token': ownerCsrf,
+            'Idempotency-Key': 'ik-agency-contact-replay-customer',
+          },
+          { type: 'COMPANY', companyTitle: 'Agency Contact Replay Customer' },
+        ),
+        getEnv(),
+      );
+      expect(customerResponse.status).toBe(201);
+      const replayCustomer = asSuccess<CustomerDto>(await customerResponse.json()).data;
+      const jwt = await createJwt(MEMBER_AGENCY_SUB, 'member-agency@mayisigorta.test');
+      const csrf = await getCsrf(MEMBER_AGENCY_SUB);
+      const payload = {
+        firstName: 'Agency',
+        lastName: 'Replay',
+        role: 'Yetkili',
+        isPrimary: false,
+      };
+      const key = 'ik-company-contact-agency-replay';
+      const request = () =>
+        mutationRequest(
+          `https://crm.local/api/customers/${replayCustomer.id}/contacts`,
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': jwt,
+            'X-CSRF-Token': csrf,
+            'Idempotency-Key': key,
+          },
+          payload,
+        );
+
+      const firstResponse = await testApp.fetch(request(), getEnv());
+      expect(firstResponse.status).toBe(201);
+      const first = asSuccess<CompanyContactDto>(await firstResponse.json()).data;
+      const replayResponse = await testApp.fetch(request(), getEnv());
+      expect(replayResponse.status).toBe(201);
+      expect(asSuccess<CompanyContactDto>(await replayResponse.json()).data).toEqual(first);
+      expect(
+        (
+          await db
+            .prepare('SELECT count(*) AS count FROM company_contacts WHERE id = ?')
+            .bind(first.id)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+    });
+
     it('creates second contact as primary and automatically demotes first contact', async () => {
       const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
