@@ -30,7 +30,7 @@ Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | M2-T04 | Tek sözleşme dönemi Policy çekirdeği, UI ve güvenli kimlik varyantı | **COMPLETE — Batch-B kabul edildi** |
 | M2-T05 | Policy ilişkileri/lifecycle ve UI (PolicyParty, Amendment, external reference, assignment/archive) | **COMPLETE — Batch-B kabul edildi** |
 | M2 Batch-B | T04+T05 UI, entegrasyon, regresyon ve kalite kapısı | **COMPLETE — BLOCKER 0, IMPORTANT 0, OPTIONAL 0** |
-| M2-T06 | Milestone 2 final integrated acceptance gate (later-phase scope excluded) | **DETERMINISTIC GATES COMPLETE — READY FOR FINAL INDEPENDENT REVIEW** |
+| M2-T06 | Milestone 2 final integrated acceptance gate (later-phase scope excluded) | **COMPLETE — deterministic gates PASS; fresh GPT-6 Sol High BLOCKER 0 / IMPORTANT 0 / OPTIONAL 0 — M2 COMPLETE** |
 
 ## Gerçek uygulama durumu
 
@@ -38,8 +38,8 @@ Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
-| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–T05 ve Batch-B COMPLETE; M2-T06 deterministic gates complete; bağımsız final inceleme remediation döngüsü sürüyor, üçüncü düzeltme kabul kapıları geçti ve yeni GPT-6 Sol High incelemesi bekleniyor) |
-| Faz 3 — Yenileme ve takip | BAŞLAMADI |
+| Faz 2 — Müşteri/poliçe domain'i | TAMAMLANDI — M2-T01–T06 PASS; 7. fresh GPT-6 Sol High final review PASS |
+| Faz 3 — Yenileme ve takip | SIRADAKİ — henüz başlanmadı |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
@@ -256,3 +256,17 @@ Durum: **Üçüncü bounded remediation cycle tamamlandı; M2 COMPLETE değildir
 - Sonraki tek görev: **yeni fresh GPT-6 Sol High bağımsız M2 incelemesi** (`gpt-6-sol`, reasoning `high`). PASS alınmadan M2 kapanmayacak ve M3 başlamayacak.
 
 M2 FINAL REVIEW REMEDIATION CYCLE 3 COMPLETE — READY FOR FRESH GPT-6 SOL HIGH REVIEW
+
+## Milestone 2 formal close — 24 Eylül 2026
+
+Durum: **MILESTONE 2 = COMPLETE. Faz 3 / M3 sıradaki aşamadır; bu kapanışta M3 implementation henüz başlatılmadı.**
+
+- Yedinci fresh bağımsız GPT-6 Sol High incelemesi (`gpt-6-sol`, reasoning `high`) commit `4862441e0594d1c1a97d28f05599d673cbf9cf4a` üzerinde gerçek kod ve testleri inceledi: **BLOCKER 0, IMPORTANT 0, OPTIONAL 0 — FINAL VERDICT PASS**.
+- Reviewer; Customer ve CompanyContact create makbuzlarının canonical email/null, trim/uzunluk, telefon/adres ve timestamp kontrollerini; Contact/Customer özgün hedefinin audit ve canlı kayıtla bağlanmasını; güncel permission/scope recheck'lerini; bütün replay çıkışlarını ve receipt/business/audit atomikliğini PASS değerlendirdi. Türkçe Policy normalization, exact/prefix search ve migration 0009 da incelendi.
+- Reviewer odak testleri: Customer/API 4 dosya **88/88 PASS**; Policy normalization/search + migration 0009 2 dosya **27/27 PASS**; Policy lifecycle/assignment-after-archive 1 dosya **16/16 PASS**. Reviewer bu incelemede tam 824 suite veya `test:d1`'ı yeniden çalıştırmadı; son kod değişikliğinden sonraki deterministic gate kanıtı üstteki cycle-3 kaydındadır.
+- M2 deterministic gate: `npm run test` **824/824 PASS (38 dosya)**; `npm run test:d1` **26/26 PASS**; format, lint, typecheck, boundaries, client build + Worker dry-run PASS. Migration/schema değişmedi; historical `0000–0009` korunmuştur.
+- Review başlangıç/kapanış repository durumu: `main`, HEAD, `origin/main` ve canlı `origin/main` `4862441e0594d1c1a97d28f05599d673cbf9cf4a` ile eşitti; çalışma ağacı temizdi. Uygulama/test remediation commit'i `139a44034617f98626398c6187fd3110cd8429ca`; M2 kapanışı documentation-only değişikliktir.
+- Bu gece deployment, remote D1, DNS, Cloudflare hesap ayarı veya gerçek veri işlemi yapılmadı.
+- Sonraki tek görev: nihai mimari planın Faz 3 bölümlerini ve güncel uygulama durumunu yeniden okuyup dependency-aware M3 task planı çıkarmak; ardından M3'ün ilk vertical slice'ına başlamak. M4 kapsamına geçilmemelidir.
+
+MILESTONE 2 COMPLETE — MILESTONE 3 NEXT
