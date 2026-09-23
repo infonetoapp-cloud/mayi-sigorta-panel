@@ -1,6 +1,6 @@
 # Uygulama durumu
 
-Son güncelleme: **23 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
+Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
 
 ## Milestone 1 kabul durumu
 
@@ -38,7 +38,7 @@ Son güncelleme: **23 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 |---|---|
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
-| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–T05 ve Batch-B COMPLETE; M2-T06 deterministic gates complete; bağımsız final incelemesi başarısız bulundu, remediation tamamlandı ve yeni bağımsız inceleme bekleniyor) |
+| Faz 2 — Müşteri/poliçe domain'i | SÜRÜYOR (M2-T01–T05 ve Batch-B COMPLETE; M2-T06 deterministic gates complete; bağımsız final inceleme remediation döngüsü sürüyor, üçüncü düzeltme kabul kapıları geçti ve yeni GPT-6 Sol High incelemesi bekleniyor) |
 | Faz 3 — Yenileme ve takip | BAŞLAMADI |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
@@ -241,3 +241,18 @@ Durum: **M2 üçüncü inceleme remediation uygulaması tamamlandı; dördüncü
 - Sonraki tek adım: **dördüncü fresh independent GPT-6 Sol High incelemesi**. M2 henüz tamamlanmadı; M3 başlamadı.
 
 M2 THIRD REVIEW REMEDIATION COMPLETE — READY FOR FOURTH FRESH INDEPENDENT REVIEW
+
+## M2 final review remediation — 24 Eylül 2026
+
+Durum: **Üçüncü bounded remediation cycle tamamlandı; M2 COMPLETE değildir, M3 başlamadı. Yeni fresh GPT-6 Sol High incelemesi bekleniyor.**
+
+- Dördüncü fresh GPT-6 Sol High incelemesi **BLOCKER 0, IMPORTANT 1, OPTIONAL 0** buldu: `company_contact.create` completed receipt DTO'sunda e-posta yalnız string/trim olarak doğrulanıyor, biçimi doğrulanmıyordu. Gerçek-D1 exact replay regresyonu e-posta geçersizken makbuzun döndüğünü RED olarak gösterdi; ortak Zod `.email()` doğrulaması eklendi ve retry fail-closed oldu.
+- Beşinci fresh GPT-6 Sol High incelemesi Contact düzeltmesini doğruladı; aynı eksik doğrulamanın sibling `customer.create` receipt parser'ında kaldığını **BLOCKER 0, IMPORTANT 1, OPTIONAL 0** olarak bildirdi. Customer için aynı canonical e-posta kontrolü eklendi; persisted receipt exact replay testi RED→GREEN oldu.
+- Altıncı fresh GPT-6 Sol High incelemesi `customer.create` makbuzundaki diğer create-schema sınırlarının da tam doğrulanmadığını **BLOCKER 1, IMPORTANT 0, OPTIONAL 0** olarak buldu: boş/limit dışı telefon, limit dışı adres ve kanonik olmayan string/timestamp değerleri. Raporun “whitespace-only displayName” örneği mevcut parser'da zaten reddediliyordu; düzeltme yine de create schema ile eşleşecek şekilde tüm alanlarda trim/max/min ve canonical timestamp kontrollerini ortak doğrulayıcılarla tamamladı.
+- Yeni gerçek-D1 regresyonları Contact ve Customer bozuk e-posta makbuzlarını ve Customer create DTO sınırlarını (displayName, ad/soyad, şirket unvanı, telefon, adres, timestamp) aynı idempotency key ile replay ederek doğruluyor. Kapsam dışı/audit-hedefi/replay-authority semantiği değiştirilmedi.
+- Odak Customer/API regresyonu: **4 dosya / 88 test PASS**. M2 tam `npm run test`: **824/824 PASS, 38/38 dosya**. `npm run test:d1`: **26/26 PASS**.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (client + Worker `--dry-run`) ve `git diff --check`: **PASS**. Bir ara `format:check` yalnız Prettier biçimi nedeniyle uyarı verdi; hedef dosyalar formatlandı ve son kalite kapıları temiz geçti.
+- Schema/migration değişmedi; `0000–0009` aynen kaldı. Uygulama/test remediation commit'i: `139a44034617f98626398c6187fd3110cd8429ca` (`fix: validate create replay receipt DTOs`). Bu kayıtta remote D1, deployment, DNS veya gerçek veri işlemi yapılmadı.
+- Sonraki tek görev: **yeni fresh GPT-6 Sol High bağımsız M2 incelemesi** (`gpt-6-sol`, reasoning `high`). PASS alınmadan M2 kapanmayacak ve M3 başlamayacak.
+
+M2 FINAL REVIEW REMEDIATION CYCLE 3 COMPLETE — READY FOR FRESH GPT-6 SOL HIGH REVIEW
