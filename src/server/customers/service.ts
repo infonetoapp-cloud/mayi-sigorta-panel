@@ -1033,14 +1033,6 @@ export async function setPrimaryCompanyContact(
     .first<RawContactRow>();
   if (!contact) throw new ContactNotFoundError();
 
-  // 4. Durum kontrolü (YETKİLENDİRMEDEN SONRA)
-  if (contact.status !== 'ACTIVE') {
-    throw new DomainConstraintViolationError(
-      'INACTIVE_CONTACT_CANNOT_BE_PRIMARY',
-      'Pasif yetkili birincil kişi yapılamaz.',
-    );
-  }
-
   const parsed = VersionOnlySchema.safeParse(rawPayload);
   if (!parsed.success) {
     const details: Record<string, string> = {};
@@ -1052,6 +1044,31 @@ export async function setPrimaryCompanyContact(
 
   const now = new Date().toISOString();
   const nextVersion = parsed.data.expectedVersion + 1;
+  const command = {
+    kind: 'company_contact.set_primary' as const,
+    customerId,
+    contactId,
+    expectedVersion: parsed.data.expectedVersion,
+  };
+  const completedReplay = await replayCompletedCustomerDomainCommand<CompanyContactDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload: rawPayload,
+    command,
+  });
+  if (completedReplay) return completedReplay.body;
+
+  // First executions still require an active contact.
+  if (contact.status !== 'ACTIVE') {
+    throw new DomainConstraintViolationError(
+      'INACTIVE_CONTACT_CANNOT_BE_PRIMARY',
+      'Pasif yetkili birincil kişi yapılamaz.',
+    );
+  }
 
   const updatedDto: CompanyContactDto = {
     id: contact.id,
@@ -1079,12 +1096,7 @@ export async function setPrimaryCompanyContact(
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
     payload: rawPayload,
-    command: {
-      kind: 'company_contact.set_primary',
-      customerId,
-      contactId,
-      expectedVersion: parsed.data.expectedVersion,
-    },
+    command,
     resultProducer: () => ({ status: 200, body: updatedDto }),
   });
 
@@ -1134,14 +1146,6 @@ export async function deactivateCompanyContact(
     .first<RawContactRow>();
   if (!contact) throw new ContactNotFoundError();
 
-  // 4. Durum kontrolü (YETKİLENDİRMEDEN SONRA)
-  if (contact.status === 'INACTIVE') {
-    throw new DomainConstraintViolationError(
-      'CONTACT_ALREADY_INACTIVE',
-      'Yetkili zaten pasif durumda.',
-    );
-  }
-
   const parsed = VersionOnlySchema.safeParse(rawPayload);
   if (!parsed.success) {
     const details: Record<string, string> = {};
@@ -1153,6 +1157,31 @@ export async function deactivateCompanyContact(
 
   const now = new Date().toISOString();
   const nextVersion = parsed.data.expectedVersion + 1;
+  const command = {
+    kind: 'company_contact.deactivate' as const,
+    customerId,
+    contactId,
+    expectedVersion: parsed.data.expectedVersion,
+  };
+  const completedReplay = await replayCompletedCustomerDomainCommand<CompanyContactDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload: rawPayload,
+    command,
+  });
+  if (completedReplay) return completedReplay.body;
+
+  // First executions still reject contacts already made inactive.
+  if (contact.status === 'INACTIVE') {
+    throw new DomainConstraintViolationError(
+      'CONTACT_ALREADY_INACTIVE',
+      'Yetkili zaten pasif durumda.',
+    );
+  }
 
   const updatedDto: CompanyContactDto = {
     id: contact.id,
@@ -1180,12 +1209,7 @@ export async function deactivateCompanyContact(
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
     payload: rawPayload,
-    command: {
-      kind: 'company_contact.deactivate',
-      customerId,
-      contactId,
-      expectedVersion: parsed.data.expectedVersion,
-    },
+    command,
     resultProducer: () => ({ status: 200, body: updatedDto }),
   });
 
@@ -1505,13 +1529,6 @@ export async function assignCustomer(
   if (!existing) {
     throw new CustomerNotFoundError();
   }
-  if (existing.archived_at != null) {
-    throw new DomainConstraintViolationError(
-      'CUSTOMER_ARCHIVED',
-      'Arşivlenmiş müşteri değiştirilemez.',
-    );
-  }
-
   const authz = await evaluateAuthorization(db, {
     context,
     action: 'customer.assign',
@@ -1526,6 +1543,12 @@ export async function assignCustomer(
     throw new CustomerForbiddenError('Müşteri atama yetkiniz bulunmamaktadır.');
   }
 
+  const command = {
+    kind: 'customer.assign' as const,
+    customerId: existing.id,
+    expectedVersion: data.expectedVersion,
+    targetAssigneeMembershipId: data.assigneeMembershipId,
+  };
   const completedReplay = await replayCompletedCustomerDomainCommand<CustomerDto>({
     db,
     agencyId,
@@ -1534,14 +1557,16 @@ export async function assignCustomer(
     actorIdentityId: context.identityId,
     idempotencyKey: options.idempotencyKey,
     payload: idempotencyPayload,
-    command: {
-      kind: 'customer.assign',
-      customerId: existing.id,
-      expectedVersion: data.expectedVersion,
-      targetAssigneeMembershipId: data.assigneeMembershipId,
-    },
+    command,
   });
   if (completedReplay) return completedReplay.body;
+
+  if (existing.archived_at != null) {
+    throw new DomainConstraintViolationError(
+      'CUSTOMER_ARCHIVED',
+      'Arşivlenmiş müşteri değiştirilemez.',
+    );
+  }
 
   const nextVersion = data.expectedVersion + 1;
   const now = new Date().toISOString();
@@ -1579,12 +1604,7 @@ export async function assignCustomer(
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
     payload: idempotencyPayload,
-    command: {
-      kind: 'customer.assign',
-      customerId: existing.id,
-      expectedVersion: data.expectedVersion,
-      targetAssigneeMembershipId: data.assigneeMembershipId,
-    },
+    command,
     resultProducer: () => ({ status: 200, body: updatedDto }),
   });
 

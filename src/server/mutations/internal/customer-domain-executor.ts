@@ -31,6 +31,7 @@ import { IdempotencyConflictError } from '../idempotency';
 import { buildSafeAuditRecord } from '../audit';
 import { OptimisticConcurrencyError } from '../../db/optimistic';
 import { evaluateAuthorization } from '../../auth/authorization';
+import type { CustomerDto } from '../../../shared/types';
 
 export class DomainConstraintViolationError extends Error {
   readonly code: string;
@@ -165,6 +166,7 @@ interface IdempotencyLookup<TResult> {
   readonly payloadFingerprint: string;
   readonly trimmedIdempotencyKey: string;
   readonly replay: CustomerDomainCommandResult<TResult> | null;
+  readonly replayCustomerTargetId?: string;
 }
 
 function actionForCommandKind(kind: CustomerDomainCommandKind): string {
@@ -184,6 +186,203 @@ function actionForCommandKind(kind: CustomerDomainCommandKind): string {
       const exhaustiveCheck: never = kind;
       throw new Error(`UNSUPPORTED_DOMAIN_COMMAND_KIND: ${String(exhaustiveCheck)}`);
     }
+  }
+}
+
+const CUSTOMER_CREATE_RECEIPT_KEYS = [
+  'id',
+  'agencyId',
+  'type',
+  'displayName',
+  'firstName',
+  'lastName',
+  'companyTitle',
+  'email',
+  'phone',
+  'address',
+  'assigneeMembershipId',
+  'archivedAt',
+  'archivedByMembershipId',
+  'archiveReasonCode',
+  'hasIdentity',
+  'identityMasked',
+  'version',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function parseCustomerCreateReceiptDto(
+  responseBody: string,
+  responseStatus: number,
+  agencyId: string,
+  actorMembershipId: string,
+): CustomerDto {
+  if (responseStatus !== 201 || typeof responseBody !== 'string') {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseBody);
+  } catch {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+
+  const dto = parsed as Record<string, unknown>;
+  const keys = Object.keys(dto).sort();
+  const expectedKeys = [...CUSTOMER_CREATE_RECEIPT_KEYS].sort();
+  if (
+    keys.length !== expectedKeys.length ||
+    keys.some((key, index) => key !== expectedKeys[index]) ||
+    typeof dto.id !== 'string' ||
+    dto.id.trim() === '' ||
+    dto.id !== dto.id.trim() ||
+    dto.agencyId !== agencyId ||
+    (dto.type !== 'INDIVIDUAL' && dto.type !== 'COMPANY') ||
+    typeof dto.displayName !== 'string' ||
+    dto.displayName.trim() === '' ||
+    (dto.firstName !== null && typeof dto.firstName !== 'string') ||
+    (dto.lastName !== null && typeof dto.lastName !== 'string') ||
+    (dto.companyTitle !== null && typeof dto.companyTitle !== 'string') ||
+    (typeof dto.firstName === 'string' && dto.firstName.trim() === '') ||
+    (typeof dto.lastName === 'string' && dto.lastName.trim() === '') ||
+    (typeof dto.companyTitle === 'string' && dto.companyTitle.trim() === '') ||
+    !isNullableString(dto.email) ||
+    !isNullableString(dto.phone) ||
+    !isNullableString(dto.address) ||
+    typeof dto.assigneeMembershipId !== 'string' ||
+    dto.assigneeMembershipId.trim() === '' ||
+    dto.assigneeMembershipId !== dto.assigneeMembershipId.trim() ||
+    dto.archivedAt !== null ||
+    dto.archivedByMembershipId !== null ||
+    dto.archiveReasonCode !== null ||
+    dto.hasIdentity !== false ||
+    dto.identityMasked !== null ||
+    dto.version !== 1 ||
+    typeof dto.createdAt !== 'string' ||
+    dto.createdAt.trim() === '' ||
+    typeof dto.updatedAt !== 'string' ||
+    dto.updatedAt.trim() === '' ||
+    !Number.isFinite(Date.parse(dto.createdAt)) ||
+    !Number.isFinite(Date.parse(dto.updatedAt)) ||
+    dto.createdAt !== dto.updatedAt ||
+    dto.assigneeMembershipId !== actorMembershipId
+  ) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+
+  if (
+    (dto.type === 'COMPANY' &&
+      (dto.companyTitle === null || dto.firstName !== null || dto.lastName !== null)) ||
+    (dto.type === 'INDIVIDUAL' &&
+      (dto.companyTitle !== null || dto.firstName === null || dto.lastName === null))
+  ) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+
+  return dto as unknown as CustomerDto;
+}
+
+async function loadCustomerCreateAuditTarget(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly idempotencyKey: string;
+}): Promise<string> {
+  const result = await input.db
+    .prepare(
+      `SELECT action, target_type, target_id, outcome
+       FROM audit_events
+       WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ? AND idempotency_key = ?`,
+    )
+    .bind(input.agencyId, input.actorUserId, input.actorMembershipId, input.idempotencyKey)
+    .all<{ action: unknown; target_type: unknown; target_id: unknown; outcome: unknown }>();
+  const rows = result.results;
+  if (
+    !result.success ||
+    !Array.isArray(rows) ||
+    rows.length !== 1 ||
+    rows[0]?.action !== 'customer.create' ||
+    rows[0]?.target_type !== 'customers' ||
+    rows[0]?.outcome !== 'SUCCESS' ||
+    typeof rows[0]?.target_id !== 'string' ||
+    rows[0].target_id.trim() === '' ||
+    rows[0].target_id !== rows[0].target_id.trim()
+  ) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+  return rows[0].target_id;
+}
+
+async function assertLiveCustomerReplayScope(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly actorIdentityId: string;
+  readonly permissionVersion: number;
+  readonly customerId: string;
+  readonly scope: string | undefined;
+  readonly contactId?: string;
+}): Promise<void> {
+  if (input.scope !== 'ASSIGNED' && input.scope !== 'AGENCY') {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+
+  let row: { id: unknown } | null;
+  try {
+    row = await input.db
+      .prepare(
+        `SELECT c.id
+         FROM customers c
+         JOIN agency_memberships m
+           ON m.id = ? AND m.agency_id = c.agency_id AND m.user_id = ?
+         JOIN users u ON u.id = m.user_id
+         JOIN agencies a ON a.id = m.agency_id
+         JOIN auth_identities ai ON ai.id = ? AND ai.user_id = u.id
+         WHERE c.id = ? AND c.agency_id = ?
+           AND m.status = 'ACTIVE'
+           AND m.type IN ('OWNER', 'MEMBER')
+           AND m.permission_version = ?
+           AND u.status = 'ACTIVE'
+           AND a.status = 'ACTIVE'
+           AND ai.status = 'ACTIVE'
+           AND (? = 'AGENCY' OR (? = 'ASSIGNED' AND c.assignee_membership_id = m.id))
+           AND (
+             ? IS NULL
+             OR EXISTS (
+               SELECT 1 FROM company_contacts cc
+               WHERE cc.id = ? AND cc.customer_id = c.id AND cc.agency_id = c.agency_id
+             )
+           )
+         LIMIT 1`,
+      )
+      .bind(
+        input.actorMembershipId,
+        input.actorUserId,
+        input.actorIdentityId,
+        input.customerId,
+        input.agencyId,
+        input.permissionVersion,
+        input.scope,
+        input.scope,
+        input.contactId ?? null,
+        input.contactId ?? null,
+      )
+      .first<{ id: unknown }>();
+  } catch {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+  if (!row || row.id !== input.customerId) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
   }
 }
 
@@ -255,15 +454,37 @@ async function lookupIdempotency<TResult>(input: {
   }
 
   let parsedBody: TResult;
-  try {
-    parsedBody = JSON.parse(existingReceipt.response_body) as TResult;
-  } catch {
-    parsedBody = existingReceipt.response_body as unknown as TResult;
+  let replayCustomerTargetId: string | undefined;
+  if (command.kind === 'customer.create') {
+    const receiptDto = parseCustomerCreateReceiptDto(
+      existingReceipt.response_body,
+      existingReceipt.response_status,
+      input.agencyId,
+      input.actorMembershipId,
+    );
+    replayCustomerTargetId = await loadCustomerCreateAuditTarget({
+      db: input.db,
+      agencyId: input.agencyId,
+      actorUserId: input.actorUserId,
+      actorMembershipId: input.actorMembershipId,
+      idempotencyKey: trimmedIdempotencyKey,
+    });
+    if (receiptDto.id !== replayCustomerTargetId) {
+      throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    }
+    parsedBody = receiptDto as TResult;
+  } else {
+    try {
+      parsedBody = JSON.parse(existingReceipt.response_body) as TResult;
+    } catch {
+      parsedBody = existingReceipt.response_body as unknown as TResult;
+    }
   }
   return {
     action,
     payloadFingerprint,
     trimmedIdempotencyKey,
+    ...(replayCustomerTargetId ? { replayCustomerTargetId } : {}),
     replay: {
       executed: false,
       replayed: true,
@@ -281,6 +502,7 @@ async function assertCurrentReplayAuthority(input: {
   readonly actorMembershipId: string;
   readonly actorIdentityId: string;
   readonly command: CustomerDomainCommand;
+  readonly replayCustomerTargetId?: string;
 }): Promise<void> {
   const membership = await input.db
     .prepare(
@@ -298,6 +520,8 @@ async function assertCurrentReplayAuthority(input: {
     membership.status !== 'ACTIVE' ||
     (membership.type !== 'OWNER' && membership.type !== 'MEMBER') ||
     typeof membership.permission_version !== 'number' ||
+    !Number.isSafeInteger(membership.permission_version) ||
+    membership.permission_version < 1 ||
     identity?.status !== 'ACTIVE'
   ) {
     throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
@@ -317,38 +541,84 @@ async function assertCurrentReplayAuthority(input: {
     ],
   };
   const command = input.command;
-  const isCreate = command.kind === 'customer.create';
-  let resource: Record<string, unknown>;
-  if (isCreate) {
-    resource = { agencyId: input.agencyId, isCollection: true };
-  } else {
-    const customerId = command.customerId;
+  if (command.kind === 'customer.create') {
+    const customerId = input.replayCustomerTargetId;
+    if (!customerId || customerId.trim() === '' || customerId !== customerId.trim()) {
+      throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    }
     const customer = await input.db
       .prepare(
         'SELECT id, agency_id, assignee_membership_id FROM customers WHERE id=? AND agency_id=?',
       )
       .bind(customerId, input.agencyId)
-      .first<{ id: string; agency_id: string; assignee_membership_id: string | null }>();
-    if (!customer) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+      .first<{ id: unknown; agency_id: unknown; assignee_membership_id: unknown }>();
     if (
-      command.kind === 'company_contact.update' ||
-      command.kind === 'company_contact.set_primary' ||
-      command.kind === 'company_contact.deactivate'
+      !customer ||
+      customer.id !== customerId ||
+      customer.agency_id !== input.agencyId ||
+      typeof customer.assignee_membership_id !== 'string' ||
+      customer.assignee_membership_id.trim() === ''
     ) {
-      const contact = await input.db
-        .prepare('SELECT id FROM company_contacts WHERE id=? AND customer_id=? AND agency_id=?')
-        .bind(command.contactId, customerId, input.agencyId)
-        .first<{ id: string }>();
-      if (!contact) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+      throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
     }
-    resource = {
-      agencyId: customer.agency_id,
-      id: customer.id,
-      customerId: customer.id,
-      assigneeMembershipId: customer.assignee_membership_id,
-      parentAssigneeMembershipId: customer.assignee_membership_id,
-    };
+
+    const createAuthorization = await evaluateAuthorization(input.db, {
+      context,
+      action: 'customer.create',
+      resource: { agencyId: input.agencyId, isCollection: true },
+    });
+    const recordAuthorization = await evaluateAuthorization(input.db, {
+      context,
+      action: 'customer.read',
+      resource: {
+        agencyId: input.agencyId,
+        id: customer.id,
+        assigneeMembershipId: customer.assignee_membership_id,
+      },
+    });
+    if (createAuthorization.decision !== 'ALLOW' || recordAuthorization.decision !== 'ALLOW') {
+      throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    }
+    await assertLiveCustomerReplayScope({
+      db: input.db,
+      agencyId: input.agencyId,
+      actorUserId: input.actorUserId,
+      actorMembershipId: input.actorMembershipId,
+      actorIdentityId: input.actorIdentityId,
+      permissionVersion: membership.permission_version,
+      customerId,
+      scope: recordAuthorization.effectiveScope,
+    });
+    return;
   }
+
+  const customerId = command.customerId;
+  const customer = await input.db
+    .prepare(
+      'SELECT id, agency_id, assignee_membership_id FROM customers WHERE id=? AND agency_id=?',
+    )
+    .bind(customerId, input.agencyId)
+    .first<{ id: string; agency_id: string; assignee_membership_id: string | null }>();
+  if (!customer) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  if (
+    command.kind === 'company_contact.create' ||
+    command.kind === 'company_contact.update' ||
+    command.kind === 'company_contact.set_primary' ||
+    command.kind === 'company_contact.deactivate'
+  ) {
+    const contact = await input.db
+      .prepare('SELECT id FROM company_contacts WHERE id=? AND customer_id=? AND agency_id=?')
+      .bind(command.contactId, customerId, input.agencyId)
+      .first<{ id: string }>();
+    if (!contact) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+  const resource: Record<string, unknown> = {
+    agencyId: customer.agency_id,
+    id: customer.id,
+    customerId: customer.id,
+    assigneeMembershipId: customer.assignee_membership_id,
+    parentAssigneeMembershipId: customer.assignee_membership_id,
+  };
   const authorization = await evaluateAuthorization(input.db, {
     context,
     action: actionForCommandKind(command.kind),
@@ -357,6 +627,22 @@ async function assertCurrentReplayAuthority(input: {
   if (authorization.decision !== 'ALLOW') {
     throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
   }
+  await assertLiveCustomerReplayScope({
+    db: input.db,
+    agencyId: input.agencyId,
+    actorUserId: input.actorUserId,
+    actorMembershipId: input.actorMembershipId,
+    actorIdentityId: input.actorIdentityId,
+    permissionVersion: membership.permission_version,
+    customerId: customer.id,
+    scope: authorization.effectiveScope,
+    ...(command.kind === 'company_contact.create' ||
+    command.kind === 'company_contact.update' ||
+    command.kind === 'company_contact.set_primary' ||
+    command.kind === 'company_contact.deactivate'
+      ? { contactId: command.contactId }
+      : {}),
+  });
 }
 
 /** Authoritative completed-receipt phase for service prechecks. */
@@ -370,9 +656,14 @@ export async function replayCompletedCustomerDomainCommand<TResult>(input: {
   readonly payload: unknown;
   readonly command: CustomerDomainCommand;
 }): Promise<CustomerDomainCommandResult<TResult> | null> {
-  const replay = (await lookupIdempotency<TResult>(input)).replay;
-  if (replay) await assertCurrentReplayAuthority(input);
-  return replay;
+  const lookup = await lookupIdempotency<TResult>(input);
+  if (lookup.replay) {
+    await assertCurrentReplayAuthority({
+      ...input,
+      replayCustomerTargetId: lookup.replayCustomerTargetId,
+    });
+  }
+  return lookup.replay;
 }
 
 interface CommandExecutionPlan {
@@ -1105,6 +1396,7 @@ export async function executeCustomerDomainCommand<TResult>(
       actorMembershipId,
       actorIdentityId,
       command,
+      replayCustomerTargetId: idempotency.replayCustomerTargetId,
     });
     return idempotency.replay;
   }
@@ -1133,6 +1425,7 @@ export async function executeCustomerDomainCommand<TResult>(
         actorMembershipId,
         actorIdentityId,
         command,
+        replayCustomerTargetId: afterFailure.replayCustomerTargetId,
       });
       return afterFailure.replay;
     }
@@ -1548,28 +1841,16 @@ export async function executeCustomerDomainCommand<TResult>(
       errorMsg.includes('operation_receipts_idem_uq') ||
       errorMsg.includes('UNIQUE constraint failed: operation_receipts')
     ) {
-      const concurrentReceipt = await db
-        .prepare(
-          `SELECT action, payload_fingerprint, status, response_status, response_body
-           FROM operation_receipts
-           WHERE agency_id = ? AND actor_user_id = ? AND actor_membership_id = ?
-             AND idempotency_key = ?
-           LIMIT 1`,
-        )
-        .bind(agencyId, actorUserId, actorMembershipId, trimmedIdempotencyKey)
-        .first<{
-          action: string;
-          payload_fingerprint: string;
-          status: string;
-          response_status: number;
-          response_body: string;
-        }>();
-
-      if (
-        concurrentReceipt?.action === plan.action &&
-        concurrentReceipt.payload_fingerprint === payloadFingerprint &&
-        concurrentReceipt.status === 'COMPLETED'
-      ) {
+      const concurrentLookup = await lookupIdempotency<TResult>({
+        db,
+        agencyId,
+        actorUserId,
+        actorMembershipId,
+        idempotencyKey: trimmedIdempotencyKey,
+        payload: input.payload,
+        command,
+      });
+      if (concurrentLookup.replay) {
         await assertCurrentReplayAuthority({
           db,
           agencyId,
@@ -1577,19 +1858,9 @@ export async function executeCustomerDomainCommand<TResult>(
           actorMembershipId,
           actorIdentityId,
           command,
+          replayCustomerTargetId: concurrentLookup.replayCustomerTargetId,
         });
-        let parsedBody: TResult;
-        try {
-          parsedBody = JSON.parse(concurrentReceipt.response_body) as TResult;
-        } catch {
-          parsedBody = concurrentReceipt.response_body as unknown as TResult;
-        }
-        return {
-          executed: false,
-          replayed: true,
-          status: concurrentReceipt.response_status,
-          body: parsedBody,
-        };
+        return concurrentLookup.replay;
       }
 
       throw new IdempotencyConflictError('IDEMPOTENCY_CONCURRENT_INSERT_CONFLICT');

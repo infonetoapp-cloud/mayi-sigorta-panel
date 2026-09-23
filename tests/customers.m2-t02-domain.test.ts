@@ -9,6 +9,9 @@ import {
 } from '../src/server/mutations/internal/customer-domain-executor';
 import { OptimisticConcurrencyError } from '../src/server/db/optimistic';
 import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
+import { computePayloadHash } from '../src/server/mutations/canonical';
+import { createCustomer } from '../src/server/customers/service';
+import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
@@ -208,6 +211,362 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
 
   afterAll(async () => {
     if (mf) await mf.dispose();
+  });
+
+  function memberContext(
+    userId: string,
+    identityId: string,
+    membershipId: string,
+    permissionVersion = 1,
+  ): AuthenticatedUserContext {
+    return {
+      userId,
+      identityId,
+      assurance: 'NORMAL',
+      memberships: [
+        {
+          id: membershipId,
+          agencyId: AGENCY_ID,
+          type: 'MEMBER',
+          status: 'ACTIVE',
+          permissionVersion,
+        },
+      ],
+    };
+  }
+
+  const ownerContext: AuthenticatedUserContext = {
+    userId: OWNER_USER_ID,
+    identityId: `ident-${OWNER_USER_ID}`,
+    assurance: 'NORMAL',
+    memberships: [
+      {
+        id: OWNER_MEM_ID,
+        agencyId: AGENCY_ID,
+        type: 'OWNER',
+        status: 'ACTIVE',
+        permissionVersion: 2,
+      },
+    ],
+  };
+
+  it('authorizes customer.create replay against the original live Customer record', async () => {
+    const payload = {
+      type: 'COMPANY' as const,
+      companyTitle: 'Original Create Replay Company',
+      email: 'original-create@example.test',
+      phone: '+905551112233',
+      address: 'Synthetic address',
+    };
+    const key = 'customer-create-replay-current-target';
+    const seedReplayMember = async (suffix: string) => {
+      const userId = `replay-create-user-${suffix}`;
+      const membershipId = `replay-create-member-${suffix}`;
+      const identityId = `replay-create-identity-${suffix}`;
+      const email = `replay-create-${suffix}@test.com`;
+      await db
+        .prepare("INSERT INTO users(id,status,version) VALUES(?,'INACTIVE',1)")
+        .bind(userId)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO agency_memberships(id,agency_id,user_id,type,status,invitation_email,invitation_expires_at,version,permission_version) VALUES(?,? ,?,'MEMBER','INVITED',?,'2099-01-01T00:00:00.000Z',1,1)",
+        )
+        .bind(membershipId, AGENCY_ID, userId, email)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status) VALUES(?,?,?, ?, ?, 'ACTIVE')",
+        )
+        .bind(identityId, userId, `https://create-replay-${suffix}.test`, `sub-${suffix}`, email)
+        .run();
+      await db
+        .prepare("UPDATE users SET status='ACTIVE',version=version+1 WHERE id=?")
+        .bind(userId)
+        .run();
+      await db
+        .prepare(
+          "UPDATE agency_memberships SET status='ACTIVE',activated_at='2026-09-17T00:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id=?",
+        )
+        .bind(membershipId)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,'customer.read','ASSIGNED'),(?,?,'customer.update','ASSIGNED'),(?,?,'customer.create','UNSCOPED')",
+        )
+        .bind(
+          crypto.randomUUID(),
+          membershipId,
+          crypto.randomUUID(),
+          membershipId,
+          crypto.randomUUID(),
+          membershipId,
+        )
+        .run();
+      return {
+        userId,
+        membershipId,
+        identityId,
+        context: memberContext(userId, identityId, membershipId, 2),
+      };
+    };
+    const scopeActor = await seedReplayMember('scope');
+    const memberA = scopeActor.context;
+    const first = await createCustomer(db, memberA, payload, {
+      correlationId: 'create-replay-first',
+      idempotencyKey: key,
+    });
+    const immediateReplay = await createCustomer(db, memberA, payload, {
+      correlationId: 'create-replay-immediate',
+      idempotencyKey: key,
+    });
+    expect(immediateReplay).toEqual(first);
+    expect(
+      (
+        await db
+          .prepare('SELECT count(*) AS count FROM customers WHERE id = ?')
+          .bind(first.id)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(key)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+
+    await db
+      .prepare('UPDATE customers SET assignee_membership_id = ? WHERE id = ? AND agency_id = ?')
+      .bind(MEMBER_B_MEM_ID, first.id, AGENCY_ID)
+      .run();
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT scope FROM membership_permissions WHERE membership_id = ? AND permission_code = 'customer.create'",
+          )
+          .bind(scopeActor.membershipId)
+          .first<{ scope: string }>()
+      )?.scope,
+    ).toBe('UNSCOPED');
+    await expect(
+      createCustomer(db, memberA, payload, {
+        correlationId: 'create-replay-reassigned',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+
+    await db
+      .prepare(
+        "UPDATE membership_permissions SET scope = 'AGENCY', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE membership_id = ? AND permission_code = 'customer.read'",
+      )
+      .bind(scopeActor.membershipId)
+      .run();
+    await db
+      .prepare(
+        "UPDATE agency_memberships SET permission_version = permission_version + 1, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND permission_version = 2",
+      )
+      .bind(scopeActor.membershipId)
+      .run();
+    const scopeActorAgencyScope = memberContext(
+      scopeActor.userId,
+      scopeActor.identityId,
+      scopeActor.membershipId,
+      3,
+    );
+    const agencyReplay = await createCustomer(db, scopeActorAgencyScope, payload, {
+      correlationId: 'create-replay-agency-scope',
+      idempotencyKey: key,
+    });
+    expect(agencyReplay).toEqual(first);
+
+    await db
+      .prepare(
+        "DELETE FROM membership_permissions WHERE membership_id = ? AND permission_code = 'customer.create'",
+      )
+      .bind(scopeActor.membershipId)
+      .run();
+    await db
+      .prepare(
+        "UPDATE agency_memberships SET permission_version = permission_version + 1, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND permission_version = 3",
+      )
+      .bind(scopeActor.membershipId)
+      .run();
+    await expect(
+      createCustomer(
+        db,
+        memberContext(scopeActor.userId, scopeActor.identityId, scopeActor.membershipId, 4),
+        payload,
+        { correlationId: 'create-replay-create-permission-revoked', idempotencyKey: key },
+      ),
+    ).rejects.toThrow();
+
+    const suspendedActor = await seedReplayMember('suspended');
+    const suspendedPayload = { type: 'COMPANY' as const, companyTitle: 'Suspended Replay' };
+    const suspendedKey = 'customer-create-replay-suspended';
+    await createCustomer(db, suspendedActor.context, suspendedPayload, {
+      correlationId: 'create-suspended-first',
+      idempotencyKey: suspendedKey,
+    });
+    await db
+      .prepare(
+        "UPDATE agency_memberships SET status = 'SUSPENDED', suspended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), permission_version = permission_version + 1, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+      )
+      .bind(suspendedActor.membershipId)
+      .run();
+    await expect(
+      createCustomer(db, suspendedActor.context, suspendedPayload, {
+        correlationId: 'create-suspended-retry',
+        idempotencyKey: suspendedKey,
+      }),
+    ).rejects.toThrow();
+
+    const identityActor = await seedReplayMember('identity');
+    const identityPayload = {
+      type: 'COMPANY' as const,
+      companyTitle: 'Revoked Identity Replay',
+    };
+    const identityKey = 'customer-create-replay-revoked-identity';
+    await createCustomer(db, identityActor.context, identityPayload, {
+      correlationId: 'create-identity-first',
+      idempotencyKey: identityKey,
+    });
+    await db
+      .prepare(
+        "UPDATE auth_identities SET status = 'REVOKED', revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+      )
+      .bind(identityActor.identityId)
+      .run();
+    await expect(
+      createCustomer(db, identityActor.context, identityPayload, {
+        correlationId: 'create-identity-retry',
+        idempotencyKey: identityKey,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('fails closed when a completed customer.create receipt has malformed target evidence', async () => {
+    const payload = { type: 'COMPANY' as const, companyTitle: 'Malformed Receipt Probe' };
+    const key = 'customer-create-malformed-receipt';
+    const fingerprint = await computePayloadHash({
+      target: null,
+      expectedVersion: null,
+      payload,
+    });
+    await db
+      .prepare(
+        `INSERT INTO operation_receipts (
+           id, agency_id, actor_user_id, actor_membership_id, action, idempotency_key,
+           payload_fingerprint, status, response_status, response_body
+         ) VALUES (?, ?, ?, ?, 'customer.create', ?, ?, 'COMPLETED', 201, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        AGENCY_ID,
+        OWNER_USER_ID,
+        OWNER_MEM_ID,
+        key,
+        fingerprint,
+        JSON.stringify({ id: 'not-a-customer-dto', agencyId: AGENCY_ID }),
+      )
+      .run();
+
+    await expect(
+      createCustomer(db, ownerContext, payload, {
+        correlationId: 'create-malformed-receipt-retry',
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+
+    const auditlessPayload = {
+      type: 'COMPANY' as const,
+      companyTitle: 'Auditless Receipt Probe',
+    };
+    const auditlessKey = 'customer-create-auditless-receipt';
+    const auditlessFingerprint = await computePayloadHash({
+      target: null,
+      expectedVersion: null,
+      payload: auditlessPayload,
+    });
+    const timestamp = new Date().toISOString();
+    const auditlessDto = {
+      id: 'forged-receipt-target',
+      agencyId: AGENCY_ID,
+      type: 'COMPANY',
+      displayName: 'Auditless Receipt Probe',
+      firstName: null,
+      lastName: null,
+      companyTitle: 'Auditless Receipt Probe',
+      email: null,
+      phone: null,
+      address: null,
+      assigneeMembershipId: OWNER_MEM_ID,
+      archivedAt: null,
+      archivedByMembershipId: null,
+      archiveReasonCode: null,
+      hasIdentity: false,
+      identityMasked: null,
+      version: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    await db
+      .prepare(
+        `INSERT INTO operation_receipts (
+           id, agency_id, actor_user_id, actor_membership_id, action, idempotency_key,
+           payload_fingerprint, status, response_status, response_body
+         ) VALUES (?, ?, ?, ?, 'customer.create', ?, ?, 'COMPLETED', 201, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        AGENCY_ID,
+        OWNER_USER_ID,
+        OWNER_MEM_ID,
+        auditlessKey,
+        auditlessFingerprint,
+        JSON.stringify(auditlessDto),
+      )
+      .run();
+    await expect(
+      createCustomer(db, ownerContext, auditlessPayload, {
+        correlationId: 'create-auditless-receipt-retry',
+        idempotencyKey: auditlessKey,
+      }),
+    ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+  });
+
+  it('concurrent service-level create retries with fresh generated IDs converge on one D1 effect', async () => {
+    const payload = { type: 'COMPANY' as const, companyTitle: 'Concurrent Create Replay' };
+    const key = 'customer-create-concurrent-service-replay';
+    const options = (correlationId: string) => ({ correlationId, idempotencyKey: key });
+    const [first, concurrentRetry] = await Promise.all([
+      createCustomer(db, ownerContext, payload, options('create-concurrent-a')),
+      createCustomer(db, ownerContext, payload, options('create-concurrent-b')),
+    ]);
+    expect(concurrentRetry).toEqual(first);
+    expect(
+      (
+        await db
+          .prepare('SELECT count(*) AS count FROM customers WHERE id = ?')
+          .bind(first.id)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(key)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
   });
 
   describe('customer.identity.update', () => {

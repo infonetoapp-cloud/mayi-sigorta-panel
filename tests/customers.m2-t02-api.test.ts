@@ -889,6 +889,26 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
       const cust = asSuccess<CustomerDto>(await createRes.json()).data;
       expect(cust.assigneeMembershipId).toBe(MEMBER_ASSIGNED_MEM);
 
+      const immediateCreateReplay = await send(
+        mutationRequest(
+          'https://panel.mayisigorta.com/api/customers',
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            'X-CSRF-Token': csrfMember,
+            'Idempotency-Key': 'idem-create-for-reassign',
+          },
+          {
+            type: 'INDIVIDUAL',
+            displayName: 'To Be Reassigned',
+            firstName: 'Reassign',
+            lastName: 'Customer',
+          },
+        ),
+      );
+      expect(immediateCreateReplay.status).toBe(201);
+      expect(asSuccess<CustomerDto>(await immediateCreateReplay.json()).data).toEqual(cust);
+
       // Member Assigned reassigns customer to Member Other
       const assignRes = await send(
         mutationRequest(
@@ -909,6 +929,53 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
       const reassignedCust = asSuccess<CustomerDto>(await assignRes.json()).data;
       expect(reassignedCust.assigneeMembershipId).toBe(MEMBER_OTHER_MEM);
       expect(reassignedCust.version).toBe(2);
+
+      const createReplayAfterReassignment = await send(
+        mutationRequest(
+          'https://panel.mayisigorta.com/api/customers',
+          'POST',
+          {
+            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            'X-CSRF-Token': csrfMember,
+            'Idempotency-Key': 'idem-create-for-reassign',
+          },
+          {
+            type: 'INDIVIDUAL',
+            displayName: 'To Be Reassigned',
+            firstName: 'Reassign',
+            lastName: 'Customer',
+          },
+        ),
+      );
+      expect(createReplayAfterReassignment.status).toBe(404);
+      const createReplayError = (await createReplayAfterReassignment.json()) as {
+        success: boolean;
+        error: { code: string; message: string };
+      };
+      expect(createReplayError.success).toBe(false);
+      expect(createReplayError.error.code).toBe('REPLAY_AUTHORIZATION_DENIED');
+      expect(createReplayError.error.message).toBe('Kayıt bulunamadı.');
+      const errorText = JSON.stringify(createReplayError);
+      expect(errorText).not.toContain(cust.id);
+      expect(errorText).not.toContain(cust.displayName);
+      expect(
+        (
+          await db
+            .prepare('SELECT count(*) AS count FROM customers WHERE id = ?')
+            .bind(cust.id)
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
+      expect(
+        (
+          await db
+            .prepare(
+              "SELECT count(*) AS count FROM audit_events WHERE action = 'customer.create' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+            )
+            .bind('idem-create-for-reassign')
+            .first<{ count: number }>()
+        )?.count,
+      ).toBe(1);
 
       const assignmentReplay = await send(
         mutationRequest(

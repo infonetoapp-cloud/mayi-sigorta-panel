@@ -205,6 +205,28 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
     const custId = 'cust-concurrent-1';
     const idemKey = 'ik-concurrent-create-key';
     const payload = { type: 'COMPANY', companyTitle: 'Concurrent Co' };
+    const createdAt = new Date().toISOString();
+    const receiptDto = {
+      id: custId,
+      agencyId: AGENCY_ID,
+      type: 'COMPANY' as const,
+      displayName: 'Concurrent Co',
+      firstName: null,
+      lastName: null,
+      companyTitle: 'Concurrent Co',
+      email: null,
+      phone: null,
+      address: null,
+      assigneeMembershipId: OWNER_MEM_ID,
+      archivedAt: null,
+      archivedByMembershipId: null,
+      archiveReasonCode: null,
+      hasIdentity: false,
+      identityMasked: null,
+      version: 1,
+      createdAt,
+      updatedAt: createdAt,
+    };
 
     const task1 = executeCustomerDomainCommand({
       db,
@@ -223,7 +245,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         displayName: 'Concurrent Co',
         companyTitle: 'Concurrent Co',
       },
-      resultProducer: () => ({ status: 201, body: { id: custId, name: 'Concurrent Co' } }),
+      resultProducer: () => ({ status: 201, body: receiptDto }),
     });
 
     const task2 = executeCustomerDomainCommand({
@@ -243,7 +265,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         displayName: 'Concurrent Co',
         companyTitle: 'Concurrent Co',
       },
-      resultProducer: () => ({ status: 201, body: { id: custId, name: 'Concurrent Co' } }),
+      resultProducer: () => ({ status: 201, body: receiptDto }),
     });
 
     const [res1, res2] = await Promise.all([task1, task2]);

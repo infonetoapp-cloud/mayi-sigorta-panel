@@ -17,7 +17,16 @@ import {
   updatePolicy,
 } from '../src/server/policies/service';
 import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
-import { archiveCustomer, assignCustomer, listCustomers } from '../src/server/customers/service';
+import {
+  archiveCustomer,
+  assignCustomer,
+  createCompanyContact,
+  deactivateCompanyContact,
+  listCustomers,
+  setPrimaryCompanyContact,
+  updateCompanyContact,
+  updateCustomer,
+} from '../src/server/customers/service';
 import {
   executePolicyCommand,
   PolicyAuthorizationRaceError,
@@ -1066,6 +1075,208 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
         )
         .run(),
     ).rejects.toThrow('CUSTOMER_ARCHIVED');
+  });
+
+  it('replays successful CompanyContact deactivation before the inactive-state precondition', async () => {
+    const customerId = 'customer-contact-deactivate-replay';
+    await db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,company_title,assignee_membership_id,version) VALUES(?, 'agency-a', 'COMPANY', 'Contact Replay Co', 'Contact Replay Co', 'member-a', 1)",
+      )
+      .bind(customerId)
+      .run();
+    const contact = await createCompanyContact(
+      db,
+      owner,
+      customerId,
+      { firstName: 'Ada', lastName: 'Replay', isPrimary: false },
+      { correlationId: 'contact-create-deactivate', idempotencyKey: 'contact-create-deactivate' },
+    );
+    const payload = { expectedVersion: 1 };
+    const options = {
+      correlationId: 'contact-deactivate-first',
+      idempotencyKey: 'contact-deactivate-replay',
+    };
+    const first = await deactivateCompanyContact(
+      db,
+      owner,
+      customerId,
+      contact.id,
+      payload,
+      options,
+    );
+    const replay = await deactivateCompanyContact(db, owner, customerId, contact.id, payload, {
+      ...options,
+      correlationId: 'contact-deactivate-retry',
+    });
+    expect(replay).toEqual(first);
+    expect(first.status).toBe('INACTIVE');
+    expect(first.version).toBe(2);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE action = 'company_contact.deactivate' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(options.idempotencyKey)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
+  });
+
+  it('replays set-primary, contact update, and Customer update after later lifecycle changes', async () => {
+    const customerId = 'customer-mutable-replay-order';
+    await db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,company_title,assignee_membership_id,version) VALUES(?, 'agency-a', 'COMPANY', 'Mutable Replay Co', 'Mutable Replay Co', 'member-a', 1)",
+      )
+      .bind(customerId)
+      .run();
+
+    const primaryContact = await createCompanyContact(
+      db,
+      owner,
+      customerId,
+      { firstName: 'Primary', lastName: 'Replay', isPrimary: false },
+      { correlationId: 'primary-contact-create', idempotencyKey: 'primary-contact-create' },
+    );
+    const primaryPayload = { expectedVersion: 1 };
+    const primaryKey = 'set-primary-then-deactivate';
+    const primaryResult = await setPrimaryCompanyContact(
+      db,
+      owner,
+      customerId,
+      primaryContact.id,
+      primaryPayload,
+      { correlationId: 'set-primary-first', idempotencyKey: primaryKey },
+    );
+    await deactivateCompanyContact(
+      db,
+      owner,
+      customerId,
+      primaryContact.id,
+      { expectedVersion: 2 },
+      {
+        correlationId: 'set-primary-later-deactivation',
+        idempotencyKey: 'set-primary-later-deactivation',
+      },
+    );
+    const primaryReplay = await setPrimaryCompanyContact(
+      db,
+      owner,
+      customerId,
+      primaryContact.id,
+      primaryPayload,
+      { correlationId: 'set-primary-retry', idempotencyKey: primaryKey },
+    );
+    expect(primaryReplay).toEqual(primaryResult);
+
+    const updatedContact = await createCompanyContact(
+      db,
+      owner,
+      customerId,
+      { firstName: 'Updated', lastName: 'Replay', isPrimary: false },
+      { correlationId: 'update-contact-create', idempotencyKey: 'update-contact-create' },
+    );
+    const contactPayload = { expectedVersion: 1, email: 'updated-contact@example.test' };
+    const contactKey = 'contact-update-then-deactivate';
+    const contactResult = await updateCompanyContact(
+      db,
+      owner,
+      customerId,
+      updatedContact.id,
+      contactPayload,
+      { correlationId: 'contact-update-first', idempotencyKey: contactKey },
+    );
+    await deactivateCompanyContact(
+      db,
+      owner,
+      customerId,
+      updatedContact.id,
+      { expectedVersion: 2 },
+      {
+        correlationId: 'contact-update-later-deactivation',
+        idempotencyKey: 'contact-update-later-deactivation',
+      },
+    );
+    const contactReplay = await updateCompanyContact(
+      db,
+      owner,
+      customerId,
+      updatedContact.id,
+      contactPayload,
+      { correlationId: 'contact-update-retry', idempotencyKey: contactKey },
+    );
+    expect(contactReplay).toEqual(contactResult);
+
+    const individualId = 'customer-update-then-archive';
+    await db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id,version) VALUES(?, 'agency-a', 'INDIVIDUAL', 'Archive Replay', 'Archive', 'Replay', 'member-a', 1)",
+      )
+      .bind(individualId)
+      .run();
+    const customerPayload = { expectedVersion: 1, email: 'updated-customer@example.test' };
+    const customerKey = 'customer-update-then-archive';
+    const customerResult = await updateCustomer(db, owner, individualId, customerPayload, {
+      correlationId: 'customer-update-first',
+      idempotencyKey: customerKey,
+    });
+    await archiveCustomer(
+      db,
+      owner,
+      individualId,
+      { expectedVersion: 2, reasonCode: 'DUPLICATE_RECORD' },
+      {
+        correlationId: 'customer-update-later-archive',
+        idempotencyKey: 'customer-update-later-archive',
+      },
+    );
+    const customerReplay = await updateCustomer(db, owner, individualId, customerPayload, {
+      correlationId: 'customer-update-retry',
+      idempotencyKey: customerKey,
+    });
+    expect(customerReplay).toEqual(customerResult);
+    expect(customerReplay.archivedAt).toBeNull();
+  });
+
+  it('replays an exact Customer assignment after the Customer is archived', async () => {
+    const customerId = 'customer-assign-archive-replay';
+    await db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id,version) VALUES(?, 'agency-a', 'INDIVIDUAL', 'Assign Archive Replay', 'Assign', 'Replay', 'member-a', 1)",
+      )
+      .bind(customerId)
+      .run();
+    const payload = { expectedVersion: 1, assigneeMembershipId: 'member-w' };
+    const key = 'customer-assign-before-archive';
+    const first = await assignCustomer(db, owner, customerId, payload, {
+      correlationId: 'assign-before-archive',
+      idempotencyKey: key,
+    });
+    await archiveCustomer(
+      db,
+      owner,
+      customerId,
+      { expectedVersion: 2, reasonCode: 'DUPLICATE_RECORD' },
+      { correlationId: 'archive-after-assign', idempotencyKey: 'archive-after-assign' },
+    );
+    const replay = await assignCustomer(db, owner, customerId, payload, {
+      correlationId: 'assign-after-archive-retry',
+      idempotencyKey: key,
+    });
+    expect(replay).toEqual(first);
+    expect(replay.archivedAt).toBeNull();
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE action = 'customer.assign' AND idempotency_key = ? AND outcome = 'SUCCESS'",
+          )
+          .bind(key)
+          .first<{ count: number }>()
+      )?.count,
+    ).toBe(1);
   });
 
   it('assigns customers with CAS, exact replay, live scope, race rollback, and fresh replay authorization', async () => {
