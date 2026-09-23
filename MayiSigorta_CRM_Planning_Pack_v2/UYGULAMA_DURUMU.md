@@ -217,6 +217,6 @@ Durum: **M2 ikinci inceleme remediation uygulaması tamamlandı; üçüncü yeni
 - Tam kapılar: `npm run test` **813/813 PASS (38 dosya)**; `npm run test:d1` **26/26 PASS (1 dosya)**; `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` ve `git diff --check` **PASS**. Build içindeki Wrangler Worker deploy dry-run geçti; herhangi bir deploy yapılmadı.
 - Migration/schema: hiçbir migration veya schema dosyası değişmedi; `0000–0009` tarihsel SQL ve migration `0009` davranışı aynen kaldı; speculative `0010` yok. Migration matrix tekrarına gerek olmadı.
 - Remote/operasyon sınırı: remote D1, DNS, staging, production, gerçek veri, deployment ve M3 işi yapılmadı.
-- Remediation sonrası bulgu sınıflandırması: **kalan BLOCKER 0, IMPORTANT 0, OPTIONAL 0** (uygulama/test öz-değerlendirmesi; üçüncü bağımsız inceleme yerine geçmez). Remediation commit hash'i commit oluşturulduktan sonra bu kayda eklenecektir.
+- Remediation sonrası bulgu sınıflandırması: **kalan BLOCKER 0, IMPORTANT 0, OPTIONAL 0** (uygulama/test öz-değerlendirmesi; üçüncü bağımsız inceleme yerine geçmez). Remediation implementation commit: `1302b5112561d9108119aaaa5558fefea3cfcc31` (`fix: harden customer completed replay semantics`).
 
 M2 SECOND REVIEW REMEDIATION COMPLETE — READY FOR THIRD FRESH INDEPENDENT REVIEW
