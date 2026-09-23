@@ -870,8 +870,14 @@ export async function listPolicies(
     values.push(query.status);
   }
   if (query.search) {
-    where.push('p.normalized_policy_number LIKE ?');
-    values.push(`${normalizePolicyNumber(query.search)}%`);
+    const normalizedSearch = normalizePolicyNumber(query.search);
+    if (query.searchMode === 'exact') {
+      where.push('p.normalized_policy_number = ?');
+      values.push(normalizedSearch);
+    } else {
+      where.push('p.normalized_policy_number LIKE ?');
+      values.push(`${normalizedSearch}%`);
+    }
   }
   if (query.endFrom) {
     where.push('p.end_date>=?');

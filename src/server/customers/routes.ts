@@ -267,17 +267,22 @@ export function registerCustomerRoutes(
 
     if (err instanceof DomainConstraintViolationError) {
       const status =
-        err.code === 'MULTIPLE_ACTIVE_PRIMARY_CONTACTS_PROHIBITED' ||
-        err.code === 'DUPLICATE_EXTERNAL_REFERENCE' ||
-        err.code === 'OPEN_DEPENDENCIES'
-          ? 409
-          : err.code === 'INDIVIDUAL_CONTACT_PROHIBITED'
-            ? 400
-            : 400;
+        err.code === 'REPLAY_AUTHORIZATION_DENIED'
+          ? 404
+          : err.code === 'MULTIPLE_ACTIVE_PRIMARY_CONTACTS_PROHIBITED' ||
+              err.code === 'DUPLICATE_EXTERNAL_REFERENCE' ||
+              err.code === 'OPEN_DEPENDENCIES'
+            ? 409
+            : err.code === 'INDIVIDUAL_CONTACT_PROHIBITED'
+              ? 400
+              : 400;
       return c.json(
         {
           success: false,
-          error: { code: err.code, message: err.message },
+          error: {
+            code: err.code,
+            message: err.code === 'REPLAY_AUTHORIZATION_DENIED' ? 'Kayıt bulunamadı.' : err.message,
+          },
           timestamp: new Date().toISOString(),
         },
         status,

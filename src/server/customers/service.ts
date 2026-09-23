@@ -1531,9 +1531,15 @@ export async function assignCustomer(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     idempotencyKey: options.idempotencyKey,
     payload: idempotencyPayload,
-    commandKind: 'customer.assign',
+    command: {
+      kind: 'customer.assign',
+      customerId: existing.id,
+      expectedVersion: data.expectedVersion,
+      targetAssigneeMembershipId: data.assigneeMembershipId,
+    },
   });
   if (completedReplay) return completedReplay.body;
 
@@ -1627,9 +1633,15 @@ export async function archiveCustomer(
     agencyId,
     actorUserId: context.userId,
     actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
     idempotencyKey: options.idempotencyKey,
     payload,
-    commandKind: 'customer.archive',
+    command: {
+      kind: 'customer.archive',
+      customerId,
+      expectedVersion: data.expectedVersion,
+      reasonCode: data.reasonCode,
+    },
   });
   if (replay) return replay.body;
   const now = new Date().toISOString();
@@ -1736,17 +1748,6 @@ export async function createExternalReference(
   const data = parsed.data;
   const idempotencyPayload = { customerId, ...data };
 
-  const completedReplay = await replayCompletedCustomerDomainCommand<ExternalCustomerReferenceDto>({
-    db,
-    agencyId,
-    actorUserId: context.userId,
-    actorMembershipId: activeMembership.id,
-    idempotencyKey: options.idempotencyKey,
-    payload: idempotencyPayload,
-    commandKind: 'customer.external_reference.create',
-  });
-  if (completedReplay) return completedReplay.body;
-
   const existing = await db
     .prepare('SELECT * FROM customers WHERE id = ? AND agency_id = ?')
     .bind(customerId, agencyId)
@@ -1769,6 +1770,25 @@ export async function createExternalReference(
   if (authz.decision !== 'ALLOW') {
     throw new CustomerForbiddenError('Harici referans oluşturma yetkiniz bulunmamaktadır.');
   }
+
+  const completedReplay = await replayCompletedCustomerDomainCommand<ExternalCustomerReferenceDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload: idempotencyPayload,
+    command: {
+      kind: 'customer.external_reference.create',
+      customerId: existing.id,
+      referenceId: 'replay-target-not-used',
+      expectedVersion: data.expectedVersion,
+      sourceNamespace: data.sourceNamespace,
+      externalKey: data.externalKey,
+    },
+  });
+  if (completedReplay) return completedReplay.body;
 
   const referenceId = crypto.randomUUID();
   const now = new Date().toISOString();

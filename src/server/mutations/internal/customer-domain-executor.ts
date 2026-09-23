@@ -30,6 +30,7 @@ import { computePayloadHash } from '../canonical';
 import { IdempotencyConflictError } from '../idempotency';
 import { buildSafeAuditRecord } from '../audit';
 import { OptimisticConcurrencyError } from '../../db/optimistic';
+import { evaluateAuthorization } from '../../auth/authorization';
 
 export class DomainConstraintViolationError extends Error {
   readonly code: string;
@@ -193,7 +194,7 @@ async function lookupIdempotency<TResult>(input: {
   readonly actorMembershipId: string;
   readonly idempotencyKey: string;
   readonly payload: unknown;
-  readonly commandKind: CustomerDomainCommandKind;
+  readonly command: CustomerDomainCommand;
 }): Promise<IdempotencyLookup<TResult>> {
   if (
     !input.idempotencyKey ||
@@ -204,8 +205,26 @@ async function lookupIdempotency<TResult>(input: {
   }
 
   const trimmedIdempotencyKey = input.idempotencyKey.trim();
-  const action = actionForCommandKind(input.commandKind);
-  const payloadFingerprint = await computePayloadHash(input.payload);
+  const action = actionForCommandKind(input.command.kind);
+  const command = input.command;
+  const target =
+    command.kind === 'customer.create'
+      ? null
+      : command.kind === 'company_contact.create' ||
+          command.kind === 'company_contact.update' ||
+          command.kind === 'company_contact.set_primary' ||
+          command.kind === 'company_contact.deactivate'
+        ? {
+            customerId: command.customerId,
+            ...(command.kind === 'company_contact.create' ? {} : { contactId: command.contactId }),
+          }
+        : { customerId: command.customerId };
+  const expectedVersion = 'expectedVersion' in command ? command.expectedVersion : null;
+  const payloadFingerprint = await computePayloadHash({
+    target,
+    expectedVersion,
+    payload: input.payload,
+  });
   const existingReceipt = await input.db
     .prepare(
       `SELECT action, payload_fingerprint, status, response_status, response_body
@@ -254,17 +273,106 @@ async function lookupIdempotency<TResult>(input: {
   };
 }
 
+/** Replayed business results remain authoritative only while live read/mutation authority exists. */
+async function assertCurrentReplayAuthority(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly actorIdentityId: string;
+  readonly command: CustomerDomainCommand;
+}): Promise<void> {
+  const membership = await input.db
+    .prepare(
+      `SELECT type, status, permission_version FROM agency_memberships
+       WHERE id=? AND agency_id=? AND user_id=?`,
+    )
+    .bind(input.actorMembershipId, input.agencyId, input.actorUserId)
+    .first<{ type: unknown; status: unknown; permission_version: unknown }>();
+  const identity = await input.db
+    .prepare('SELECT status FROM auth_identities WHERE id=? AND user_id=?')
+    .bind(input.actorIdentityId, input.actorUserId)
+    .first<{ status: unknown }>();
+  if (
+    !membership ||
+    membership.status !== 'ACTIVE' ||
+    (membership.type !== 'OWNER' && membership.type !== 'MEMBER') ||
+    typeof membership.permission_version !== 'number' ||
+    identity?.status !== 'ACTIVE'
+  ) {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+  const context = {
+    userId: input.actorUserId,
+    identityId: input.actorIdentityId,
+    assurance: 'NORMAL' as const,
+    memberships: [
+      {
+        id: input.actorMembershipId,
+        agencyId: input.agencyId,
+        type: membership.type,
+        status: 'ACTIVE' as const,
+        permissionVersion: membership.permission_version,
+      },
+    ],
+  };
+  const command = input.command;
+  const isCreate = command.kind === 'customer.create';
+  let resource: Record<string, unknown>;
+  if (isCreate) {
+    resource = { agencyId: input.agencyId, isCollection: true };
+  } else {
+    const customerId = command.customerId;
+    const customer = await input.db
+      .prepare(
+        'SELECT id, agency_id, assignee_membership_id FROM customers WHERE id=? AND agency_id=?',
+      )
+      .bind(customerId, input.agencyId)
+      .first<{ id: string; agency_id: string; assignee_membership_id: string | null }>();
+    if (!customer) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    if (
+      command.kind === 'company_contact.update' ||
+      command.kind === 'company_contact.set_primary' ||
+      command.kind === 'company_contact.deactivate'
+    ) {
+      const contact = await input.db
+        .prepare('SELECT id FROM company_contacts WHERE id=? AND customer_id=? AND agency_id=?')
+        .bind(command.contactId, customerId, input.agencyId)
+        .first<{ id: string }>();
+      if (!contact) throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    }
+    resource = {
+      agencyId: customer.agency_id,
+      id: customer.id,
+      customerId: customer.id,
+      assigneeMembershipId: customer.assignee_membership_id,
+      parentAssigneeMembershipId: customer.assignee_membership_id,
+    };
+  }
+  const authorization = await evaluateAuthorization(input.db, {
+    context,
+    action: actionForCommandKind(command.kind),
+    resource,
+  });
+  if (authorization.decision !== 'ALLOW') {
+    throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+  }
+}
+
 /** Authoritative completed-receipt phase for service prechecks. */
 export async function replayCompletedCustomerDomainCommand<TResult>(input: {
   readonly db: D1Database;
   readonly agencyId: string;
   readonly actorUserId: string;
   readonly actorMembershipId: string;
+  readonly actorIdentityId: string;
   readonly idempotencyKey: string;
   readonly payload: unknown;
-  readonly commandKind: CustomerDomainCommandKind;
+  readonly command: CustomerDomainCommand;
 }): Promise<CustomerDomainCommandResult<TResult> | null> {
-  return (await lookupIdempotency<TResult>(input)).replay;
+  const replay = (await lookupIdempotency<TResult>(input)).replay;
+  if (replay) await assertCurrentReplayAuthority(input);
+  return replay;
 }
 
 interface CommandExecutionPlan {
@@ -987,9 +1095,19 @@ export async function executeCustomerDomainCommand<TResult>(
     actorMembershipId,
     idempotencyKey,
     payload: input.payload,
-    commandKind: command.kind,
+    command,
   });
-  if (idempotency.replay) return idempotency.replay;
+  if (idempotency.replay) {
+    await assertCurrentReplayAuthority({
+      db,
+      agencyId,
+      actorUserId,
+      actorMembershipId,
+      actorIdentityId,
+      command,
+    });
+    return idempotency.replay;
+  }
   const { action, payloadFingerprint, trimmedIdempotencyKey } = idempotency;
 
   let plan: CommandExecutionPlan;
@@ -1005,9 +1123,19 @@ export async function executeCustomerDomainCommand<TResult>(
       actorMembershipId,
       idempotencyKey,
       payload: input.payload,
-      commandKind: command.kind,
+      command,
     });
-    if (afterFailure.replay) return afterFailure.replay;
+    if (afterFailure.replay) {
+      await assertCurrentReplayAuthority({
+        db,
+        agencyId,
+        actorUserId,
+        actorMembershipId,
+        actorIdentityId,
+        command,
+      });
+      return afterFailure.replay;
+    }
     throw planningError;
   }
   if (plan.action !== action) {
@@ -1442,6 +1570,14 @@ export async function executeCustomerDomainCommand<TResult>(
         concurrentReceipt.payload_fingerprint === payloadFingerprint &&
         concurrentReceipt.status === 'COMPLETED'
       ) {
+        await assertCurrentReplayAuthority({
+          db,
+          agencyId,
+          actorUserId,
+          actorMembershipId,
+          actorIdentityId,
+          command,
+        });
         let parsedBody: TResult;
         try {
           parsedBody = JSON.parse(concurrentReceipt.response_body) as TResult;

@@ -513,29 +513,29 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       expect(custRow?.version).toBe(2);
       expect(custRow?.assignee_membership_id).toBe(MEMBER_B_MEM_ID);
 
-      const replay = await executeCustomerDomainCommand({
-        db,
-        agencyId: AGENCY_ID,
-        actorUserId: MEMBER_A_USER_ID,
-        actorIdentityId: 'ident-mem-a',
-        actorMembershipId: MEMBER_A_MEM_ID,
-        expectedPermissionVersion: 1,
-        correlationId: 'corr-assign-1-retry',
-        idempotencyKey: 'idem-assign-1',
-        payload: { customerId: custId, target: MEMBER_B_MEM_ID },
-        command: {
-          kind: 'customer.assign',
-          customerId: custId,
-          expectedVersion: 1,
-          targetAssigneeMembershipId: MEMBER_B_MEM_ID,
-        },
-        resultProducer: () => ({
-          status: 200,
-          body: { id: custId, assigneeMembershipId: MEMBER_B_MEM_ID },
+      await expect(
+        executeCustomerDomainCommand({
+          db,
+          agencyId: AGENCY_ID,
+          actorUserId: MEMBER_A_USER_ID,
+          actorIdentityId: 'ident-mem-a',
+          actorMembershipId: MEMBER_A_MEM_ID,
+          expectedPermissionVersion: 1,
+          correlationId: 'corr-assign-1-retry',
+          idempotencyKey: 'idem-assign-1',
+          payload: { customerId: custId, target: MEMBER_B_MEM_ID },
+          command: {
+            kind: 'customer.assign',
+            customerId: custId,
+            expectedVersion: 1,
+            targetAssigneeMembershipId: MEMBER_B_MEM_ID,
+          },
+          resultProducer: () => ({
+            status: 200,
+            body: { id: custId, assigneeMembershipId: MEMBER_B_MEM_ID },
+          }),
         }),
-      });
-      expect(replay.executed).toBe(false);
-      expect(replay.replayed).toBe(true);
+      ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
 
       const assignmentEffects = await db
         .prepare(
@@ -648,6 +648,124 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
   });
 
   describe('customer.external_reference.create', () => {
+    it('denies completed replay after permission, assignment, membership, or identity authority is revoked', async () => {
+      const scenarios = [
+        {
+          suffix: 'permission',
+          revoke: async (_customerId: string, membershipId: string) => {
+            await db
+              .prepare(
+                "DELETE FROM membership_permissions WHERE membership_id=? AND permission_code='customer.update'",
+              )
+              .bind(membershipId)
+              .run();
+            await db
+              .prepare(
+                'UPDATE agency_memberships SET permission_version=2,version=version+1 WHERE id=?',
+              )
+              .bind(membershipId)
+              .run();
+          },
+        },
+        {
+          suffix: 'assignment',
+          revoke: async (id: string) => {
+            await db
+              .prepare('UPDATE customers SET assignee_membership_id=? WHERE id=?')
+              .bind(OWNER_MEM_ID, id)
+              .run();
+          },
+        },
+        {
+          suffix: 'membership',
+          revoke: async (_customerId: string, membershipId: string) => {
+            await db
+              .prepare(
+                "UPDATE agency_memberships SET status='SUSPENDED',suspended_at='2026-09-23T00:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id=?",
+              )
+              .bind(membershipId)
+              .run();
+          },
+        },
+        {
+          suffix: 'identity',
+          revoke: async (_customerId: string, _membershipId: string, identityId: string) => {
+            await db
+              .prepare(
+                "UPDATE auth_identities SET status='REVOKED',revoked_at='2999-01-01T00:00:00.000Z',version=version+1,updated_at='2999-01-01T00:00:00.000Z' WHERE id=?",
+              )
+              .bind(identityId)
+              .run();
+          },
+        },
+      ];
+      for (const scenario of scenarios) {
+        const userId = `replay-user-${scenario.suffix}`;
+        const membershipId = `replay-member-${scenario.suffix}`;
+        const identityId = `replay-identity-${scenario.suffix}`;
+        await db.prepare("INSERT INTO users(id,status) VALUES(?,'ACTIVE')").bind(userId).run();
+        await db
+          .prepare(
+            `INSERT INTO agency_memberships(id,agency_id,user_id,type,status,invitation_email,invitation_expires_at,version,permission_version,activated_at)
+           VALUES(?,?,?,'MEMBER','ACTIVE',?,'2099-01-01T00:00:00.000Z',1,1,'2026-09-17T00:00:00.000Z')`,
+          )
+          .bind(membershipId, AGENCY_ID, userId, `${scenario.suffix}@test.com`)
+          .run();
+        await db
+          .prepare(
+            `INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status)
+           VALUES(?,?, 'https://test', ?, ?, 'ACTIVE')`,
+          )
+          .bind(identityId, userId, `sub-${scenario.suffix}`, `${scenario.suffix}@test.com`)
+          .run();
+        await db
+          .prepare(
+            "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,'customer.read','ASSIGNED'),(?,?,'customer.update','ASSIGNED')",
+          )
+          .bind(
+            `perm-read-${scenario.suffix}`,
+            membershipId,
+            `perm-update-${scenario.suffix}`,
+            membershipId,
+          )
+          .run();
+        const customerId = `replay-auth-${scenario.suffix}`;
+        const key = `replay-auth-key-${scenario.suffix}`;
+        await db
+          .prepare(
+            `INSERT INTO customers(id,agency_id,type,display_name,assignee_membership_id,version)
+           VALUES(?,?,'INDIVIDUAL','Replay Auth',?,1)`,
+          )
+          .bind(customerId, AGENCY_ID, membershipId)
+          .run();
+        const request = () =>
+          executeCustomerDomainCommand({
+            db,
+            agencyId: AGENCY_ID,
+            actorUserId: userId,
+            actorIdentityId: identityId,
+            actorMembershipId: membershipId,
+            expectedPermissionVersion: 1,
+            correlationId: `corr-${key}`,
+            idempotencyKey: key,
+            payload: { customerId, expectedVersion: 1, sourceNamespace: 'TEST', externalKey: key },
+            command: {
+              kind: 'customer.external_reference.create' as const,
+              customerId,
+              referenceId: `ref-${key}`,
+              expectedVersion: 1,
+              sourceNamespace: 'TEST',
+              externalKey: key,
+            },
+            resultProducer: () => ({ status: 201, body: { id: `ref-${key}`, customerId } }),
+          });
+        const first = await request();
+        expect(first.executed).toBe(true);
+        await scenario.revoke(customerId, membershipId, identityId);
+        await expect(request()).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
+      }
+    });
+
     it('replays an exact completed create before duplicate prechecks and preserves one effect', async () => {
       const custId = 'cust-ext-replay';
       const refId = 'ref-ext-replay';

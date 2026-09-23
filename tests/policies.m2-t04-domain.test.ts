@@ -181,12 +181,126 @@ describe('M2-T04 policy domain on real D1', () => {
     });
   });
 
-  it('searches policy numbers by normalized exact value and prefix within the authorized portfolio', async () => {
-    await createPolicy(ctx, db, { ...input, policyNumber: 'İLK-2026/001' }, 'search-policy');
-    const prefix = await listPolicies(ctx, db, { search: 'İLK-2026' });
-    const exact = await listPolicies(ctx, db, { search: 'İLK 2026/001' });
-    expect(prefix.items.map((item) => item.normalizedPolicyNumber)).toContain('İLK2026001');
-    expect(exact.items.map((item) => item.normalizedPolicyNumber)).toEqual(['İLK2026001']);
+  it('searches normalized policy numbers exactly or by explicit prefix within authorized scope', async () => {
+    await createPolicy(
+      ctx,
+      db,
+      { ...input, policyNumber: 'İLK-2026/001' },
+      'search-policy-turkish',
+    );
+    await expect(
+      createPolicy(
+        ctx,
+        db,
+        { ...input, policyNumber: 'ilk-2026/001' },
+        'search-policy-turkish-collision',
+      ),
+    ).rejects.toMatchObject({ code: 'DUPLICATE_POLICY_CANDIDATE' });
+    await createPolicy(
+      ctx,
+      db,
+      { ...input, policyNumber: 'P-100', endDate: '2027-12-31' },
+      'search-policy-short',
+    );
+    await createPolicy(
+      ctx,
+      db,
+      { ...input, policyNumber: 'P-1000', endDate: '2028-12-31' },
+      'search-policy-long',
+    );
+    const prefix = await listPolicies(ctx, db, { search: 'ilk-2026', searchMode: 'prefix' });
+    const exact = await listPolicies(ctx, db, { search: 'ilk-2026/001', searchMode: 'exact' });
+    const exactShort = await listPolicies(ctx, db, { search: 'P-100', searchMode: 'exact' });
+    const prefixShort = await listPolicies(ctx, db, { search: 'P-100', searchMode: 'prefix' });
+    expect(prefix.items.map((item) => item.normalizedPolicyNumber)).toContain('ILK2026001');
+    expect(exact.items.map((item) => item.normalizedPolicyNumber)).toEqual(['ILK2026001']);
+    expect(exactShort.items.map((item) => item.policyNumber)).toEqual(['P-100']);
+    expect(prefixShort.items.map((item) => item.policyNumber)).toEqual(['P-100', 'P-1000']);
+  });
+
+  it('keeps exact/prefix search inside agency and ASSIGNED scope across cursor pages', async () => {
+    const visible = await createPolicy(
+      ctx,
+      db,
+      { ...input, customerId: 'customer-worker', policyNumber: 'P-100', endDate: '2026-10-01' },
+      'scope-search-visible',
+    );
+    const hidden = await createPolicy(
+      ctx,
+      db,
+      { ...input, customerId: 'customer-a', policyNumber: 'P-1000', endDate: '2026-11-01' },
+      'scope-search-hidden',
+    );
+    const workerCtx = {
+      userId: 'user-member',
+      identityId: 'identity-worker',
+      assurance: 'NORMAL' as const,
+      memberships: [
+        {
+          id: 'member-worker',
+          agencyId: 'agency-a',
+          type: 'MEMBER' as const,
+          status: 'ACTIVE' as const,
+          permissionVersion: 1,
+        },
+      ],
+    };
+    const workerExact = await listPolicies(workerCtx, db, { search: 'P-100', searchMode: 'exact' });
+    const workerPrefix = await listPolicies(workerCtx, db, {
+      search: 'P-100',
+      searchMode: 'prefix',
+    });
+    expect(workerExact.items.map((item) => item.id)).toContain(visible.data.id);
+    expect(workerExact.items.map((item) => item.id)).not.toContain(hidden.data.id);
+    expect(workerPrefix.items.map((item) => item.id)).toContain(visible.data.id);
+    expect(workerPrefix.items.map((item) => item.id)).not.toContain(hidden.data.id);
+
+    await db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,assignee_membership_id) VALUES('customer-b-policy','agency-b','INDIVIDUAL','B','member-b')",
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO insurance_branches(id,agency_id,code,name) VALUES('branch-b','agency-b','AUTO','Auto')",
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name) VALUES('product-b','agency-b','insurer-b','branch-b','PB','Product B')",
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO payment_methods(id,agency_id,code,name) VALUES('payment-b','agency-b','CASH','Cash')",
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency)
+       VALUES('policy-cross-prefix','agency-b','customer-b-policy','insurer-b','product-b','branch-b','payment-b','member-b','P-1002','P1002','2026-01-01','2026-12-31',1,'TRY')`,
+      )
+      .run();
+
+    const first = await listPolicies(ctx, db, {
+      search: 'P-100',
+      searchMode: 'prefix',
+      pageSize: 1,
+    });
+    expect(first.items).toHaveLength(1);
+    expect(first.hasMore).toBe(true);
+    const second = await listPolicies(ctx, db, {
+      search: 'P-100',
+      searchMode: 'prefix',
+      pageSize: 1,
+      cursor: first.nextCursor!,
+    });
+    expect(second.items).toHaveLength(1);
+    const pagedIds = [...first.items, ...second.items].map((item) => item.id);
+    expect(new Set(pagedIds).size).toBe(2);
+    expect(pagedIds).toContain(visible.data.id);
+    expect(pagedIds).toContain(hidden.data.id);
+    expect(pagedIds).not.toContain('policy-cross-prefix');
   });
 
   it('enforces payment semantics, active consistent catalogs, and same-agency database relations', async () => {

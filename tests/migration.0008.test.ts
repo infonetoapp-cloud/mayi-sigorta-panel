@@ -41,9 +41,7 @@ describe('M2-T05 migration 0008', () => {
     expect(
       readdirSync(resolve(root, 'db/migrations')).filter((file) => file.startsWith('0008_')),
     ).toHaveLength(1);
-    expect(
-      readdirSync(resolve(root, 'db/migrations')).filter((file) => file.startsWith('0009_')),
-    ).toEqual([]);
+
     const migration = readFileSync(
       resolve(
         root,

@@ -17,6 +17,9 @@ describe('M2-T04 policy validation', () => {
   it('normalizes policy numbers deterministically', () => {
     expect(normalizePolicyNumber('  AB-12 / 34  ')).toBe('AB1234');
     expect(normalizePolicyNumber(' ş-12-ğ ')).toBe('Ş12Ğ');
+    const turkishForms = ['İLK-2026/001', 'ilk-2026/001', 'ILK-2026/001', 'ılk-2026/001'];
+    expect(new Set(turkishForms.map(normalizePolicyNumber)).size).toBe(1);
+    expect(normalizePolicyNumber('ＡＢ-１２')).toBe(normalizePolicyNumber('ab12'));
     expect(() => normalizePolicyNumber('---')).toThrow();
   });
 

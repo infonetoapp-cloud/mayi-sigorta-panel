@@ -237,10 +237,10 @@ describe('M2 Batch-B policy/customer lifecycle UI', () => {
   });
 
   it('searches the policy list by policy number through the server query', async () => {
-    let searchUrl = '';
+    const searchUrls: string[] = [];
     installBaseFetch((url) => {
       if (url.includes('&search=')) {
-        searchUrl = url;
+        searchUrls.push(url);
         return response({
           success: true,
           data: { items: [policy], nextCursor: null, hasMore: false },
@@ -254,7 +254,13 @@ describe('M2 Batch-B policy/customer lifecycle UI', () => {
       target: { value: 'P-2026' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Poliçelerde Ara/i }));
-    await waitFor(() => expect(searchUrl).toContain('search=P-2026'));
+    await waitFor(() => expect(searchUrls.at(-1)).toContain('search=P-2026'));
+    expect(searchUrls.at(-1)).toContain('searchMode=prefix');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Poliçe arama türü' }), {
+      target: { value: 'exact' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Poliçelerde Ara/i }));
+    await waitFor(() => expect(searchUrls.at(-1)).toContain('searchMode=exact'));
     expect(await screen.findByText('P-2026-001')).toBeTruthy();
   });
 

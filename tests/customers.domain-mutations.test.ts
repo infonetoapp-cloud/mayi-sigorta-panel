@@ -316,6 +316,160 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
     ).rejects.toThrow(IdempotencyConflictError);
   });
 
+  it('binds Customer receipts to route customer/contact targets and expected versions', async () => {
+    const companyId = 'idem-target-company';
+    await executeCustomerDomainCommand({
+      db,
+      agencyId: AGENCY_ID,
+      actorUserId: OWNER_USER_ID,
+      actorIdentityId: 'ident-owner',
+      actorMembershipId: OWNER_MEM_ID,
+      expectedPermissionVersion: 2,
+      correlationId: 'idem-target-company',
+      idempotencyKey: 'idem-target-company-create',
+      payload: { name: 'Target Co' },
+      command: {
+        kind: 'customer.create',
+        customerId: companyId,
+        type: 'COMPANY',
+        displayName: 'Target Co',
+      },
+      resultProducer: () => ({ status: 201, body: { id: companyId } }),
+    });
+    for (const contactId of ['idem-contact-a', 'idem-contact-b']) {
+      await executeCustomerDomainCommand({
+        db,
+        agencyId: AGENCY_ID,
+        actorUserId: OWNER_USER_ID,
+        actorIdentityId: 'ident-owner',
+        actorMembershipId: OWNER_MEM_ID,
+        expectedPermissionVersion: 2,
+        correlationId: contactId,
+        idempotencyKey: `${contactId}-create`,
+        payload: { firstName: 'Casey', lastName: 'Target' },
+        command: {
+          kind: 'company_contact.create',
+          customerId: companyId,
+          contactId,
+          firstName: 'Casey',
+          lastName: 'Target',
+          isPrimary: false,
+        },
+        resultProducer: () => ({ status: 201, body: { id: contactId, customerId: companyId } }),
+      });
+    }
+    const otherCompanyId = 'idem-target-company-other';
+    await executeCustomerDomainCommand({
+      db,
+      agencyId: AGENCY_ID,
+      actorUserId: OWNER_USER_ID,
+      actorIdentityId: 'ident-owner',
+      actorMembershipId: OWNER_MEM_ID,
+      expectedPermissionVersion: 2,
+      correlationId: otherCompanyId,
+      idempotencyKey: `${otherCompanyId}-create`,
+      payload: { name: 'Other Co' },
+      command: {
+        kind: 'customer.create',
+        customerId: otherCompanyId,
+        type: 'COMPANY',
+        displayName: 'Other Co',
+      },
+      resultProducer: () => ({ status: 201, body: { id: otherCompanyId } }),
+    });
+    const update = (
+      contactId: string,
+      key: string,
+      correlationId: string,
+      customerId = companyId,
+    ) =>
+      executeCustomerDomainCommand({
+        db,
+        agencyId: AGENCY_ID,
+        actorUserId: OWNER_USER_ID,
+        actorIdentityId: 'ident-owner',
+        actorMembershipId: OWNER_MEM_ID,
+        expectedPermissionVersion: 2,
+        correlationId,
+        idempotencyKey: key,
+        payload: { firstName: 'Changed' },
+        command: {
+          kind: 'company_contact.update',
+          customerId,
+          contactId,
+          expectedVersion: 1,
+          firstName: 'Changed',
+          changedFields: ['firstName'],
+        },
+        resultProducer: () => ({
+          status: 200,
+          body: { id: contactId, customerId, firstName: 'Changed' },
+        }),
+      });
+
+    const first = await update('idem-contact-a', 'idem-contact-target', 'contact-target-first');
+    const retry = await update('idem-contact-a', 'idem-contact-target', 'contact-target-retry');
+    expect(retry.replayed).toBe(true);
+    expect(retry.body).toEqual(first.body);
+    await expect(
+      update('idem-contact-b', 'idem-contact-target', 'contact-target-other'),
+    ).rejects.toBeInstanceOf(IdempotencyConflictError);
+    await expect(
+      update(
+        'idem-contact-a',
+        'idem-contact-target',
+        'contact-target-other-parent',
+        otherCompanyId,
+      ),
+    ).rejects.toBeInstanceOf(IdempotencyConflictError);
+
+    const customerOne = 'idem-target-customer-one';
+    const customerTwo = 'idem-target-customer-two';
+    for (const customerId of [customerOne, customerTwo]) {
+      await executeCustomerDomainCommand({
+        db,
+        agencyId: AGENCY_ID,
+        actorUserId: OWNER_USER_ID,
+        actorIdentityId: 'ident-owner',
+        actorMembershipId: OWNER_MEM_ID,
+        expectedPermissionVersion: 2,
+        correlationId: customerId,
+        idempotencyKey: `${customerId}-create`,
+        payload: { name: 'Same body' },
+        command: {
+          kind: 'customer.create',
+          customerId,
+          type: 'INDIVIDUAL',
+          displayName: 'Same body',
+        },
+        resultProducer: () => ({ status: 201, body: { id: customerId } }),
+      });
+    }
+    const updateCustomer = (customerId: string, expectedVersion: number) =>
+      executeCustomerDomainCommand({
+        db,
+        agencyId: AGENCY_ID,
+        actorUserId: OWNER_USER_ID,
+        actorIdentityId: 'ident-owner',
+        actorMembershipId: OWNER_MEM_ID,
+        expectedPermissionVersion: 2,
+        correlationId: `${customerId}-${expectedVersion}`,
+        idempotencyKey: 'idem-customer-target',
+        payload: { displayName: 'Same body' },
+        command: {
+          kind: 'customer.update',
+          customerId,
+          expectedVersion,
+          displayName: 'Same body',
+          changedFields: ['displayName'],
+        },
+        resultProducer: () => ({ status: 200, body: { id: customerId } }),
+      });
+    await updateCustomer(customerOne, 1);
+    await expect(updateCustomer(customerTwo, 1)).rejects.toBeInstanceOf(IdempotencyConflictError);
+    await expect(updateCustomer(customerOne, 2)).rejects.toBeInstanceOf(IdempotencyConflictError);
+  });
+
   // 3. Zero-row CAS rollback on expectedVersion mismatch
   it('zero-row CAS rollback: version mismatch rolls back entire batch (no receipt, no audit, no partial state)', async () => {
     const custId = 'cust-cas-test';

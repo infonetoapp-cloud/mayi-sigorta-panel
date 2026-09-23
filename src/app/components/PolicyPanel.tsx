@@ -187,17 +187,24 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
   const [archiveReason, setArchiveReason] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [policySearch, setPolicySearch] = useState('');
+  const [policySearchMode, setPolicySearchMode] = useState<'exact' | 'prefix'>('prefix');
   const activePolicyIdRef = useRef<string | null>(null);
   const choicesRequestRef = useRef(0);
   const activePolicySearchRef = useRef('');
+  const activePolicySearchModeRef = useRef<'exact' | 'prefix'>('prefix');
 
   const loadList = useCallback(
-    async (cursor?: string | null, search = activePolicySearchRef.current) => {
+    async (
+      cursor?: string | null,
+      search = activePolicySearchRef.current,
+      searchMode: 'exact' | 'prefix' = activePolicySearchModeRef.current,
+    ) => {
       setListLoading(true);
       setListError(null);
       try {
         const params = new URLSearchParams({ pageSize: '20', sort: 'end_date_asc' });
         if (search) params.set('search', search);
+        if (search) params.set('searchMode', searchMode);
         if (cursor) params.set('cursor', cursor);
         const url = `/api/policies?${params.toString()}`;
         const res = await fetch(url);
@@ -952,9 +959,10 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
           event.preventDefault();
           const search = policySearch.trim();
           activePolicySearchRef.current = search;
+          activePolicySearchModeRef.current = policySearchMode;
           setPolicies([]);
           setNextCursor(null);
-          void loadList(null, search);
+          void loadList(null, search, policySearchMode);
         }}
       >
         <label style={field}>
@@ -966,6 +974,18 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
             value={policySearch}
             onChange={(event) => setPolicySearch(event.target.value)}
           />
+        </label>
+        <label style={field}>
+          Arama türü
+          <select
+            aria-label="Poliçe arama türü"
+            style={input}
+            value={policySearchMode}
+            onChange={(event) => setPolicySearchMode(event.target.value as 'exact' | 'prefix')}
+          >
+            <option value="exact">Tam eşleşme</option>
+            <option value="prefix">Önek</option>
+          </select>
         </label>
         <button type="submit" style={secondary} disabled={listLoading}>
           Poliçelerde Ara

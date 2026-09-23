@@ -14,6 +14,9 @@ export function normalizePolicyNumber(value: string): string {
   const normalized = value
     .normalize('NFKC')
     .trim()
+    // Turkish policy identifiers are case-insensitive across dotted/dotless I.
+    // Map all four forms before locale-independent Unicode uppercase.
+    .replace(/[iİı]/g, 'I')
     .toUpperCase()
     .replace(/[^\p{L}\p{N}]/gu, '');
   if (normalized.length < 1 || normalized.length > 100) throw new Error('POLICY_NUMBER_INVALID');
@@ -151,6 +154,7 @@ export const policyListQuerySchema = z
         }
       })
       .optional(),
+    searchMode: z.enum(['exact', 'prefix']).default('exact'),
     endFrom: dateOnly.optional(),
     endTo: dateOnly.optional(),
     sort: z.enum(['end_date_asc', 'end_date_desc', 'created_at_desc']).default('end_date_asc'),

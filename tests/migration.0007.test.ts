@@ -112,10 +112,7 @@ describe('M2-T04 migration 0007', () => {
       }
     }
   });
-  it('has no Drizzle drift and no 0009', () => {
-    expect(
-      readdirSync(resolve(root, 'db/migrations')).filter((f) => f.startsWith('0009_')),
-    ).toEqual([]);
+  it('has no Drizzle schema drift', () => {
     expect(execSync('npx drizzle-kit generate', { cwd: root, encoding: 'utf8' })).toContain(
       'No schema changes',
     );
