@@ -738,6 +738,106 @@ describe('M1-T07 Runtime Authorization Evaluator Testleri (Miniflare D1)', () =>
       .run();
   });
 
+  it('M3-T01 task.read accepts a server-confirmed Renewal parent without customer.read', async () => {
+    const membershipId = 't07-task-parent-member';
+    const userId = 't07-task-parent-user';
+    const identityId = 't07-task-parent-identity';
+    await db
+      .prepare("INSERT INTO users (id,status,version) VALUES (?,'ACTIVE',1)")
+      .bind(userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status)
+         VALUES (?,?,'https://test.access.com','task-parent-sub','task-parent@test.com','ACTIVE')`,
+      )
+      .bind(identityId, userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO agency_memberships
+           (id,agency_id,user_id,type,status,invitation_email,invitation_expires_at,
+            activated_at,version,permission_version)
+         VALUES (?,?,?,'MEMBER','ACTIVE','task-parent@test.com','2099-01-01T00:00:00.000Z',
+           '2026-09-17T00:00:00.000Z',1,1)`,
+      )
+      .bind(membershipId, TEST_AGENCY, userId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO membership_permissions(id,membership_id,permission_code,scope)
+         VALUES ('task-parent-read','${membershipId}','task.read','ASSIGNED')`,
+      )
+      .run();
+    const context = {
+      userId,
+      identityId,
+      assurance: 'NORMAL' as const,
+      memberships: [
+        {
+          id: membershipId,
+          agencyId: TEST_AGENCY,
+          type: 'MEMBER' as const,
+          status: 'ACTIVE' as const,
+          permissionVersion: 1,
+        },
+      ],
+    };
+    const resource = {
+      agencyId: TEST_AGENCY,
+      isAllowedRecord: true,
+      parentReadAuthorized: true,
+      taskAssigneeMembershipId: membershipId,
+      renewalAssigneeMembershipId: membershipId,
+      policyAssigneeMembershipId: 'another-policy-member',
+      customerAssigneeMembershipId: 'another-customer-member',
+    };
+
+    try {
+      const withRenewalParentRead = await evaluateAuthorization(
+        db,
+        { context, permissionCode: 'task.read', agencyId: TEST_AGENCY, resource },
+        { resolvers: TEST_RESOLVERS },
+      );
+      expect(withRenewalParentRead.decision).toBe('ALLOW');
+
+      const missingParentProof = await evaluateAuthorization(
+        db,
+        {
+          context,
+          permissionCode: 'task.read',
+          agencyId: TEST_AGENCY,
+          resource: { ...resource, parentReadAuthorized: false },
+        },
+        { resolvers: TEST_RESOLVERS },
+      );
+      expect(missingParentProof.decision).toBe('DENY');
+    } finally {
+      await db
+        .prepare('DELETE FROM membership_permissions WHERE membership_id=?')
+        .bind(membershipId)
+        .run();
+      await db
+        .prepare(
+          `UPDATE agency_memberships SET status='INACTIVE',inactivated_at='2026-09-18T00:00:00.000Z',
+             version=version+1,permission_version=permission_version+1 WHERE id=?`,
+        )
+        .bind(membershipId)
+        .run();
+      await db
+        .prepare(
+          `UPDATE auth_identities SET status='REVOKED',revoked_at='2099-01-01T00:00:00.000Z',
+             version=version+1,updated_at='2099-01-01T00:00:00.000Z' WHERE id=?`,
+        )
+        .bind(identityId)
+        .run();
+      await db
+        .prepare("UPDATE users SET status='INACTIVE',version=version+1 WHERE id=?")
+        .bind(userId)
+        .run();
+    }
+  });
+
   // ---------------------------------------------------------------------------
   // 11. Cross-agency context/resource -> DENY
   // ---------------------------------------------------------------------------

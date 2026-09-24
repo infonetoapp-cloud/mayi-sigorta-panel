@@ -16,8 +16,10 @@ import { CatalogsPanel } from './components/CatalogsPanel';
 import { AgencySettingsPanel } from './components/AgencySettingsPanel';
 import { PolicyPanel } from './components/PolicyPanel';
 import { CustomerArchiveSection } from './components/CustomerArchiveSection';
+import { TodayWorkPanel } from './components/TodayWorkPanel';
 
-type TabType = 'overview' | 'customers' | 'policies' | 'catalogs' | 'agency-settings';
+type TabType =
+  'today-work' | 'overview' | 'customers' | 'policies' | 'catalogs' | 'agency-settings';
 
 const STYLES = {
   container: {
@@ -681,6 +683,16 @@ export const App: React.FC = () => {
           <nav style={STYLES.headerNav}>
             <button
               type="button"
+              style={STYLES.navButton(activeTab === 'today-work')}
+              onClick={() => {
+                setShowSensitiveSearch(false);
+                setActiveTab('today-work');
+              }}
+            >
+              Bugünkü İşler
+            </button>
+            <button
+              type="button"
               style={STYLES.navButton(activeTab === 'overview')}
               onClick={() => setActiveTab('overview')}
             >
@@ -758,6 +770,9 @@ export const App: React.FC = () => {
 
       {/* Ana İçerik Alanı */}
       <main style={STYLES.main}>
+        {activeTab === 'today-work' && (
+          <TodayWorkPanel getCsrfToken={getCsrfToken} invalidateCsrfToken={invalidateCsrfToken} />
+        )}
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={STYLES.card}>

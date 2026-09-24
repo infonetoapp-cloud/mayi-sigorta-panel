@@ -17,6 +17,8 @@ import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
 import { registerCatalogRoutes } from './catalogs/routes';
 import { registerPolicyRoutes } from './policies/routes';
+import { registerTaskRoutes } from './tasks/routes';
+import { runScheduledRenewalGeneration } from './renewals/generation';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -445,6 +447,9 @@ export function createApp(
   // M2-T04 Policy CORE API routes
   registerPolicyRoutes(app, dependencies);
 
+  // M3-T02 primary renewal Task and Today’s Work API routes
+  registerTaskRoutes(app, dependencies);
+
   if (configureRoutes) {
     configureRoutes(app);
   }
@@ -462,6 +467,9 @@ export const app = createApp();
 
 export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
   return {
+    scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+      ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
+    },
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
       const url = new URL(request.url);
       const canonicalPath = canonicalizeRoutePath(url.pathname);

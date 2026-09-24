@@ -39,7 +39,7 @@ Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
 | Faz 2 — Müşteri/poliçe domain'i | TAMAMLANDI — M2-T01–T06 PASS; 7. fresh GPT-6 Sol High final review PASS |
-| Faz 3 — Yenileme ve takip | SIRADAKİ — henüz başlanmadı |
+| Faz 3 — Yenileme ve takip | AKTİF — M3-T01 ve M3-T02 kabul edildi; birleşik checkpoint commit/push bekliyor |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
@@ -269,4 +269,31 @@ Durum: **MILESTONE 2 = COMPLETE. Faz 3 / M3 sıradaki aşamadır; bu kapanışta
 - Bu gece deployment, remote D1, DNS, Cloudflare hesap ayarı veya gerçek veri işlemi yapılmadı.
 - Sonraki tek görev: nihai mimari planın Faz 3 bölümlerini ve güncel uygulama durumunu yeniden okuyup dependency-aware M3 task planı çıkarmak; ardından M3'ün ilk vertical slice'ına başlamak. M4 kapsamına geçilmemelidir.
 
-MILESTONE 2 COMPLETE — MILESTONE 3 NEXT
+MILESTONE 2 COMPLETE — MILESTONE 3 ACTIVE
+
+## M3-T01 kabul kanıtı — 24 Eylül 2026
+
+Durum: **M3-T01 kabul edildi; M3-T02 ile paylaşılan uygulama ağacında. M4 başlamadı.**
+
+- Additive `0010_m3_renewal_core.sql` ile RenewalOpportunity, RenewalStateHistory, birincil yenileme Task'ı ve agency generation cursor'ı eklendi. Migration/schema ayrıntılı yerel kabul kanıtı M3-T02 checkpoint'inde güncellendi.
+- Ortak idempotent Policy→Renewal üretimi manuel Policy oluşturma ve günlük scheduled Worker yolunda kullanılıyor; cursor/catch-up, yarışta tek kayıt/history/Task/audit, rollback, Policy archive/terminal guard ve Policy-assignee → Customer-assignee → Atanmamış atama önceliği M3-T01 kalıcı testlerinde kapsanıyor.
+- Renewal ASSIGNED kapsamı Renewal veya Customer sorumluluğuyla sınırlı; kaynak Policy ataması tek başına Renewal yetkisi sağlamıyor. Task erişimi server-confirmed bağlı-parent okuma kanıtı gerektiriyor.
+- Önceki fresh bağımsız M3-T01 follow-up sonucu: **ACCEPT, BLOCKER 0, IMPORTANT 0**; reviewer'ın focused testi **20/20 PASS**, yerel D1 generation testi çalıştırılmıştı.
+- Bu devam oturumunda ortak authorization, T01 generation ve ilişkili Policy regresyon seçkisi **188/188 PASS** oldu. T01/T02 paylaşılan değişiklikleri güvenli biçimde iki ayrı commit'e ayrılmadı.
+
+## M3-T02 kabul kanıtı — 24 Eylül 2026
+
+Durum: **M3-T02 ACCEPT — BLOCKER 0, IMPORTANT 0, OPTIONAL 0; FINAL VERDICT PASS. M3 sürüyor; M4 başlamadı.**
+
+- Bugünkü İşler API/UI; renewal primary Task assignment; Renewal ve Task sorumluluğunun birlikte, CAS/idempotency/audit ile atomik güncellenmesi; Task tamamlanırken replacement primary follow-up'ın aynı D1 batch içinde oluşturulması tamamlandı.
+- `task.read/task.update ASSIGNED` artık yalnız Task'ın kendi sorumlusuna açılır; Customer/Policy/Renewal okuma ve kapsamı ayrıca doğrulanır. Atanmamış Task müşteri sorumluluğuyla ASSIGNED work listesine sızmaz; atama hedefi aktif ve bağlı işi okuyabilir olmalıdır. HEALTH yenilemeleri `policy.health.read` yoksa Today's Work'ten çıkarılır; politika bilgileri başka yetkilerle sızdırılmaz.
+- WORK/UNASSIGNED cursor'ları ayrı; imleçler acente, üyelik, permissionVersion ve tüm ilgili permission scope'larına bağlanır. UUID tabanlı UNASSIGNED imlecinin 256 karakteri aşması yerel D1 API testinde kanıtlandı; query sınırı artırıldı ve 268 karakterlik bound-shape token parser'a ulaşıyor.
+- Adversarial yerel D1 kanıtları: geçerli/uygunsuz assignee, aynı anda Renewal+Task assignment, rollback, exact replay ve changed target/payload/version, replay'de güncel yetki kaybı; replacement insert/audit/CAS rollback; sıfır-row/orphan ve eşzamanlı completion. Tamamlanma receipt'indeki `completedAt`, kalıcı Task `completed_at` ve başarı audit zamanı ile eşleşir; geçerli ISO değere yapılan receipt tampering replay'de reddedilir.
+- Güncel focused seçim: T02 API **24/24 PASS**; route + Today’s Work React **18/18 PASS** (React **14/14**); T01/authorization/Policy regresyonu **188/188 PASS**; `tests/migration.0010.test.ts` **2/2 PASS**.
+- Tam `npm run test`: **896/896 PASS, 44/44 dosya**. `npm run test:d1 -- --maxWorkers=1`: **26/26 PASS**.
+- Migration `0010`: Wrangler local clean apply/no-op, `0009` seed korunarak upgrade, constraint/trigger/FK ve immutable event kanıtı **2/2 PASS**. `0000–0009` tarihsel SQL dosyaları değişmedi. `npm run db:generate`: **No schema changes, nothing to migrate**.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (client + Wrangler Worker dry-run), `git diff --check`: **PASS**.
+- Bağımsız GPT-6 Sol High incelemeleri: ilk incelemedeki **2 BLOCKER + 2 IMPORTANT** giderildi; ikinci fresh incelemenin bulduğu cursor boyutu ve completedAt bütünlüğü için testli düzeltmeler yapıldı. Son fresh inceleme: **BLOCKER 0, IMPORTANT 0, OPTIONAL 0 — FINAL VERDICT PASS**. İnceleyici M3-T02/migration seçkisini **44/44**, T01/shared authorization seçkisini **188/188** çalıştırdı; bu oturum ayrıca yukarıdaki tam suite ve `test:d1` sonuçlarını üretti.
+- Bu kabulde commit/push henüz yapılmadı. Yalnız local sentetik veri kullanıldı; deployment, remote D1, DNS/Cloudflare production yapılandırması veya gerçek müşteri verisi işlemi yapılmadı.
+
+Sonraki tek görev: **birleşik M3-T01/T02 checkpoint'ini commit edip normal biçimde push etmek ve `HEAD == origin/main`, temiz worktree'yi doğrulamak. Ardından M3-T03 terminal Renewal komutları ile RenewalPolicyLink/tahsis bağımlılığını uygulamak.**

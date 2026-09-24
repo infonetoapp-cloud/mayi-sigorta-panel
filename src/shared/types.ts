@@ -305,3 +305,70 @@ export interface PolicyListResponseData {
   readonly nextCursor: string | null;
   readonly hasMore: boolean;
 }
+
+export type TaskDueBucket = 'OVERDUE' | 'TODAY' | 'UPCOMING';
+
+export interface TodayTaskDto {
+  readonly taskId: string;
+  readonly renewalId: string;
+  readonly customerId: string;
+  readonly customerDisplayName: string;
+  readonly customerEmail: string | null;
+  readonly customerPhone: string | null;
+  readonly policyId: string | null;
+  readonly policyNumber: string | null;
+  readonly policyEndDate: string | null;
+  readonly title: string;
+  readonly dueAt: string;
+  readonly assigneeMembershipId: string | null;
+  readonly taskVersion: number;
+  readonly renewalAssigneeMembershipId: string | null;
+  readonly renewalState: RenewalStateCode;
+  readonly renewalVersion: number;
+  readonly bucket: TaskDueBucket;
+  readonly isUnassigned: boolean;
+}
+
+export type RenewalStateCode =
+  | 'CONTACT_PENDING'
+  | 'CONTACTED'
+  | 'QUOTE_PREPARING'
+  | 'QUOTE_SENT'
+  | 'AWAITING_RESPONSE'
+  | 'WON'
+  | 'LOST'
+  | 'VOIDED';
+
+export interface TodayTasksResponseData {
+  readonly items: readonly TodayTaskDto[];
+  readonly unassignedItems: readonly TodayTaskDto[];
+  readonly nextCursor: string | null;
+  readonly hasMore: boolean;
+  readonly unassignedNextCursor: string | null;
+  readonly unassignedHasMore: boolean;
+  readonly canSeeUnassigned: boolean;
+  readonly canAssign: boolean;
+  readonly timezone: string;
+  readonly todayLocalDate: string;
+  readonly now: string;
+}
+
+export interface RenewalTaskAssignmentDto {
+  readonly renewalId: string;
+  readonly taskId: string;
+  readonly assigneeMembershipId: string | null;
+  readonly renewalVersion: number;
+  readonly taskVersion: number;
+  readonly updatedAt: string;
+}
+
+export interface RenewalTaskReplacementCompletionDto {
+  readonly renewalId: string;
+  readonly completedTaskId: string;
+  readonly replacementTaskId: string;
+  readonly replacementDueAt: string;
+  readonly completedTaskVersion: number;
+  readonly replacementTaskVersion: number;
+  readonly renewalVersion: number;
+  readonly completedAt: string;
+}

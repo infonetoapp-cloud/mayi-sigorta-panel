@@ -32,6 +32,7 @@ import {
 import { IdempotencyConflictError } from '../mutations/idempotency';
 import { OptimisticConcurrencyError } from '../db/optimistic';
 import { renderPolicyIdentityVariantConfirmation, SECURE_CONFIRM_SCRIPT } from './secure-confirm';
+import { ensureRenewalForPolicy } from '../renewals/generation';
 
 type E = { Bindings: Env };
 export function registerPolicyRoutes(app: Hono<E>, dependencies: AppDependencies = {}) {
@@ -120,6 +121,7 @@ export function registerPolicyRoutes(app: Hono<E>, dependencies: AppDependencies
     if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
     try {
       const r = await createPolicy(a.context, c.env.DB, await c.req.json(), key);
+      await ensureRenewalForPolicy(c.env.DB, r.data.agencyId, r.data.id);
       return c.json(
         { success: true, data: r.data, replayed: r.replayed, timestamp: new Date().toISOString() },
         r.status as 201,
@@ -150,6 +152,7 @@ export function registerPolicyRoutes(app: Hono<E>, dependencies: AppDependencies
     if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
     try {
       const r = await updatePolicy(a.context, c.env.DB, c.req.param('id'), await c.req.json(), key);
+      await ensureRenewalForPolicy(c.env.DB, r.data.agencyId, r.data.id);
       return c.json({
         success: true,
         data: r.data,

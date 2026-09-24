@@ -25,6 +25,7 @@ import {
   normalizePolicyNumber,
 } from './validation';
 import {
+  assertPolicyCreateReplayAuthority,
   executePolicyCommand,
   executePolicyVariantCommand,
   findPolicyCommandReplay,
@@ -141,6 +142,270 @@ function resource(row: Row) {
   };
 }
 
+const POLICY_CREATE_RECEIPT_KEYS = new Set([
+  'id',
+  'agencyId',
+  'customerId',
+  'insurerId',
+  'productId',
+  'branchId',
+  'paymentMethodId',
+  'assigneeMembershipId',
+  'policyNumber',
+  'normalizedPolicyNumber',
+  'startDate',
+  'endDate',
+  'grossPremiumMinor',
+  'currency',
+  'installmentCount',
+  'status',
+  'identityVariant',
+  'archivedAt',
+  'archivedByMembershipId',
+  'archiveReason',
+  'version',
+  'createdAt',
+  'updatedAt',
+]);
+
+function isCanonicalPolicyId(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(value);
+}
+
+function isCanonicalDateOnly(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function isCanonicalIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function parsePolicyCreateReceiptDto(value: unknown): PolicyDto | null {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const dto = value as Record<string, unknown>;
+    const keys = Object.keys(dto);
+    if (
+      keys.length !== POLICY_CREATE_RECEIPT_KEYS.size ||
+      keys.some((key) => !POLICY_CREATE_RECEIPT_KEYS.has(key))
+    ) {
+      return null;
+    }
+    const textFields = [
+      'agencyId',
+      'customerId',
+      'insurerId',
+      'productId',
+      'branchId',
+      'paymentMethodId',
+      'assigneeMembershipId',
+      'policyNumber',
+      'normalizedPolicyNumber',
+    ] as const;
+    if (
+      !isCanonicalPolicyId(dto.id) ||
+      textFields.some(
+        (field) =>
+          typeof dto[field] !== 'string' ||
+          dto[field] === '' ||
+          dto[field] !== dto[field]!.trim() ||
+          dto[field]!.length > 160,
+      ) ||
+      typeof dto.policyNumber !== 'string' ||
+      dto.normalizedPolicyNumber !== normalizePolicyNumber(dto.policyNumber) ||
+      !isCanonicalDateOnly(dto.startDate) ||
+      !isCanonicalDateOnly(dto.endDate) ||
+      dto.startDate > dto.endDate ||
+      typeof dto.grossPremiumMinor !== 'number' ||
+      !Number.isSafeInteger(dto.grossPremiumMinor) ||
+      dto.grossPremiumMinor < 0 ||
+      typeof dto.currency !== 'string' ||
+      !/^[A-Z]{3}$/.test(dto.currency) ||
+      (dto.installmentCount !== null &&
+        (typeof dto.installmentCount !== 'number' ||
+          !Number.isSafeInteger(dto.installmentCount) ||
+          dto.installmentCount < 1)) ||
+      !['ACTIVE', 'CANCELLED', 'VOIDED'].includes(String(dto.status)) ||
+      dto.identityVariant !== 0 ||
+      dto.archivedAt !== null ||
+      dto.archivedByMembershipId !== null ||
+      dto.archiveReason !== null ||
+      dto.version !== 1 ||
+      !isCanonicalIsoTimestamp(dto.createdAt) ||
+      dto.updatedAt !== dto.createdAt
+    ) {
+      return null;
+    }
+    return dto as unknown as PolicyDto;
+  } catch {
+    return null;
+  }
+}
+
+async function loadPolicyCreateAuditTarget(
+  db: D1Database,
+  input: {
+    readonly agencyId: string;
+    readonly actorUserId: string;
+    readonly actorMembershipId: string;
+    readonly idempotencyKey: string;
+  },
+): Promise<{ targetId: string; responseHash: string | null }> {
+  const result = await db
+    .prepare(
+      `SELECT target_type,target_id,outcome,metadata_json FROM audit_events
+       WHERE agency_id=? AND actor_user_id=? AND actor_membership_id=?
+         AND action='policy.create' AND idempotency_key=?`,
+    )
+    .bind(input.agencyId, input.actorUserId, input.actorMembershipId, input.idempotencyKey.trim())
+    .all<{
+      target_type: unknown;
+      target_id: unknown;
+      outcome: unknown;
+      metadata_json: unknown;
+    }>();
+  if (!result.success || !Array.isArray(result.results) || result.results.length !== 1) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  const evidence = result.results[0];
+  if (
+    !evidence ||
+    evidence.target_type !== 'policies' ||
+    evidence.outcome !== 'SUCCESS' ||
+    !isCanonicalPolicyId(evidence.target_id)
+  ) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  let metadata: unknown;
+  try {
+    if (typeof evidence.metadata_json !== 'string') throw new Error('INVALID_AUDIT_METADATA');
+    metadata = JSON.parse(evidence.metadata_json);
+  } catch {
+    throw new PolicyAuthorizationRaceError();
+  }
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  const responseHash = (metadata as Record<string, unknown>).responseHash;
+  if (
+    responseHash !== undefined &&
+    (typeof responseHash !== 'string' || !/^[0-9a-f]{64}$/.test(responseHash))
+  ) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  return {
+    targetId: evidence.target_id,
+    responseHash: typeof responseHash === 'string' ? responseHash : null,
+  };
+}
+
+async function resolvePolicyCreateReplay(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  agencyId: string,
+  data: PolicyCreateInput,
+  idempotencyKey: string,
+  completed: { readonly body: unknown; readonly status: number; readonly replayed: boolean },
+): Promise<{ data: PolicyDto; status: number; replayed: true }> {
+  const active = membership(context);
+  const auditEvidence = await loadPolicyCreateAuditTarget(db, {
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: active.id,
+    idempotencyKey,
+  });
+  const replayId = auditEvidence.targetId;
+  const original = await load(db, agencyId, replayId);
+  if (!original || original.customer_id !== data.customerId) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  const sourceProduct = await db
+    .prepare('SELECT insurer_id FROM insurance_products WHERE agency_id=? AND id=?')
+    .bind(agencyId, data.productId)
+    .first<{ insurer_id: unknown }>();
+  if (typeof sourceProduct?.insurer_id !== 'string' || sourceProduct.insurer_id.trim() === '') {
+    throw new PolicyAuthorizationRaceError();
+  }
+  const originalClassification = await classification(db, agencyId, data.branchId);
+  if (!originalClassification) throw new PolicyAuthorizationRaceError();
+  const createAction =
+    originalClassification.data_classification === 'HEALTH'
+      ? 'policy.health.create'
+      : 'policy.create';
+
+  try {
+    await authorize(db, context, 'customer.read', {
+      agencyId,
+      assigneeMembershipId: original.customer_assignee_membership_id!,
+    });
+    await authorize(db, context, createAction, {
+      ...resource(original),
+      isCreate: true,
+    });
+    await getPolicy(context, db, replayId);
+  } catch {
+    throw new PolicyAuthorizationRaceError();
+  }
+
+  const replayDto = parsePolicyCreateReceiptDto(completed.body);
+  const replayCreatedAt = Date.parse(replayDto?.createdAt ?? '');
+  const originalCreatedAt = Date.parse(original.created_at);
+  const creationTimestampMatches =
+    auditEvidence.responseHash !== null
+      ? replayDto?.createdAt === original.created_at
+      : Number.isFinite(replayCreatedAt) &&
+        Number.isFinite(originalCreatedAt) &&
+        Math.abs(replayCreatedAt - originalCreatedAt) <= 5_000;
+  if (
+    !replayDto ||
+    completed.status !== 201 ||
+    replayDto.id !== replayId ||
+    replayDto.agencyId !== agencyId ||
+    !creationTimestampMatches ||
+    replayDto.customerId !== data.customerId ||
+    replayDto.insurerId !== (data.insurerId ?? sourceProduct.insurer_id) ||
+    replayDto.assigneeMembershipId !== (data.assigneeMembershipId ?? active.id) ||
+    replayDto.productId !== data.productId ||
+    replayDto.branchId !== data.branchId ||
+    replayDto.paymentMethodId !== data.paymentMethodId ||
+    replayDto.policyNumber !== data.policyNumber ||
+    replayDto.normalizedPolicyNumber !== data.normalizedPolicyNumber ||
+    replayDto.startDate !== data.startDate ||
+    replayDto.endDate !== data.endDate ||
+    replayDto.grossPremiumMinor !== data.grossPremiumMinor ||
+    replayDto.currency !== data.currency ||
+    replayDto.installmentCount !== data.installmentCount ||
+    replayDto.status !== data.status ||
+    (data.insurerId !== undefined && replayDto.insurerId !== data.insurerId)
+  ) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  if (
+    auditEvidence.responseHash !== null &&
+    auditEvidence.responseHash !==
+      (await computePayloadHash({ action: 'policy.create', target: replayId, result: replayDto }))
+  ) {
+    throw new PolicyAuthorizationRaceError();
+  }
+  await assertPolicyCreateReplayAuthority({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: active.id,
+    actorIdentityId: context.identityId,
+    permissionVersion: active.permissionVersion,
+    targetPolicyId: replayId,
+    customerId: data.customerId,
+    branchId: data.branchId,
+    originallyHealthClassified: originalClassification.data_classification === 'HEALTH',
+  });
+  return { data: replayDto, status: completed.status, replayed: true };
+}
+
 async function authorizeCurrentPolicyMutation(
   db: D1Database,
   context: AuthenticatedUserContext,
@@ -220,38 +485,27 @@ export async function createPolicy(
   const active = membership(context);
   const data = parsePolicyCreateInput(raw);
   const agencyId = active.agencyId;
-  const completed = await findPolicyCommandReplay({
-    db,
-    agencyId,
-    actorUserId: context.userId,
-    actorMembershipId: active.id,
-    actorIdentityId: context.identityId,
-    permissionVersion: active.permissionVersion,
-    idempotencyKey,
-    payload: raw,
-    action: 'policy.create',
-    target: 'new-policy',
-    version: null,
-  });
+  let completed: { body: unknown; status: number; replayed: boolean } | null;
+  try {
+    completed = await findPolicyCommandReplay({
+      db,
+      agencyId,
+      actorUserId: context.userId,
+      actorMembershipId: active.id,
+      actorIdentityId: context.identityId,
+      permissionVersion: active.permissionVersion,
+      idempotencyKey,
+      payload: raw,
+      action: 'policy.create',
+      target: 'new-policy',
+      version: null,
+    });
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new PolicyAuthorizationRaceError();
+    throw error;
+  }
   if (completed) {
-    const replayId =
-      typeof completed.body === 'object' &&
-      completed.body !== null &&
-      'id' in completed.body &&
-      typeof completed.body.id === 'string'
-        ? completed.body.id
-        : null;
-    if (!replayId) throw new PolicyAuthorizationRaceError();
-    try {
-      await getPolicy(context, db, replayId);
-    } catch {
-      throw new PolicyAuthorizationRaceError();
-    }
-    return {
-      data: completed.body as PolicyDto,
-      status: completed.status,
-      replayed: completed.replayed,
-    };
+    return resolvePolicyCreateReplay(context, db, agencyId, data, idempotencyKey, completed);
   }
   const customer = await db
     .prepare(`SELECT id,assignee_membership_id FROM customers WHERE agency_id=? AND id=?`)
@@ -300,9 +554,8 @@ export async function createPolicy(
     },
   );
 
-  const id = crypto.randomUUID(),
-    now = new Date().toISOString();
-  const dto: PolicyDto = {
+  const id = crypto.randomUUID();
+  const dto = (now: string): PolicyDto => ({
     id,
     agencyId,
     customerId: data.customerId,
@@ -326,7 +579,7 @@ export async function createPolicy(
     version: 1,
     createdAt: now,
     updatedAt: now,
-  };
+  });
   const result = await executePolicyCommand({
     db,
     agencyId,
@@ -365,7 +618,18 @@ export async function createPolicy(
     },
     result: dto,
     status: 201,
+  }).catch((error: unknown) => {
+    if (error instanceof SyntaxError) throw new PolicyAuthorizationRaceError();
+    throw error;
   });
+  if (result.replayed) {
+    try {
+      return await resolvePolicyCreateReplay(context, db, agencyId, data, idempotencyKey, result);
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new PolicyAuthorizationRaceError();
+      throw error;
+    }
+  }
   return { data: result.body as PolicyDto, status: result.status, replayed: result.replayed };
 }
 

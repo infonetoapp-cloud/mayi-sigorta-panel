@@ -71,6 +71,13 @@
       "when": 1790184823000,
       "tag": "0009_turkish_policy_number_casefold",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790208109465,
+      "tag": "0010_m3_renewal_core",
+      "breakpoints": true
     }
   ]
 }

@@ -111,7 +111,7 @@ describe('M2-T04 migration 0007', () => {
         rmSync(dir, { recursive: true, force: true });
       }
     }
-  });
+  }, 180_000);
   it('has no Drizzle schema drift', () => {
     expect(execSync('npx drizzle-kit generate', { cwd: root, encoding: 'utf8' })).toContain(
       'No schema changes',

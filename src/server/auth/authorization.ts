@@ -1130,7 +1130,12 @@ export function customerRecordResolver(context: ScopeResolutionContext): boolean
         return res.parentAssigneeMembershipId === membershipId;
       }
 
-      // C. Mevcut müşteri kaydı: atanan üyelik aktörün üyeliği olmalıdır
+      // D. Sunucudan kurulan alt görev kaynağındaki bağlı Customer kapsamı
+      if (typeof res.customerAssigneeMembershipId === 'string') {
+        return res.customerAssigneeMembershipId === membershipId;
+      }
+
+      // E. Mevcut müşteri kaydı: atanan üyelik aktörün üyeliği olmalıdır
       if (typeof res.assigneeMembershipId === 'string') {
         return res.assigneeMembershipId === membershipId;
       }
@@ -1162,6 +1167,63 @@ export function policyRecordResolver(context: ScopeResolutionContext): boolean {
   }
 }
 
+function parentScopedChildRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const { agencyId, membershipId, effectiveScope, resource } = context;
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return false;
+    const record = resource as Record<string, unknown>;
+    if (typeof record.agencyId !== 'string' || record.agencyId !== agencyId) return false;
+    if (effectiveScope === 'AGENCY') return true;
+    if (effectiveScope !== 'ASSIGNED') return false;
+    if (record.isCollection === true) return true;
+    return (
+      record.renewalAssigneeMembershipId === membershipId ||
+      record.policyAssigneeMembershipId === membershipId ||
+      record.customerAssigneeMembershipId === membershipId
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function renewalRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const { agencyId, membershipId, effectiveScope, resource } = context;
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return false;
+    const record = resource as Record<string, unknown>;
+    if (typeof record.agencyId !== 'string' || record.agencyId !== agencyId) return false;
+    if (effectiveScope === 'AGENCY') return true;
+    if (effectiveScope !== 'ASSIGNED') return false;
+    if (record.isCollection === true) return true;
+    return (
+      record.renewalAssigneeMembershipId === membershipId ||
+      record.customerAssigneeMembershipId === membershipId
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function taskRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const resource = context.resource;
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return false;
+    // Task service sets this only after authorizing every linked customer/policy/renewal read.
+    const record = resource as Record<string, unknown>;
+    if (record.parentReadAuthorized !== true) return false;
+    if (record.isCollection === true) return true;
+    if (
+      context.effectiveScope === 'ASSIGNED' &&
+      record.taskAssigneeMembershipId !== context.membershipId
+    ) {
+      return false;
+    }
+    return parentScopedChildRecordResolver(context);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Varsayılan stabil kayıt kapsam çözümleyicileri.
  * Üretim varsayılanı fail-closed ret üretir (() => false).
@@ -1172,10 +1234,10 @@ export function createDefaultScopeResolvers(): ScopeResolverRegistry {
   return Object.freeze({
     customer_record_resolver: customerRecordResolver,
     policy_record_resolver: policyRecordResolver,
-    renewal_record_resolver: failClosedResolver,
+    renewal_record_resolver: renewalRecordResolver,
     quote_record_resolver: failClosedResolver,
     interaction_record_resolver: failClosedResolver,
-    task_record_resolver: failClosedResolver,
+    task_record_resolver: taskRecordResolver,
     document_record_resolver: failClosedResolver,
     report_scope_resolver: failClosedResolver,
   });

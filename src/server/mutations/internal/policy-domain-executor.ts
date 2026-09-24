@@ -114,6 +114,7 @@ function auditStatement(
   action: string,
   targetId: string,
   changedFields: readonly string[],
+  responseHash?: string,
 ) {
   const audit = buildSafeAuditRecord({
     id: crypto.randomUUID(),
@@ -126,7 +127,10 @@ function auditStatement(
     correlationId: crypto.randomUUID(),
     idempotencyKey: input.idempotencyKey.trim(),
     outcome: 'SUCCESS',
-    metadata: { changedFields: [...changedFields] },
+    metadata: {
+      changedFields: [...changedFields],
+      ...(responseHash ? { responseHash } : {}),
+    },
   });
   return input.db
     .prepare(
@@ -239,6 +243,122 @@ function authorityStatement(input: BaseInput, command: Command, action: string) 
     );
 }
 
+export async function assertPolicyCreateReplayAuthority(input: {
+  readonly db: D1Database;
+  readonly agencyId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
+  readonly actorIdentityId: string;
+  readonly permissionVersion: number;
+  readonly targetPolicyId: string;
+  readonly customerId: string;
+  readonly branchId: string;
+  readonly originallyHealthClassified: boolean;
+}): Promise<void> {
+  const assertion = input.db
+    .prepare(
+      `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+       SELECT ?,1,CASE WHEN EXISTS(
+         SELECT 1 FROM agency_memberships m
+         JOIN users u ON u.id=m.user_id
+         JOIN agencies a ON a.id=m.agency_id
+         WHERE m.id=? AND m.agency_id=? AND m.user_id=?
+           AND m.status='ACTIVE' AND u.status='ACTIVE' AND a.status='ACTIVE'
+           AND m.permission_version=?
+           AND EXISTS(SELECT 1 FROM auth_identities ai
+             WHERE ai.id=? AND ai.user_id=u.id AND ai.status='ACTIVE')
+           AND EXISTS(SELECT 1 FROM policies target_policy
+             JOIN customers target_customer
+               ON target_customer.agency_id=target_policy.agency_id
+               AND target_customer.id=target_policy.customer_id
+             WHERE target_policy.agency_id=m.agency_id AND target_policy.id=?
+               AND target_policy.customer_id=? AND target_customer.id=?)
+           AND (
+             m.type='OWNER'
+             OR (m.type='MEMBER'
+               AND EXISTS(SELECT 1 FROM membership_permissions create_permission
+                 WHERE create_permission.membership_id=m.id
+                   AND create_permission.permission_code='policy.create'
+                   AND create_permission.scope='UNSCOPED')
+               AND EXISTS(SELECT 1 FROM membership_permissions policy_permission
+                 WHERE policy_permission.membership_id=m.id
+                   AND policy_permission.permission_code='policy.read'
+                   AND (policy_permission.scope='AGENCY' OR (
+                     policy_permission.scope='ASSIGNED' AND EXISTS(
+                       SELECT 1 FROM policies scoped_policy
+                       JOIN customers scoped_customer
+                         ON scoped_customer.agency_id=scoped_policy.agency_id
+                         AND scoped_customer.id=scoped_policy.customer_id
+                       WHERE scoped_policy.agency_id=m.agency_id
+                         AND scoped_policy.id=? AND scoped_policy.customer_id=?
+                         AND (scoped_policy.assignee_membership_id=m.id
+                           OR scoped_customer.assignee_membership_id=m.id)
+                     )
+                   )))
+               AND EXISTS(SELECT 1 FROM membership_permissions customer_permission
+                 WHERE customer_permission.membership_id=m.id
+                   AND customer_permission.permission_code='customer.read'
+                   AND (customer_permission.scope='AGENCY' OR (
+                     customer_permission.scope='ASSIGNED' AND EXISTS(
+                       SELECT 1 FROM customers scoped_customer
+                       WHERE scoped_customer.agency_id=m.agency_id
+                         AND scoped_customer.id=?
+                         AND scoped_customer.assignee_membership_id=m.id
+                     )
+                   )))
+             )
+           )
+           AND (
+             (?=0 AND NOT EXISTS(SELECT 1 FROM insurance_branches requested_branch
+                 WHERE requested_branch.agency_id=m.agency_id AND requested_branch.id=?
+                   AND requested_branch.data_classification='HEALTH')
+               AND NOT EXISTS(SELECT 1 FROM policies current_policy
+                 JOIN insurance_branches current_branch
+                   ON current_branch.agency_id=current_policy.agency_id
+                   AND current_branch.id=current_policy.branch_id
+                 WHERE current_policy.agency_id=m.agency_id
+                   AND current_policy.id=? AND current_branch.data_classification='HEALTH'))
+              OR EXISTS(SELECT 1 FROM membership_permissions health_read
+                WHERE health_read.membership_id=m.id
+                  AND health_read.permission_code='sensitive.health.read'
+                  AND health_read.scope='UNSCOPED'))
+           AND (
+             (?=0 AND NOT EXISTS(SELECT 1 FROM insurance_branches requested_branch
+                 WHERE requested_branch.agency_id=m.agency_id AND requested_branch.id=?
+                   AND requested_branch.data_classification='HEALTH'))
+             OR EXISTS(SELECT 1 FROM membership_permissions health_write
+               WHERE health_write.membership_id=m.id
+                 AND health_write.permission_code='sensitive.health.write'
+                 AND health_write.scope='UNSCOPED')
+           )
+       ) THEN 1 ELSE 0 END,'FINAL_AUTHORITY_RECHECK_FAILED'`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      input.actorMembershipId,
+      input.agencyId,
+      input.actorUserId,
+      input.permissionVersion,
+      input.actorIdentityId,
+      input.targetPolicyId,
+      input.customerId,
+      input.customerId,
+      input.targetPolicyId,
+      input.customerId,
+      input.customerId,
+      input.originallyHealthClassified ? 1 : 0,
+      input.branchId,
+      input.targetPolicyId,
+      input.originallyHealthClassified ? 1 : 0,
+      input.branchId,
+    );
+  try {
+    await input.db.batch([assertion]);
+  } catch (error) {
+    mapBatchError(error);
+  }
+}
+
 function activeAssigneeStatement(input: BaseInput, assigneeMembershipId: string) {
   return input.db
     .prepare(
@@ -268,6 +388,8 @@ function mapBatchError(error: unknown): never {
   if (message.includes('FINAL_AUTHORITY_RECHECK_FAILED')) throw new PolicyAuthorizationRaceError();
   if (message.includes('ASSIGNEE_NOT_ACTIVE'))
     throw new PolicyConstraintError('ASSIGNEE_NOT_ACTIVE');
+  if (message.includes('POLICY_OPEN_DEPENDENCIES'))
+    throw new PolicyConstraintError('OPEN_DEPENDENCIES');
   if (message.includes('OPTIMISTIC_CONCURRENCY_CONFLICT')) throw new OptimisticConcurrencyError(0);
   if (message.includes('SENSITIVE_ACTION_GRANT_INVALID'))
     throw new PolicyConstraintError('SENSITIVE_ACTION_GRANT_INVALID');
@@ -314,6 +436,10 @@ export async function executePolicyCommand(
   }
 
   const now = new Date().toISOString();
+  const body =
+    typeof input.result === 'function'
+      ? (input.result as (now: string) => unknown)(now)
+      : input.result;
   let business: D1PreparedStatement;
   if (input.command.kind === 'create') {
     business = input.db
@@ -384,7 +510,7 @@ export async function executePolicyCommand(
       input.idempotencyKey.trim(),
       fingerprint,
       input.status,
-      JSON.stringify(input.result),
+      JSON.stringify(body),
     );
   const changed = input.db
     .prepare(
@@ -393,6 +519,14 @@ export async function executePolicyCommand(
     )
     .bind(crypto.randomUUID());
   try {
+    const responseHash =
+      input.command.kind === 'create'
+        ? await computePayloadHash({
+            action,
+            target: input.command.policyId,
+            result: body,
+          })
+        : undefined;
     const targetAssigneeId =
       input.command.kind === 'assign'
         ? input.command.assigneeMembershipId
@@ -408,7 +542,7 @@ export async function executePolicyCommand(
       receipt,
       business,
       changed,
-      auditStatement(input, action, input.command.policyId, [input.command.kind]),
+      auditStatement(input, action, input.command.policyId, [input.command.kind], responseHash),
     ]);
   } catch (error) {
     if (isReceiptRace(error)) {
@@ -420,7 +554,7 @@ export async function executePolicyCommand(
     }
     mapBatchError(error);
   }
-  return { body: input.result, status: input.status, replayed: false };
+  return { body, status: input.status, replayed: false };
 }
 
 export async function findPolicyVariantReplay(

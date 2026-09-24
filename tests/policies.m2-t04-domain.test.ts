@@ -529,6 +529,14 @@ describe('M2-T04 policy domain on real D1', () => {
   it('enforces exact replay, changed-operation conflict, and concurrent default duplicate uniqueness', async () => {
     const payload = { ...input, policyNumber: 'IDEM-1' };
     const first = await createPolicy(ctx, db, payload, 'idem-exact');
+    const persisted = await db
+      .prepare('SELECT created_at,updated_at FROM policies WHERE agency_id=? AND id=?')
+      .bind('agency-a', first.data.id)
+      .first<{ created_at: string; updated_at: string }>();
+    expect(persisted).toEqual({
+      created_at: first.data.createdAt,
+      updated_at: first.data.updatedAt,
+    });
     const replay = await createPolicy(ctx, db, payload, 'idem-exact');
     expect(replay.replayed).toBe(true);
     expect(replay.data.id).toBe(first.data.id);
@@ -602,6 +610,110 @@ describe('M2-T04 policy domain on real D1', () => {
           "UPDATE customers SET assignee_membership_id='member-worker' WHERE id='customer-worker'",
         )
         .run();
+    }
+  });
+
+  it('denies an exact create replay when Policy and Customer are reassigned after read authorization', async () => {
+    const worker = {
+      userId: 'user-member',
+      identityId: 'identity-worker',
+      assurance: 'NORMAL' as const,
+      memberships: [
+        {
+          id: 'member-worker',
+          agencyId: 'agency-a',
+          type: 'MEMBER' as const,
+          status: 'ACTIVE' as const,
+          permissionVersion: 1,
+        },
+      ],
+    };
+    const payload = {
+      ...input,
+      customerId: 'customer-worker',
+      policyNumber: 'REPLAY-RACE-SCOPE',
+    };
+    const first = await createPolicy(worker, db, payload, 'replay-race-scope');
+    let reassigned = false;
+    const racingDb = new Proxy(db, {
+      get(target, property) {
+        if (property === 'prepare') {
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes('SELECT c.display_name,i.name insurer_name')) return statement;
+            return new Proxy(statement, {
+              get(statementTarget, method) {
+                const value = Reflect.get(statementTarget, method, statementTarget);
+                if (method !== 'bind' || typeof value !== 'function') {
+                  return typeof value === 'function' ? value.bind(statementTarget) : value;
+                }
+                return (...bindings: unknown[]) => {
+                  const bound = Reflect.apply(
+                    value,
+                    statementTarget,
+                    bindings,
+                  ) as D1PreparedStatement;
+                  return new Proxy(bound, {
+                    get(boundTarget, operation) {
+                      if (operation === 'first') {
+                        return async (...args: unknown[]) => {
+                          if (!reassigned) {
+                            reassigned = true;
+                            await target.batch([
+                              target
+                                .prepare(
+                                  `UPDATE policies SET assignee_membership_id='member-a',version=version+1
+                                   WHERE agency_id='agency-a' AND id=?`,
+                                )
+                                .bind(first.data.id),
+                              target.prepare(
+                                `UPDATE customers SET assignee_membership_id='member-a',version=version+1
+                                   WHERE agency_id='agency-a' AND id='customer-worker'`,
+                              ),
+                            ]);
+                          }
+                          const firstMethod = Reflect.get(boundTarget, 'first', boundTarget) as (
+                            ...firstArgs: unknown[]
+                          ) => Promise<unknown>;
+                          return Reflect.apply(firstMethod, boundTarget, args);
+                        };
+                      }
+                      const boundValue = Reflect.get(boundTarget, operation, boundTarget);
+                      return typeof boundValue === 'function'
+                        ? boundValue.bind(boundTarget)
+                        : boundValue;
+                    },
+                  });
+                };
+              },
+            });
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    try {
+      await expect(
+        createPolicy(worker, racingDb, payload, 'replay-race-scope'),
+      ).rejects.toBeInstanceOf(PolicyAuthorizationRaceError);
+      expect(reassigned).toBe(true);
+    } finally {
+      if (reassigned) {
+        await db.batch([
+          db
+            .prepare(
+              `UPDATE policies SET assignee_membership_id='member-worker',version=version+1
+               WHERE agency_id='agency-a' AND id=?`,
+            )
+            .bind(first.data.id),
+          db.prepare(
+            `UPDATE customers SET assignee_membership_id='member-worker',version=version+1
+               WHERE agency_id='agency-a' AND id='customer-worker'`,
+          ),
+        ]);
+      }
     }
   });
 

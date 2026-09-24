@@ -20,7 +20,11 @@ export function sanitizeAuditMetadata(metadata: unknown): Record<string, unknown
   const obj = metadata as Record<string, unknown>;
 
   for (const [key, val] of Object.entries(obj)) {
-    if (
+    if (key === 'responseHash') {
+      if (typeof val === 'string' && /^[0-9a-f]{64}$/.test(val)) {
+        result[key] = val;
+      }
+    } else if (
       CODE_FIELDS.has(key) ||
       key === 'customerId' ||
       key === 'contactId' ||

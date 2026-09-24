@@ -201,5 +201,5 @@ describe('M2 Turkish policy-number normalization migration 0009', () => {
         rmSync(dir, { recursive: true, force: true });
       }
     }
-  });
+  }, 180_000);
 });

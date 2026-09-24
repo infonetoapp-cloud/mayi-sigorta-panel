@@ -582,6 +582,8 @@ const RAW_PERMISSION_CATALOG: readonly PermissionDefinition[] = [
     classification: 'NORMAL',
     scopeKind: 'RECORD_SCOPED',
     sensitivityDomain: null,
+    // Parent type is polymorphic; Task service must authorize the linked record read
+    // and set parentReadAuthorized before evaluating this action.
     dependencies: [],
     scopeResolver: 'task_record_resolver',
     assurance: 'NORMAL_SESSION',

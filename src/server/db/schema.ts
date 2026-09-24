@@ -992,6 +992,359 @@ export const policyExternalReferences = sqliteTable(
   ],
 );
 
+export const renewalOpportunities = sqliteTable(
+  'renewal_opportunities',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    expiringPolicyId: text('expiring_policy_id').notNull(),
+    assigneeMembershipId: text('assignee_membership_id'),
+    state: text('state', {
+      enum: [
+        'CONTACT_PENDING',
+        'CONTACTED',
+        'QUOTE_PREPARING',
+        'QUOTE_SENT',
+        'AWAITING_RESPONSE',
+        'WON',
+        'LOST',
+        'VOIDED',
+      ],
+    })
+      .notNull()
+      .default('CONTACT_PENDING'),
+    lossReasonId: text('loss_reason_id'),
+    lossReasonNotes: text('loss_reason_notes'),
+    voidReasonCode: text('void_reason_code'),
+    closedAt: text('closed_at'),
+    closedByMembershipId: text('closed_by_membership_id'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('renewal_opportunities_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'renewal_opportunities_state_valid',
+      sql`${table.state} IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')`,
+    ),
+    check('renewal_opportunities_version_positive', sql`${table.version} >= 1`),
+    check(
+      'renewal_opportunities_timestamps_ordered',
+      sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+    check(
+      'renewal_opportunities_terminal_fields_consistent',
+      sql`(${table.state} IN ('WON','LOST','VOIDED') AND ${table.closedAt} IS NOT NULL AND ${table.closedByMembershipId} IS NOT NULL) OR (${table.state} NOT IN ('WON','LOST','VOIDED') AND ${table.closedAt} IS NULL AND ${table.closedByMembershipId} IS NULL)`,
+    ),
+    check(
+      'renewal_opportunities_loss_reason_consistent',
+      sql`(${table.state}='LOST' AND ${table.lossReasonId} IS NOT NULL) OR (${table.state}<>'LOST' AND ${table.lossReasonId} IS NULL AND ${table.lossReasonNotes} IS NULL)`,
+    ),
+    check(
+      'renewal_opportunities_void_reason_consistent',
+      sql`(${table.state}='VOIDED' AND ${table.voidReasonCode} IS NOT NULL AND length(trim(${table.voidReasonCode}))>0) OR (${table.state}<>'VOIDED' AND ${table.voidReasonCode} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.expiringPolicyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_opportunities_agency_expiring_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.assigneeMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_opportunities_agency_assignee_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.lossReasonId],
+      foreignColumns: [lossReasons.agencyId, lossReasons.id],
+      name: 'renewal_opportunities_agency_loss_reason_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.closedByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_opportunities_agency_closed_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_opportunities_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('renewal_opportunities_expiring_policy_uq').on(
+      table.agencyId,
+      table.expiringPolicyId,
+    ),
+    index('renewal_opportunities_state_idx').on(table.agencyId, table.state, table.id),
+    index('renewal_opportunities_assignee_state_idx').on(
+      table.agencyId,
+      table.assigneeMembershipId,
+      table.state,
+      table.id,
+    ),
+  ],
+);
+
+export const renewalStateHistory = sqliteTable(
+  'renewal_state_history',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    renewalId: text('renewal_id').notNull(),
+    fromState: text('from_state', {
+      enum: [
+        'CONTACT_PENDING',
+        'CONTACTED',
+        'QUOTE_PREPARING',
+        'QUOTE_SENT',
+        'AWAITING_RESPONSE',
+        'WON',
+        'LOST',
+        'VOIDED',
+      ],
+    }),
+    toState: text('to_state', {
+      enum: [
+        'CONTACT_PENDING',
+        'CONTACTED',
+        'QUOTE_PREPARING',
+        'QUOTE_SENT',
+        'AWAITING_RESPONSE',
+        'WON',
+        'LOST',
+        'VOIDED',
+      ],
+    }).notNull(),
+    actorKind: text('actor_kind', { enum: ['USER', 'SYSTEM'] }).notNull(),
+    actorUserId: text('actor_user_id'),
+    actorMembershipId: text('actor_membership_id'),
+    reasonCode: text('reason_code').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('renewal_state_history_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'renewal_state_history_from_state_valid',
+      sql`${table.fromState} IS NULL OR ${table.fromState} IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')`,
+    ),
+    check(
+      'renewal_state_history_to_state_valid',
+      sql`${table.toState} IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')`,
+    ),
+    check(
+      'renewal_state_history_actor_consistent',
+      sql`(${table.actorKind}='USER' AND ${table.actorUserId} IS NOT NULL AND ${table.actorMembershipId} IS NOT NULL) OR (${table.actorKind}='SYSTEM' AND ${table.actorUserId} IS NULL AND ${table.actorMembershipId} IS NULL)`,
+    ),
+    check('renewal_state_history_reason_nonempty', sql`length(trim(${table.reasonCode})) > 0`),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'renewal_state_history_agency_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+      name: 'renewal_state_history_actor_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_state_history_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_state_history_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('renewal_state_history_initial_uq')
+      .on(table.agencyId, table.renewalId)
+      .where(sql`${table.fromState} IS NULL`),
+    index('renewal_state_history_renewal_created_idx').on(
+      table.agencyId,
+      table.renewalId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export const tasks = sqliteTable(
+  'tasks',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    policyId: text('policy_id'),
+    renewalId: text('renewal_id'),
+    kind: text('kind', { enum: ['GENERAL', 'RENEWAL_FOLLOWUP'] }).notNull(),
+    title: text('title').notNull(),
+    dueAt: text('due_at').notNull(),
+    assigneeMembershipId: text('assignee_membership_id'),
+    status: text('status', { enum: ['OPEN', 'COMPLETED'] })
+      .notNull()
+      .default('OPEN'),
+    completedAt: text('completed_at'),
+    completedByMembershipId: text('completed_by_membership_id'),
+    actorKind: text('actor_kind', { enum: ['USER', 'SYSTEM'] }).notNull(),
+    createdByUserId: text('created_by_user_id'),
+    createdByMembershipId: text('created_by_membership_id'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('tasks_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('tasks_title_nonempty', sql`length(trim(${table.title})) > 0`),
+    check('tasks_kind_valid', sql`${table.kind} IN ('GENERAL','RENEWAL_FOLLOWUP')`),
+    check('tasks_status_valid', sql`${table.status} IN ('OPEN','COMPLETED')`),
+    check('tasks_version_positive', sql`${table.version} >= 1`),
+    check('tasks_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    check(
+      'tasks_kind_parent_consistent',
+      sql`(${table.kind}='RENEWAL_FOLLOWUP' AND ${table.renewalId} IS NOT NULL AND ${table.policyId} IS NULL) OR (${table.kind}='GENERAL' AND ${table.renewalId} IS NULL)`,
+    ),
+    check(
+      'tasks_completion_consistent',
+      sql`(${table.status}='OPEN' AND ${table.completedAt} IS NULL AND ${table.completedByMembershipId} IS NULL) OR (${table.status}='COMPLETED' AND ${table.completedAt} IS NOT NULL AND ${table.completedByMembershipId} IS NOT NULL)`,
+    ),
+    check(
+      'tasks_creator_consistent',
+      sql`(${table.actorKind}='USER' AND ${table.createdByUserId} IS NOT NULL AND ${table.createdByMembershipId} IS NOT NULL) OR (${table.actorKind}='SYSTEM' AND ${table.createdByUserId} IS NULL AND ${table.createdByMembershipId} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'tasks_agency_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'tasks_agency_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'tasks_agency_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.assigneeMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'tasks_agency_assignee_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: 'tasks_created_by_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'tasks_created_by_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.completedByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'tasks_completed_by_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('tasks_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('tasks_open_renewal_followup_uq')
+      .on(table.agencyId, table.renewalId)
+      .where(sql`${table.kind}='RENEWAL_FOLLOWUP' AND ${table.status}='OPEN'`),
+    index('tasks_today_lookup_idx').on(table.agencyId, table.status, table.dueAt, table.id),
+    index('tasks_assignee_status_due_idx').on(
+      table.agencyId,
+      table.assigneeMembershipId,
+      table.status,
+      table.dueAt,
+      table.id,
+    ),
+    index('tasks_customer_due_idx').on(table.agencyId, table.customerId, table.dueAt),
+  ],
+);
+
+export const renewalGenerationCursors = sqliteTable(
+  'renewal_generation_cursors',
+  {
+    agencyId: text('agency_id')
+      .primaryKey()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    lastSuccessfulLocalDate: text('last_successful_local_date'),
+    version: integer('version').notNull().default(1),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check(
+      'renewal_generation_cursors_date_shape',
+      sql`${table.lastSuccessfulLocalDate} IS NULL OR ${table.lastSuccessfulLocalDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`,
+    ),
+    check('renewal_generation_cursors_version_positive', sql`${table.version} >= 1`),
+  ],
+);
+
+export const systemAuditEvents = sqliteTable(
+  'system_audit_events',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    systemActorCode: text('system_actor_code').notNull(),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    outcome: text('outcome', { enum: ['SUCCESS', 'FAILURE'] }).notNull(),
+    reasonCode: text('reason_code').notNull(),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('system_audit_events_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'system_audit_events_actor_code_nonempty',
+      sql`length(trim(${table.systemActorCode})) > 0`,
+    ),
+    check('system_audit_events_action_nonempty', sql`length(trim(${table.action})) > 0`),
+    check('system_audit_events_target_type_nonempty', sql`length(trim(${table.targetType})) > 0`),
+    check('system_audit_events_target_id_nonempty', sql`length(trim(${table.targetId})) > 0`),
+    check(
+      'system_audit_events_correlation_id_nonempty',
+      sql`length(trim(${table.correlationId})) > 0`,
+    ),
+    check('system_audit_events_key_nonempty', sql`length(trim(${table.idempotencyKey})) > 0`),
+    check('system_audit_events_reason_nonempty', sql`length(trim(${table.reasonCode})) > 0`),
+    check('system_audit_events_outcome_valid', sql`${table.outcome} IN ('SUCCESS','FAILURE')`),
+    uniqueIndex('system_audit_events_idempotency_uq').on(
+      table.agencyId,
+      table.systemActorCode,
+      table.action,
+      table.idempotencyKey,
+    ),
+    index('system_audit_events_target_idx').on(table.agencyId, table.targetType, table.targetId),
+    index('system_audit_events_created_idx').on(table.agencyId, table.createdAt),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
@@ -1014,3 +1367,8 @@ export type Policy = typeof policies.$inferSelect;
 export type PolicyParty = typeof policyParties.$inferSelect;
 export type PolicyAmendment = typeof policyAmendments.$inferSelect;
 export type PolicyExternalReference = typeof policyExternalReferences.$inferSelect;
+export type RenewalOpportunity = typeof renewalOpportunities.$inferSelect;
+export type RenewalStateHistory = typeof renewalStateHistory.$inferSelect;
+export type Task = typeof tasks.$inferSelect;
+export type RenewalGenerationCursor = typeof renewalGenerationCursors.$inferSelect;
+export type SystemAuditEvent = typeof systemAuditEvents.$inferSelect;

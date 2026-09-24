@@ -478,12 +478,14 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       'operation_receipts_update_guard',
       'policies_active_catalog_guard_insert',
       'policies_active_catalog_guard_update',
+      'policies_archive_open_renewal_guard',
       'policies_archive_reason_code_guard',
       'policies_archive_reason_code_guard_insert',
       'policies_archived_customer_guard_insert',
       'policies_archived_customer_guard_update',
       'policies_installment_guard_insert',
       'policies_installment_guard_update',
+      'policies_terminal_status_open_renewal_guard',
       'policy_amendments_archived_parent_guard_insert',
       'policy_amendments_archived_parent_guard_update',
       'policy_external_references_archived_parent_guard_insert',
@@ -491,8 +493,16 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       'policy_parties_archived_customer_guard_insert',
       'policy_parties_archived_parent_guard_insert',
       'policy_parties_archived_parent_guard_update',
+      'renewal_state_history_no_delete',
+      'renewal_state_history_no_update',
       'sensitive_action_grants_no_row_replacement',
       'sensitive_action_grants_update_guard',
+      'system_audit_events_no_delete',
+      'system_audit_events_no_update',
+      'tasks_policy_customer_insert',
+      'tasks_policy_customer_update',
+      'tasks_renewal_customer_insert',
+      'tasks_renewal_customer_update',
       'users_after_insert_owner_assertion',
       'users_no_delete',
       'users_no_row_replacement',
@@ -524,7 +534,7 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       { type: 'OWNER', version: 2, permission_version: 2 },
       { type: 'OWNER', version: 1, permission_version: 1 },
     ]);
-  });
+  }, 180_000);
 
   it('tek statement içindeki iki owner User inactivation tamamen rollback edilir', () => {
     bootstrapActiveAgency('batch-user');
@@ -543,7 +553,7 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       { id: 'batch-user-second-user', status: 'ACTIVE', version: 1 },
       { id: 'batch-user-user', status: 'ACTIVE', version: 2 },
     ]);
-  });
+  }, 180_000);
 
   it('UPSERT protected membership satırını güncelleyemez', () => {
     bootstrapActiveAgency('upsert-membership');

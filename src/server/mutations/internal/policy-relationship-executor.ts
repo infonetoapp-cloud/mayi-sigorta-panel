@@ -399,6 +399,8 @@ function isReceiptRace(error: unknown): boolean {
 function mapError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes('FINAL_AUTHORITY_RECHECK_FAILED')) throw new PolicyAuthorizationRaceError();
+  if (message.includes('POLICY_OPEN_DEPENDENCIES'))
+    throw new PolicyConstraintError('OPEN_DEPENDENCIES');
   if (message.includes('OPTIMISTIC_CONCURRENCY_CONFLICT')) throw new OptimisticConcurrencyError(0);
   if (
     message.includes('policy_external_references_namespace_key_uq') ||
