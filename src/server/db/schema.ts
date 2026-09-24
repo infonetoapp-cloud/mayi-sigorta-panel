@@ -1123,6 +1123,9 @@ export const renewalStateHistory = sqliteTable(
     actorMembershipId: text('actor_membership_id'),
     reasonCode: text('reason_code').notNull(),
     createdAt: text('created_at').notNull().default(utcNow),
+    lossReasonId: text('loss_reason_id'),
+    lossReasonNotes: text('loss_reason_notes'),
+    voidReasonCode: text('void_reason_code'),
   },
   (table) => [
     check('renewal_state_history_id_nonempty', sql`length(trim(${table.id})) > 0`),

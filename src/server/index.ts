@@ -18,6 +18,7 @@ import { registerCustomerRoutes } from './customers/routes';
 import { registerCatalogRoutes } from './catalogs/routes';
 import { registerPolicyRoutes } from './policies/routes';
 import { registerTaskRoutes } from './tasks/routes';
+import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 
 /**
@@ -449,6 +450,9 @@ export function createApp(
 
   // M3-T02 primary renewal Task and Today’s Work API routes
   registerTaskRoutes(app, dependencies);
+
+  // M3-T03 explicit Renewal outcome commands
+  registerRenewalCommandRoutes(app, dependencies);
 
   if (configureRoutes) {
     configureRoutes(app);

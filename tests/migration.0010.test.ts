@@ -9,6 +9,7 @@ const root = resolve(__dirname, '..');
 const migrationFiles = readdirSync(resolve(root, 'db/migrations'))
   .filter((file) => /^\d{4}_.*\.sql$/.test(file))
   .sort();
+const migrationsThrough0010 = migrationFiles.filter((file) => Number(file.slice(0, 4)) <= 10);
 function getLatestMigration(): string {
   const file = migrationFiles.find((name) => name.startsWith('0010_'));
   if (!file) throw new Error('M3 migration 0010 is missing.');
@@ -25,8 +26,8 @@ function runMigrationAcceptance(mode: 'clean' | 'upgrade') {
   mkdirSync(migrations);
   mkdirSync(state);
   for (const file of mode === 'clean'
-    ? migrationFiles
-    : migrationFiles.filter((name) => !name.startsWith('0010_'))) {
+    ? migrationsThrough0010
+    : migrationsThrough0010.filter((name) => name !== latestMigration)) {
     copyFileSync(resolve(root, 'db/migrations', file), join(migrations, file));
   }
   writeFileSync(
