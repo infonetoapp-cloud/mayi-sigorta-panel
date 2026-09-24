@@ -39,7 +39,7 @@ Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
 | Faz 2 — Müşteri/poliçe domain'i | TAMAMLANDI — M2-T01–T06 PASS; 7. fresh GPT-6 Sol High final review PASS |
-| Faz 3 — Yenileme ve takip | AKTİF — M3-T01/T02 kabul edildi; birleşik checkpoint `0f5043bd4e3451f3de0aafb34205fc68325e53d2` commit edildi, push doğrulaması sırada |
+| Faz 3 — Yenileme ve takip | AKTİF — M3-T01/T02 kabul edildi; birleşik checkpoint `0f5043bd4e3451f3de0aafb34205fc68325e53d2` push edildi |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
@@ -294,6 +294,6 @@ Durum: **M3-T02 ACCEPT — BLOCKER 0, IMPORTANT 0, OPTIONAL 0; FINAL VERDICT PAS
 - Migration `0010`: Wrangler local clean apply/no-op, `0009` seed korunarak upgrade, constraint/trigger/FK ve immutable event kanıtı **2/2 PASS**. `0000–0009` tarihsel SQL dosyaları değişmedi. `npm run db:generate`: **No schema changes, nothing to migrate**.
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (client + Wrangler Worker dry-run), `git diff --check`: **PASS**.
 - Bağımsız GPT-6 Sol High incelemeleri: ilk incelemedeki **2 BLOCKER + 2 IMPORTANT** giderildi; ikinci fresh incelemenin bulduğu cursor boyutu ve completedAt bütünlüğü için testli düzeltmeler yapıldı. Son fresh inceleme: **BLOCKER 0, IMPORTANT 0, OPTIONAL 0 — FINAL VERDICT PASS**. İnceleyici M3-T02/migration seçkisini **44/44**, T01/shared authorization seçkisini **188/188** çalıştırdı; bu oturum ayrıca yukarıdaki tam suite ve `test:d1` sonuçlarını üretti.
-- Birleşik M3-T01/T02 checkpoint commit'i: `0f5043bd4e3451f3de0aafb34205fc68325e53d2`. Normal push ve `HEAD == origin/main`/clean-worktree doğrulaması sırada. Yalnız local sentetik veri kullanıldı; deployment, remote D1, DNS/Cloudflare production yapılandırması veya gerçek müşteri verisi işlemi yapılmadı.
+- Birleşik M3-T01/T02 checkpoint commit'i `0f5043bd4e3451f3de0aafb34205fc68325e53d2` origin/main'e normal push ile yayımlandı. Push sonrasında `HEAD == origin/main == af02311fe311bad9c982f9adc6e92f55ce546b8a` ve worktree temiz olarak doğrulandı; bu satırlar bu takip amaçlı durum güncellemesinden önceki push kontrolünü kaydeder. Yalnız local sentetik veri kullanıldı; deployment, remote D1, DNS/Cloudflare production yapılandırması veya gerçek müşteri verisi işlemi yapılmadı.
 
-Sonraki tek görev: **checkpoint'i origin/main'e normal biçimde push edip clean-state doğrulaması; ardından M3-T03 terminal Renewal komutları ile RenewalPolicyLink/tahsis bağımlılığını uygulamak.**
+Sonraki tek görev: **M3-T03 terminal Renewal komutları ile RenewalPolicyLink/tahsis bağımlılığını Phase 3 sözleşmesine göre uygulamak.**
