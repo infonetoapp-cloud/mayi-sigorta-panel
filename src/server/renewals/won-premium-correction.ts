@@ -827,6 +827,20 @@ export async function correctWonPolicyPremium(
   try {
     await db.batch(statements);
   } catch (error) {
+    const racedReceipt = await readReceipt(db, active, context.userId, key);
+    if (racedReceipt) {
+      if (
+        racedReceipt.action !== OPERATION_ACTION ||
+        racedReceipt.payload_fingerprint !== fingerprint
+      )
+        throw new RenewalCommandError('IDEMPOTENCY_CONFLICT', 409);
+      const racedResult = resultFromReceipt(racedReceipt);
+      await proveReplay(db, active, racedReceipt, racedResult, fingerprint);
+      if (racedResult.policyId !== policyId)
+        throw new RenewalCommandError('IDEMPOTENCY_CONFLICT', 409);
+      await replayAuthorization(db, context, active, racedResult);
+      return { data: racedResult, replayed: true, status: 200 };
+    }
     const message = error instanceof Error ? error.message : String(error);
     if (/MEMBERSHIP_AUTHORIZED|SECURE_GRANT_INVALID/.test(message))
       throw new RenewalCommandError('FORBIDDEN', 403);

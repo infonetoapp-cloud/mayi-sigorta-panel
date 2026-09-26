@@ -51,6 +51,7 @@ import {
 const WON_CORRECTION_ACTION = 'renewal.won.correct';
 const WON_GROUP_ACTION = 'renewal.close_won.group';
 const WON_GROUP_CORRECTION_RECEIPT_ACTION = 'renewal.won.correct.group';
+const WON_PREMIUM_CORRECTION_RECEIPT_ACTION = 'renewal.won.premium.correct';
 type WonRenewalCorrectionGrantInput = Omit<WonRenewalCorrectionInput, 'grantEvidenceToken'>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,6 +152,184 @@ function correctionBaseInput(input: WonRenewalCorrectionInput): WonCorrectionBas
   };
 }
 
+async function currentLinksDescendFromGroupReceipt(
+  db: D1Database,
+  agencyId: string,
+  origin: OriginGroupMember,
+  currentLinks: readonly WonLinkRow[],
+): Promise<boolean> {
+  const expectedCurrent = new Map<
+    string,
+    {
+      renewalId: string;
+      newPolicyId: string;
+      allocatedPremiumMinor: number;
+      currency: string;
+      differentPolicyholderReasonCode: string | null;
+      allocationOperationId: string;
+    }
+  >();
+  for (const originLink of origin.links) {
+    if (originLink.renewalId !== origin.renewalId) return false;
+    let lineage = {
+      id: originLink.id,
+      renewalId: originLink.renewalId,
+      newPolicyId: originLink.newPolicyId,
+      allocatedPremiumMinor: originLink.allocatedNewPremiumMinor,
+      currency: originLink.currency,
+      differentPolicyholderReasonCode: originLink.differentPolicyholderReasonCode,
+      allocationOperationId: originLink.allocationOperationId,
+    };
+    const visited = new Set([lineage.id]);
+    for (;;) {
+      const successors = await db
+        .prepare(
+          `SELECT correction_link.operation_id,correction_link.old_link_id,
+                  correction_link.new_link_id,correction_link.renewal_id,
+                  correction_link.policy_id,correction_link.allocated_premium_minor,
+                  correction_link.currency,correction_link.different_policyholder_reason_code,
+                  correction.id AS correction_id,correction.policy_id AS correction_policy_id,
+                  correction.actor_membership_id AS correction_actor_membership_id,
+                  receipt.id AS receipt_id,receipt.action AS receipt_action,
+                  receipt.status AS receipt_status,receipt.response_status AS receipt_response_status,
+                  receipt.actor_membership_id AS receipt_actor_membership_id,
+                  old_link.renewal_id AS old_renewal_id,old_link.new_policy_id AS old_policy_id,
+                  old_link.allocated_new_premium_minor AS old_amount,old_link.currency AS old_currency,
+                  old_link.different_policyholder_reason_code AS old_reason,
+                  old_link.allocation_operation_id AS old_allocation_operation_id,
+                  old_link.status AS old_status,
+                  old_link.superseded_operation_id AS old_superseded_operation_id,
+                  new_link.renewal_id AS new_renewal_id,new_link.new_policy_id AS new_policy_id,
+                  new_link.allocated_new_premium_minor AS new_amount,new_link.currency AS new_currency,
+                  new_link.different_policyholder_reason_code AS new_reason,
+                  new_link.allocation_operation_id AS new_allocation_operation_id,
+                  new_link.supersedes_link_id AS new_supersedes_link_id,
+                  EXISTS(SELECT 1 FROM audit_events audit
+                    WHERE audit.agency_id=correction_link.agency_id
+                      AND audit.actor_membership_id=receipt.actor_membership_id
+                      AND audit.idempotency_key=receipt.idempotency_key
+                      AND audit.action='renewal.won.premium.corrected'
+                      AND audit.target_type='policies' AND audit.target_id=correction_link.policy_id
+                      AND audit.outcome='SUCCESS') AS has_success_audit
+           FROM renewal_won_policy_premium_correction_links correction_link
+           LEFT JOIN renewal_won_policy_premium_corrections correction
+             ON correction.agency_id=correction_link.agency_id
+            AND correction.id=correction_link.operation_id
+           LEFT JOIN operation_receipts receipt
+             ON receipt.agency_id=correction_link.agency_id AND receipt.id=correction_link.operation_id
+           LEFT JOIN renewal_policy_links old_link
+             ON old_link.agency_id=correction_link.agency_id AND old_link.id=correction_link.old_link_id
+           LEFT JOIN renewal_policy_links new_link
+             ON new_link.agency_id=correction_link.agency_id AND new_link.id=correction_link.new_link_id
+           WHERE correction_link.agency_id=? AND correction_link.old_link_id=?`,
+        )
+        .bind(agencyId, lineage.id)
+        .all<{
+          operation_id: string;
+          old_link_id: string;
+          new_link_id: string;
+          renewal_id: string;
+          policy_id: string;
+          allocated_premium_minor: number;
+          currency: string;
+          different_policyholder_reason_code: string | null;
+          correction_id: string | null;
+          correction_policy_id: string | null;
+          correction_actor_membership_id: string | null;
+          receipt_id: string | null;
+          receipt_action: string | null;
+          receipt_status: string | null;
+          receipt_response_status: number | null;
+          receipt_actor_membership_id: string | null;
+          old_renewal_id: string | null;
+          old_policy_id: string | null;
+          old_amount: number | null;
+          old_currency: string | null;
+          old_reason: string | null;
+          old_allocation_operation_id: string | null;
+          old_status: string | null;
+          old_superseded_operation_id: string | null;
+          new_renewal_id: string | null;
+          new_policy_id: string | null;
+          new_amount: number | null;
+          new_currency: string | null;
+          new_reason: string | null;
+          new_allocation_operation_id: string | null;
+          new_supersedes_link_id: string | null;
+          has_success_audit: number;
+        }>();
+      if (!successors.results.length) break;
+      if (successors.results.length !== 1) return false;
+      const successor = successors.results[0]!;
+      if (
+        successor.old_link_id !== lineage.id ||
+        successor.renewal_id !== lineage.renewalId ||
+        successor.policy_id !== lineage.newPolicyId ||
+        successor.currency !== lineage.currency ||
+        successor.different_policyholder_reason_code !== lineage.differentPolicyholderReasonCode ||
+        successor.correction_id !== successor.operation_id ||
+        successor.correction_policy_id !== lineage.newPolicyId ||
+        successor.receipt_id !== successor.operation_id ||
+        successor.receipt_action !== WON_PREMIUM_CORRECTION_RECEIPT_ACTION ||
+        successor.receipt_status !== 'COMPLETED' ||
+        successor.receipt_response_status !== 200 ||
+        successor.receipt_actor_membership_id !== successor.correction_actor_membership_id ||
+        successor.old_renewal_id !== lineage.renewalId ||
+        successor.old_policy_id !== lineage.newPolicyId ||
+        successor.old_amount !== lineage.allocatedPremiumMinor ||
+        successor.old_currency !== lineage.currency ||
+        successor.old_reason !== lineage.differentPolicyholderReasonCode ||
+        successor.old_allocation_operation_id !== lineage.allocationOperationId ||
+        successor.old_status !== 'SUPERSEDED' ||
+        successor.old_superseded_operation_id !== successor.operation_id ||
+        successor.new_link_id === lineage.id ||
+        successor.new_renewal_id !== lineage.renewalId ||
+        successor.new_policy_id !== lineage.newPolicyId ||
+        successor.new_amount !== successor.allocated_premium_minor ||
+        successor.new_currency !== successor.currency ||
+        successor.new_reason !== successor.different_policyholder_reason_code ||
+        successor.new_allocation_operation_id !== successor.operation_id ||
+        successor.new_supersedes_link_id !== lineage.id ||
+        successor.has_success_audit !== 1 ||
+        visited.has(successor.new_link_id)
+      )
+        return false;
+      visited.add(successor.new_link_id);
+      lineage = {
+        id: successor.new_link_id,
+        renewalId: successor.renewal_id,
+        newPolicyId: successor.policy_id,
+        allocatedPremiumMinor: successor.allocated_premium_minor,
+        currency: successor.currency,
+        differentPolicyholderReasonCode: successor.different_policyholder_reason_code,
+        allocationOperationId: successor.operation_id,
+      };
+    }
+    if (expectedCurrent.has(lineage.id)) return false;
+    expectedCurrent.set(lineage.id, {
+      renewalId: lineage.renewalId,
+      newPolicyId: lineage.newPolicyId,
+      allocatedPremiumMinor: lineage.allocatedPremiumMinor,
+      currency: lineage.currency,
+      differentPolicyholderReasonCode: lineage.differentPolicyholderReasonCode,
+      allocationOperationId: lineage.allocationOperationId,
+    });
+  }
+  if (expectedCurrent.size !== currentLinks.length) return false;
+  return currentLinks.every((link) => {
+    const expected = expectedCurrent.get(link.id);
+    return (
+      expected !== undefined &&
+      link.renewal_id === expected.renewalId &&
+      link.newPolicyId === expected.newPolicyId &&
+      link.allocatedNewPremiumMinor === expected.allocatedPremiumMinor &&
+      link.currency === expected.currency &&
+      link.different_policyholder_reason_code === expected.differentPolicyholderReasonCode &&
+      link.allocationOperationId === expected.allocationOperationId
+    );
+  });
+}
+
 async function loadGroupCorrectionSnapshot(
   context: AuthenticatedUserContext,
   db: D1Database,
@@ -163,40 +342,64 @@ async function loadGroupCorrectionSnapshot(
   validateWonCorrectionState(root, input);
   const rootLinks = await loadWonLinks(db, active.agencyId, renewalId);
   if (!rootLinks.links.length) return null;
-  const operationIds = [...new Set(rootLinks.links.map((link) => link.allocationOperationId))];
-  if (operationIds.length !== 1) return null;
-  const receipt = await db
+  const groupReceipts = await db
     .prepare(
-      `SELECT action,status,response_status,response_body,payload_fingerprint FROM operation_receipts WHERE id=? AND agency_id=?`,
+      `SELECT receipt.id,receipt.action,receipt.status,receipt.response_status,
+              receipt.response_body,receipt.payload_fingerprint
+       FROM audit_events audit
+       JOIN operation_receipts receipt
+         ON receipt.agency_id=audit.agency_id
+        AND receipt.actor_user_id=audit.actor_user_id
+        AND receipt.actor_membership_id=audit.actor_membership_id
+        AND receipt.idempotency_key=audit.idempotency_key
+       WHERE audit.agency_id=? AND audit.target_type='renewal_opportunities'
+         AND audit.target_id=? AND audit.action='renewal.closed_won' AND audit.outcome='SUCCESS'
+         AND audit.created_at=? AND receipt.action=? AND receipt.status='COMPLETED'
+         AND receipt.response_status=201`,
     )
-    .bind(operationIds[0], active.agencyId)
-    .first<{
+    .bind(active.agencyId, renewalId, root.renewal_closed_at, WON_GROUP_ACTION)
+    .all<{
+      id: string;
       action: string;
       status: string;
       response_status: number;
       response_body: string;
       payload_fingerprint: string;
     }>();
-  if (!receipt || receipt.action !== WON_GROUP_ACTION) return null;
-  let raw: unknown;
-  try {
-    raw = JSON.parse(receipt.response_body);
-  } catch {
-    throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+  if (!groupReceipts.results.length) return null;
+  const matchingOrigins: Array<{
+    receipt: (typeof groupReceipts.results)[number];
+    origin: OriginGroupEnvelope['result'];
+  }> = [];
+  for (const receipt of groupReceipts.results) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(receipt.response_body);
+    } catch {
+      throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+    }
+    if (!isRecord(raw) || !isRecord(raw.binding) || !isRecord(raw.result))
+      throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+    const origin = raw.result as unknown as OriginGroupEnvelope['result'];
+    if (
+      receipt.action !== WON_GROUP_ACTION ||
+      origin.operationId !== receipt.id ||
+      !Array.isArray(origin.renewals) ||
+      origin.renewals.length < 2 ||
+      (await computePayloadHash(raw.binding)) !== receipt.payload_fingerprint
+    )
+      throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+    const rootOrigin = origin.renewals.find((item) => item.renewalId === renewalId);
+    if (
+      rootOrigin?.primaryTaskId === root.task_id &&
+      rootOrigin.renewalVersion === root.renewal_version &&
+      rootOrigin.taskVersion === root.task_version &&
+      rootOrigin.closedAt === root.renewal_closed_at
+    )
+      matchingOrigins.push({ receipt, origin });
   }
-  if (!isRecord(raw) || !isRecord(raw.binding) || !isRecord(raw.result))
-    throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
-  const origin = raw.result as unknown as OriginGroupEnvelope['result'];
-  if (
-    receipt.status !== 'COMPLETED' ||
-    receipt.response_status !== 201 ||
-    origin.operationId !== operationIds[0] ||
-    !Array.isArray(origin.renewals) ||
-    origin.renewals.length < 2 ||
-    (await computePayloadHash(raw.binding)) !== receipt.payload_fingerprint ||
-    !origin.renewals.some((item) => item.renewalId === renewalId)
-  )
-    throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+  if (matchingOrigins.length !== 1) throw new RenewalCommandError('WON_GROUP_NOT_FOUND', 404);
+  const { receipt, origin } = matchingOrigins[0]!;
   const members: GroupCorrectionMember[] = [];
   for (const item of origin.renewals) {
     const row = await loadRenewalTask(db, active.agencyId, item.renewalId);
@@ -217,22 +420,7 @@ async function loadGroupCorrectionSnapshot(
     )
       throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
     const current = await loadWonLinks(db, active.agencyId, item.renewalId);
-    if (
-      current.links.length !== item.links.length ||
-      current.links.some(
-        (link) =>
-          !item.links.some(
-            (expected: OriginGroupMember['links'][number]) =>
-              expected.id === link.id &&
-              expected.newPolicyId === link.newPolicyId &&
-              expected.allocatedNewPremiumMinor === link.allocatedNewPremiumMinor &&
-              expected.currency === link.currency &&
-              expected.differentPolicyholderReasonCode ===
-                link.different_policyholder_reason_code &&
-              expected.allocationOperationId === link.allocationOperationId,
-          ),
-      )
-    )
+    if (!(await currentLinksDescendFromGroupReceipt(db, active.agencyId, item, current.links)))
       throw new RenewalCommandError('RENEWAL_POLICY_LINK_CONFLICT', 409);
     const scopes = await authorizeWonCorrectionReadScope(db, context, row);
     members.push({

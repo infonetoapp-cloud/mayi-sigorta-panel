@@ -4213,6 +4213,115 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       replacementDueAt: '2026-10-30T08:00:00.000Z',
       correctionReasonCode: 'GROUP_CORRECTION_TEST',
     };
+    const preallocatedPremiumCorrection = await groupCorrectionApp.request(
+      `https://panel.mayisigorta.test/secure/api/policies/${preallocatedGroupFixture.targetPolicyId}/correct-won-premium`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://panel.mayisigorta.com',
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': groupCorrectionCsrfToken,
+          'Idempotency-Key': 'won-group-preallocated-premium-correction-key',
+        },
+        body: JSON.stringify({
+          expectedPolicyVersion: 1,
+          correctedPremiumMinor: 12000,
+          reasonCode: 'GROUP_PREMIUM_REBALANCE',
+          allocations: [
+            {
+              linkId: preallocatedLinks[0]!.id,
+              expectedRenewalVersion: 2,
+              allocatedPremiumMinor: 7000,
+            },
+            {
+              linkId: preallocatedLinks[1]!.id,
+              expectedRenewalVersion: 2,
+              allocatedPremiumMinor: 5000,
+            },
+          ],
+        }),
+      },
+      { ...env, DB: db },
+    );
+    expect(
+      preallocatedPremiumCorrection.status,
+      await preallocatedPremiumCorrection.clone().text(),
+    ).toBe(200);
+    const preallocatedPremiumCorrectionResult = (await preallocatedPremiumCorrection.json()) as {
+      data: { links: Array<{ newLinkId: string; renewalId: string }> };
+    };
+    const preallocatedCorrectionGrantResponse = await groupCorrectionApp.request(
+      `https://panel.mayisigorta.test/secure/api/renewals/${preallocatedGroupFixture.renewalA}/won-correction-grants`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://panel.mayisigorta.com',
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': groupCorrectionCsrfToken,
+          'Idempotency-Key': 'won-group-preallocated-correction-grant-key',
+        },
+        body: JSON.stringify(groupCorrectionInput),
+      },
+      { ...env, DB: db },
+    );
+    expect(
+      preallocatedCorrectionGrantResponse.status,
+      await preallocatedCorrectionGrantResponse.clone().text(),
+    ).toBe(201);
+    const preallocatedCorrectionGrant = (await preallocatedCorrectionGrantResponse.json()) as {
+      data: { grantEvidenceToken: string };
+    };
+    const preallocatedCorrectionResponse = await groupCorrectionApp.request(
+      `https://panel.mayisigorta.test/secure/api/renewals/${preallocatedGroupFixture.renewalA}/correct-won`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://panel.mayisigorta.com',
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': groupCorrectionCsrfToken,
+          'Idempotency-Key': 'won-group-preallocated-correction-operation-key',
+        },
+        body: JSON.stringify({
+          ...groupCorrectionInput,
+          grantEvidenceToken: preallocatedCorrectionGrant.data.grantEvidenceToken,
+        }),
+      },
+      { ...env, DB: db },
+    );
+    expect(
+      preallocatedCorrectionResponse.status,
+      await preallocatedCorrectionResponse.clone().text(),
+    ).toBe(200);
+    const preallocatedCorrection = (await preallocatedCorrectionResponse.json()) as {
+      data: { groupOperationId: string; renewals: Array<{ renewalId: string }> };
+    };
+    expect(preallocatedCorrection.data.groupOperationId).toBe(preallocatedWonBody.data.operationId);
+    expect(preallocatedCorrection.data.renewals).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          renewalId: preallocatedGroupFixture.renewalA,
+          state: 'CONTACT_PENDING',
+          renewalVersion: 3,
+          taskVersion: 1,
+          supersededLinkIds: [
+            preallocatedPremiumCorrectionResult.data.links.find(
+              (link) => link.renewalId === preallocatedGroupFixture.renewalA,
+            )!.newLinkId,
+          ],
+        }),
+        expect.objectContaining({
+          renewalId: preallocatedGroupFixture.renewalB,
+          state: 'CONTACT_PENDING',
+          renewalVersion: 3,
+          taskVersion: 1,
+          supersededLinkIds: [
+            preallocatedPremiumCorrectionResult.data.links.find(
+              (link) => link.renewalId === preallocatedGroupFixture.renewalB,
+            )!.newLinkId,
+          ],
+        }),
+      ]),
+    );
     const groupCorrectionGrantResponse = await groupCorrectionApp.request(
       'https://panel.mayisigorta.test/secure/api/renewals/won-group-renewal-a/won-correction-grants',
       {

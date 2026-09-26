@@ -760,4 +760,166 @@ describe('M3 WON Policy premium correction on local D1', () => {
       ]);
     }
   });
+
+  it('replays an exact concurrent premium-correction command after the receipt race', async () => {
+    const now = '2026-09-24T06:00:00.000Z';
+    await db.batch([
+      db.prepare(
+        `INSERT INTO policies
+           (id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,
+            assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,
+            gross_premium_minor,currency,version)
+         VALUES('premium-race-old-policy','premium-agency','premium-customer','premium-insurer',
+           'premium-product','premium-branch','premium-payment','premium-owner-membership',
+           'PREMIUM-RACE-OLD','PREMIUMRACEOLD','2025-10-25','2026-10-24',10000,'TRY',1),
+              ('premium-race-new-policy','premium-agency','premium-customer','premium-insurer',
+           'premium-product','premium-branch','premium-payment','premium-owner-membership',
+           'PREMIUM-RACE-NEW','PREMIUMRACENEW','2026-10-25','2027-10-24',10000,'TRY',1)`,
+      ),
+      db
+        .prepare(
+          `INSERT INTO renewal_opportunities
+           (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,closed_at,
+            closed_by_membership_id,created_at,updated_at)
+         VALUES('premium-race-renewal','premium-agency','premium-race-old-policy',
+           'premium-owner-membership','CONTACT_PENDING',1,NULL,NULL,?,?)`,
+        )
+        .bind(now, now),
+      db
+        .prepare(
+          `INSERT INTO renewal_state_history
+         (id,agency_id,renewal_id,from_state,to_state,actor_kind,reason_code,created_at)
+         VALUES('premium-race-initial-history','premium-agency','premium-race-renewal',NULL,
+           'CONTACT_PENDING','SYSTEM','POLICY_EXPIRING',?)`,
+        )
+        .bind(now),
+      db
+        .prepare(
+          `INSERT INTO operation_receipts
+           (id,agency_id,actor_user_id,actor_membership_id,action,idempotency_key,
+            payload_fingerprint,status,response_status,response_body,created_at,updated_at)
+         VALUES('premium-race-allocation','premium-agency','premium-owner-user',
+           'premium-owner-membership','renewal.policy_links.allocate','premium-race-allocation-key',
+           ?,'COMPLETED',201,'{}',?,?)`,
+        )
+        .bind('f'.repeat(64), now, now),
+      db
+        .prepare(
+          `INSERT INTO renewal_policy_links
+           (id,agency_id,renewal_id,new_policy_id,allocated_new_premium_minor,currency,
+            allocation_operation_id,created_by_membership_id,created_at)
+         VALUES('premium-race-link','premium-agency','premium-race-renewal',
+           'premium-race-new-policy',10000,'TRY','premium-race-allocation',
+           'premium-owner-membership',?)`,
+        )
+        .bind(now),
+    ]);
+    await db.batch([
+      db
+        .prepare(
+          `UPDATE renewal_opportunities
+           SET state='WON',closed_at=?,closed_by_membership_id='premium-owner-membership',
+               version=2,updated_at=? WHERE id='premium-race-renewal' AND version=1`,
+        )
+        .bind(now, now),
+      db
+        .prepare(
+          `INSERT INTO renewal_state_history
+         (id,agency_id,renewal_id,from_state,to_state,actor_kind,actor_user_id,
+          actor_membership_id,reason_code,created_at)
+         VALUES('premium-race-won-history','premium-agency','premium-race-renewal',
+           'CONTACT_PENDING','WON','USER','premium-owner-user','premium-owner-membership','WON',?)`,
+        )
+        .bind(now),
+    ]);
+
+    let mutationBatches = 0;
+    let releaseMutationBatches!: () => void;
+    const bothMutationBatchesReady = new Promise<void>((resolve) => {
+      releaseMutationBatches = resolve;
+    });
+    const concurrentDatabase = new Proxy(db, {
+      get(target, property) {
+        if (property === 'batch') {
+          return async (statements: D1PreparedStatement[]) => {
+            mutationBatches += 1;
+            if (mutationBatches === 2) releaseMutationBatches();
+            await bothMutationBatchesReady;
+            return target.batch(statements);
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const payload = {
+      expectedPolicyVersion: 1,
+      correctedPremiumMinor: 11000,
+      reasonCode: 'CONCURRENT_RETRY',
+      allocations: [
+        {
+          linkId: 'premium-race-link',
+          expectedRenewalVersion: 2,
+          allocatedPremiumMinor: 11000,
+        },
+      ],
+    };
+    const sendConcurrent = () =>
+      app.request(
+        'https://panel.mayisigorta.test/secure/api/policies/premium-race-new-policy/correct-won-premium',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://panel.mayisigorta.com',
+            'X-CSRF-Token': csrf,
+            'Idempotency-Key': 'premium-race-operation-key',
+          },
+          body: JSON.stringify(payload),
+        },
+        { ...env, DB: concurrentDatabase },
+      );
+    const responses = await Promise.all([sendConcurrent(), sendConcurrent()]);
+    expect(mutationBatches).toBe(2);
+    expect(
+      responses.map((response) => response.status).sort(),
+      JSON.stringify(await Promise.all(responses.map((response) => response.clone().json()))),
+    ).toEqual([200, 200]);
+    const results = await Promise.all(
+      responses.map(
+        (response) =>
+          response.json() as Promise<{
+            data: { operationId: string; policyId: string };
+            replayed: boolean;
+          }>,
+      ),
+    );
+    expect(new Set(results.map((result) => result.data.operationId)).size).toBe(1);
+    expect(results.map((result) => result.replayed).sort()).toEqual([false, true]);
+    expect(
+      await db
+        .prepare(
+          `SELECT p.gross_premium_minor,p.version,
+                  (SELECT count(*) FROM operation_receipts WHERE idempotency_key='premium-race-operation-key') AS receipts,
+                  (SELECT count(*) FROM renewal_won_policy_premium_corrections
+                    WHERE policy_id='premium-race-new-policy') AS corrections,
+                  (SELECT count(*) FROM renewal_won_policy_premium_correction_links
+                    WHERE policy_id='premium-race-new-policy') AS correction_links,
+                  (SELECT count(*) FROM renewal_policy_links WHERE new_policy_id='premium-race-new-policy'
+                    AND status='ACTIVE' AND allocated_new_premium_minor=11000) AS active_links,
+                  (SELECT count(*) FROM audit_events WHERE idempotency_key='premium-race-operation-key'
+                    AND action='renewal.won.premium.corrected' AND outcome='SUCCESS') AS audits
+           FROM policies p WHERE p.id='premium-race-new-policy'`,
+        )
+        .first(),
+    ).toEqual({
+      gross_premium_minor: 11000,
+      version: 2,
+      receipts: 1,
+      corrections: 1,
+      correction_links: 1,
+      active_links: 1,
+      audits: 1,
+    });
+  });
 });
