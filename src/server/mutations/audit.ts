@@ -9,7 +9,12 @@
 
 const SAFE_TOKEN_REGEX = /^[A-Za-z0-9_.-]{1,64}$/;
 
-const CODE_FIELDS = new Set(['reasonCode', 'resultCode', 'requestSource']);
+const CODE_FIELDS = new Set([
+  'reasonCode',
+  'resultCode',
+  'requestSource',
+  'quoteDifferenceReasonCode',
+]);
 
 export function sanitizeAuditMetadata(metadata: unknown): Record<string, unknown> {
   if (metadata === null || typeof metadata !== 'object' || Array.isArray(metadata)) {

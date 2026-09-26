@@ -870,9 +870,44 @@ export function createDefaultActionRegistry(): ActionRegistry {
       assurance: 'NORMAL_SESSION',
     }),
     validateAndCreateActionDefinition({
+      code: 'quote.health.manage',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['quote.manage'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'interaction.health.create',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['interaction.create'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
       code: 'policy.identity_variant.create',
       authority: 'MEMBERSHIP_AUTHORIZED',
       requiredNormalPermissions: ['policy.update'],
+      requiredSensitivePermissions: [],
+      assurance: 'SECURE_GRANT',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'renewal.policy_links.allocate',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['renewal.update'],
+      requiredSensitivePermissions: [],
+      assurance: 'SECURE_GRANT',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'renewal.won.correct',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['renewal.update'],
+      requiredSensitivePermissions: [],
+      assurance: 'SECURE_GRANT',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'renewal.close_won.group',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['renewal.close_won'],
       requiredSensitivePermissions: [],
       assurance: 'SECURE_GRANT',
     }),
@@ -1204,6 +1239,14 @@ export function renewalRecordResolver(context: ScopeResolutionContext): boolean 
   }
 }
 
+export function quoteRecordResolver(context: ScopeResolutionContext): boolean {
+  return renewalRecordResolver(context);
+}
+
+export function interactionRecordResolver(context: ScopeResolutionContext): boolean {
+  return renewalRecordResolver(context);
+}
+
 export function taskRecordResolver(context: ScopeResolutionContext): boolean {
   try {
     const resource = context.resource;
@@ -1235,8 +1278,8 @@ export function createDefaultScopeResolvers(): ScopeResolverRegistry {
     customer_record_resolver: customerRecordResolver,
     policy_record_resolver: policyRecordResolver,
     renewal_record_resolver: renewalRecordResolver,
-    quote_record_resolver: failClosedResolver,
-    interaction_record_resolver: failClosedResolver,
+    quote_record_resolver: quoteRecordResolver,
+    interaction_record_resolver: interactionRecordResolver,
     task_record_resolver: taskRecordResolver,
     document_record_resolver: failClosedResolver,
     report_scope_resolver: failClosedResolver,

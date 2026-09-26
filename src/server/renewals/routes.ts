@@ -8,8 +8,39 @@ import { createAccessVerifier } from '../auth/verifier';
 import type { AppDependencies, Env } from '../index';
 import { parseCsrfConfig } from '../config';
 import { verifyCsrfMutationGuard } from '../security/csrf';
-import { RenewalCommandError, closeRenewalLost, reopenRenewal, voidRenewal } from './commands';
-import { closeRenewalLostSchema, reopenRenewalSchema, voidRenewalSchema } from './validation';
+import {
+  RenewalCommandError,
+  closeRenewalLost,
+  closeRenewalWon,
+  reopenRenewal,
+  voidRenewal,
+} from './commands';
+import { correctWonRenewal, issueWonRenewalCorrectionGrant } from './won-correction';
+import { closeRenewalWonGroup, issueRenewalWonGroupGrant } from './won-group-atomic';
+import {
+  closeRenewalLostSchema,
+  closeRenewalWonGroupSchema,
+  closeRenewalWonGroupGrantSchema,
+  closeRenewalWonSchema,
+  correctWonRenewalSchema,
+  createRenewalInteractionSchema,
+  createRenewalQuoteSchema,
+  createRenewalQuoteVersionSchema,
+  reopenRenewalSchema,
+  sendRenewalQuoteSchema,
+  voidRenewalSchema,
+  wonRenewalCorrectionGrantSchema,
+} from './validation';
+import { allocateRenewalPolicyLinks, issueRenewalPolicyLinksGrant } from './policy-links';
+import {
+  createRenewalInteraction,
+  createRenewalQuote,
+  createRenewalQuoteVersion,
+  listRenewalInteractions,
+  listRenewalQuotes,
+  sendRenewalQuote,
+} from './engagement';
+import { correctWonPolicyPremium, correctWonPolicyPremiumSchema } from './won-premium-correction';
 
 type RenewalRouteEnv = { Bindings: Env };
 
@@ -30,7 +61,10 @@ export function registerRenewalCommandRoutes(
     );
   };
 
-  async function authenticateAndResolve(c: Context<RenewalRouteEnv>) {
+  async function authenticateAndResolve(
+    c: Context<RenewalRouteEnv>,
+    expectedAssurance?: 'NORMAL' | 'SECURE',
+  ) {
     if (!c.env.DB) return { error: fail(c, 503, 'SERVICE_UNAVAILABLE', 'Hizmet kullanılamıyor.') };
     let accessConfig;
     try {
@@ -43,7 +77,7 @@ export function registerRenewalCommandRoutes(
       const verifier = dependencies.createVerifier
         ? dependencies.createVerifier(accessConfig)
         : createAccessVerifier({ config: accessConfig });
-      principal = await verifier.verify(c.req.raw);
+      principal = await verifier.verify(c.req.raw, expectedAssurance);
     } catch (error) {
       const unavailable =
         error instanceof AccessVerificationError &&
@@ -74,6 +108,24 @@ export function registerRenewalCommandRoutes(
           unavailable ? 'Hizmet kullanılamıyor.' : 'Erişim reddedildi.',
         ),
       };
+    }
+  }
+
+  async function secureMutationKey(
+    c: Context<RenewalRouteEnv>,
+    subject: string,
+  ): Promise<string | null> {
+    try {
+      const result = await verifyCsrfMutationGuard(c.req.raw, {
+        authenticatedSubject: subject,
+        secret: parseCsrfConfig(c.env).CSRF_SECRET,
+      });
+      if (!result.allowed) return null;
+      const key = c.req.header('Idempotency-Key');
+      if (!key || key !== key.trim() || key.length > 128) return null;
+      return key;
+    } catch {
+      return null;
     }
   }
 
@@ -130,6 +182,72 @@ export function registerRenewalCommandRoutes(
           timestamp: new Date().toISOString(),
         },
         200,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 404
+            ? 'Kayıt bulunamadı.'
+            : error.status === 403
+              ? 'Erişim reddedildi.'
+              : error.status === 409
+                ? 'Kayıt güncel değil veya işlem çakıştı.'
+                : 'Geçersiz istek.';
+        return fail(c, error.status, error.code, message);
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/close-won`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+
+    let csrfSecret: string;
+    try {
+      csrfSecret = parseCsrfConfig(c.env).CSRF_SECRET;
+    } catch {
+      return fail(c, 503, 'SERVICE_UNAVAILABLE', 'Hizmet kullanılamıyor.');
+    }
+    const csrf = await verifyCsrfMutationGuard(c.req.raw, {
+      authenticatedSubject: authenticated.principal.subject,
+      secret: csrfSecret,
+    });
+    if (!csrf.allowed) return fail(c, 403, csrf.code, csrf.message);
+
+    const idempotencyKey = c.req.header('Idempotency-Key');
+    if (!idempotencyKey || !/^[A-Za-z0-9_.:-]{1,128}$/.test(idempotencyKey)) {
+      return fail(c, 400, 'IDEMPOTENCY_KEY_REQUIRED', 'İşlem anahtarı geçersiz.');
+    }
+    const renewalId = c.req.param('id');
+    if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128) {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      closeRenewalWonSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await closeRenewalWon(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        raw,
+        idempotencyKey,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
       );
     } catch (error) {
       if (error instanceof RenewalCommandError) {
@@ -219,6 +337,338 @@ export function registerRenewalCommandRoutes(
     }
   });
 
+  app.post('/secure/api/renewals/policy-links/grants', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz JSON isteği.');
+    }
+    try {
+      const result = await issueRenewalPolicyLinksGrant(
+        authenticated.context,
+        c.env.DB,
+        raw,
+        key,
+        parseCsrfConfig(c.env).CSRF_SECRET,
+      );
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : 201,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : error.status === 409
+                ? 'İşlem çakıştı; kayıtları yeniden yükleyin.'
+                : 'Geçersiz istek.';
+        return fail(c, error.status, error.code, message);
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/renewals/won-group/grants', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      closeRenewalWonGroupGrantSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await issueRenewalWonGroupGrant(
+        authenticated.context,
+        c.env.DB,
+        raw,
+        key,
+        parseCsrfConfig(c.env).CSRF_SECRET,
+      );
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : 201,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'İşlem çakıştı.',
+        );
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/renewals/won-group', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      closeRenewalWonGroupSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await closeRenewalWonGroup(authenticated.context, c.env.DB, raw, key);
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'İşlem çakıştı.',
+        );
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/renewals/policy-links', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz JSON isteği.');
+    }
+    try {
+      const result = await allocateRenewalPolicyLinks(authenticated.context, c.env.DB, raw, key);
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : error.status === 409
+                ? 'İşlem çakıştı; kayıtları yeniden yükleyin.'
+                : 'Geçersiz istek.';
+        return fail(c, error.status, error.code, message);
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/policies/:id/correct-won-premium', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    const policyId = c.req.param('id');
+    if (!policyId || policyId !== policyId.trim() || policyId.length > 128) {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      correctWonPolicyPremiumSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await correctWonPolicyPremium(
+        authenticated.context,
+        c.env.DB,
+        policyId,
+        raw,
+        key,
+      );
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : error.status === 409
+                ? 'İşlem çakıştı; kayıtları yeniden yükleyin.'
+                : 'Geçersiz istek.';
+        return fail(c, error.status, error.code, message);
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/renewals/:id/won-correction-grants', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      wonRenewalCorrectionGrantSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    const renewalId = c.req.param('id');
+    if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128) {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await issueWonRenewalCorrectionGrant(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        raw,
+        key,
+        parseCsrfConfig(c.env).CSRF_SECRET,
+      );
+      const { replayed, ...data } = result;
+      return c.json(
+        {
+          success: true,
+          data,
+          replayed,
+          timestamp: new Date().toISOString(),
+        },
+        replayed ? 200 : 201,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'İşlem çakıştı.',
+        );
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post('/secure/api/renewals/:id/correct-won', async (c) => {
+    const authenticated = await authenticateAndResolve(c, 'SECURE');
+    if ('error' in authenticated) return authenticated.error;
+    if (authenticated.context.assurance !== 'SECURE') {
+      return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
+    }
+    c.header('Cache-Control', 'private, no-store');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'FORBIDDEN', 'CSRF veya işlem anahtarı geçersiz.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      correctWonRenewalSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    const renewalId = c.req.param('id');
+    if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128) {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await correctWonRenewal(authenticated.context, c.env.DB, renewalId, raw, key);
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        200,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'İşlem çakıştı.',
+        );
+      }
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
   app.post(`${API_PREFIX}/renewals/:id/reopen`, async (c) => {
     const authenticated = await authenticateAndResolve(c);
     if ('error' in authenticated) return authenticated.error;
@@ -286,6 +736,246 @@ export function registerRenewalCommandRoutes(
         return fail(c, error.status, error.code, message);
       }
       if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.get(`${API_PREFIX}/renewals/:id/quotes`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128)
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    try {
+      const result = await listRenewalQuotes(authenticated.context, c.env.DB, renewalId);
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data: result, timestamp: new Date().toISOString() }, 200);
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'Kayıt bulunamadı.',
+        );
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/quotes`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId))
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'CSRF_OR_IDEMPOTENCY_INVALID', 'İstek doğrulanamadı.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      createRenewalQuoteSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await createRenewalQuote(authenticated.context, c.env.DB, renewalId, raw, key);
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : 'İşlem çakıştı.';
+        return fail(c, error.status, error.code, message);
+      }
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/quotes/:quoteId/versions`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    const quoteId = c.req.param('quoteId');
+    if (
+      !renewalId ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId) ||
+      !quoteId ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(quoteId)
+    )
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'CSRF_OR_IDEMPOTENCY_INVALID', 'İstek doğrulanamadı.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      createRenewalQuoteVersionSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await createRenewalQuoteVersion(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        quoteId,
+        raw,
+        key,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : 'İşlem çakıştı.';
+        return fail(c, error.status, error.code, message);
+      }
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/quotes/:quoteId/send`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    const quoteId = c.req.param('quoteId');
+    if (
+      !renewalId ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId) ||
+      !quoteId ||
+      !/^[A-Za-z0-9_.:-]{1,128}$/.test(quoteId)
+    )
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'CSRF_OR_IDEMPOTENCY_INVALID', 'İstek doğrulanamadı.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      sendRenewalQuoteSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await sendRenewalQuote(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        quoteId,
+        raw,
+        key,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : 'İşlem çakıştı.';
+        return fail(c, error.status, error.code, message);
+      }
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.get(`${API_PREFIX}/renewals/:id/interactions`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128)
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    try {
+      const result = await listRenewalInteractions(authenticated.context, c.env.DB, renewalId);
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data: result, timestamp: new Date().toISOString() }, 200);
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 403 ? 'Erişim reddedildi.' : 'Kayıt bulunamadı.',
+        );
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/interactions`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId))
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'CSRF_OR_IDEMPOTENCY_INVALID', 'İstek doğrulanamadı.');
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+      createRenewalInteractionSchema.parse(raw);
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await createRenewalInteraction(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        raw,
+        key,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      if (error instanceof RenewalCommandError) {
+        const message =
+          error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : 'İşlem çakıştı.';
+        return fail(c, error.status, error.code, message);
+      }
       return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
     }
   });

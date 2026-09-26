@@ -47,6 +47,7 @@ describe('M1-T09 Audit Record and Safe Metadata Sanitizer (Hardened)', () => {
       note: 'admin secret note',
       // Valid operational tokens & bounded numbers -> ALLOWED
       reasonCode: 'ROLE_UPGRADE',
+      quoteDifferenceReasonCode: 'CUSTOMER_REQUEST',
       resultCode: 'OK',
       requestSource: 'ADMIN_CONSOLE',
       changedFieldCount: 2,
@@ -60,6 +61,7 @@ describe('M1-T09 Audit Record and Safe Metadata Sanitizer (Hardened)', () => {
 
     expect(clean).toEqual({
       reasonCode: 'ROLE_UPGRADE',
+      quoteDifferenceReasonCode: 'CUSTOMER_REQUEST',
       resultCode: 'OK',
       requestSource: 'ADMIN_CONSOLE',
       changedFieldCount: 2,

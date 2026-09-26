@@ -1067,20 +1067,21 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
           .prepare(
             `INSERT INTO renewal_state_history
                (id,agency_id,renewal_id,from_state,to_state,actor_kind,actor_user_id,
-                actor_membership_id,reason_code,created_at)
-             VALUES (?,?,?,?,?,'USER','user-a','member-a','TEST_TERMINAL_CLEANUP',?)`,
+                actor_membership_id,reason_code,created_at,void_reason_code)
+             VALUES (?,?,?,?,'VOIDED','USER','user-a','member-a','TECHNICAL_ERROR',?,
+               'TECHNICAL_ERROR')`,
           )
           .bind(
             `cleanup-history-${proof.policyId}`,
             'agency-a',
             proof.renewalId,
             proof.initialState,
-            'WON',
             cleanupAt,
           ),
         db
           .prepare(
-            `UPDATE renewal_opportunities SET state='WON',closed_at=?,closed_by_membership_id=?,
+            `UPDATE renewal_opportunities SET state='VOIDED',void_reason_code='TECHNICAL_ERROR',
+               closed_at=?,closed_by_membership_id=?,
                version=version+1,updated_at=?
              WHERE agency_id='agency-a' AND id=?`,
           )

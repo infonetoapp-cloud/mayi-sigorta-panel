@@ -1176,6 +1176,118 @@ export const renewalStateHistory = sqliteTable(
   ],
 );
 
+export const renewalPolicyLinks = sqliteTable(
+  'renewal_policy_links',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    renewalId: text('renewal_id').notNull(),
+    newPolicyId: text('new_policy_id').notNull(),
+    allocatedNewPremiumMinor: integer('allocated_new_premium_minor').notNull(),
+    currency: text('currency').notNull(),
+    status: text('status', { enum: ['ACTIVE', 'SUPERSEDED'] })
+      .notNull()
+      .default('ACTIVE'),
+    supersedesLinkId: text('supersedes_link_id'),
+    allocationOperationId: text('allocation_operation_id').notNull(),
+    differentPolicyholderReasonCode: text('different_policyholder_reason_code'),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    supersededAt: text('superseded_at'),
+    supersededByMembershipId: text('superseded_by_membership_id'),
+    supersedeReasonCode: text('supersede_reason_code'),
+    supersededOperationId: text('superseded_operation_id'),
+  },
+  (table) => [
+    check('renewal_policy_links_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'renewal_policy_links_allocation_safe',
+      sql`${table.allocatedNewPremiumMinor} >= 0 AND ${table.allocatedNewPremiumMinor} <= 9007199254740991`,
+    ),
+    check(
+      'renewal_policy_links_currency_shape',
+      sql`length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`,
+    ),
+    check('renewal_policy_links_status_valid', sql`${table.status} IN ('ACTIVE','SUPERSEDED')`),
+    check(
+      'renewal_policy_links_supersession_consistent',
+      sql`(${table.status}='ACTIVE' AND ${table.supersededAt} IS NULL AND ${table.supersededByMembershipId} IS NULL AND ${table.supersedeReasonCode} IS NULL AND ${table.supersededOperationId} IS NULL) OR (${table.status}='SUPERSEDED' AND ${table.supersededAt} IS NOT NULL AND ${table.supersededByMembershipId} IS NOT NULL AND ${table.supersededOperationId} IS NOT NULL AND ${table.supersedeReasonCode} IS NOT NULL AND length(trim(${table.supersedeReasonCode})) BETWEEN 3 AND 64 AND substr(${table.supersedeReasonCode},1,1) GLOB '[A-Z]' AND ${table.supersedeReasonCode} NOT GLOB '*[^A-Z0-9_]*')`,
+    ),
+    check(
+      'renewal_policy_links_supersedes_not_self',
+      sql`${table.supersedesLinkId} IS NULL OR ${table.supersedesLinkId} <> ${table.id}`,
+    ),
+    check(
+      'renewal_policy_links_different_customer_reason_shape',
+      sql`${table.differentPolicyholderReasonCode} IS NULL OR (${table.differentPolicyholderReasonCode} IS NOT NULL AND length(trim(${table.differentPolicyholderReasonCode})) BETWEEN 3 AND 64 AND substr(${table.differentPolicyholderReasonCode},1,1) GLOB '[A-Z]' AND ${table.differentPolicyholderReasonCode} NOT GLOB '*[^A-Z0-9_]*')`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'renewal_policy_links_agency_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.newPolicyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_policy_links_agency_new_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_policy_links_created_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.supersededByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_policy_links_superseded_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.supersedesLinkId],
+      foreignColumns: [table.agencyId, table.id],
+      name: 'renewal_policy_links_supersedes_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.allocationOperationId],
+      foreignColumns: [operationReceipts.id],
+      name: 'renewal_policy_links_allocation_operation_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.supersededOperationId],
+      foreignColumns: [operationReceipts.id],
+      name: 'renewal_policy_links_superseded_operation_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_policy_links_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('renewal_policy_links_active_logical_uq')
+      .on(table.agencyId, table.renewalId, table.newPolicyId)
+      .where(sql`${table.status}='ACTIVE'`),
+    index('renewal_policy_links_new_policy_idx').on(
+      table.agencyId,
+      table.newPolicyId,
+      table.status,
+    ),
+    index('renewal_policy_links_renewal_idx').on(table.agencyId, table.renewalId, table.status),
+    index('renewal_policy_links_operation_idx').on(table.agencyId, table.allocationOperationId),
+    index('renewal_policy_links_superseded_operation_idx').on(
+      table.agencyId,
+      table.supersededOperationId,
+    ),
+  ],
+);
+
 export const tasks = sqliteTable(
   'tasks',
   {
@@ -1345,6 +1457,455 @@ export const systemAuditEvents = sqliteTable(
     ),
     index('system_audit_events_target_idx').on(table.agencyId, table.targetType, table.targetId),
     index('system_audit_events_created_idx').on(table.agencyId, table.createdAt),
+  ],
+);
+
+export const renewalQuotes = sqliteTable(
+  'renewal_quotes',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    renewalId: text('renewal_id').notNull(),
+    status: text('status', {
+      enum: ['DRAFT', 'READY', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'],
+    })
+      .notNull()
+      .default('DRAFT'),
+    currentVersionId: text('current_version_id'),
+    acceptedVersionId: text('accepted_version_id'),
+    acceptedPolicyId: text('accepted_policy_id'),
+    version: integer('version').notNull().default(1),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('renewal_quotes_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'renewal_quotes_status_valid',
+      sql`${table.status} IN ('DRAFT','READY','SENT','ACCEPTED','REJECTED','EXPIRED')`,
+    ),
+    check('renewal_quotes_version_positive', sql`${table.version} >= 1`),
+    check(
+      'renewal_quotes_acceptance_consistent',
+      sql`(${table.status}='ACCEPTED' AND ${table.acceptedVersionId} IS NOT NULL AND ${table.acceptedPolicyId} IS NOT NULL) OR (${table.status}<>'ACCEPTED' AND ${table.acceptedVersionId} IS NULL AND ${table.acceptedPolicyId} IS NULL)`,
+    ),
+    check('renewal_quotes_timestamps_ordered', sql`${table.updatedAt} >= ${table.createdAt}`),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'renewal_quotes_agency_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_quotes_creator_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: 'renewal_quotes_creator_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.acceptedPolicyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_quotes_accepted_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_quotes_agency_id_id_uq').on(table.agencyId, table.id),
+    index('renewal_quotes_renewal_status_idx').on(table.agencyId, table.renewalId, table.status),
+  ],
+);
+
+export const renewalQuoteVersions = sqliteTable(
+  'renewal_quote_versions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    quoteId: text('quote_id').notNull(),
+    versionNumber: integer('version_number').notNull(),
+    insurerId: text('insurer_id').notNull(),
+    productId: text('product_id').notNull(),
+    branchId: text('branch_id').notNull(),
+    paymentMethodId: text('payment_method_id').notNull(),
+    startDate: text('start_date').notNull(),
+    endDate: text('end_date').notNull(),
+    validUntil: text('valid_until').notNull(),
+    grossPremiumMinor: integer('gross_premium_minor').notNull(),
+    currency: text('currency').notNull(),
+    installmentCount: integer('installment_count'),
+    termsSummary: text('terms_summary'),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('renewal_quote_versions_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check('renewal_quote_versions_number_positive', sql`${table.versionNumber} >= 1`),
+    check(
+      'renewal_quote_versions_premium_safe',
+      sql`${table.grossPremiumMinor} >= 0 AND ${table.grossPremiumMinor} <= 9007199254740991`,
+    ),
+    check(
+      'renewal_quote_versions_currency_shape',
+      sql`length(${table.currency})=3 AND ${table.currency}=upper(${table.currency})`,
+    ),
+    check(
+      'renewal_quote_versions_date_shape',
+      sql`${table.startDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ${table.endDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND ${table.endDate}>${table.startDate}`,
+    ),
+    check(
+      'renewal_quote_versions_installment_count',
+      sql`${table.installmentCount} IS NULL OR ${table.installmentCount} BETWEEN 2 AND 36`,
+    ),
+    check(
+      'renewal_quote_versions_terms_length',
+      sql`${table.termsSummary} IS NULL OR length(${table.termsSummary})<=1000`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.quoteId],
+      foreignColumns: [renewalQuotes.agencyId, renewalQuotes.id],
+      name: 'renewal_quote_versions_quote_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.insurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+      name: 'renewal_quote_versions_insurer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.productId],
+      foreignColumns: [insuranceProducts.agencyId, insuranceProducts.id],
+      name: 'renewal_quote_versions_product_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.branchId],
+      foreignColumns: [insuranceBranches.agencyId, insuranceBranches.id],
+      name: 'renewal_quote_versions_branch_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.paymentMethodId],
+      foreignColumns: [paymentMethods.agencyId, paymentMethods.id],
+      name: 'renewal_quote_versions_payment_method_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_quote_versions_creator_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: 'renewal_quote_versions_creator_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_quote_versions_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('renewal_quote_versions_quote_number_uq').on(
+      table.agencyId,
+      table.quoteId,
+      table.versionNumber,
+    ),
+    uniqueIndex('renewal_quote_versions_quote_id_uq').on(table.agencyId, table.quoteId, table.id),
+    index('renewal_quote_versions_policy_idx').on(table.agencyId, table.productId, table.insurerId),
+  ],
+);
+
+export const renewalQuoteEvents = sqliteTable(
+  'renewal_quote_events',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    quoteId: text('quote_id').notNull(),
+    quoteVersionId: text('quote_version_id').notNull(),
+    event: text('event', { enum: ['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'] }).notNull(),
+    operationReceiptId: text('operation_receipt_id').notNull(),
+    acceptedPolicyId: text('accepted_policy_id'),
+    actorUserId: text('actor_user_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    occurredAt: text('occurred_at').notNull(),
+  },
+  (table) => [
+    check('renewal_quote_events_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'renewal_quote_events_acceptance_policy',
+      sql`(${table.event}='ACCEPTED' AND ${table.acceptedPolicyId} IS NOT NULL) OR (${table.event}<>'ACCEPTED' AND ${table.acceptedPolicyId} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.quoteId],
+      foreignColumns: [renewalQuotes.agencyId, renewalQuotes.id],
+      name: 'renewal_quote_events_quote_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.quoteId, table.quoteVersionId],
+      foreignColumns: [
+        renewalQuoteVersions.agencyId,
+        renewalQuoteVersions.quoteId,
+        renewalQuoteVersions.id,
+      ],
+      name: 'renewal_quote_events_version_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.operationReceiptId],
+      foreignColumns: [operationReceipts.id],
+      name: 'renewal_quote_events_receipt_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.acceptedPolicyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_quote_events_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+      name: 'renewal_quote_events_actor_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_quote_events_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_quote_events_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('renewal_quote_events_version_event_uq').on(
+      table.agencyId,
+      table.quoteVersionId,
+      table.event,
+    ),
+    index('renewal_quote_events_quote_idx').on(table.agencyId, table.quoteId, table.occurredAt),
+  ],
+);
+
+export const renewalInteractions = sqliteTable(
+  'renewal_interactions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    renewalId: text('renewal_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    companyContactId: text('company_contact_id'),
+    outcome: text('outcome', {
+      enum: ['CONTACT_CONFIRMED', 'ATTEMPT_NO_RESPONSE', 'WHATSAPP_OPENED', 'NOTE'],
+    }).notNull(),
+    channel: text('channel', {
+      enum: ['PHONE', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER'],
+    }).notNull(),
+    note: text('note'),
+    occurredAt: text('occurred_at').notNull(),
+    actorUserId: text('actor_user_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('renewal_interactions_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'renewal_interactions_outcome_valid',
+      sql`${table.outcome} IN ('CONTACT_CONFIRMED','ATTEMPT_NO_RESPONSE','WHATSAPP_OPENED','NOTE')`,
+    ),
+    check(
+      'renewal_interactions_note_consistent',
+      sql`(${table.outcome}='NOTE' AND ${table.note} IS NOT NULL AND length(trim(${table.note})) BETWEEN 1 AND 1000 AND ${table.channel}='OTHER') OR (${table.outcome}<>'NOTE' AND ${table.note} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'renewal_interactions_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'renewal_interactions_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.companyContactId],
+      foreignColumns: [companyContacts.id],
+      name: 'renewal_interactions_company_contact_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+      name: 'renewal_interactions_actor_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_interactions_actor_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_interactions_agency_id_id_uq').on(table.agencyId, table.id),
+    index('renewal_interactions_renewal_time_idx').on(
+      table.agencyId,
+      table.renewalId,
+      table.occurredAt,
+      table.id,
+    ),
+  ],
+);
+
+export const renewalWonPolicyPremiumCorrections = sqliteTable(
+  'renewal_won_policy_premium_corrections',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    expectedPolicyVersion: integer('expected_policy_version').notNull(),
+    previousPremiumMinor: integer('previous_premium_minor').notNull(),
+    correctedPremiumMinor: integer('corrected_premium_minor').notNull(),
+    reasonCode: text('reason_code').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check(
+      'renewal_won_policy_premium_corrections_version_positive',
+      sql`${table.expectedPolicyVersion}>=1`,
+    ),
+    check(
+      'renewal_won_policy_premium_corrections_amounts_safe',
+      sql`${table.previousPremiumMinor}>=0 AND ${table.previousPremiumMinor}<=9007199254740991 AND ${table.correctedPremiumMinor}>=0 AND ${table.correctedPremiumMinor}<=9007199254740991`,
+    ),
+    check(
+      'renewal_won_policy_premium_corrections_reason_shape',
+      sql`length(trim(${table.reasonCode})) BETWEEN 3 AND 64`,
+    ),
+    foreignKey({
+      columns: [table.id],
+      foreignColumns: [operationReceipts.id],
+      name: 'renewal_won_policy_premium_corrections_receipt_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_won_policy_premium_corrections_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'renewal_won_policy_premium_corrections_actor_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_won_policy_premium_corrections_agency_id_id_uq').on(
+      table.agencyId,
+      table.id,
+    ),
+    index('renewal_won_policy_premium_corrections_policy_idx').on(
+      table.agencyId,
+      table.policyId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const renewalWonPolicyPremiumCorrectionLinks = sqliteTable(
+  'renewal_won_policy_premium_correction_links',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    operationId: text('operation_id').notNull(),
+    oldLinkId: text('old_link_id').notNull(),
+    newLinkId: text('new_link_id').notNull(),
+    renewalId: text('renewal_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    allocatedPremiumMinor: integer('allocated_premium_minor').notNull(),
+    currency: text('currency').notNull(),
+    differentPolicyholderReasonCode: text('different_policyholder_reason_code'),
+  },
+  (table) => [
+    check(
+      'renewal_won_policy_premium_correction_links_amount_safe',
+      sql`${table.allocatedPremiumMinor}>=0 AND ${table.allocatedPremiumMinor}<=9007199254740991`,
+    ),
+    check(
+      'renewal_won_policy_premium_correction_links_currency_shape',
+      sql`length(${table.currency})=3 AND ${table.currency}=upper(${table.currency})`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.operationId],
+      foreignColumns: [
+        renewalWonPolicyPremiumCorrections.agencyId,
+        renewalWonPolicyPremiumCorrections.id,
+      ],
+      name: 'renewal_won_policy_premium_correction_links_operation_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.oldLinkId],
+      foreignColumns: [renewalPolicyLinks.agencyId, renewalPolicyLinks.id],
+      name: 'renewal_won_policy_premium_correction_links_old_link_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+      name: 'renewal_won_policy_premium_correction_links_renewal_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'renewal_won_policy_premium_correction_links_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('renewal_won_policy_premium_correction_links_agency_id_id_uq').on(
+      table.agencyId,
+      table.id,
+    ),
+    uniqueIndex('renewal_won_policy_premium_correction_links_operation_old_uq').on(
+      table.operationId,
+      table.oldLinkId,
+    ),
+    uniqueIndex('renewal_won_policy_premium_correction_links_operation_new_uq').on(
+      table.operationId,
+      table.newLinkId,
+    ),
   ],
 );
 

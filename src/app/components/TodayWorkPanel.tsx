@@ -5,6 +5,7 @@ import type {
   TodayTaskDto,
   TodayTasksResponseData,
 } from '../../shared/types';
+import { RenewalWorkspacePanel } from './RenewalWorkspacePanel';
 
 interface TodayWorkPanelProps {
   readonly getCsrfToken: () => Promise<string>;
@@ -193,6 +194,9 @@ interface TaskCardProps {
   readonly onAssigneeChange: (value: string) => void;
   readonly onSaveAssignment: () => void;
   readonly onRetryAssignment: () => void;
+  readonly getCsrfToken: () => Promise<string>;
+  readonly invalidateCsrfToken: () => void;
+  readonly onTerminalOutcome: () => void;
 }
 
 function TaskCard({
@@ -217,6 +221,9 @@ function TaskCard({
   onAssigneeChange,
   onSaveAssignment,
   onRetryAssignment,
+  getCsrfToken,
+  invalidateCsrfToken,
+  onTerminalOutcome,
 }: TaskCardProps) {
   return (
     <article
@@ -328,6 +335,17 @@ function TaskCard({
           )}
         </div>
       )}
+      <RenewalWorkspacePanel
+        renewalId={task.renewalId}
+        taskId={task.taskId}
+        customerDisplayName={task.customerDisplayName}
+        renewalVersion={task.renewalVersion}
+        taskVersion={task.taskVersion}
+        renewalState={task.renewalState}
+        getCsrfToken={getCsrfToken}
+        invalidateCsrfToken={invalidateCsrfToken}
+        onTerminalOutcome={onTerminalOutcome}
+      />
     </article>
   );
 }
@@ -760,6 +778,9 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
                 void runAssignmentAttempt(assignmentAttempt);
               }
             }}
+            getCsrfToken={getCsrfToken}
+            invalidateCsrfToken={invalidateCsrfToken}
+            onTerminalOutcome={() => void loadTasks(null, false, 'WORK')}
           />
         ))}
       </div>

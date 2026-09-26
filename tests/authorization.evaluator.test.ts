@@ -15,12 +15,49 @@ import {
   type AuthorizationOptions,
   type AuthorizationRequest,
   type ScopeResolverRegistry,
+  type ScopeResolutionContext,
+  quoteRecordResolver,
+  interactionRecordResolver,
 } from '../src/server/auth/authorization';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import { grantPermission } from './support/permissions-fixture';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
+
+describe('M3 quote and interaction record scopes', () => {
+  const resource = {
+    agencyId: 'agency-a',
+    renewalAssigneeMembershipId: 'membership-a',
+    customerAssigneeMembershipId: 'membership-b',
+  };
+
+  it('uses the Renewal assignment and customer assignment without widening to source Policy assignment', () => {
+    const context = (
+      permissionCode: string,
+      membershipId: string,
+      agencyId = 'agency-a',
+      effectiveScope: 'ASSIGNED' | 'AGENCY' = 'ASSIGNED',
+    ): ScopeResolutionContext => ({
+      userId: 'user',
+      membershipId,
+      agencyId,
+      effectiveScope,
+      permissionCode,
+      resource,
+    });
+    for (const [resolver, permission] of [
+      [quoteRecordResolver, 'quote.read'],
+      [interactionRecordResolver, 'interaction.read'],
+    ] as const) {
+      expect(resolver(context(permission, 'membership-a'))).toBe(true);
+      expect(resolver(context(permission, 'membership-b'))).toBe(true);
+      expect(resolver(context(permission, 'membership-c'))).toBe(false);
+      expect(resolver(context(permission, 'membership-a', 'agency-b'))).toBe(false);
+      expect(resolver(context(permission, 'membership-c', 'agency-a', 'AGENCY'))).toBe(true);
+    }
+  });
+});
 
 describe('M1-T07 Runtime Authorization Evaluator Testleri (Miniflare D1)', () => {
   let mf: miniflare.Miniflare;

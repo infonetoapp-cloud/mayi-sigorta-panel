@@ -1,6 +1,6 @@
 # Uygulama durumu
 
-Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
+Son güncelleme: **27 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.0. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md).
 
 ## Milestone 1 kabul durumu
 
@@ -39,7 +39,7 @@ Son güncelleme: **24 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Planlama ve kararların kapatılması | TAMAMLANDI |
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
 | Faz 2 — Müşteri/poliçe domain'i | TAMAMLANDI — M2-T01–T06 PASS; 7. fresh GPT-6 Sol High final review PASS |
-| Faz 3 — Yenileme ve takip | AKTİF — M3-T01/T02 kabul edildi; birleşik checkpoint `0f5043bd4e3451f3de0aafb34205fc68325e53d2` push edildi |
+|| Faz 3 — Yenileme ve takip | TAMAMLANDI — M3 COMPLETE; M3-T01/T02/T03, migration 0012–0014, tam kalite kapıları ve fresh GPT-6 Sol High PASS |
 | Faz 4 — Belge ve iletişim | BAŞLAMADI |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
@@ -267,9 +267,9 @@ Durum: **MILESTONE 2 = COMPLETE. Faz 3 / M3 sıradaki aşamadır; bu kapanışta
 - M2 deterministic gate: `npm run test` **824/824 PASS (38 dosya)**; `npm run test:d1` **26/26 PASS**; format, lint, typecheck, boundaries, client build + Worker dry-run PASS. Migration/schema değişmedi; historical `0000–0009` korunmuştur.
 - Review başlangıç/kapanış repository durumu: `main`, HEAD, `origin/main` ve canlı `origin/main` `4862441e0594d1c1a97d28f05599d673cbf9cf4a` ile eşitti; çalışma ağacı temizdi. Uygulama/test remediation commit'i `139a44034617f98626398c6187fd3110cd8429ca`; M2 kapanışı documentation-only değişikliktir.
 - Bu gece deployment, remote D1, DNS, Cloudflare hesap ayarı veya gerçek veri işlemi yapılmadı.
-- Sonraki tek görev: nihai mimari planın Faz 3 bölümlerini ve güncel uygulama durumunu yeniden okuyup dependency-aware M3 task planı çıkarmak; ardından M3'ün ilk vertical slice'ına başlamak. M4 kapsamına geçilmemelidir.
+- Tarihsel checkpoint'teki sonraki görev M3'ün ilk vertical slice'ıydı; bu kayıt, aşağıdaki 27 Eylül 2026 M3 kapanış kanıtıyla superseded edilmiştir. M4 kapsamı başlamamıştır.
 
-MILESTONE 2 COMPLETE — MILESTONE 3 ACTIVE
+MILESTONE 2 COMPLETE — MILESTONE 3 COMPLETE
 
 ## M3-T01 kabul kanıtı — 24 Eylül 2026
 
@@ -283,7 +283,7 @@ Durum: **M3-T01 kabul edildi; M3-T02 ile paylaşılan uygulama ağacında. M4 ba
 
 ## M3-T02 kabul kanıtı — 24 Eylül 2026
 
-Durum: **M3-T02 ACCEPT — BLOCKER 0, IMPORTANT 0, OPTIONAL 0; FINAL VERDICT PASS. M3 sürüyor; M4 başlamadı.**
+Durum: **Tarihsel M3-T02 kabul checkpoint'i: ACCEPT — BLOCKER 0, IMPORTANT 0, OPTIONAL 0. Nihai M3 durumu aşağıdaki formal closeout bölümündedir; M4 başlamadı.**
 
 - Bugünkü İşler API/UI; renewal primary Task assignment; Renewal ve Task sorumluluğunun birlikte, CAS/idempotency/audit ile atomik güncellenmesi; Task tamamlanırken replacement primary follow-up'ın aynı D1 batch içinde oluşturulması tamamlandı.
 - `task.read/task.update ASSIGNED` artık yalnız Task'ın kendi sorumlusuna açılır; Customer/Policy/Renewal okuma ve kapsamı ayrıca doğrulanır. Atanmamış Task müşteri sorumluluğuyla ASSIGNED work listesine sızmaz; atama hedefi aktif ve bağlı işi okuyabilir olmalıdır. HEALTH yenilemeleri `policy.health.read` yoksa Today's Work'ten çıkarılır; politika bilgileri başka yetkilerle sızdırılmaz.
@@ -298,7 +298,7 @@ Durum: **M3-T02 ACCEPT — BLOCKER 0, IMPORTANT 0, OPTIONAL 0; FINAL VERDICT PAS
 
 ## M3 terminal outcome bounded slice — 24 Eylül 2026
 
-Durum: **BOUNDED SLICE ACCEPTED — LOST, VOIDED ve LOST/VOIDED reopen. M3-T03/Phase 3 sürüyor; M3 COMPLETE değildir; M4 başlamadı.**
+Durum: **Tarihsel bounded-slice checkpoint'i: LOST, VOIDED ve LOST/VOIDED reopen kabul edildi. Bu ara durum aşağıdaki nihai M3 COMPLETE kaydıyla superseded edilmiştir; M4 başlamadı.**
 
 - `renewal.close-lost`, `renewal.void` ve `renewal.reopen` için açık API komutları eklendi. `VOIDED` yalnız teknik hata, duplicate veya iptal/yeniden yapılandırma sonrası uygun olmayan iş kodlarını kabul eder; ticari kayıp kodları reddedilir. WON reopen yalnız secure correction yolu ile mümkün olacak; bu dilimde uygulanmadı.
 - LOST/VOIDED komutları aktif birincil Task'ı, Renewal state/version/closure alanlarını, receipt, `RenewalStateHistory` ve audit'i tek D1 batch içinde CAS ile günceller. Reopen eski tamamlanmış Task'ı ve terminal history kanıtını korur; önceki açık state'e döner ve yeni tek bir birincil takip Task'ı oluşturur. Açıklama/audit free text'e kopyalanmaz; LOST OTHER açıklaması değiştirilemez history satırında kalır.
@@ -307,6 +307,20 @@ Durum: **BOUNDED SLICE ACCEPTED — LOST, VOIDED ve LOST/VOIDED reopen. M3-T03/P
 - Gerçek local D1 testleri: `tests/renewals.m3-t03-terminal.test.ts` **10/10 PASS** (LOST/VOIDED/reopen, audit/task rollback, exact/concurrent replay, stale versions, LOST/VOIDED yarışı, live identity revoke, grant scope/dependency TOCTOU, policy cancellation ve reopen sonrası re-assignment). Migration 0010 **2/2 PASS**; migration 0011 clean apply, 0010 upgrade/seed preservation, invalid/cross-agency evidence, history/reason immutability ve no-op **2/2 PASS**.
 - İlgili T01/T02 regression'ları: bağımsız reviewer'ın Authorization/Task seçkisi **30/30 PASS**. `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (Wrangler Worker dry-run), `git diff --check`: **PASS**. `npx drizzle-kit generate`: **No schema changes, nothing to migrate**; 0000–0010 tarihsel SQL farkı yok.
 - Fresh bağımsız GPT-6 Sol High bounded-slice review: **BLOCKER 0, IMPORTANT 0, OPTIONAL 1 — PASS**. Optional follow-up: Member/ASSIGNED başarılı terminal akışı ve HEALTH izni geri alınmış terminal replay için ek doğrudan testler. Bu sonuç M3 kabulü değildir.
-- Kod checkpoint commit'i: `dd2f4b3a6810f1cd6c3b1f021bcd7ef3f1fe879e` (`feat: add terminal renewal outcome commands`); normal push ve remote readback henüz yapılmadı. Yalnız sentetik/local D1 kullanıldı; remote D1, production, deployment, DNS veya gerçek müşteri verisi işlemi yapılmadı.
+- Bu satır önceki bounded-slice checkpoint'inin commit/push durumunu kaydeder; nihai M3 commit/push ve remote readback aşağıdaki kapanışta doğrulanmıştır.
 
-Sonraki görev: Phase 3'ün `RenewalPolicyLink` tahsis/split-merge komutu ile WON ve secure WON correction davranışını; ardından Quote/QuoteVersion, Interaction, UI entegrasyonu ve Individual/Company synthetic E2E kapısını tamamlamak. M3 ve M4 henüz tamamlanmadı.
+Sonraki görev: **M3 kapanmıştır.** Faz 4–7, ayrı kullanıcı yetkisi olmadan başlatılmayacaktır.
+
+## M3 / Faz 3 formal closeout — 27 Eylül 2026
+
+Durum: **M3 COMPLETE — BLOCKER 0 / IMPORTANT 0 / FINAL VERDICT PASS. M4 başlamadı.**
+
+- Faz 3 çıktıları tamamlandı: Renewal üretimi ve takip Task'ı, Today’s Work/UNASSIGNED, history, RenewalPolicyLink allocation/split-merge, LOST/VOIDED, single/group WON, secure WON correction, Quote/immutable SENT QuoteVersion, Interaction contact-vs-attempt ve Workspace UI.
+- Sent QuoteVersion–Policy ürün/prim/para birimi farkı UI'da gösterilir; fark için güvenli gerekçe kodu zorunludur ve audit/replay kanıtı korunur. Individual ve Company synthetic D1 E2E akışları geçer.
+- OWNER normal izinleri implicit AGENCY olarak kalır; SENSITIVE izinler OWNER dahil explicit kalır. `task.create` katalog sözleşmesi UNSCOPED'dir; düzeltme akışı bu grant'i boolean olarak doğrular ve Customer/Policy/Renewal/Task kayıt kapsamını ayrı, doğru read/update izinlerinden alır. Cross-customer grup düzeltmesi MEMBER için gerçek D1 testinde geçer.
+- Flaky regressions: allocated split-WON exact replay **3 ardışık PASS**; exact concurrent allocation retry/single-use grant yarışı **5 ardışık PASS**. Tarihsel 404 kontrollü tekrarlarla yeniden üretilmedi; eski başarısız yanıt/target/receipt kanıtı mevcut olmadığından kök neden doğrulanmış değildir. Final terminal dosyası replay koruması dahil **19/19 PASS**.
+- Final current-tree unit suite: `npm run test -- --maxWorkers=4` **52/52 dosya, 944/944 test PASS**. Final D1 integration: `npm run test:d1 -- --maxWorkers=1 --testTimeout=180000` **26/26 PASS**. Focused authorization/premium/mutation-security **155/155 PASS**; migrations 0012–0014 **7/7 PASS**; UI Workspace **4/4** (tam suite içinde).
+- Migrations 0012–0014 additive ve yerel kabul zincirinde PASS; tarihsel 0000–0011 migration dosyaları değişmedi. Clean apply/sequential upgrade, preservation/constraint/trigger/no-op testleri geçti. Cloned migration tree'de `drizzle-kit generate`: **No schema changes, nothing to migrate**; clone unchanged.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `git diff --check` ve `npm run build` PASS. Build yalnız Wrangler `--dry-run` idi.
+- Fresh bağımsız GPT-6 Sol High final review: **BLOCKER 0 / IMPORTANT 0 / OPTIONAL 0 — FINAL VERDICT PASS**.
+- Yalnız sentetik/local D1 kullanıldı. Production deployment, remote D1, DNS/Cloudflare yapılandırması veya gerçek müşteri verisi işlemi yapılmadı. M3 uygulama/checkpoint commit'i normal push ile yayımlandı; `HEAD == origin/main` ve temiz worktree closeout sırasında doğrulandı.

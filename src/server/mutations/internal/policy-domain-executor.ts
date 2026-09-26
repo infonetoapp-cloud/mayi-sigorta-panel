@@ -390,6 +390,14 @@ function mapBatchError(error: unknown): never {
     throw new PolicyConstraintError('ASSIGNEE_NOT_ACTIVE');
   if (message.includes('POLICY_OPEN_DEPENDENCIES'))
     throw new PolicyConstraintError('OPEN_DEPENDENCIES');
+  if (message.includes('RENEWAL_POLICY_LINK_ALLOCATION_OVERFLOW'))
+    throw new PolicyConstraintError('RENEWAL_POLICY_LINK_ALLOCATION_CONFLICT');
+  if (message.includes('RENEWAL_POLICY_LINK_CURRENCY_MISMATCH'))
+    throw new PolicyConstraintError('RENEWAL_POLICY_LINK_CURRENCY_CONFLICT');
+  if (message.includes('WON_POLICY_PREMIUM_IMMUTABLE'))
+    throw new PolicyConstraintError('RENEWAL_WON_PREMIUM_IMMUTABLE');
+  if (message.includes('RENEWAL_WON_CORRECTION_REQUIRED'))
+    throw new PolicyConstraintError('RENEWAL_WON_CORRECTION_REQUIRED');
   if (message.includes('OPTIMISTIC_CONCURRENCY_CONFLICT')) throw new OptimisticConcurrencyError(0);
   if (message.includes('SENSITIVE_ACTION_GRANT_INVALID'))
     throw new PolicyConstraintError('SENSITIVE_ACTION_GRANT_INVALID');
