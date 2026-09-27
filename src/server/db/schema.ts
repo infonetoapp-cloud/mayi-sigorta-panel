@@ -1909,6 +1909,468 @@ export const renewalWonPolicyPremiumCorrectionLinks = sqliteTable(
   ],
 );
 
+export const documents = sqliteTable(
+  'documents',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    ownerType: text('owner_type', { enum: ['CUSTOMER', 'POLICY', 'QUOTE'] }).notNull(),
+    customerId: text('customer_id'),
+    policyId: text('policy_id'),
+    quoteId: text('quote_id'),
+    classification: text('classification', { enum: ['GENERAL', 'IDENTITY', 'HEALTH'] })
+      .notNull()
+      .default('GENERAL'),
+    status: text('status', { enum: ['ACTIVE', 'ARCHIVED'] })
+      .notNull()
+      .default('ACTIVE'),
+    currentVersionId: text('current_version_id'),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('documents_id_nonempty', sql`length(trim(${table.id})) > 0`),
+    check(
+      'documents_owner_valid',
+      sql`(${table.ownerType}='CUSTOMER' AND ${table.customerId} IS NOT NULL AND ${table.policyId} IS NULL AND ${table.quoteId} IS NULL)
+       OR (${table.ownerType}='POLICY' AND ${table.customerId} IS NULL AND ${table.policyId} IS NOT NULL AND ${table.quoteId} IS NULL)
+       OR (${table.ownerType}='QUOTE' AND ${table.customerId} IS NULL AND ${table.policyId} IS NULL AND ${table.quoteId} IS NOT NULL)`,
+    ),
+    check(
+      'documents_classification_valid',
+      sql`${table.classification} IN ('GENERAL','IDENTITY','HEALTH')`,
+    ),
+    check('documents_status_valid', sql`${table.status} IN ('ACTIVE','ARCHIVED')`),
+    check('documents_version_positive', sql`${table.version}>=1`),
+    check(
+      'documents_timestamps_valid',
+      sql`length(${table.createdAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt})=${table.createdAt} AND length(${table.updatedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt})=${table.updatedAt}`,
+    ),
+    check(
+      'documents_timestamps_ordered',
+      sql`julianday(${table.updatedAt})>=julianday(${table.createdAt})`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'documents_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+      name: 'documents_policy_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.quoteId],
+      foreignColumns: [renewalQuotes.agencyId, renewalQuotes.id],
+      name: 'documents_quote_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'documents_creator_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: 'documents_creator_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('documents_agency_id_id_uq').on(table.agencyId, table.id),
+    index('documents_customer_idx').on(table.agencyId, table.customerId, table.status),
+    index('documents_policy_idx').on(table.agencyId, table.policyId, table.status),
+    index('documents_quote_idx').on(table.agencyId, table.quoteId, table.status),
+  ],
+);
+
+export const documentVersions = sqliteTable(
+  'document_versions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    documentId: text('document_id').notNull(),
+    versionNumber: integer('version_number').notNull(),
+    objectKey: text('object_key').notNull(),
+    sha256: text('sha256').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    fileName: text('file_name').notNull(),
+    declaredContentType: text('declared_content_type'),
+    detectedContentType: text('detected_content_type').notNull(),
+    status: text('status', {
+      enum: [
+        'PENDING_UPLOAD',
+        'QUARANTINED',
+        'SCANNING',
+        'BACKUP_PENDING',
+        'AVAILABLE',
+        'REJECTED',
+        'SCAN_FAILED',
+        'RETIRED',
+      ],
+    })
+      .notNull()
+      .default('PENDING_UPLOAD'),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('document_versions_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check('document_versions_number_positive', sql`${table.versionNumber}>=1`),
+    check(
+      'document_versions_sha256_shape',
+      sql`length(${table.sha256})=64 AND ${table.sha256} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check('document_versions_size_limit', sql`${table.sizeBytes} BETWEEN 1 AND 20971520`),
+    check(
+      'document_versions_object_key_private_shape',
+      sql`length(${table.objectKey})=47 AND substr(${table.objectKey},1,11)='quarantine/' AND length(substr(${table.objectKey},12))=36 AND substr(${table.objectKey},20,1)='-' AND substr(${table.objectKey},25,1)='-' AND substr(${table.objectKey},30,1)='-' AND substr(${table.objectKey},35,1)='-' AND length(replace(substr(${table.objectKey},12),'-',''))=32 AND replace(substr(${table.objectKey},12),'-','') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'document_versions_file_name_shape',
+      sql`length(trim(${table.fileName})) BETWEEN 1 AND 255 AND instr(${table.fileName},'/')=0 AND instr(${table.fileName},char(92))=0 AND instr(${table.fileName},'..')=0 AND instr(${table.fileName},char(0))=0 AND ${table.fileName} NOT GLOB ('*[' || char(1) || '-' || char(31) || ']*') AND ${table.fileName} NOT GLOB ('*[' || char(128) || '-' || char(159) || ']*') AND instr(${table.fileName},char(127))=0 AND instr(${table.fileName},char(34))=0 AND instr(${table.fileName},char(39))=0 AND instr(${table.fileName},char(59))=0`,
+    ),
+    check(
+      'document_versions_declared_content_type_shape',
+      sql`${table.declaredContentType} IS NULL OR (length(${table.declaredContentType}) BETWEEN 1 AND 128 AND instr(${table.declaredContentType}, char(10))=0 AND instr(${table.declaredContentType}, char(13))=0)`,
+    ),
+    check(
+      'document_versions_detected_content_type_valid',
+      sql`${table.detectedContentType} IN ('application/pdf','image/jpeg','image/png')`,
+    ),
+    check(
+      'document_versions_declared_content_type_matches_detected',
+      sql`${table.declaredContentType} IS NULL OR ${table.declaredContentType}=${table.detectedContentType}`,
+    ),
+    check(
+      'document_versions_type_extension_consistent',
+      sql`(${table.detectedContentType}='application/pdf' AND lower(${table.fileName}) LIKE '%.pdf') OR (${table.detectedContentType}='image/jpeg' AND (lower(${table.fileName}) LIKE '%.jpg' OR lower(${table.fileName}) LIKE '%.jpeg')) OR (${table.detectedContentType}='image/png' AND lower(${table.fileName}) LIKE '%.png')`,
+    ),
+    check(
+      'document_versions_status_valid',
+      sql`${table.status} IN ('PENDING_UPLOAD','QUARANTINED','SCANNING','BACKUP_PENDING','AVAILABLE','REJECTED','SCAN_FAILED','RETIRED')`,
+    ),
+    check(
+      'document_versions_timestamps_valid',
+      sql`length(${table.createdAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt})=${table.createdAt} AND length(${table.updatedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt})=${table.updatedAt}`,
+    ),
+    check(
+      'document_versions_timestamps_ordered',
+      sql`julianday(${table.updatedAt})>=julianday(${table.createdAt})`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.documentId],
+      foreignColumns: [documents.agencyId, documents.id],
+      name: 'document_versions_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'document_versions_creator_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+      name: 'document_versions_creator_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('document_versions_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('document_versions_number_uq').on(
+      table.agencyId,
+      table.documentId,
+      table.versionNumber,
+    ),
+    uniqueIndex('document_versions_object_key_uq').on(table.objectKey),
+    index('document_versions_document_state_idx').on(
+      table.agencyId,
+      table.documentId,
+      table.status,
+      table.versionNumber,
+    ),
+  ],
+);
+
+export const backgroundJobs = sqliteTable(
+  'background_jobs',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    jobType: text('job_type', {
+      enum: ['DOCUMENT_SCAN', 'DOCUMENT_BACKUP', 'DOCUMENT_RECONCILE', 'DOCUMENT_RESTORE'],
+    }).notNull(),
+    documentVersionId: text('document_version_id'),
+    inputSha256: text('input_sha256'),
+    generation: integer('generation').notNull().default(1),
+    status: text('status', { enum: ['QUEUED', 'RUNNING', 'RETRY_WAIT', 'COMPLETED', 'DEAD'] })
+      .notNull()
+      .default('QUEUED'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: text('available_at').notNull().default(utcNow),
+    leaseTokenHash: text('lease_token_hash'),
+    leaseExpiresAt: text('lease_expires_at'),
+    queueDispatchedAt: text('queue_dispatched_at'),
+    lastErrorCode: text('last_error_code'),
+    completedAt: text('completed_at'),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('background_jobs_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'background_jobs_type_valid',
+      sql`${table.jobType} IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP','DOCUMENT_RECONCILE','DOCUMENT_RESTORE')`,
+    ),
+    check(
+      'background_jobs_status_valid',
+      sql`${table.status} IN ('QUEUED','RUNNING','RETRY_WAIT','COMPLETED','DEAD')`,
+    ),
+    check('background_jobs_generation_positive', sql`${table.generation}>=1`),
+    check(
+      'background_jobs_attempts_bounded',
+      sql`${table.attemptCount} BETWEEN 0 AND ${table.maxAttempts} AND ${table.maxAttempts} BETWEEN 1 AND 5 AND (${table.jobType}<>'DOCUMENT_SCAN' OR ${table.maxAttempts}=5)`,
+    ),
+    check(
+      'background_jobs_document_input_consistent',
+      sql`((${table.jobType} IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP') AND ${table.documentVersionId} IS NOT NULL AND ${table.inputSha256} IS NOT NULL AND length(${table.inputSha256})=64 AND ${table.inputSha256} NOT GLOB '*[^0-9a-f]*') OR (${table.jobType} IN ('DOCUMENT_RECONCILE','DOCUMENT_RESTORE') AND ${table.documentVersionId} IS NULL AND ${table.inputSha256} IS NULL))`,
+    ),
+    check(
+      'background_jobs_lease_state_consistent',
+      sql`(${table.status}='RUNNING' AND ${table.leaseTokenHash} IS NOT NULL AND length(${table.leaseTokenHash})=64 AND ${table.leaseTokenHash} NOT GLOB '*[^0-9a-f]*' AND ${table.leaseExpiresAt} IS NOT NULL)
+       OR (${table.status}<>'RUNNING' AND ${table.leaseTokenHash} IS NULL AND ${table.leaseExpiresAt} IS NULL)`,
+    ),
+    check(
+      'background_jobs_completion_consistent',
+      sql`(${table.status} IN ('COMPLETED','DEAD') AND ${table.completedAt} IS NOT NULL) OR (${table.status} NOT IN ('COMPLETED','DEAD') AND ${table.completedAt} IS NULL)`,
+    ),
+    check(
+      'background_jobs_timestamps_valid',
+      sql`length(${table.availableAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.availableAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.availableAt})=${table.availableAt} AND length(${table.createdAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt})=${table.createdAt} AND length(${table.updatedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.updatedAt})=${table.updatedAt} AND (${table.leaseExpiresAt} IS NULL OR (length(${table.leaseExpiresAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.leaseExpiresAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.leaseExpiresAt})=${table.leaseExpiresAt})) AND (${table.completedAt} IS NULL OR (length(${table.completedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.completedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.completedAt})=${table.completedAt})) AND (${table.queueDispatchedAt} IS NULL OR (length(${table.queueDispatchedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.queueDispatchedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.queueDispatchedAt})=${table.queueDispatchedAt}))`,
+    ),
+    check(
+      'background_jobs_error_code_safe',
+      sql`${table.lastErrorCode} IS NULL OR (length(${table.lastErrorCode}) BETWEEN 1 AND 64 AND instr(${table.lastErrorCode}, char(10))=0 AND instr(${table.lastErrorCode}, char(13))=0)`,
+    ),
+    check(
+      'background_jobs_timestamps_ordered',
+      sql`julianday(${table.updatedAt})>=julianday(${table.createdAt})`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.documentVersionId],
+      foreignColumns: [documentVersions.agencyId, documentVersions.id],
+      name: 'background_jobs_document_version_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId],
+      foreignColumns: [agencies.id],
+      name: 'background_jobs_agency_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('background_jobs_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('background_jobs_document_generation_uq')
+      .on(
+        table.agencyId,
+        table.jobType,
+        table.documentVersionId,
+        table.inputSha256,
+        table.generation,
+      )
+      .where(sql`${table.documentVersionId} IS NOT NULL`),
+    index('background_jobs_dispatch_idx').on(table.status, table.availableAt, table.id),
+    index('background_jobs_agency_status_idx').on(table.agencyId, table.status, table.availableAt),
+  ],
+);
+
+export const backgroundJobRuns = sqliteTable(
+  'background_job_runs',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    jobId: text('job_id').notNull(),
+    attemptNumber: integer('attempt_number').notNull(),
+    leaseTokenHash: text('lease_token_hash').notNull(),
+    status: text('status', {
+      enum: ['RUNNING', 'SUCCEEDED', 'RETRYABLE_ERROR', 'PERMANENT_ERROR', 'STALE', 'INFECTED'],
+    })
+      .notNull()
+      .default('RUNNING'),
+    reasonCode: text('reason_code'),
+    startedAt: text('started_at').notNull().default(utcNow),
+    completedAt: text('completed_at'),
+  },
+  (table) => [
+    check('background_job_runs_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check('background_job_runs_attempt_positive', sql`${table.attemptNumber}>=1`),
+    check(
+      'background_job_runs_lease_token_hash_shape',
+      sql`length(${table.leaseTokenHash})=64 AND ${table.leaseTokenHash} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'background_job_runs_status_valid',
+      sql`${table.status} IN ('RUNNING','SUCCEEDED','RETRYABLE_ERROR','PERMANENT_ERROR','STALE','INFECTED')`,
+    ),
+    check(
+      'background_job_runs_completion_consistent',
+      sql`(${table.status}='RUNNING' AND ${table.completedAt} IS NULL) OR (${table.status}<>'RUNNING' AND ${table.completedAt} IS NOT NULL)`,
+    ),
+    check(
+      'background_job_runs_timestamps_valid',
+      sql`length(${table.startedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.startedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.startedAt})=${table.startedAt} AND (${table.completedAt} IS NULL OR (length(${table.completedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.completedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.completedAt})=${table.completedAt}))`,
+    ),
+    check(
+      'background_job_runs_reason_code_safe',
+      sql`${table.reasonCode} IS NULL OR (length(${table.reasonCode}) BETWEEN 1 AND 64 AND instr(${table.reasonCode}, char(10))=0 AND instr(${table.reasonCode}, char(13))=0)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.jobId],
+      foreignColumns: [backgroundJobs.agencyId, backgroundJobs.id],
+      name: 'background_job_runs_job_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('background_job_runs_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('background_job_runs_attempt_uq').on(
+      table.agencyId,
+      table.jobId,
+      table.attemptNumber,
+    ),
+    index('background_job_runs_job_idx').on(table.agencyId, table.jobId, table.attemptNumber),
+  ],
+);
+
+export const documentScanEvidence = sqliteTable(
+  'document_scan_evidence',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    documentVersionId: text('document_version_id').notNull(),
+    jobRunId: text('job_run_id').notNull(),
+    sha256: text('sha256').notNull(),
+    outcome: text('outcome', { enum: ['CLEAN', 'INFECTED', 'INVALID', 'ERROR'] }).notNull(),
+    reasonCode: text('reason_code'),
+    scannerEngineVersion: text('scanner_engine_version'),
+    signatureVersion: text('signature_version'),
+    signatureUpdatedAt: text('signature_updated_at'),
+    scannedAt: text('scanned_at').notNull(),
+  },
+  (table) => [
+    check('document_scan_evidence_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'document_scan_evidence_outcome_valid',
+      sql`${table.outcome} IN ('CLEAN','INFECTED','INVALID','ERROR')`,
+    ),
+    check(
+      'document_scan_evidence_sha256_shape',
+      sql`length(${table.sha256})=64 AND ${table.sha256} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'document_scan_evidence_timestamps_valid',
+      sql`length(${table.scannedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.scannedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.scannedAt})=${table.scannedAt} AND (${table.signatureUpdatedAt} IS NULL OR (length(${table.signatureUpdatedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.signatureUpdatedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.signatureUpdatedAt})=${table.signatureUpdatedAt}))`,
+    ),
+    check(
+      'document_scan_evidence_result_consistent',
+      sql`${table.outcome} IN ('ERROR','INVALID') OR (${table.scannerEngineVersion} IS NOT NULL AND length(trim(${table.scannerEngineVersion})) BETWEEN 1 AND 128 AND ${table.signatureVersion} IS NOT NULL AND length(trim(${table.signatureVersion})) BETWEEN 1 AND 128 AND ${table.signatureUpdatedAt} IS NOT NULL)`,
+    ),
+    check(
+      'document_scan_evidence_reason_code_safe',
+      sql`${table.reasonCode} IS NULL OR (length(${table.reasonCode}) BETWEEN 1 AND 64 AND instr(${table.reasonCode}, char(10))=0 AND instr(${table.reasonCode}, char(13))=0)`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.documentVersionId],
+      foreignColumns: [documentVersions.agencyId, documentVersions.id],
+      name: 'document_scan_evidence_version_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.jobRunId],
+      foreignColumns: [backgroundJobRuns.agencyId, backgroundJobRuns.id],
+      name: 'document_scan_evidence_run_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('document_scan_evidence_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('document_scan_evidence_run_uq').on(table.agencyId, table.jobRunId),
+    index('document_scan_evidence_version_idx').on(
+      table.agencyId,
+      table.documentVersionId,
+      table.scannedAt,
+    ),
+  ],
+);
+
+export const documentBackupCopies = sqliteTable(
+  'document_backup_copies',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    documentVersionId: text('document_version_id').notNull(),
+    jobRunId: text('job_run_id').notNull(),
+    sourceSha256: text('source_sha256').notNull(),
+    objectKey: text('object_key').notNull(),
+    backupSha256: text('backup_sha256').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('document_backup_copies_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'document_backup_copies_source_sha256_shape',
+      sql`length(${table.sourceSha256})=64 AND ${table.sourceSha256} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'document_backup_copies_backup_sha256_shape',
+      sql`length(${table.backupSha256})=64 AND ${table.backupSha256} NOT GLOB '*[^0-9a-f]*' AND ${table.backupSha256}=${table.sourceSha256}`,
+    ),
+    check(
+      'document_backup_copies_object_key_private_shape',
+      sql`length(${table.objectKey})=43 AND substr(${table.objectKey},1,7)='backup/' AND length(substr(${table.objectKey},8))=36 AND substr(${table.objectKey},16,1)='-' AND substr(${table.objectKey},21,1)='-' AND substr(${table.objectKey},26,1)='-' AND substr(${table.objectKey},31,1)='-' AND length(replace(substr(${table.objectKey},8),'-',''))=32 AND replace(substr(${table.objectKey},8),'-','') NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check(
+      'document_backup_copies_timestamps_valid',
+      sql`length(${table.createdAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt})=${table.createdAt}`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.documentVersionId],
+      foreignColumns: [documentVersions.agencyId, documentVersions.id],
+      name: 'document_backup_copies_version_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.jobRunId],
+      foreignColumns: [backgroundJobRuns.agencyId, backgroundJobRuns.id],
+      name: 'document_backup_copies_run_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('document_backup_copies_agency_id_id_uq').on(table.agencyId, table.id),
+    uniqueIndex('document_backup_copies_run_uq').on(table.agencyId, table.jobRunId),
+    uniqueIndex('document_backup_copies_object_key_uq').on(table.objectKey),
+    index('document_backup_copies_version_idx').on(table.agencyId, table.documentVersionId),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;
@@ -1936,3 +2398,9 @@ export type RenewalStateHistory = typeof renewalStateHistory.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type RenewalGenerationCursor = typeof renewalGenerationCursors.$inferSelect;
 export type SystemAuditEvent = typeof systemAuditEvents.$inferSelect;
+export type Document = typeof documents.$inferSelect;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+export type BackgroundJob = typeof backgroundJobs.$inferSelect;
+export type BackgroundJobRun = typeof backgroundJobRuns.$inferSelect;
+export type DocumentScanEvidence = typeof documentScanEvidence.$inferSelect;
+export type DocumentBackupCopy = typeof documentBackupCopies.$inferSelect;

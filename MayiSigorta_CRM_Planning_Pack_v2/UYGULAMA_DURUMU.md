@@ -40,7 +40,7 @@ Son güncelleme: **27 Eylül 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PL
 | Faz 1 — Güvenli temel | TAMAMLANDI — M1-T01–M1-T10 ve RG-00 PASS |
 | Faz 2 — Müşteri/poliçe domain'i | TAMAMLANDI — M2-T01–T06 PASS; 7. fresh GPT-6 Sol High final review PASS |
 || Faz 3 — Yenileme ve takip | TAMAMLANDI — M3 COMPLETE; M3-T01/T02/T03, migration 0012–0014, tam kalite kapıları ve fresh GPT-6 Sol High PASS |
-| Faz 4 — Belge ve iletişim | BAŞLAMADI |
+| Faz 4 — Belge ve iletişim | DEVAM EDİYOR — Document metadata/state schema slice accepted; M4 genel kabulü tamamlanmadı |
 | Faz 5 — Raporlar ve operasyon arayüzü | BAŞLAMADI |
 | Faz 6 — Veri aktarımı | BAŞLAMADI |
 | Faz 7 — Üretim kabulü | BAŞLAMADI |
@@ -313,7 +313,7 @@ Sonraki görev: **M3 kapanmıştır.** Faz 4–7, ayrı kullanıcı yetkisi olma
 
 ## M3 / Faz 3 formal closeout — 27 Eylül 2026
 
-Durum: **M3 COMPLETE — BLOCKER 0 / IMPORTANT 0 / FINAL VERDICT PASS. M4 başlamadı.**
+Durum: **M3 COMPLETE — BLOCKER 0 / IMPORTANT 0 / FINAL VERDICT PASS. M4 başladı; yalnız document metadata/state schema slice kabul edildi. M4 genel kabulü tamamlanmadı.**
 
 - Faz 3 çıktıları tamamlandı: Renewal üretimi ve takip Task'ı, Today’s Work/UNASSIGNED, history, RenewalPolicyLink allocation/split-merge, LOST/VOIDED, single/group WON, secure WON correction, Quote/immutable SENT QuoteVersion, Interaction contact-vs-attempt ve Workspace UI.
 - Sent QuoteVersion–Policy ürün/prim/para birimi farkı UI'da gösterilir; fark için güvenli gerekçe kodu zorunludur ve audit/replay kanıtı korunur. Individual ve Company synthetic D1 E2E akışları geçer.
@@ -325,3 +325,15 @@ Durum: **M3 COMPLETE — BLOCKER 0 / IMPORTANT 0 / FINAL VERDICT PASS. M4 başla
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `git diff --check` ve `npm run build` PASS. Build yalnız Wrangler `--dry-run` idi.
 - Fresh bağımsız GPT-6 Sol High follow-up final review: **BLOCKER 0 / IMPORTANT 0 / OPTIONAL 0 — FINAL VERDICT PASS**.
 - Yalnız sentetik/local D1 kullanıldı. Production deployment, remote D1, DNS/Cloudflare yapılandırması veya gerçek müşteri verisi işlemi yapılmadı. M3 follow-up normal push ile yayımlandı; `HEAD == origin/main` ve temiz worktree closeout sırasında doğrulandı.
+
+## M4 başlangıç dilimi — Document metadata/state schema — 27 Eylül 2026
+
+Durum: **Yerel metadata schema dilimi kabul edildi: yeni fresh Sol High PASS (BLOCKER 0, IMPORTANT 0, OPTIONAL 1). M4 DEVAM EDİYOR; M4 COMPLETE değildir.**
+
+- İleri yönlü `0015_living_frog_thor.sql` migration'ı Document, DocumentVersion, BackgroundJob, BackgroundJobRun, DocumentScanEvidence ve DocumentBackupCopy metadata tablolarını ekler. Dosya baytları D1'e konmaz; private quarantine/backup object-key biçimleri kısıtlanır.
+- DocumentVersion geçmişi, checksum/scan-run/lease bağları, fail-closed quarantine, generation sıralaması, retry/available_at, 5 scan denemesi, dead-letter sonrası SCAN_FAILED, backup nesli ve current-version pointer geçişleri D1 kısıt/trigger'larıyla korunur. Timestamp biçim kontrolleri başarılı parse ve canonical, geçerli takvimli UTC milisaniye round-trip'ini ayrı ayrı zorunlu kılar; offset biçimleri reddedilir. Scan imzası freshness kapısı biçim kontrolünden ayrıdır; canonical 48 saatten eski imza CLEAN sayılmaz.
+- Wrangler D1 focused şema suite'i: **1 dosya / 3 test PASS**; temiz migration apply, 0014'ten sıralı upgrade ve mevcut synthetic seed korunumu, tekrar/no-op, canonical zaman, 24-karakter ayrıştırılamayan/imkânsız tarih, offset ret, canonical >48 saat freshness ret, NULL sözleşmesi ve kısıtları kapsar. `npm run test:d1 -- --maxWorkers=1 --testTimeout=180000`: **1 dosya / 26 test PASS**. Python SQLite parser 0015 içinde **71 statement segmenti** parse etti. Tarihsel 0000–0014 migration'ları değişmedi.
+- Tam Vitest gate (`--maxWorkers=1 --testTimeout=180000`): **53/53 dosya, 948/948 test PASS**. Önceki paralel koşuda 0011 upgrade testi zaman aşımına uğradı; izole tekrar **2/2 PASS** oldu; tam seri koşu başarılı tamamlandı. Drizzle clone no-drift: **No schema changes, nothing to migrate**. `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run verify:boundaries`, `npm run build` (client + Worker dry-run) ve `git diff --check`: PASS.
+- Yeni, bağımsız ve salt-okunur GPT-6 Sol High incelemesi: **BLOCKER 0 / IMPORTANT 0 / OPTIONAL 1 — FINAL VERDICT PASS**. Timestamp NULL-permissive bulgusu kapatıldı. Tek OPTIONAL, run ve scan-evidence timestamp alanlarına da ayrı 24-karakter bozuk-değer negatif testleri eklenmesi önerisidir; mevcut CHECK'lerde açık parse ve round-trip koruması vardır. Bu kabul yalnız yerel metadata/schema dilimidir; Faz 4 veya gerçek belge modülü kabulü değildir.
+- Local Docker, `clamscan` ve `clamdscan` bulunmadı. R2, Queue tüketicisi, ClamAV Container/scanner, dosya parser/limitleri, upload/download/stream authorization, gerçek backup object privilege, reconciliation/restore ve WhatsApp uygulaması sonraki M4 işidir.
+- Yalnız sentetik verili yerel D1 kullanıldı. Production/staging deployment, remote D1/R2/Queue, DNS/Access, Cloudflare secret veya gerçek müşteri verisi işlemi yapılmadı.
