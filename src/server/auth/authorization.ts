@@ -913,6 +913,51 @@ export function createDefaultActionRegistry(): ActionRegistry {
     }),
   );
 
+  normalActions.push(
+    validateAndCreateActionDefinition({
+      code: 'document.identity.read',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.read'],
+      requiredSensitivePermissions: ['sensitive.identity.read'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'document.identity.upload',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.upload'],
+      requiredSensitivePermissions: ['sensitive.identity.read', 'sensitive.identity.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'document.identity.archive',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.archive'],
+      requiredSensitivePermissions: ['sensitive.identity.read', 'sensitive.identity.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'document.health.read',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.read'],
+      requiredSensitivePermissions: ['sensitive.health.read'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'document.health.upload',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.upload'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+    validateAndCreateActionDefinition({
+      code: 'document.health.archive',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['document.archive'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+  );
+
   for (const code of [
     'policy_party.create',
     'policy_party.deactivate',
@@ -1268,8 +1313,85 @@ export function taskRecordResolver(context: ScopeResolutionContext): boolean {
 }
 
 /**
- * Varsayılan stabil kayıt kapsam çözümleyicileri.
- * Üretim varsayılanı fail-closed ret üretir (() => false).
+ * Document erişimini acente ve parent kapsamıyla sınırlar. parentReadAuthorized
+ * ve parentAssigneeMembershipId yalnız doğrulanmış parent sorgusundan üretilmelidir.
+ */
+export function documentRecordResolver(context: ScopeResolutionContext): boolean {
+  try {
+    const { agencyId, membershipId, effectiveScope, resource } = context;
+    if (
+      typeof agencyId !== 'string' ||
+      typeof membershipId !== 'string' ||
+      membershipId.trim().length === 0 ||
+      !resource ||
+      typeof resource !== 'object' ||
+      Array.isArray(resource)
+    ) {
+      return false;
+    }
+
+    const record = resource as Record<string, unknown>;
+    if (
+      record.agencyId !== agencyId ||
+      record.parentReadAuthorized !== true ||
+      (record.isCollection !== undefined && typeof record.isCollection !== 'boolean')
+    ) {
+      return false;
+    }
+
+    let parentIdKey: 'customerId' | 'policyId' | 'quoteId';
+    let assignedAssigneeKeys: readonly string[];
+    if (record.ownerType === 'CUSTOMER') {
+      parentIdKey = 'customerId';
+      assignedAssigneeKeys = ['assigneeMembershipId'];
+    } else if (record.ownerType === 'POLICY') {
+      parentIdKey = 'policyId';
+      assignedAssigneeKeys = ['assigneeMembershipId', 'customerAssigneeMembershipId'];
+    } else if (record.ownerType === 'QUOTE') {
+      parentIdKey = 'quoteId';
+      assignedAssigneeKeys = ['renewalAssigneeMembershipId', 'customerAssigneeMembershipId'];
+    } else {
+      return false;
+    }
+
+    const parentId = record[parentIdKey];
+    if (typeof parentId !== 'string' || parentId.trim().length === 0) return false;
+    for (const key of ['customerId', 'policyId', 'quoteId'] as const) {
+      if (key !== parentIdKey && record[key] !== null && record[key] !== undefined) {
+        return false;
+      }
+    }
+
+    const isCollection = record.isCollection === true;
+    if (!isCollection && (typeof record.id !== 'string' || record.id.trim().length === 0)) {
+      return false;
+    }
+
+    for (const key of assignedAssigneeKeys) {
+      const assigneeMembershipId = record[key];
+      if (
+        assigneeMembershipId !== null &&
+        assigneeMembershipId !== undefined &&
+        typeof assigneeMembershipId !== 'string'
+      ) {
+        return false;
+      }
+    }
+
+    if (effectiveScope === 'AGENCY') return true;
+    if (effectiveScope !== 'ASSIGNED') return false;
+
+    // Policy erişimi policy veya müşteri atamasından; Quote erişimi renewal
+    // veya müşteri atamasından gelebilir. Tüm alanlar sunucu parent sorgusundan türetilir.
+    return assignedAssigneeKeys.some((key) => record[key] === membershipId);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Varsayılan stabil kayıt kapsam çözümleyicileri. Uygulanmamış alanlar fail-closed kalır;
+ * Document resolver'ı parent yetki kanıtı olmadan erişim açmaz.
  */
 export function createDefaultScopeResolvers(): ScopeResolverRegistry {
   const failClosedResolver: ScopeResolverFunction = () => false;
@@ -1281,7 +1403,7 @@ export function createDefaultScopeResolvers(): ScopeResolverRegistry {
     quote_record_resolver: quoteRecordResolver,
     interaction_record_resolver: interactionRecordResolver,
     task_record_resolver: taskRecordResolver,
-    document_record_resolver: failClosedResolver,
+    document_record_resolver: documentRecordResolver,
     report_scope_resolver: failClosedResolver,
   });
 }

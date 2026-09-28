@@ -20,6 +20,7 @@ import { registerPolicyRoutes } from './policies/routes';
 import { registerTaskRoutes } from './tasks/routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
+import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -33,6 +34,8 @@ import { runScheduledRenewalGeneration } from './renewals/generation';
 export interface Env {
   ASSETS?: Fetcher;
   DB: D1Database;
+  DOCS_QUARANTINE?: R2Bucket;
+  DOCUMENT_SCAN_QUEUE?: Queue<DocumentJobQueueMessage>;
   [key: string]: unknown;
 }
 
@@ -471,8 +474,13 @@ export const app = createApp();
 
 export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
   return {
-    scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-      ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
+    scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+      if (!controller.cron || controller.cron === '0 0 * * *') {
+        ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
+      }
+      if (controller.cron === '*/5 * * * *' && env.DOCUMENT_SCAN_QUEUE) {
+        ctx.waitUntil(dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE));
+      }
     },
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
       const url = new URL(request.url);

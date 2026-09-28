@@ -318,7 +318,9 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     });
     fireEvent.click(editIdentityBtn);
 
-    const identityInput = screen.getByPlaceholderText(/TCKN veya VKN giriniz|11 haneli TCKN/i);
+    const identityInput = await screen.findByPlaceholderText(
+      /TCKN veya VKN giriniz|11 haneli TCKN/i,
+    );
     fireEvent.change(identityInput, { target: { value: '98765432154' } });
 
     const saveIdentityBtn = screen.getByRole('button', { name: /Kimliği Kaydet|Kaydet/i });
