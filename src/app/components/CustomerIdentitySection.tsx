@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { CustomerDetailDto, ApiResponse, CustomerIdentityRevealDto } from '../../shared/types';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
 
@@ -30,9 +30,12 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [actionError, setActionError] = useState<AppErrorInfo | null>(null);
   const [retryAttempt, setRetryAttempt] = useState<MutationSnapshot | null>(null);
+  const previousCustomerId = useRef(customer.id);
 
   // Müşteri değiştiğinde veya bileşen unmount olduğunda açık kimliği bellekten temizle
   useEffect(() => {
+    if (previousCustomerId.current === customer.id) return;
+    previousCustomerId.current = customer.id;
     setRevealedIdentity(null);
     setRevealError(null);
     setShowEdit(false);

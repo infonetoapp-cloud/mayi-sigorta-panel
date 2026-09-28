@@ -21,6 +21,7 @@ import { registerTaskRoutes } from './tasks/routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
+import { registerDocumentRoutes } from './documents/routes';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -36,6 +37,7 @@ export interface Env {
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;
   DOCUMENT_SCAN_QUEUE?: Queue<DocumentJobQueueMessage>;
+  DOCUMENTS_ENABLED?: string;
   [key: string]: unknown;
 }
 
@@ -456,6 +458,9 @@ export function createApp(
 
   // M3-T03 explicit Renewal outcome commands
   registerRenewalCommandRoutes(app, dependencies);
+
+  // M4: belge yükleme akışı yalnız yetkili parent kapsamı ve karantina state'i üretir.
+  registerDocumentRoutes(app, dependencies);
 
   if (configureRoutes) {
     configureRoutes(app);

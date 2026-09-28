@@ -1,7 +1,9 @@
 import {
   MAX_DOCUMENT_UPLOAD_BYTES,
   preflightDocumentBlob,
+  type DocumentUploadFormat,
   type DocumentUploadPreflightInput,
+  type DocumentUploadPreflightResult,
 } from './validation';
 
 export type DocumentQuarantineErrorCode =
@@ -12,7 +14,10 @@ export type DocumentQuarantineErrorCode =
   | 'OBJECT_WRITE_FAILED';
 
 export class DocumentQuarantineError extends Error {
-  constructor(readonly code: DocumentQuarantineErrorCode) {
+  constructor(
+    readonly code: DocumentQuarantineErrorCode,
+    readonly preflightReason?: Extract<DocumentUploadPreflightResult, { valid: false }>['reason'],
+  ) {
     super(code);
     this.name = 'DocumentQuarantineError';
   }
@@ -27,17 +32,32 @@ export interface StoredQuarantinedDocumentObject {
   readonly disposition: 'QUARANTINE_ONLY';
 }
 
+export interface PreparedQuarantinedDocumentObject {
+  readonly content: ArrayBuffer;
+  readonly format: DocumentUploadFormat;
+  readonly sha256: string;
+  readonly sizeBytes: number;
+  readonly contentType: 'application/pdf' | 'image/jpeg' | 'image/png';
+  readonly fileName: string;
+  readonly disposition: 'QUARANTINE_ONLY';
+}
+
 function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export async function storeQuarantinedDocumentObject(
-  bucket: R2Bucket,
+export function createQuarantineObjectKey(): string {
+  return `quarantine/${crypto.randomUUID()}`;
+}
+
+export async function prepareQuarantinedDocumentObject(
   file: Blob,
   metadata: Pick<DocumentUploadPreflightInput, 'fileName' | 'declaredContentType'>,
-): Promise<StoredQuarantinedDocumentObject> {
+): Promise<PreparedQuarantinedDocumentObject> {
   const preflight = await preflightDocumentBlob(file, metadata);
-  if (!preflight.valid) throw new DocumentQuarantineError('PREFLIGHT_REJECTED');
+  if (!preflight.valid) {
+    throw new DocumentQuarantineError('PREFLIGHT_REJECTED', preflight.reason);
+  }
 
   if (file.size !== preflight.sizeBytes || file.size < 1 || file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
     throw new DocumentQuarantineError('SIZE_MISMATCH');
@@ -58,28 +78,76 @@ export async function storeQuarantinedDocumentObject(
     throw new DocumentQuarantineError('CHECKSUM_FAILED');
   }
 
-  const objectKey = `quarantine/${crypto.randomUUID()}`;
-  try {
-    await bucket.put(objectKey, content, {
-      httpMetadata: {
-        cacheControl: 'private, no-store',
-        contentType: preflight.detectedContentType,
-      },
-      customMetadata: {
-        format: preflight.format,
-        sha256,
-      },
-    });
-  } catch {
-    throw new DocumentQuarantineError('OBJECT_WRITE_FAILED');
-  }
-
   return {
-    objectKey,
+    content,
+    format: preflight.format,
     sha256,
     sizeBytes: content.byteLength,
     contentType: preflight.detectedContentType,
     fileName: preflight.fileName,
     disposition: preflight.disposition,
+  };
+}
+
+export async function writePreparedQuarantinedDocumentObject(
+  bucket: R2Bucket,
+  objectKey: string,
+  prepared: PreparedQuarantinedDocumentObject,
+): Promise<void> {
+  if (
+    !/^quarantine\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(
+      objectKey,
+    )
+  ) {
+    throw new DocumentQuarantineError('OBJECT_WRITE_FAILED');
+  }
+  if (
+    prepared.content.byteLength !== prepared.sizeBytes ||
+    prepared.sizeBytes < 1 ||
+    prepared.sizeBytes > MAX_DOCUMENT_UPLOAD_BYTES
+  ) {
+    throw new DocumentQuarantineError('SIZE_MISMATCH');
+  }
+
+  let actualSha256: string;
+  try {
+    actualSha256 = toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', prepared.content)));
+  } catch {
+    throw new DocumentQuarantineError('CHECKSUM_FAILED');
+  }
+  if (actualSha256 !== prepared.sha256) throw new DocumentQuarantineError('CHECKSUM_FAILED');
+
+  try {
+    await bucket.put(objectKey, prepared.content, {
+      httpMetadata: {
+        cacheControl: 'private, no-store',
+        contentType: prepared.contentType,
+      },
+      customMetadata: {
+        format: prepared.format,
+        sha256: prepared.sha256,
+      },
+    });
+  } catch {
+    throw new DocumentQuarantineError('OBJECT_WRITE_FAILED');
+  }
+}
+
+export async function storeQuarantinedDocumentObject(
+  bucket: R2Bucket,
+  file: Blob,
+  metadata: Pick<DocumentUploadPreflightInput, 'fileName' | 'declaredContentType'>,
+): Promise<StoredQuarantinedDocumentObject> {
+  const prepared = await prepareQuarantinedDocumentObject(file, metadata);
+  const objectKey = createQuarantineObjectKey();
+  await writePreparedQuarantinedDocumentObject(bucket, objectKey, prepared);
+
+  return {
+    objectKey,
+    sha256: prepared.sha256,
+    sizeBytes: prepared.sizeBytes,
+    contentType: prepared.contentType,
+    fileName: prepared.fileName,
+    disposition: prepared.disposition,
   };
 }
