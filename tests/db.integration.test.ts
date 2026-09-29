@@ -490,6 +490,8 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       'document_backup_copies_immutable_delete',
       'document_backup_copies_immutable_update',
       'document_backup_copies_insert_guard',
+      'document_queue_dead_letter_events_immutable_delete',
+      'document_queue_dead_letter_events_immutable_update',
       'document_scan_evidence_finalize_failure',
       'document_scan_evidence_immutable_delete',
       'document_scan_evidence_immutable_update',

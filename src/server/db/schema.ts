@@ -2371,6 +2371,62 @@ export const documentBackupCopies = sqliteTable(
   ],
 );
 
+export const documentQueueDeadLetterEvents = sqliteTable(
+  'document_queue_dead_letter_events',
+  {
+    id: text('id').primaryKey(),
+    messageId: text('message_id').notNull(),
+    queueName: text('queue_name', {
+      enum: [
+        'mayisigorta-document-scan-dead-letter',
+        'mayisigorta-document-scan-dead-letter-overflow',
+        'mayisigorta-document-scan-dead-letter-terminal',
+      ],
+    }).notNull(),
+    jobId: text('job_id'),
+    jobGeneration: integer('job_generation'),
+    documentVersionId: text('document_version_id'),
+    inputSha256: text('input_sha256'),
+    reasonCode: text('reason_code', {
+      enum: ['QUEUE_DELIVERY_EXHAUSTED', 'INVALID_QUEUE_MESSAGE'],
+    }).notNull(),
+    receivedAt: text('received_at').notNull().default(utcNow),
+  },
+  (table) => [
+    check('document_queue_dead_letter_events_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'document_queue_dead_letter_events_message_id_safe',
+      sql`length(trim(${table.messageId})) BETWEEN 1 AND 128 AND instr(${table.messageId}, char(10))=0 AND instr(${table.messageId}, char(13))=0`,
+    ),
+    check(
+      'document_queue_dead_letter_events_queue_valid',
+      sql`${table.queueName} IN ('mayisigorta-document-scan-dead-letter','mayisigorta-document-scan-dead-letter-overflow','mayisigorta-document-scan-dead-letter-terminal')`,
+    ),
+    check(
+      'document_queue_dead_letter_events_reason_valid',
+      sql`${table.reasonCode} IN ('QUEUE_DELIVERY_EXHAUSTED','INVALID_QUEUE_MESSAGE')`,
+    ),
+    check(
+      'document_queue_dead_letter_events_job_binding_consistent',
+      sql`(${table.jobId} IS NULL AND ${table.jobGeneration} IS NULL AND ${table.documentVersionId} IS NULL AND ${table.inputSha256} IS NULL)
+        OR (${table.jobId} IS NOT NULL AND length(trim(${table.jobId}))>0 AND ${table.jobGeneration}>=1 AND ${table.documentVersionId} IS NOT NULL AND length(trim(${table.documentVersionId}))>0 AND ${table.inputSha256} IS NOT NULL)`,
+    ),
+    check(
+      'document_queue_dead_letter_events_sha256_shape',
+      sql`${table.inputSha256} IS NULL OR (length(${table.inputSha256})=64 AND ${table.inputSha256} NOT GLOB '*[^0-9a-f]*')`,
+    ),
+    check(
+      'document_queue_dead_letter_events_timestamp_valid',
+      sql`length(${table.receivedAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.receivedAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.receivedAt})=${table.receivedAt}`,
+    ),
+    uniqueIndex('document_queue_dead_letter_events_queue_message_uq').on(
+      table.queueName,
+      table.messageId,
+    ),
+    index('document_queue_dead_letter_events_received_idx').on(table.receivedAt, table.reasonCode),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;

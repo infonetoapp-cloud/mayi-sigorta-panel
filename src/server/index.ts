@@ -21,6 +21,7 @@ import { registerTaskRoutes } from './tasks/routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
+import { consumeDocumentQueueBatch, unavailableDocumentScanner } from './documents/scan';
 import { registerDocumentRoutes } from './documents/routes';
 
 /**
@@ -479,12 +480,25 @@ export const app = createApp();
 
 export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
   return {
+    queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
+      return consumeDocumentQueueBatch(
+        batch,
+        env.DB,
+        env.DOCS_QUARANTINE,
+        env.DOCUMENTS_ENABLED === 'true',
+        unavailableDocumentScanner,
+      );
+    },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       if (!controller.cron || controller.cron === '0 0 * * *') {
         ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
       }
-      if (controller.cron === '*/5 * * * *' && env.DOCUMENT_SCAN_QUEUE) {
-        ctx.waitUntil(dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE));
+      if (
+        controller.cron === '*/5 * * * *' &&
+        env.DOCUMENT_SCAN_QUEUE &&
+        env.DOCUMENTS_ENABLED === 'true'
+      ) {
+        ctx.waitUntil(dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE, ['DOCUMENT_SCAN']));
       }
     },
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

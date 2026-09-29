@@ -1345,10 +1345,132 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
       const rerun = run(['d1', 'migrations', 'apply', 'DB', '--local', '--persist-to', stateDir]);
       expectSuccess(rerun);
       expect(`${rerun.stdout}\n${rerun.stderr}`).toContain('No migrations to apply');
+
+      const deadLetterMigration = '0016_document_queue_dead_letter_events.sql';
+      copyFileSync(
+        resolve(root, 'db/migrations', deadLetterMigration),
+        join(upgradeMigrations, deadLetterMigration),
+      );
+      const deadLetterUpgrade = run([
+        'd1',
+        'migrations',
+        'apply',
+        'DB',
+        '--local',
+        '--persist-to',
+        stateDir,
+      ]);
+      expectSuccess(deadLetterUpgrade);
+      const afterDeadLetterUpgrade = execute(`
+        SELECT agency.id AS agency_id, customer.id AS customer_id,
+          customer.display_name, membership.id AS membership_id
+        FROM agencies agency
+        JOIN agency_memberships membership ON membership.agency_id=agency.id
+        JOIN customers customer ON customer.agency_id=agency.id
+        WHERE agency.id='upgrade-agency'
+      `);
+      expectSuccess(afterDeadLetterUpgrade);
+      expect(rows(afterDeadLetterUpgrade)).toEqual(rows(after));
+
+      const terminalQueueEvent = execute(`
+        INSERT INTO document_queue_dead_letter_events
+          (id,message_id,queue_name,reason_code)
+        VALUES('upgrade-terminal-event','upgrade-terminal-message',
+          'mayisigorta-document-scan-dead-letter-terminal','INVALID_QUEUE_MESSAGE')
+      `);
+      expectSuccess(terminalQueueEvent);
+      const duplicateTerminalEvent = execute(`
+        INSERT OR IGNORE INTO document_queue_dead_letter_events
+          (id,message_id,queue_name,reason_code)
+        VALUES('upgrade-terminal-event-duplicate','upgrade-terminal-message',
+          'mayisigorta-document-scan-dead-letter-terminal','INVALID_QUEUE_MESSAGE')
+      `);
+      expectSuccess(duplicateTerminalEvent);
+      const terminalEventCount = execute(`
+        SELECT count(*) AS count FROM document_queue_dead_letter_events
+        WHERE queue_name='mayisigorta-document-scan-dead-letter-terminal'
+          AND message_id='upgrade-terminal-message'
+      `);
+      expectSuccess(terminalEventCount);
+      expect(rows(terminalEventCount)).toEqual([{ count: 1 }]);
+      const terminalIndexes = execute("PRAGMA index_list('document_queue_dead_letter_events')");
+      expectSuccess(terminalIndexes);
+      expect(terminalIndexes.stdout).toContain(
+        'document_queue_dead_letter_events_queue_message_uq',
+      );
+
+      const deadLetterRerun = run([
+        'd1',
+        'migrations',
+        'apply',
+        'DB',
+        '--local',
+        '--persist-to',
+        stateDir,
+      ]);
+      expectSuccess(deadLetterRerun);
+      expect(`${deadLetterRerun.stdout}\n${deadLetterRerun.stderr}`).toContain(
+        'No migrations to apply',
+      );
     } finally {
       configPath = priorConfigPath;
       stateDir = priorStateDir;
       rmSync(upgradeDir, { recursive: true, force: true });
     }
   }, 180_000);
+
+  it('persists queue dead-letter events idempotently and forbids mutation', () => {
+    const triggers = execute(`
+      SELECT name FROM sqlite_master WHERE type='trigger'
+        AND name LIKE 'document_queue_dead_letter_events_%'
+      ORDER BY name
+    `);
+    expectSuccess(triggers);
+    expect(triggers.stdout).toContain('document_queue_dead_letter_events_immutable_update');
+    expect(triggers.stdout).toContain('document_queue_dead_letter_events_immutable_delete');
+
+    const sha256 = 'a'.repeat(64);
+    const insert = execute(`
+      INSERT INTO document_queue_dead_letter_events
+        (id,message_id,queue_name,job_id,job_generation,document_version_id,input_sha256,reason_code)
+      VALUES('dead-letter-schema-test','message-schema-test','mayisigorta-document-scan-dead-letter',
+        'job-schema-test',1,'version-schema-test','${sha256}','QUEUE_DELIVERY_EXHAUSTED')
+    `);
+    expectSuccess(insert);
+
+    const duplicate = execute(`
+      INSERT OR IGNORE INTO document_queue_dead_letter_events
+        (id,message_id,queue_name,job_id,job_generation,document_version_id,input_sha256,reason_code)
+      VALUES('dead-letter-schema-test-duplicate','message-schema-test','mayisigorta-document-scan-dead-letter',
+        'job-schema-test',1,'version-schema-test','${sha256}','QUEUE_DELIVERY_EXHAUSTED')
+    `);
+    expectSuccess(duplicate);
+
+    const stored = execute(`
+      SELECT queue_name,message_id,job_id,job_generation,document_version_id,input_sha256,reason_code
+      FROM document_queue_dead_letter_events WHERE message_id='message-schema-test'
+    `);
+    expectSuccess(stored);
+    const rows = JSON.parse(stored.stdout) as Array<{ results: Array<Record<string, unknown>> }>;
+    expect(rows.flatMap((item) => item.results)).toEqual([
+      {
+        queue_name: 'mayisigorta-document-scan-dead-letter',
+        message_id: 'message-schema-test',
+        job_id: 'job-schema-test',
+        job_generation: 1,
+        document_version_id: 'version-schema-test',
+        input_sha256: sha256,
+        reason_code: 'QUEUE_DELIVERY_EXHAUSTED',
+      },
+    ]);
+
+    const update = execute(
+      "UPDATE document_queue_dead_letter_events SET reason_code='INVALID_QUEUE_MESSAGE' WHERE message_id='message-schema-test'",
+    );
+    expect(update.status).not.toBe(0);
+    const deletion = execute(
+      "DELETE FROM document_queue_dead_letter_events WHERE message_id='message-schema-test'",
+    );
+    expect(deletion.status).not.toBe(0);
+  });
 });

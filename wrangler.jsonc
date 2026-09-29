@@ -30,6 +30,45 @@
         "queue": "mayisigorta-document-scan",
       },
     ],
+    "consumers": [
+      {
+        "queue": "mayisigorta-document-scan",
+        "dead_letter_queue": "mayisigorta-document-scan-dead-letter",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 2,
+        "visibility_timeout_ms": 180000,
+      },
+      {
+        "queue": "mayisigorta-document-scan-dead-letter",
+        "dead_letter_queue": "mayisigorta-document-scan-dead-letter-overflow",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 1,
+        "visibility_timeout_ms": 180000,
+      },
+      {
+        "queue": "mayisigorta-document-scan-dead-letter-overflow",
+        "dead_letter_queue": "mayisigorta-document-scan-dead-letter-terminal",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 1,
+        "visibility_timeout_ms": 180000,
+      },
+      {
+        "queue": "mayisigorta-document-scan-dead-letter-terminal",
+        "dead_letter_queue": "mayisigorta-document-scan-dead-letter-hold",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 100,
+        "max_concurrency": 1,
+        "visibility_timeout_ms": 180000,
+      },
+      // Final hold has no consumer; current default is 4 days. Provision 14 days and monitoring/replay per the M4 runbook before enabling documents.
+    ],
   },
   "d1_databases": [
     {
