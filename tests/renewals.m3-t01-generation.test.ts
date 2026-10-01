@@ -1053,7 +1053,12 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         code: 'RENEWAL_GENERATION_EXISTING_EFFECT_INCOMPLETE',
       });
     }
-    const cleanupAt = '2026-10-01T00:00:00.000Z';
+    // D1 defaults use its real clock, independently of Vitest's frozen JavaScript clock.
+    const cleanupClock = await db
+      .prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now') AS now")
+      .first<{ now: string }>();
+    if (!cleanupClock) throw new Error('D1 cleanup clock unavailable');
+    const cleanupAt = cleanupClock.now;
     await db.batch(
       cases.flatMap((proof) => [
         db

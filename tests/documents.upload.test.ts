@@ -10,6 +10,10 @@ import { createApp, createWorker, type Env } from '../src/server';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import { createDocumentUpload, type DocumentUploadResult } from '../src/server/documents/service';
 import {
+  REQUIRED_CONTENT_INSPECTION_VERSION,
+  type DocumentContentInspectionResult,
+} from '../src/server/documents/content-inspection';
+import {
   dispatchDueDocumentJobs,
   documentScanRetryDelaySeconds,
   type DocumentJobQueueMessage,
@@ -19,9 +23,11 @@ import {
   DOCUMENT_SCAN_DEAD_LETTER_QUEUE,
   processDocumentScanMessage,
   type DocumentScannerAdapter,
+  type DocumentScannerContentInspectionEvidence,
   type DocumentScannerResult,
 } from '../src/server/documents/scan';
 import { MAX_DOCUMENT_UPLOAD_BYTES } from '../src/server/documents/validation';
+import { createSyntheticJpeg, createSyntheticPdf, createSyntheticPng } from './fixtures/documents';
 
 interface LocalDocumentBindings {
   readonly DB: D1Database;
@@ -96,29 +102,49 @@ const principal: VerifiedAccessPrincipal = {
   expiresAt: Math.floor(Date.now() / 1000) + 300,
 };
 
+const validPdfFixture = createSyntheticPdf();
+const alternatePdfFixture = createSyntheticPdf({ comment: 'synthetic upload payload variant' });
+
 function pdfBlob(extraByte?: number): Blob {
-  return new Blob(
-    [
-      Uint8Array.of(
-        0x25,
-        0x50,
-        0x44,
-        0x46,
-        0x2d,
-        0x31,
-        0x2e,
-        0x37,
-        0x0a,
-        ...(extraByte === undefined ? [] : [extraByte]),
-        0x25,
-        0x25,
-        0x45,
-        0x4f,
-        0x46,
-      ),
-    ],
-    { type: 'application/pdf' },
-  );
+  return new Blob([extraByte === undefined ? validPdfFixture : alternatePdfFixture], {
+    type: 'application/pdf',
+  });
+}
+
+type ValidDocumentInspection = Extract<DocumentContentInspectionResult, { valid: true }>;
+
+function syntheticContentInspectionEvidence(
+  sha256: string,
+  result: ValidDocumentInspection = { valid: true, format: 'PDF', pageCount: 1 },
+): DocumentScannerContentInspectionEvidence {
+  return {
+    version: REQUIRED_CONTENT_INSPECTION_VERSION,
+    sha256,
+    format: result.format,
+    complete: true,
+    result,
+  };
+}
+
+function syntheticCleanScannerResponse(
+  sha256: string,
+  overrides: Partial<
+    Pick<
+      Extract<DocumentScannerResult, { outcome: 'CLEAN' }>,
+      'scannerEngineVersion' | 'signatureVersion' | 'signatureUpdatedAt'
+    >
+  > = {},
+  inspectionResult?: ValidDocumentInspection,
+): Extract<DocumentScannerResult, { outcome: 'CLEAN' }> {
+  return {
+    outcome: 'CLEAN',
+    sha256,
+    scannerEngineVersion: 'test-engine',
+    signatureVersion: 'synthetic-test-signature',
+    signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
+    ...overrides,
+    contentInspection: syntheticContentInspectionEvidence(sha256, inspectionResult),
+  };
 }
 
 async function digestDocumentStream(body: ReadableStream<Uint8Array>): Promise<string> {
@@ -254,7 +280,12 @@ function createUploadForm(
   return form;
 }
 
-async function createQueuedCustomerDocument(idempotencyKey: string) {
+async function createQueuedCustomerDocument(
+  idempotencyKey: string,
+  file: Blob = pdfBlob(),
+  fileName = `${idempotencyKey}.pdf`,
+  declaredContentType = 'application/pdf',
+) {
   const membership = await db
     .prepare('SELECT permission_version FROM agency_memberships WHERE id=?')
     .bind(membershipId)
@@ -274,9 +305,9 @@ async function createQueuedCustomerDocument(idempotencyKey: string) {
       ownerType: 'CUSTOMER',
       ownerId: customerId,
       classification: 'GENERAL',
-      fileName: `${idempotencyKey}.pdf`,
-      declaredContentType: 'application/pdf',
-      file: pdfBlob(),
+      fileName,
+      declaredContentType,
+      file,
     },
     { correlationId: `${idempotencyKey}-correlation`, idempotencyKey },
   );
@@ -684,9 +715,7 @@ describe('document upload transaction', () => {
 
     const stored = await quarantine.get(String(version?.object_key));
     expect(stored).not.toBeNull();
-    expect([...new Uint8Array(await stored!.arrayBuffer())]).toEqual([
-      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46,
-    ]);
+    expect([...new Uint8Array(await stored!.arrayBuffer())]).toEqual([...validPdfFixture]);
 
     const job = await db
       .prepare(
@@ -1463,6 +1492,112 @@ describe('document upload transaction', () => {
     expect([1, 2, 3, 4].map(documentScanRetryDelaySeconds)).toEqual([60, 120, 240, 480]);
   });
 
+  it('rejects an R2 object that changes between preflight and direct scanner streaming', async () => {
+    const { upload, message } = await createQueuedCustomerDocument('scan-r2-etag-change');
+    let gets = 0;
+    let scannerCalls = 0;
+    const changedBucket = {
+      get: async (key: string) => {
+        gets += 1;
+        const object = await quarantine.get(key);
+        if (gets !== 2 || object === null) return object;
+        return new Proxy(object, {
+          get(target, property) {
+            if (property === 'etag') return `${target.etag}-changed`;
+            return Reflect.get(target, property, target);
+          },
+        });
+      },
+    } as unknown as R2Bucket;
+    const scanner: DocumentScannerAdapter = {
+      scan: async () => {
+        scannerCalls += 1;
+        return { outcome: 'UNKNOWN', reasonCode: 'SHOULD_NOT_SCAN_CHANGED_OBJECT' };
+      },
+    };
+
+    await expect(processDocumentScanMessage(db, changedBucket, message, scanner)).resolves.toBe(
+      'COMPLETED',
+    );
+    expect(gets).toBe(2);
+    expect(scannerCalls).toBe(0);
+    const evidence = await db
+      .prepare('SELECT outcome,reason_code FROM document_scan_evidence WHERE document_version_id=?')
+      .bind(message.documentVersionId)
+      .first<{ outcome: string; reason_code: string | null }>();
+    expect(evidence).toEqual({ outcome: 'ERROR', reason_code: 'R2_OBJECT_CHANGED_DURING_SCAN' });
+    expect(upload.body.state).toBe('QUARANTINED');
+  });
+
+  it('hashes the second R2 stream itself before accepting a scanner CLEAN claim', async () => {
+    const { upload, message } = await createQueuedCustomerDocument('scan-r2-body-change-same-etag');
+    let gets = 0;
+    let scannerCalls = 0;
+    const changedBodyBucket = {
+      get: async (key: string) => {
+        gets += 1;
+        const object = await quarantine.get(key);
+        if (gets !== 2 || object === null || object.body === null) return object;
+        const source = object.body.getReader();
+        let mutated = false;
+        const body = new ReadableStream<Uint8Array>(
+          {
+            async pull(controller) {
+              const { done, value } = await source.read();
+              if (done) {
+                controller.close();
+                source.releaseLock();
+                return;
+              }
+              if (!mutated && value.byteLength > 0) {
+                const changed = Uint8Array.from(value);
+                changed[0] = changed[0]! ^ 1;
+                mutated = true;
+                controller.enqueue(changed);
+              } else {
+                controller.enqueue(value);
+              }
+            },
+            async cancel(reason) {
+              await source.cancel(reason);
+              try {
+                source.releaseLock();
+              } catch {
+                // The source may already have completed.
+              }
+            },
+          },
+          { highWaterMark: 0 },
+        );
+        return new Proxy(object, {
+          get(target, property) {
+            if (property === 'body') return body;
+            return Reflect.get(target, property, target);
+          },
+        });
+      },
+    } as unknown as R2Bucket;
+    const scanner: DocumentScannerAdapter = {
+      scan: async ({ body, sha256 }) => {
+        scannerCalls += 1;
+        await digestDocumentStream(body);
+        return syntheticCleanScannerResponse(sha256);
+      },
+    };
+
+    await expect(processDocumentScanMessage(db, changedBodyBucket, message, scanner)).resolves.toBe(
+      'COMPLETED',
+    );
+    expect(gets).toBe(2);
+    expect(scannerCalls).toBe(1);
+    const evidence = await db
+      .prepare('SELECT outcome,reason_code FROM document_scan_evidence WHERE document_version_id=?')
+      .bind(message.documentVersionId)
+      .first<{ outcome: string; reason_code: string | null }>();
+    expect(evidence).toEqual({ outcome: 'ERROR', reason_code: 'R2_CHANGED_DURING_SCAN' });
+    expect(upload.body.state).toBe('QUARANTINED');
+  });
+
   it('uses a fail-closed unavailable scanner on enabled Worker Queue deliveries', async () => {
     const { message } = await createQueuedCustomerDocument('scan-worker-no-adapter');
     let acknowledged = 0;
@@ -1544,13 +1679,7 @@ describe('document upload transaction', () => {
       false,
     );
     const scanner: DocumentScannerAdapter = {
-      scan: async ({ body }) => ({
-        outcome: 'CLEAN',
-        sha256: await digestDocumentStream(body),
-        scannerEngineVersion: 'test-engine',
-        signatureVersion: 'synthetic-test-signature',
-        signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-      }),
+      scan: async ({ body }) => syntheticCleanScannerResponse(await digestDocumentStream(body)),
     };
 
     await expect(processDocumentScanMessage(db, quarantine, message, scanner)).resolves.toBe(
@@ -1576,13 +1705,7 @@ describe('document upload transaction', () => {
   it('records a dead-letter event that arrives after the scan job completed', async () => {
     const { message } = await createQueuedCustomerDocument('scan-late-dead-letter');
     const scanner: DocumentScannerAdapter = {
-      scan: async ({ body }) => ({
-        outcome: 'CLEAN',
-        sha256: await digestDocumentStream(body),
-        scannerEngineVersion: 'test-engine',
-        signatureVersion: 'synthetic-test-signature',
-        signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-      }),
+      scan: async ({ body }) => syntheticCleanScannerResponse(await digestDocumentStream(body)),
     };
     await expect(processDocumentScanMessage(db, quarantine, message, scanner)).resolves.toBe(
       'COMPLETED',
@@ -1711,13 +1834,7 @@ describe('document upload transaction', () => {
       },
     });
     const scanner: DocumentScannerAdapter = {
-      scan: async ({ body }) => ({
-        outcome: 'CLEAN',
-        sha256: await digestDocumentStream(body),
-        scannerEngineVersion: 'test-engine',
-        signatureVersion: 'synthetic-test-signature',
-        signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-      }),
+      scan: async ({ body }) => syntheticCleanScannerResponse(await digestDocumentStream(body)),
     };
 
     await consumeDocumentQueueBatch(
@@ -1771,13 +1888,7 @@ describe('document upload transaction', () => {
     const scanner: DocumentScannerAdapter = {
       scan: async ({ body }) => {
         scanCalls += 1;
-        return {
-          outcome: 'CLEAN',
-          sha256: await digestDocumentStream(body),
-          scannerEngineVersion: 'test-engine',
-          signatureVersion: 'synthetic-test-signature',
-          signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-        };
+        return syntheticCleanScannerResponse(await digestDocumentStream(body));
       },
     };
 
@@ -1933,13 +2044,7 @@ describe('document upload transaction', () => {
       evidence_count: 0,
     });
 
-    resolveScan({
-      outcome: 'CLEAN',
-      sha256: message.inputSha256!,
-      scannerEngineVersion: 'test-engine',
-      signatureVersion: 'synthetic-test-signature',
-      signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-    });
+    resolveScan(syntheticCleanScannerResponse(message.inputSha256!));
     await expect(running).resolves.toBe('ACKED');
   });
 
@@ -1950,13 +2055,7 @@ describe('document upload transaction', () => {
       scan: async ({ body }) => {
         scanCalls += 1;
         const observedSha = await digestDocumentStream(body);
-        const result: DocumentScannerResult = {
-          outcome: 'CLEAN',
-          sha256: observedSha,
-          scannerEngineVersion: 'test-engine',
-          signatureVersion: 'synthetic-test-signature',
-          signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-        };
+        const result: DocumentScannerResult = syntheticCleanScannerResponse(observedSha);
         return result;
       },
     };
@@ -1997,7 +2096,8 @@ describe('document upload transaction', () => {
       .prepare(
         `SELECT job.status,job.attempt_count,version.status AS version_status,
                 document.current_version_id,run.status AS run_status,
-                evidence.outcome,evidence.sha256,
+                evidence.outcome,evidence.sha256,evidence.content_inspection_version,
+                evidence.content_inspection_result,
                 (SELECT count(*) FROM background_jobs backup
                  WHERE backup.document_version_id=version.id AND backup.job_type='DOCUMENT_BACKUP'
                    AND backup.status='QUEUED') AS backup_count
@@ -2021,6 +2121,8 @@ describe('document upload transaction', () => {
         run_status: string;
         outcome: string;
         sha256: string;
+        content_inspection_version: string | null;
+        content_inspection_result: string | null;
         backup_count: number;
       }>();
     expect(state).toMatchObject({
@@ -2035,6 +2137,163 @@ describe('document upload transaction', () => {
     });
     expect(scanCalls).toBe(1);
     expect(upload.body.versionId).toBe(message.documentVersionId);
+    expect(state?.content_inspection_version).toBe(REQUIRED_CONTENT_INSPECTION_VERSION);
+    expect(JSON.parse(state?.content_inspection_result ?? '{}')).toEqual({
+      valid: true,
+      format: 'PDF',
+      pageCount: 1,
+    });
+  });
+
+  it('persists bounded JPEG and PNG inspection evidence for the exact scanned version', async () => {
+    for (const fixture of [
+      { bytes: createSyntheticJpeg(2, 1), name: 'fixture.jpg', mime: 'image/jpeg', format: 'JPEG' },
+      { bytes: createSyntheticPng(2, 1), name: 'fixture.png', mime: 'image/png', format: 'PNG' },
+    ]) {
+      const { message } = await createQueuedCustomerDocument(
+        `scan-real-${fixture.format.toLowerCase()}`,
+        new Blob([fixture.bytes], { type: fixture.mime }),
+        fixture.name,
+        fixture.mime,
+      );
+      const scanner: DocumentScannerAdapter = {
+        scan: async ({ body, preflightInspection }) =>
+          syntheticCleanScannerResponse(await digestDocumentStream(body), {}, preflightInspection),
+      };
+      await expect(processDocumentScanMessage(db, quarantine, message, scanner)).resolves.toBe(
+        'COMPLETED',
+      );
+      const evidence = await db
+        .prepare(
+          `
+        SELECT evidence.sha256,evidence.content_inspection_version,evidence.content_inspection_result,
+          version.status
+        FROM document_scan_evidence evidence
+        JOIN document_versions version ON version.agency_id=evidence.agency_id
+          AND version.id=evidence.document_version_id
+        WHERE evidence.document_version_id=?
+      `,
+        )
+        .bind(message.documentVersionId)
+        .first<{
+          sha256: string;
+          content_inspection_version: string;
+          content_inspection_result: string;
+          status: string;
+        }>();
+      expect(evidence).toMatchObject({
+        sha256: message.inputSha256,
+        content_inspection_version: REQUIRED_CONTENT_INSPECTION_VERSION,
+        status: 'BACKUP_PENDING',
+      });
+      expect(JSON.parse(evidence!.content_inspection_result)).toMatchObject({
+        valid: true,
+        format: fixture.format,
+        width: 2,
+        height: 1,
+        pixelCount: 2,
+      });
+      if (fixture.format === 'JPEG') {
+        for (const inspection of [
+          { valid: true, format: 'JPEG', width: 2_500, height: 2_000, pixelCount: 5_000_000 },
+          { valid: true, format: 'JPEG', width: 8_193, height: 1, pixelCount: 8_193 },
+        ]) {
+          await expect(
+            db
+              .prepare(
+                `
+            INSERT INTO document_scan_evidence
+              (id,agency_id,document_version_id,job_run_id,sha256,outcome,reason_code,
+               scanner_engine_version,signature_version,signature_updated_at,
+               content_inspection_version,content_inspection_result,scanned_at)
+            SELECT ?,agency_id,document_version_id,job_run_id,sha256,outcome,reason_code,
+              scanner_engine_version,signature_version,signature_updated_at,
+              content_inspection_version,?,scanned_at
+            FROM document_scan_evidence WHERE document_version_id=?
+          `,
+              )
+              .bind(crypto.randomUUID(), JSON.stringify(inspection), message.documentVersionId)
+              .run(),
+          ).rejects.toThrow('DOCUMENT_SCAN_INSPECTION_EVIDENCE_INVALID');
+        }
+      }
+    }
+  });
+
+  it('rejects missing, stale, and mismatched CLEAN content-inspection evidence', async () => {
+    const { message } = await createQueuedCustomerDocument('scan-inspection-result-mismatch');
+    const scanner: DocumentScannerAdapter = {
+      scan: async ({ body }) =>
+        syntheticCleanScannerResponse(
+          await digestDocumentStream(body),
+          {},
+          { valid: true, format: 'PDF', pageCount: 2 },
+        ),
+    };
+
+    await expect(processDocumentScanMessage(db, quarantine, message, scanner)).resolves.toBe(
+      'RETRY_SCHEDULED',
+    );
+    const mismatchEvidence = await db
+      .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')
+      .bind(message.documentVersionId)
+      .first<{ count: number }>();
+    expect(mismatchEvidence?.count).toBe(0);
+
+    const invalidEvidenceCases = [
+      {
+        key: 'missing',
+        response: (sha256: string) => {
+          const { contentInspection: _inspection, ...withoutInspection } =
+            syntheticCleanScannerResponse(sha256);
+          return withoutInspection;
+        },
+      },
+      {
+        key: 'stale-checksum',
+        response: (sha256: string) => ({
+          ...syntheticCleanScannerResponse(sha256),
+          contentInspection: {
+            ...syntheticContentInspectionEvidence(sha256),
+            sha256: '0'.repeat(64),
+          },
+        }),
+      },
+      {
+        key: 'stale-parser-version',
+        response: (sha256: string) => ({
+          ...syntheticCleanScannerResponse(sha256),
+          contentInspection: {
+            ...syntheticContentInspectionEvidence(sha256),
+            version: 'obsolete-content-parser-v0',
+          },
+        }),
+      },
+      {
+        key: 'unexpected-clean-field',
+        response: (sha256: string) => ({
+          ...syntheticCleanScannerResponse(sha256),
+          completenessNote: 'unvalidated metadata must not be accepted',
+        }),
+      },
+    ];
+
+    for (const testCase of invalidEvidenceCases) {
+      const { message: invalidMessage } = await createQueuedCustomerDocument(
+        `scan-inspection-${testCase.key}`,
+      );
+      const invalidScanner: DocumentScannerAdapter = {
+        scan: async ({ body }) => testCase.response(await digestDocumentStream(body)),
+      };
+      await expect(
+        processDocumentScanMessage(db, quarantine, invalidMessage, invalidScanner),
+      ).resolves.toBe('RETRY_SCHEDULED');
+      const evidence = await db
+        .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')
+        .bind(invalidMessage.documentVersionId)
+        .first<{ count: number }>();
+      expect(evidence?.count).toBe(0);
+    }
   });
 
   it('allows only one claim when duplicate deliveries share a queued snapshot', async () => {
@@ -2045,13 +2304,7 @@ describe('document upload transaction', () => {
       scan: async ({ body }) => {
         scanCalls += 1;
         const observedSha = await digestDocumentStream(body);
-        return {
-          outcome: 'CLEAN',
-          sha256: observedSha,
-          scannerEngineVersion: 'test-engine',
-          signatureVersion: 'synthetic-test-signature',
-          signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-        };
+        return syntheticCleanScannerResponse(observedSha);
       },
     };
 
@@ -2094,13 +2347,10 @@ describe('document upload transaction', () => {
     const scanner: DocumentScannerAdapter = {
       scan: async ({ body }) => {
         const observedSha = await digestDocumentStream(body);
-        return {
-          outcome: 'CLEAN',
-          sha256: observedSha,
-          scannerEngineVersion: 'test-engine',
+        return syntheticCleanScannerResponse(observedSha, {
           signatureVersion: 'synthetic-old-signature',
           signatureUpdatedAt: new Date(Date.now() - 49 * 60 * 60 * 1000).toISOString(),
-        };
+        });
       },
     };
 
@@ -2196,6 +2446,50 @@ describe('document upload transaction', () => {
     });
   });
 
+  it('fails a malformed PDF closed before the malware scanner can return CLEAN', async () => {
+    const malformedPdf = new Blob(['%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n'], {
+      type: 'application/pdf',
+    });
+    const { message } = await createQueuedCustomerDocument('scan-malformed-pdf', malformedPdf);
+    let scanCalls = 0;
+    const scanner: DocumentScannerAdapter = {
+      scan: async ({ body }) => {
+        scanCalls += 1;
+        return syntheticCleanScannerResponse(await digestDocumentStream(body));
+      },
+    };
+
+    await expect(processDocumentScanMessage(db, quarantine, message, scanner)).resolves.toBe(
+      'COMPLETED',
+    );
+    expect(scanCalls).toBe(0);
+    const state = await db
+      .prepare(
+        `SELECT job.status,run.status AS run_status,version.status AS version_status,
+                evidence.outcome,evidence.reason_code AS evidence_reason_code,
+                (SELECT count(*) FROM background_jobs backup
+                 WHERE backup.document_version_id=version.id AND backup.job_type='DOCUMENT_BACKUP') AS backup_count
+         FROM background_jobs job
+         JOIN document_versions version ON version.agency_id=job.agency_id
+           AND version.id=job.document_version_id
+         JOIN background_job_runs run ON run.agency_id=job.agency_id
+           AND run.job_id=job.id AND run.attempt_number=job.attempt_count
+         JOIN document_scan_evidence evidence ON evidence.agency_id=run.agency_id
+           AND evidence.job_run_id=run.id
+         WHERE job.id=?`,
+      )
+      .bind(message.jobId)
+      .first();
+    expect(state).toMatchObject({
+      status: 'COMPLETED',
+      run_status: 'PERMANENT_ERROR',
+      version_status: 'SCAN_FAILED',
+      outcome: 'ERROR',
+      evidence_reason_code: 'MALFORMED_PDF',
+      backup_count: 0,
+    });
+  });
+
   it('records INVALID evidence and rejects the exact quarantined version', async () => {
     const { message } = await createQueuedCustomerDocument('scan-invalid-version');
     const scanner: DocumentScannerAdapter = {
@@ -2244,8 +2538,9 @@ describe('document upload transaction', () => {
       .first<{ object_key: string }>();
     if (!version) throw new Error('Document version fixture missing');
     const modifiedBytes = new Uint8Array(await pdfBlob().arrayBuffer());
-    const lastByteIndex = modifiedBytes.length - 1;
-    modifiedBytes[lastByteIndex] = modifiedBytes[lastByteIndex]! ^ 1;
+    const commentByteIndex = modifiedBytes.findIndex((value, index) => index > 8 && value === 0x73);
+    if (commentByteIndex < 0) throw new Error('Synthetic PDF comment fixture missing');
+    modifiedBytes[commentByteIndex] = modifiedBytes[commentByteIndex]! ^ 1;
     const expectedSha = message.inputSha256;
     if (!expectedSha) throw new Error('Scan message checksum fixture missing');
     await quarantine.put(version.object_key, modifiedBytes, {
@@ -2256,13 +2551,7 @@ describe('document upload transaction', () => {
       scan: async ({ body }) => {
         scanCalls += 1;
         const observedSha = await digestDocumentStream(body);
-        return {
-          outcome: 'CLEAN',
-          sha256: observedSha,
-          scannerEngineVersion: 'test-engine',
-          signatureVersion: 'synthetic-test-signature',
-          signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-        };
+        return syntheticCleanScannerResponse(observedSha);
       },
     };
 
@@ -2303,7 +2592,7 @@ describe('document upload transaction', () => {
       evidence_reason_code: 'CONTENT_SHA256_MISMATCH',
       backup_count: 0,
     });
-    expect(scanCalls).toBe(1);
+    expect(scanCalls).toBe(0);
   });
 
   it('turns a stalled private R2 object lookup into a bounded delivery retry', async () => {
@@ -2409,13 +2698,7 @@ describe('document upload transaction', () => {
       scan: async ({ body, sha256 }) => {
         scanCalls += 1;
         void body.cancel().catch(() => undefined);
-        return {
-          outcome: 'CLEAN',
-          sha256,
-          scannerEngineVersion: 'test-engine',
-          signatureVersion: 'synthetic-test-signature',
-          signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-        };
+        return syntheticCleanScannerResponse(sha256);
       },
     };
 
@@ -2453,7 +2736,7 @@ describe('document upload transaction', () => {
       version_status: 'SCANNING',
       evidence_count: 0,
     });
-    expect(scanCalls).toBe(1);
+    expect(scanCalls).toBe(0);
   });
 
   it('rejects a CLEAN D1 finalization that begins after the scan deadline', async () => {
@@ -2473,13 +2756,7 @@ describe('document upload transaction', () => {
       },
     });
     const scanner: DocumentScannerAdapter = {
-      scan: async ({ body }) => ({
-        outcome: 'CLEAN',
-        sha256: await digestDocumentStream(body),
-        scannerEngineVersion: 'test-engine',
-        signatureVersion: 'synthetic-test-signature',
-        signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-      }),
+      scan: async ({ body }) => syntheticCleanScannerResponse(await digestDocumentStream(body)),
     };
 
     await expect(
@@ -2639,13 +2916,7 @@ describe('document upload transaction', () => {
     });
     expect(Date.parse(reclaimed!.available_at)).toBeGreaterThan(Date.now());
 
-    resolveScanner({
-      outcome: 'CLEAN',
-      sha256: expectedSha,
-      scannerEngineVersion: 'test-engine',
-      signatureVersion: 'synthetic-test-signature',
-      signatureUpdatedAt: new Date(Date.now() - 60_000).toISOString(),
-    });
+    resolveScanner(syntheticCleanScannerResponse(expectedSha));
     await expect(processing).resolves.toBe('ACKED');
     const evidence = await db
       .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')

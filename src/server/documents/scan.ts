@@ -1,4 +1,9 @@
-import { MAX_DOCUMENT_UPLOAD_BYTES } from './validation';
+import { MAX_DOCUMENT_UPLOAD_BYTES, type DocumentUploadFormat } from './validation';
+import {
+  inspectDocumentContent,
+  REQUIRED_CONTENT_INSPECTION_VERSION,
+  type DocumentContentInspectionResult,
+} from './content-inspection';
 import {
   documentScanRetryDelaySeconds,
   reclaimExpiredDocumentScanJob,
@@ -18,9 +23,25 @@ const MAX_SIGNATURE_AGE_MS = 48 * 60 * 60 * 1000;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const SAFE_REASON_CODE = /^[A-Z][A-Z0-9_]{0,63}$/u;
 
+export interface DocumentScannerContentInspectionEvidence {
+  readonly version: string;
+  readonly sha256: string;
+  readonly format: DocumentUploadFormat;
+  readonly complete: true;
+  readonly result: Extract<DocumentContentInspectionResult, { valid: true }>;
+}
+
 export type DocumentScannerResult =
   | {
-      readonly outcome: 'CLEAN' | 'INFECTED';
+      readonly outcome: 'CLEAN';
+      readonly sha256: string;
+      readonly scannerEngineVersion: string;
+      readonly signatureVersion: string;
+      readonly signatureUpdatedAt: string;
+      readonly contentInspection: DocumentScannerContentInspectionEvidence;
+    }
+  | {
+      readonly outcome: 'INFECTED';
       readonly sha256: string;
       readonly scannerEngineVersion: string;
       readonly signatureVersion: string;
@@ -41,6 +62,7 @@ export interface DocumentScannerRequest {
   readonly sha256: string;
   readonly sizeBytes: number;
   readonly contentType: string;
+  readonly preflightInspection: Extract<DocumentContentInspectionResult, { valid: true }>;
   readonly signal: AbortSignal;
 }
 
@@ -99,6 +121,8 @@ interface ScannerEvidence {
   readonly scannerEngineVersion: string | null;
   readonly signatureVersion: string | null;
   readonly signatureUpdatedAt: string | null;
+  readonly contentInspectionVersion: string | null;
+  readonly contentInspectionResult: string | null;
 }
 
 class ScanInputTooLargeError extends Error {
@@ -124,7 +148,46 @@ function safeReasonCode(value: unknown, fallback = 'SCANNER_INVALID_RESPONSE'): 
   return typeof value === 'string' && SAFE_REASON_CODE.test(value) ? value : fallback;
 }
 
-function parseScannerResult(value: unknown): DocumentScannerResult | null {
+function hasExactKeys(value: Record<string, unknown>, expectedKeys: readonly string[]): boolean {
+  const actualKeys = Object.keys(value).sort();
+  const sortedExpected = [...expectedKeys].sort();
+  return (
+    actualKeys.length === sortedExpected.length &&
+    actualKeys.every((key, index) => key === sortedExpected[index])
+  );
+}
+
+function matchesContentInspection(
+  value: unknown,
+  expectedFormat: DocumentUploadFormat,
+  expectedSha256: string,
+  expectedInspection: Extract<DocumentContentInspectionResult, { valid: true }>,
+): value is DocumentScannerContentInspectionEvidence {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const inspection = value as Record<string, unknown>;
+  if (
+    !hasExactKeys(inspection, ['version', 'sha256', 'format', 'complete', 'result']) ||
+    inspection.version !== REQUIRED_CONTENT_INSPECTION_VERSION ||
+    inspection.sha256 !== expectedSha256 ||
+    inspection.format !== expectedFormat ||
+    inspection.complete !== true
+  ) {
+    return false;
+  }
+  const result = inspection.result;
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return false;
+  const expected = expectedInspection as unknown as Record<string, unknown>;
+  const actual = result as Record<string, unknown>;
+  const keys = Object.keys(expected);
+  return hasExactKeys(actual, keys) && keys.every((key) => actual[key] === expected[key]);
+}
+
+function parseScannerResult(
+  value: unknown,
+  expectedFormat: DocumentUploadFormat,
+  expectedSha256: string,
+  expectedInspection: Extract<DocumentContentInspectionResult, { valid: true }>,
+): DocumentScannerResult | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   try {
     const record = value as Record<string, unknown>;
@@ -148,12 +211,41 @@ function parseScannerResult(value: unknown): DocumentScannerResult | null {
       typeof record.signatureVersion === 'string' &&
       typeof record.signatureUpdatedAt === 'string'
     ) {
+      if (record.outcome === 'INFECTED') {
+        return {
+          outcome: 'INFECTED',
+          sha256: record.sha256,
+          scannerEngineVersion: record.scannerEngineVersion,
+          signatureVersion: record.signatureVersion,
+          signatureUpdatedAt: record.signatureUpdatedAt,
+        };
+      }
+      if (
+        !hasExactKeys(record, [
+          'outcome',
+          'sha256',
+          'scannerEngineVersion',
+          'signatureVersion',
+          'signatureUpdatedAt',
+          'contentInspection',
+        ])
+      ) {
+        return { outcome: 'UNKNOWN', reasonCode: 'SCANNER_INVALID_RESPONSE' };
+      }
+      const inspection = record.contentInspection;
+      if (
+        record.sha256 !== expectedSha256 ||
+        !matchesContentInspection(inspection, expectedFormat, expectedSha256, expectedInspection)
+      ) {
+        return { outcome: 'UNKNOWN', reasonCode: 'CONTENT_INSPECTION_INCOMPLETE' };
+      }
       return {
-        outcome: record.outcome,
+        outcome: 'CLEAN',
         sha256: record.sha256,
         scannerEngineVersion: record.scannerEngineVersion,
         signatureVersion: record.signatureVersion,
         signatureUpdatedAt: record.signatureUpdatedAt,
+        contentInspection: inspection as DocumentScannerContentInspectionEvidence,
       };
     }
   } catch {
@@ -242,9 +334,13 @@ async function sha256Stream(
   maximumBytes: number,
   signal: AbortSignal,
   digestBytes: (bytes: Uint8Array<ArrayBuffer>) => Promise<ArrayBuffer>,
-): Promise<{ readonly sha256: string; readonly sizeBytes: number }> {
+): Promise<{
+  readonly sha256: string;
+  readonly sizeBytes: number;
+  readonly bytes: Uint8Array<ArrayBuffer>;
+}> {
   const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
+  const buffer = new Uint8Array(maximumBytes);
   let sizeBytes = 0;
   const cancelReader = () => {
     void reader.cancel(new ScannerTimeoutError()).catch(() => undefined);
@@ -259,7 +355,7 @@ async function sha256Stream(
         void reader.cancel().catch(() => undefined);
         throw new ScanInputTooLargeError();
       }
-      chunks.push(value);
+      buffer.set(value, sizeBytes - value.byteLength);
     }
   } finally {
     signal.removeEventListener('abort', cancelReader);
@@ -267,17 +363,84 @@ async function sha256Stream(
     else reader.releaseLock();
   }
 
-  const bytes = new Uint8Array(sizeBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+  const bytes = buffer.subarray(0, sizeBytes);
   const digest = await abortable(digestBytes(bytes), signal);
-  const sha256 = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-  return { sha256, sizeBytes };
+  const sha256 = digestToHex(digest);
+  return { sha256, sizeBytes, bytes };
+}
+
+function digestToHex(digest: ArrayBuffer): string {
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+interface AuditedScannerInput {
+  readonly stream: ReadableStream<Uint8Array>;
+  readonly getBytesRead: () => number;
+  readonly wasFullyConsumed: () => boolean;
+  readonly cancelSource: () => Promise<void>;
+}
+
+function auditScannerInputStream(
+  source: ReadableStream<Uint8Array>,
+  buffer: Uint8Array<ArrayBuffer>,
+): AuditedScannerInput {
+  const reader = source.getReader();
+  let bytesRead = 0;
+  let fullyConsumed = false;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            fullyConsumed = true;
+            controller.close();
+            reader.releaseLock();
+            return;
+          }
+          if (bytesRead + value.byteLength > buffer.byteLength) {
+            controller.error(new Error('R2 stream exceeds the inspected byte bound'));
+            void reader.cancel().catch(() => undefined);
+            return;
+          }
+          buffer.set(value, bytesRead);
+          bytesRead += value.byteLength;
+          controller.enqueue(value);
+        } catch (error) {
+          controller.error(error);
+          try {
+            reader.releaseLock();
+          } catch {
+            // The source may already have released its lock while rejecting.
+          }
+        }
+      },
+      async cancel(reason) {
+        try {
+          await reader.cancel(reason);
+        } finally {
+          try {
+            reader.releaseLock();
+          } catch {
+            // Cancellation can race with a completed source read.
+          }
+        }
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return {
+    stream,
+    getBytesRead: () => bytesRead,
+    wasFullyConsumed: () => fullyConsumed,
+    cancelSource: async () => {
+      try {
+        await reader.cancel();
+      } catch {
+        // The scanner may have already closed or canceled its input.
+      }
+    },
+  };
 }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -439,6 +602,15 @@ async function digestText(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function canonicalContentInspectionResult(
+  result: Extract<DocumentContentInspectionResult, { valid: true }>,
+): string {
+  const sorted = Object.fromEntries(
+    Object.entries(result).sort(([left], [right]) => left.localeCompare(right)),
+  );
+  return JSON.stringify(sorted);
+}
+
 function resultEvidence(result: DocumentScannerResult): ScannerEvidence | null {
   if (result.outcome === 'UNKNOWN') return null;
   if (result.outcome === 'INVALID') {
@@ -449,6 +621,8 @@ function resultEvidence(result: DocumentScannerResult): ScannerEvidence | null {
       scannerEngineVersion: null,
       signatureVersion: null,
       signatureUpdatedAt: null,
+      contentInspectionVersion: null,
+      contentInspectionResult: null,
     };
   }
   if (result.outcome === 'INFECTED') {
@@ -459,6 +633,8 @@ function resultEvidence(result: DocumentScannerResult): ScannerEvidence | null {
       scannerEngineVersion: result.scannerEngineVersion,
       signatureVersion: result.signatureVersion,
       signatureUpdatedAt: result.signatureUpdatedAt,
+      contentInspectionVersion: null,
+      contentInspectionResult: null,
     };
   }
   return {
@@ -468,6 +644,8 @@ function resultEvidence(result: DocumentScannerResult): ScannerEvidence | null {
     scannerEngineVersion: result.scannerEngineVersion,
     signatureVersion: result.signatureVersion,
     signatureUpdatedAt: result.signatureUpdatedAt,
+    contentInspectionVersion: result.contentInspection.version,
+    contentInspectionResult: canonicalContentInspectionResult(result.contentInspection.result),
   };
 }
 
@@ -479,6 +657,8 @@ function permanentErrorEvidence(reasonCode: string): ScannerEvidence {
     scannerEngineVersion: null,
     signatureVersion: null,
     signatureUpdatedAt: null,
+    contentInspectionVersion: null,
+    contentInspectionResult: null,
   };
 }
 
@@ -568,8 +748,9 @@ async function finalizeEvidence(
       .prepare(
         `INSERT INTO document_scan_evidence
            (id,agency_id,document_version_id,job_run_id,sha256,outcome,reason_code,
-            scanner_engine_version,signature_version,signature_updated_at,scanned_at)
-         SELECT ?,?,?,?,?,?,?,?,?,?,run.completed_at
+            scanner_engine_version,signature_version,signature_updated_at,
+            content_inspection_version,content_inspection_result,scanned_at)
+         SELECT ?,?,?,?,?,?,?,?,?,?,?,?,run.completed_at
          FROM background_job_runs run
          WHERE run.agency_id=? AND run.id=? AND run.status=?
            AND julianday(?)>=julianday('now')`,
@@ -585,6 +766,8 @@ async function finalizeEvidence(
         evidence.scannerEngineVersion,
         evidence.signatureVersion,
         evidence.signatureUpdatedAt,
+        evidence.contentInspectionVersion,
+        evidence.contentInspectionResult,
         claim.agencyId,
         claim.runId,
         evidence.runStatus,
@@ -813,11 +996,17 @@ async function processClaimedDocumentScan(
       return await failClosedScanResult(db, claim, 'R2_METADATA_MISMATCH', deadline);
     }
 
-    let scannerStream: ReadableStream<Uint8Array>;
-    let checksumStream: ReadableStream<Uint8Array>;
+    let checksum: Awaited<ReturnType<typeof sha256Stream>>;
     try {
-      [scannerStream, checksumStream] = object.body.tee();
-    } catch {
+      checksum = await abortable(
+        sha256Stream(object.body, row.size_bytes, deadline.signal, digestBytes),
+        deadline.signal,
+      );
+    } catch (error) {
+      if (error instanceof ScanInputTooLargeError) {
+        return await failClosedScanResult(db, claim, 'SCAN_INPUT_TOO_LARGE', deadline);
+      }
+      if (error instanceof ScannerTimeoutError || deadline.signal.aborted) return 'RETRY_DELIVERY';
       return await scheduleRetryWithinDeadline(
         db,
         claim,
@@ -826,44 +1015,98 @@ async function processClaimedDocumentScan(
         retryDelaySeconds,
       );
     }
-    const scanPromise = Promise.resolve().then(() =>
-      scanner.scan({
-        body: scannerStream,
-        sha256: claim.inputSha256,
-        sizeBytes: row.size_bytes,
-        contentType: row.detected_content_type,
-        signal: deadline.signal,
-      }),
-    );
-    const [scanSettled, checksumSettled] = await Promise.allSettled([
-      abortable(scanPromise, deadline.signal),
-      sha256Stream(checksumStream, MAX_DOCUMENT_UPLOAD_BYTES, deadline.signal, digestBytes),
-    ]);
+    if (checksum.sizeBytes !== row.size_bytes || checksum.sha256 !== claim.inputSha256) {
+      return await failClosedScanResult(db, claim, 'CONTENT_SHA256_MISMATCH', deadline);
+    }
 
-    if (checksumSettled.status === 'rejected') {
-      cancelStream(scannerStream);
-      if (checksumSettled.reason instanceof ScanInputTooLargeError) {
-        return await failClosedScanResult(db, claim, 'SCAN_INPUT_TOO_LARGE', deadline);
-      }
-      if (checksumSettled.reason instanceof ScannerTimeoutError) {
+    const contentFormat =
+      row.detected_content_type === 'application/pdf'
+        ? 'PDF'
+        : row.detected_content_type === 'image/jpeg'
+          ? 'JPEG'
+          : row.detected_content_type === 'image/png'
+            ? 'PNG'
+            : null;
+    if (!contentFormat) {
+      return await failClosedScanResult(db, claim, 'UNSUPPORTED_CONTENT_TYPE', deadline);
+    }
+
+    let contentInspection;
+    try {
+      contentInspection = await abortable(
+        inspectDocumentContent(contentFormat, checksum.bytes, deadline.signal),
+        deadline.signal,
+      );
+    } catch (error) {
+      if (error instanceof ScannerTimeoutError || deadline.signal.aborted) return 'RETRY_DELIVERY';
+      return await failClosedScanResult(db, claim, 'CONTENT_INSPECTION_FAILED', deadline);
+    }
+    if (!contentInspection.valid) {
+      return await failClosedScanResult(db, claim, contentInspection.reason, deadline);
+    }
+    if (deadline.signal.aborted) {
+      return 'RETRY_DELIVERY';
+    }
+
+    let scanObject: R2ObjectBody | null;
+    const scanObjectRead = Promise.resolve().then(() => quarantine.get(row.object_key));
+    try {
+      scanObject = await abortable(scanObjectRead, deadline.signal);
+    } catch (error) {
+      if (error instanceof ScannerTimeoutError) {
+        void scanObjectRead
+          .then((lateObject) => {
+            if (lateObject) cancelStream(lateObject.body);
+          })
+          .catch(() => undefined);
         return 'RETRY_DELIVERY';
       }
       return await scheduleRetryWithinDeadline(
         db,
         claim,
-        'R2_STREAM_FAILED',
+        'R2_READ_FAILED',
         deadline,
         retryDelaySeconds,
       );
     }
-    const checksum = checksumSettled.value;
-    if (checksum.sizeBytes !== row.size_bytes || checksum.sha256 !== claim.inputSha256) {
-      cancelStream(scannerStream);
-      return await failClosedScanResult(db, claim, 'CONTENT_SHA256_MISMATCH', deadline);
+    if (!scanObject) {
+      return await scheduleRetryWithinDeadline(
+        db,
+        claim,
+        'R2_OBJECT_MISSING',
+        deadline,
+        retryDelaySeconds,
+      );
     }
-    if (scanSettled.status === 'rejected') {
-      cancelStream(scannerStream);
-      if (scanSettled.reason instanceof ScannerTimeoutError) return 'RETRY_DELIVERY';
+    if (
+      scanObject.size !== object.size ||
+      scanObject.etag !== object.etag ||
+      scanObject.customMetadata?.sha256 !== claim.inputSha256
+    ) {
+      cancelStream(scanObject.body);
+      return await failClosedScanResult(db, claim, 'R2_OBJECT_CHANGED_DURING_SCAN', deadline);
+    }
+
+    const scannerAudit = auditScannerInputStream(scanObject.body, checksum.bytes);
+    const scannerStream = scannerAudit.stream;
+    let scannerResponse: unknown;
+    try {
+      scannerResponse = await abortable(
+        Promise.resolve().then(() =>
+          scanner.scan({
+            body: scannerStream,
+            sha256: claim.inputSha256,
+            sizeBytes: row.size_bytes,
+            contentType: row.detected_content_type,
+            preflightInspection: contentInspection,
+            signal: deadline.signal,
+          }),
+        ),
+        deadline.signal,
+      );
+    } catch (error) {
+      void scannerAudit.cancelSource();
+      if (error instanceof ScannerTimeoutError || deadline.signal.aborted) return 'RETRY_DELIVERY';
       return await scheduleRetryWithinDeadline(
         db,
         claim,
@@ -873,8 +1116,36 @@ async function processClaimedDocumentScan(
       );
     }
 
-    const result = parseScannerResult(scanSettled.value);
+    const result = parseScannerResult(
+      scannerResponse,
+      contentFormat,
+      checksum.sha256,
+      contentInspection,
+    );
+    const scannerInputComplete =
+      scannerAudit.wasFullyConsumed() && scannerAudit.getBytesRead() === row.size_bytes;
+    if (!scannerInputComplete) void scannerAudit.cancelSource();
     if (!result) return await failClosedScanResult(db, claim, 'SCANNER_INVALID_RESPONSE', deadline);
+    if (result.outcome === 'CLEAN') {
+      if (!scannerInputComplete) {
+        return await failClosedScanResult(db, claim, 'SCANNER_INPUT_INCOMPLETE', deadline);
+      }
+      let scannerInputSha256: string;
+      try {
+        const scannerInputDigest = await abortable(
+          digestBytes(checksum.bytes.subarray(0, scannerAudit.getBytesRead())),
+          deadline.signal,
+        );
+        scannerInputSha256 = digestToHex(scannerInputDigest);
+      } catch (error) {
+        if (error instanceof ScannerTimeoutError || deadline.signal.aborted)
+          return 'RETRY_DELIVERY';
+        return await failClosedScanResult(db, claim, 'SCANNER_INPUT_HASH_FAILED', deadline);
+      }
+      if (scannerInputSha256 !== checksum.sha256) {
+        return await failClosedScanResult(db, claim, 'R2_CHANGED_DURING_SCAN', deadline);
+      }
+    }
     if (result.outcome === 'UNKNOWN') {
       return await scheduleRetryWithinDeadline(
         db,

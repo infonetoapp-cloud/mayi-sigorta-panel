@@ -425,7 +425,7 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     );
     expect(quarantineBypass.status).not.toBe(0);
     expect(`${quarantineBypass.stdout}\n${quarantineBypass.stderr}`).toContain(
-      'DOCUMENT_VERSION_STATE_TRANSITION_INVALID',
+      'DOCUMENT_AVAILABLE_INSPECTION_EVIDENCE_REQUIRED',
     );
 
     const crossAgency = execute(`
@@ -472,10 +472,12 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     );
     const cleanEvidence = `INSERT INTO document_scan_evidence
       (id,agency_id,document_version_id,job_run_id,sha256,outcome,
-       scanner_engine_version,signature_version,signature_updated_at,scanned_at)
+       scanner_engine_version,signature_version,signature_updated_at,
+       content_inspection_version,content_inspection_result,scanned_at)
       VALUES('scan-evidence-clean','agency-a','version-a','scan-run-clean','${'a'.repeat(64)}',
         'CLEAN','test-engine','test-signature',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean'),
+        'm4-content-inspection-v1','{"format":"PDF","pageCount":1,"valid":true}',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean'))`;
     const prematureEvidence = execute(cleanEvidence);
     expect(prematureEvidence.status).not.toBe(0);
@@ -488,13 +490,46 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
           lease_expires_at=NULL,completed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='scan-job-a'`),
     );
+    const mismatchedFormatEvidence = execute(
+      cleanEvidence
+        .replace('scan-evidence-clean', 'scan-evidence-format-mismatch')
+        .replace(
+          '"format":"PDF","pageCount":1',
+          '"format":"JPEG","height":1,"pixelCount":1,"width":1',
+        ),
+    );
+    expect(mismatchedFormatEvidence.status).not.toBe(0);
+    expect(`${mismatchedFormatEvidence.stdout}\\n${mismatchedFormatEvidence.stderr}`).toContain(
+      'DOCUMENT_SCAN_INSPECTION_EVIDENCE_INVALID',
+    );
+    const excessivePageEvidence = execute(
+      cleanEvidence
+        .replace('scan-evidence-clean', 'scan-evidence-excessive-pages')
+        .replace('"pageCount":1', '"pageCount":201'),
+    );
+    expect(excessivePageEvidence.status).not.toBe(0);
+    expect(`${excessivePageEvidence.stdout}\\n${excessivePageEvidence.stderr}`).toContain(
+      'DOCUMENT_SCAN_INSPECTION_EVIDENCE_INVALID',
+    );
+    const duplicateInspectionKey = execute(
+      cleanEvidence
+        .replace('scan-evidence-clean', 'scan-evidence-duplicate-inspection-key')
+        .replace('"valid":true}', '"valid":true,"valid":true}'),
+    );
+    expect(duplicateInspectionKey.status).not.toBe(0);
+    expect(`${duplicateInspectionKey.stdout}\\n${duplicateInspectionKey.stderr}`).toContain(
+      'DOCUMENT_SCAN_INSPECTION_EVIDENCE_INVALID',
+    );
+
     const staleSignatureEvidence = execute(`
       INSERT INTO document_scan_evidence
         (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanner_engine_version,
-         signature_version,signature_updated_at,scanned_at)
+         signature_version,signature_updated_at,content_inspection_version,
+         content_inspection_result,scanned_at)
       VALUES('scan-evidence-stale-signature','agency-a','version-a','scan-run-clean','${'a'.repeat(64)}',
         'CLEAN','test-engine','test-signature',
-        strftime('%Y-%m-%dT%H:%M:%fZ','now','-49 hours'),
+        strftime('%Y-%m-%dT%H:%M:%fZ','now','-49 hours'),'m4-content-inspection-v1',
+        '{"format":"PDF","pageCount":1,"valid":true}',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean'))
     `);
     expect(staleSignatureEvidence.status).not.toBe(0);
@@ -505,10 +540,12 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     const noncanonicalFreshSignature = execute(`
       INSERT INTO document_scan_evidence
         (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanner_engine_version,
-         signature_version,signature_updated_at,scanned_at)
+         signature_version,signature_updated_at,content_inspection_version,
+         content_inspection_result,scanned_at)
       VALUES('scan-evidence-offset-fresh','agency-a','version-a','scan-run-clean','${'a'.repeat(64)}',
         'CLEAN','test-engine','test-signature',
-        strftime('%Y-%m-%dT%H:%M:%f+12:00','now','-1 hour'),
+        strftime('%Y-%m-%dT%H:%M:%f+12:00','now','-1 hour'),'m4-content-inspection-v1',
+        '{"format":"PDF","pageCount":1,"valid":true}',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean'))
     `);
     expect(noncanonicalFreshSignature.status).not.toBe(0);
@@ -789,10 +826,12 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='scan-job-clean-third';
         INSERT INTO document_scan_evidence
           (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanner_engine_version,
-           signature_version,signature_updated_at,scanned_at)
+           signature_version,signature_updated_at,content_inspection_version,
+           content_inspection_result,scanned_at)
         VALUES('scan-evidence-clean-third','agency-a','version-c','scan-run-clean-third','${'c'.repeat(64)}',
           'CLEAN','test-engine','test-signature',
           (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean-third'),
+          'm4-content-inspection-v1','{"format":"PDF","pageCount":1,"valid":true}',
           (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean-third'));
         INSERT INTO background_jobs
           (id,agency_id,job_type,document_version_id,input_sha256,generation)
@@ -882,10 +921,12 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='scan-job-clean-fourth';
         INSERT INTO document_scan_evidence
           (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanner_engine_version,
-           signature_version,signature_updated_at,scanned_at)
+           signature_version,signature_updated_at,content_inspection_version,
+           content_inspection_result,scanned_at)
         VALUES('scan-evidence-clean-fourth','agency-a','version-c','scan-run-clean-fourth','${'c'.repeat(64)}',
           'CLEAN','test-engine','test-signature',
           (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean-fourth'),
+          'm4-content-inspection-v1','{"format":"PDF","pageCount":1,"valid":true}',
           (SELECT completed_at FROM background_job_runs WHERE id='scan-run-clean-fourth'));
         UPDATE document_versions SET status='BACKUP_PENDING',
           updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id='version-c';
@@ -989,10 +1030,12 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     const staleScanEvidence = execute(`
       INSERT INTO document_scan_evidence
         (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanner_engine_version,
-         signature_version,signature_updated_at,scanned_at)
+         signature_version,signature_updated_at,content_inspection_version,
+         content_inspection_result,scanned_at)
       VALUES('scan-evidence-old-generation','agency-a','version-d','scan-run-old-generation',
         '${'d'.repeat(64)}','CLEAN','test-engine','test-signature',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-old-generation'),
+        'm4-content-inspection-v1','{"format":"PDF","pageCount":1,"valid":true}',
         (SELECT completed_at FROM background_job_runs WHERE id='scan-run-old-generation'))
     `);
     expect(staleScanEvidence.status).not.toBe(0);
@@ -1192,7 +1235,7 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     );
   }, 180_000);
 
-  it('0014 tabanından 0015 upgrade kayıtları korur, tenant FK/trigger envanterini kurar ve no-op olur', () => {
+  it('0014 tabanından 0015/0016/0017 upgrade kayıtları korur, tenant FK/trigger envanterini kurar ve no-op olur', () => {
     const upgradeDir = mkdtempSync(join(tmpdir(), 'mayi-documents-m4-upgrade-'));
     const upgradeMigrations = join(upgradeDir, 'migrations');
     const priorConfigPath = configPath;
@@ -1409,7 +1452,124 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
         stateDir,
       ]);
       expectSuccess(deadLetterRerun);
-      expect(`${deadLetterRerun.stdout}\n${deadLetterRerun.stderr}`).toContain(
+      expect(`${deadLetterRerun.stdout}\\n${deadLetterRerun.stderr}`).toContain(
+        'No migrations to apply',
+      );
+
+      const inspectionMigration = '0017_document_scan_inspection_evidence.sql';
+      copyFileSync(
+        resolve(root, 'db/migrations', inspectionMigration),
+        join(upgradeMigrations, inspectionMigration),
+      );
+      expectSuccess(
+        execute(`
+          DROP TRIGGER documents_creator_membership_guard;
+          DROP TRIGGER document_versions_insert_guard;
+          DROP TRIGGER document_versions_creator_membership_guard;
+          DROP TRIGGER documents_no_delete;
+          DROP TRIGGER document_versions_no_delete;
+          INSERT INTO documents
+            (id,agency_id,owner_type,customer_id,created_by_user_id,created_by_membership_id)
+          VALUES('legacy-available-document','upgrade-agency','CUSTOMER','upgrade-customer',
+            'upgrade-user','upgrade-membership');
+          INSERT INTO document_versions
+            (id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,
+             detected_content_type,status,created_by_user_id,created_by_membership_id)
+          VALUES('legacy-available-version','upgrade-agency','legacy-available-document',1,
+            'quarantine/00000000-0000-4000-8000-000000000017','${'b'.repeat(64)}',1,
+            'legacy.pdf','application/pdf','AVAILABLE','upgrade-user','upgrade-membership');
+        `),
+      );
+      const blockedLegacyAvailable = run([
+        'd1',
+        'migrations',
+        'apply',
+        'DB',
+        '--local',
+        '--persist-to',
+        stateDir,
+      ]);
+      expect(blockedLegacyAvailable.status).not.toBe(0);
+      expect(`${blockedLegacyAvailable.stdout}\\n${blockedLegacyAvailable.stderr}`).toContain(
+        'm4_no_legacy_available_document',
+      );
+      expectSuccess(
+        execute(`
+          DELETE FROM document_versions WHERE id='legacy-available-version';
+          DELETE FROM documents WHERE id='legacy-available-document';
+        `),
+      );
+      const inspectionUpgrade = run([
+        'd1',
+        'migrations',
+        'apply',
+        'DB',
+        '--local',
+        '--persist-to',
+        stateDir,
+      ]);
+      expectSuccess(inspectionUpgrade);
+      const preservedAfterInspection = execute(`
+        SELECT agency.id AS agency_id, customer.id AS customer_id,
+          customer.display_name, membership.id AS membership_id
+        FROM agencies agency
+        JOIN agency_memberships membership ON membership.agency_id=agency.id
+        JOIN customers customer ON customer.agency_id=agency.id
+        WHERE agency.id='upgrade-agency'
+      `);
+      expectSuccess(preservedAfterInspection);
+      expect(rows(preservedAfterInspection)).toEqual(rows(before));
+      const preservedQueueEvent = execute(
+        "SELECT id FROM document_queue_dead_letter_events WHERE id='upgrade-terminal-event'",
+      );
+      expectSuccess(preservedQueueEvent);
+      expect(rows(preservedQueueEvent)).toEqual([{ id: 'upgrade-terminal-event' }]);
+      const inspectionForeignKeyCheck = execute('PRAGMA foreign_key_check');
+      expectSuccess(inspectionForeignKeyCheck);
+      expect(rows(inspectionForeignKeyCheck)).toEqual([]);
+      const inspectionTriggers = execute(`
+        SELECT name FROM sqlite_master WHERE type='trigger'
+          AND name IN ('document_scan_evidence_content_inspection_guard',
+            'document_versions_available_requires_inspection')
+        ORDER BY name
+      `);
+      expectSuccess(inspectionTriggers);
+      expect(inspectionTriggers.stdout).toContain(
+        'document_scan_evidence_content_inspection_guard',
+      );
+      expect(inspectionTriggers.stdout).toContain(
+        'document_versions_available_requires_inspection',
+      );
+      const inspectionColumns = execute("PRAGMA table_info('document_scan_evidence')");
+      expectSuccess(inspectionColumns);
+      expect(inspectionColumns.stdout).toContain('content_inspection_version');
+      expect(inspectionColumns.stdout).toContain('content_inspection_result');
+      const migrationGuardTable = execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='_m4_content_inspection_upgrade_guard'",
+      );
+      expectSuccess(migrationGuardTable);
+      expect(rows(migrationGuardTable)).toEqual([]);
+      const missingInspectionEvidence = execute(`
+              INSERT INTO document_scan_evidence
+                (id,agency_id,document_version_id,job_run_id,sha256,outcome,scanned_at)
+              VALUES('upgrade-clean-without-inspection','upgrade-agency','missing-version','missing-run',
+                '${'a'.repeat(64)}','CLEAN','2026-09-01T00:00:00.000Z')
+            `);
+      expect(missingInspectionEvidence.status).not.toBe(0);
+      expect(`${missingInspectionEvidence.stdout}\\n${missingInspectionEvidence.stderr}`).toContain(
+        'DOCUMENT_SCAN_INSPECTION_EVIDENCE_INVALID',
+      );
+      const inspectionRerun = run([
+        'd1',
+        'migrations',
+        'apply',
+        'DB',
+        '--local',
+        '--persist-to',
+        stateDir,
+      ]);
+      expectSuccess(inspectionRerun);
+      expect(`${inspectionRerun.stdout}\\n${inspectionRerun.stderr}`).toContain(
         'No migrations to apply',
       );
     } finally {

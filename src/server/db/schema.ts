@@ -2272,6 +2272,8 @@ export const documentScanEvidence = sqliteTable(
     scannerEngineVersion: text('scanner_engine_version'),
     signatureVersion: text('signature_version'),
     signatureUpdatedAt: text('signature_updated_at'),
+    contentInspectionVersion: text('content_inspection_version'),
+    contentInspectionResult: text('content_inspection_result'),
     scannedAt: text('scanned_at').notNull(),
   },
   (table) => [
