@@ -203,7 +203,7 @@ describe('document background job dispatcher', () => {
     const backupRow = await db
       .prepare("SELECT queue_dispatched_at FROM background_jobs WHERE id='job-scheduled-backup'")
       .first<{ queue_dispatched_at: string | null }>();
-    expect(backupRow?.queue_dispatched_at).toBeNull();
+    expect(backupRow?.queue_dispatched_at).not.toBeNull();
 
     const noQueueWork: Promise<unknown>[] = [];
     worker.scheduled(

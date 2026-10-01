@@ -1,4 +1,6 @@
 import { MAX_DOCUMENT_UPLOAD_BYTES, type DocumentUploadFormat } from './validation';
+import { processDocumentBackupMessage } from './backup';
+import type { DocumentBackupAdapter } from './backup-storage';
 import {
   inspectDocumentContent,
   REQUIRED_CONTENT_INSPECTION_VERSION,
@@ -1348,7 +1350,9 @@ async function persistDeadLetterEvent(
   message: Message<DocumentJobQueueMessage>,
   queueName: DocumentScanDeadLetterQueueName,
 ): Promise<void> {
-  const validMessage = isDocumentScanMessage(message.body);
+  const validMessage =
+    isKnownDocumentQueueMessage(message.body) &&
+    (message.body.jobType === 'DOCUMENT_SCAN' || message.body.jobType === 'DOCUMENT_BACKUP');
   const messageIdIsSafe = isSafeQueueMessageId(message.id);
   const messageBody = message.body as unknown;
   const replayCandidate =
@@ -1437,10 +1441,16 @@ async function persistDeadLetterEvent(
         `UPDATE background_jobs
          SET last_error_code='QUEUE_DELIVERY_EXHAUSTED',
              updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE id=? AND job_type='DOCUMENT_SCAN' AND generation=?
+         WHERE id=? AND job_type=? AND generation=?
            AND document_version_id=? AND input_sha256=?`,
       )
-      .bind(payload.jobId, payload.generation, payload.documentVersionId, payload.inputSha256)
+      .bind(
+        payload.jobId,
+        payload.jobType,
+        payload.generation,
+        payload.documentVersionId,
+        payload.inputSha256,
+      )
       .run();
   }
   console.warn('DOCUMENT_SCAN_QUEUE_DEAD_LETTER', {
@@ -1456,6 +1466,7 @@ export async function consumeDocumentQueueBatch(
   quarantine: R2Bucket | undefined,
   documentsEnabled: boolean,
   scanner: DocumentScannerAdapter = unavailableDocumentScanner,
+  backup?: DocumentBackupAdapter,
 ): Promise<void> {
   if (
     batch.queue === DOCUMENT_SCAN_DEAD_LETTER_QUEUE ||
@@ -1482,7 +1493,7 @@ export async function consumeDocumentQueueBatch(
       message.retry({ delaySeconds: 30 });
       continue;
     }
-    if (message.body.jobType !== 'DOCUMENT_SCAN') {
+    if (message.body.jobType !== 'DOCUMENT_SCAN' && message.body.jobType !== 'DOCUMENT_BACKUP') {
       message.ack();
       continue;
     }
@@ -1496,7 +1507,15 @@ export async function consumeDocumentQueueBatch(
     }
     let result: DocumentScanProcessingResult;
     try {
-      result = await processDocumentScanMessage(db, quarantine, message.body, scanner);
+      if (message.body.jobType === 'DOCUMENT_BACKUP') {
+        if (!backup) {
+          message.retry({ delaySeconds: 60 });
+          continue;
+        }
+        result = await processDocumentBackupMessage(db, quarantine, backup, message.body);
+      } else {
+        result = await processDocumentScanMessage(db, quarantine, message.body, scanner);
+      }
     } catch {
       result = 'RETRY_DELIVERY';
     }

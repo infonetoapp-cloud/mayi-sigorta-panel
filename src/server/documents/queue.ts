@@ -51,9 +51,10 @@ function isConcurrencyConflict(error: unknown): boolean {
   return message.includes('OPTIMISTIC_CONCURRENCY_CONFLICT');
 }
 
-export async function reclaimExpiredDocumentScanJob(
+async function reclaimExpiredDocumentJob(
   db: D1Database,
   job: ExpiredDocumentScanJob,
+  jobType: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP',
 ): Promise<boolean> {
   const nextStatus = job.attemptCount < job.maxAttempts ? 'RETRY_WAIT' : 'DEAD';
   const delaySeconds = documentScanRetryDelaySeconds(job.attemptCount);
@@ -67,7 +68,7 @@ export async function reclaimExpiredDocumentScanJob(
            WHERE agency_id=? AND job_id=? AND attempt_number=?
              AND lease_token_hash=? AND status='RUNNING'
              AND EXISTS (SELECT 1 FROM background_jobs job
-               WHERE job.id=? AND job.agency_id=? AND job.job_type='DOCUMENT_SCAN'
+               WHERE job.id=? AND job.agency_id=? AND job.job_type=?
                  AND job.status='RUNNING' AND job.attempt_count=?
                  AND job.lease_token_hash=?
                  AND julianday(job.lease_expires_at)<=julianday('now'))`,
@@ -79,6 +80,7 @@ export async function reclaimExpiredDocumentScanJob(
           job.leaseTokenHash,
           job.id,
           job.agencyId,
+          jobType,
           job.attemptCount,
           job.leaseTokenHash,
         ),
@@ -95,7 +97,7 @@ export async function reclaimExpiredDocumentScanJob(
                completed_at=CASE WHEN ?='DEAD'
                  THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END,
                updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-           WHERE id=? AND agency_id=? AND job_type='DOCUMENT_SCAN'
+           WHERE id=? AND agency_id=? AND job_type=?
              AND status='RUNNING' AND attempt_count=? AND lease_token_hash=?
              AND julianday(lease_expires_at)<=julianday('now')`,
         )
@@ -106,6 +108,7 @@ export async function reclaimExpiredDocumentScanJob(
           nextStatus,
           job.id,
           job.agencyId,
+          jobType,
           job.attemptCount,
           job.leaseTokenHash,
         ),
@@ -118,12 +121,26 @@ export async function reclaimExpiredDocumentScanJob(
   }
 }
 
-async function reclaimExpiredDocumentScanJobs(db: D1Database): Promise<void> {
+export async function reclaimExpiredDocumentScanJob(
+  db: D1Database,
+  job: ExpiredDocumentScanJob,
+): Promise<boolean> {
+  return reclaimExpiredDocumentJob(db, job, 'DOCUMENT_SCAN');
+}
+
+export async function reclaimExpiredDocumentBackupJob(
+  db: D1Database,
+  job: ExpiredDocumentScanJob,
+): Promise<boolean> {
+  return reclaimExpiredDocumentJob(db, job, 'DOCUMENT_BACKUP');
+}
+
+async function reclaimExpiredDocumentJobs(db: D1Database): Promise<void> {
   const expired = await db
     .prepare(
-      `SELECT id,agency_id,attempt_count,max_attempts,lease_token_hash
+      `SELECT id,agency_id,job_type,attempt_count,max_attempts,lease_token_hash
        FROM background_jobs
-       WHERE job_type='DOCUMENT_SCAN' AND status='RUNNING'
+       WHERE job_type IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP') AND status='RUNNING'
          AND lease_token_hash IS NOT NULL
          AND julianday(lease_expires_at)<=julianday('now')
        ORDER BY lease_expires_at,id LIMIT ?`,
@@ -132,19 +149,24 @@ async function reclaimExpiredDocumentScanJobs(db: D1Database): Promise<void> {
     .all<{
       id: string;
       agency_id: string;
+      job_type: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP';
       attempt_count: number;
       max_attempts: number;
       lease_token_hash: string;
     }>();
 
   for (const job of expired.results ?? []) {
-    await reclaimExpiredDocumentScanJob(db, {
-      id: job.id,
-      agencyId: job.agency_id,
-      attemptCount: job.attempt_count,
-      maxAttempts: job.max_attempts,
-      leaseTokenHash: job.lease_token_hash,
-    });
+    await reclaimExpiredDocumentJob(
+      db,
+      {
+        id: job.id,
+        agencyId: job.agency_id,
+        attemptCount: job.attempt_count,
+        maxAttempts: job.max_attempts,
+        leaseTokenHash: job.lease_token_hash,
+      },
+      job.job_type,
+    );
   }
 }
 
@@ -201,7 +223,7 @@ export async function dispatchDueDocumentJobs(
   queue: Pick<Queue<DocumentJobQueueMessage>, 'send'>,
   supportedJobTypes: readonly DocumentQueueJobType[] = ['DOCUMENT_SCAN'],
 ): Promise<DocumentJobDispatchResult> {
-  await reclaimExpiredDocumentScanJobs(db);
+  await reclaimExpiredDocumentJobs(db);
   if (supportedJobTypes.length === 0) return { sent: 0, failed: 0 };
   const jobTypePlaceholders = supportedJobTypes.map(() => '?').join(',');
   const pendingJobs = await db

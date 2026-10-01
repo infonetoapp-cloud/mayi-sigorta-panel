@@ -23,6 +23,7 @@ import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
 import { consumeDocumentQueueBatch, unavailableDocumentScanner } from './documents/scan';
 import { registerDocumentRoutes } from './documents/routes';
+import type { DocumentBackupAdapter } from './documents/backup-storage';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -478,7 +479,12 @@ export function createApp(
 
 export const app = createApp();
 
-export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
+// Backup capability is injected explicitly; no broad backup bucket/admin binding in CRM Env.
+// Real separate-account capability provisioning remains an external enablement gate.
+export function createWorker(
+  appInstance: Hono<{ Bindings: Env }> = app,
+  documentBackup?: DocumentBackupAdapter,
+) {
   return {
     queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
       return consumeDocumentQueueBatch(
@@ -487,6 +493,7 @@ export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
         env.DOCS_QUARANTINE,
         env.DOCUMENTS_ENABLED === 'true',
         unavailableDocumentScanner,
+        documentBackup,
       );
     },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
@@ -498,7 +505,12 @@ export function createWorker(appInstance: Hono<{ Bindings: Env }> = app) {
         env.DOCUMENT_SCAN_QUEUE &&
         env.DOCUMENTS_ENABLED === 'true'
       ) {
-        ctx.waitUntil(dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE, ['DOCUMENT_SCAN']));
+        ctx.waitUntil(
+          dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE, [
+            'DOCUMENT_SCAN',
+            'DOCUMENT_BACKUP',
+          ]),
+        );
       }
     },
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
