@@ -958,6 +958,22 @@ export function createDefaultActionRegistry(): ActionRegistry {
     }),
   );
 
+  for (const [code, sensitive] of [
+    ['document.identity.download', ['sensitive.identity.read']],
+    ['document.health.download', ['sensitive.health.read']],
+    ['document.identity_health.download', ['sensitive.identity.read', 'sensitive.health.read']],
+  ] as const) {
+    normalActions.push(
+      validateAndCreateActionDefinition({
+        code,
+        authority: 'MEMBERSHIP_AUTHORIZED',
+        requiredNormalPermissions: ['document.read'],
+        requiredSensitivePermissions: [...sensitive],
+        assurance: 'SECURE_GRANT',
+      }),
+    );
+  }
+
   for (const code of [
     'policy_party.create',
     'policy_party.deactivate',

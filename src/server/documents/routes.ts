@@ -10,6 +10,7 @@ import { verifyCsrfMutationGuard } from '../security/csrf';
 import { MAX_DOCUMENT_UPLOAD_BYTES } from './validation';
 import { createDocumentUpload, DocumentUploadError } from './service';
 import type { AppDependencies, Env } from '../index';
+import { registerDocumentStreamRoutes } from './stream-routes';
 
 type DocumentRouteEnv = { Bindings: Env };
 
@@ -71,6 +72,7 @@ export function registerDocumentRoutes(
   app: Hono<DocumentRouteEnv>,
   dependencies: AppDependencies = {},
 ): void {
+  registerDocumentStreamRoutes(app, dependencies);
   app.post(`${API_PREFIX}/documents`, async (c) => {
     c.header('Cache-Control', 'private, no-store');
     if (c.env.DOCUMENTS_ENABLED !== 'true') {
