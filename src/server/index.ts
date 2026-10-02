@@ -24,6 +24,7 @@ import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documen
 import { consumeDocumentQueueBatch, unavailableDocumentScanner } from './documents/scan';
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
+import type { DocumentReconcileStorage } from './documents/reconcile-storage';
 
 /**
  * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
@@ -484,6 +485,7 @@ export const app = createApp();
 export function createWorker(
   appInstance: Hono<{ Bindings: Env }> = app,
   documentBackup?: DocumentBackupAdapter,
+  documentReconcile?: DocumentReconcileStorage,
 ) {
   return {
     queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
@@ -494,6 +496,7 @@ export function createWorker(
         env.DOCUMENTS_ENABLED === 'true',
         unavailableDocumentScanner,
         documentBackup,
+        documentReconcile,
       );
     },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
@@ -509,6 +512,7 @@ export function createWorker(
           dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE, [
             'DOCUMENT_SCAN',
             'DOCUMENT_BACKUP',
+            'DOCUMENT_RECONCILE',
           ]),
         );
       }

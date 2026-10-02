@@ -1,6 +1,12 @@
 import { MAX_DOCUMENT_UPLOAD_BYTES, type DocumentUploadFormat } from './validation';
 import { processDocumentBackupMessage } from './backup';
 import type { DocumentBackupAdapter } from './backup-storage';
+import type { DocumentReconcileStorage } from './reconcile-storage';
+import {
+  processDocumentReconcileMessage,
+  persistDocumentReconcileQueueExhaustion,
+  type DocumentReconcileResult,
+} from './reconcile';
 import {
   inspectDocumentContent,
   REQUIRED_CONTENT_INSPECTION_VERSION,
@@ -1350,6 +1356,9 @@ async function persistDeadLetterEvent(
   message: Message<DocumentJobQueueMessage>,
   queueName: DocumentScanDeadLetterQueueName,
 ): Promise<void> {
+  if (isKnownDocumentQueueMessage(message.body) && message.body.jobType === 'DOCUMENT_RECONCILE') {
+    if (await persistDocumentReconcileQueueExhaustion(db, message.body)) return;
+  }
   const validMessage =
     isKnownDocumentQueueMessage(message.body) &&
     (message.body.jobType === 'DOCUMENT_SCAN' || message.body.jobType === 'DOCUMENT_BACKUP');
@@ -1467,6 +1476,7 @@ export async function consumeDocumentQueueBatch(
   documentsEnabled: boolean,
   scanner: DocumentScannerAdapter = unavailableDocumentScanner,
   backup?: DocumentBackupAdapter,
+  reconcile?: DocumentReconcileStorage,
 ): Promise<void> {
   if (
     batch.queue === DOCUMENT_SCAN_DEAD_LETTER_QUEUE ||
@@ -1493,7 +1503,11 @@ export async function consumeDocumentQueueBatch(
       message.retry({ delaySeconds: 30 });
       continue;
     }
-    if (message.body.jobType !== 'DOCUMENT_SCAN' && message.body.jobType !== 'DOCUMENT_BACKUP') {
+    if (
+      message.body.jobType !== 'DOCUMENT_SCAN' &&
+      message.body.jobType !== 'DOCUMENT_BACKUP' &&
+      message.body.jobType !== 'DOCUMENT_RECONCILE'
+    ) {
       message.ack();
       continue;
     }
@@ -1505,9 +1519,15 @@ export async function consumeDocumentQueueBatch(
       message.retry({ delaySeconds: 60 });
       continue;
     }
-    let result: DocumentScanProcessingResult;
+    let result: DocumentScanProcessingResult | DocumentReconcileResult;
     try {
-      if (message.body.jobType === 'DOCUMENT_BACKUP') {
+      if (message.body.jobType === 'DOCUMENT_RECONCILE') {
+        if (!reconcile) {
+          message.retry({ delaySeconds: 60 });
+          continue;
+        }
+        result = await processDocumentReconcileMessage(db, reconcile, message.body);
+      } else if (message.body.jobType === 'DOCUMENT_BACKUP') {
         if (!backup) {
           message.retry({ delaySeconds: 60 });
           continue;

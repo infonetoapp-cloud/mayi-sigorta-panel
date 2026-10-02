@@ -54,7 +54,7 @@ function isConcurrencyConflict(error: unknown): boolean {
 async function reclaimExpiredDocumentJob(
   db: D1Database,
   job: ExpiredDocumentScanJob,
-  jobType: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP',
+  jobType: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP' | 'DOCUMENT_RECONCILE',
 ): Promise<boolean> {
   const nextStatus = job.attemptCount < job.maxAttempts ? 'RETRY_WAIT' : 'DEAD';
   const delaySeconds = documentScanRetryDelaySeconds(job.attemptCount);
@@ -135,12 +135,19 @@ export async function reclaimExpiredDocumentBackupJob(
   return reclaimExpiredDocumentJob(db, job, 'DOCUMENT_BACKUP');
 }
 
+export async function reclaimExpiredDocumentReconcileJob(
+  db: D1Database,
+  job: ExpiredDocumentScanJob,
+): Promise<boolean> {
+  return reclaimExpiredDocumentJob(db, job, 'DOCUMENT_RECONCILE');
+}
+
 async function reclaimExpiredDocumentJobs(db: D1Database): Promise<void> {
   const expired = await db
     .prepare(
       `SELECT id,agency_id,job_type,attempt_count,max_attempts,lease_token_hash
        FROM background_jobs
-       WHERE job_type IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP') AND status='RUNNING'
+       WHERE job_type IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP','DOCUMENT_RECONCILE') AND status='RUNNING'
          AND lease_token_hash IS NOT NULL
          AND julianday(lease_expires_at)<=julianday('now')
        ORDER BY lease_expires_at,id LIMIT ?`,
@@ -149,7 +156,7 @@ async function reclaimExpiredDocumentJobs(db: D1Database): Promise<void> {
     .all<{
       id: string;
       agency_id: string;
-      job_type: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP';
+      job_type: 'DOCUMENT_SCAN' | 'DOCUMENT_BACKUP' | 'DOCUMENT_RECONCILE';
       attempt_count: number;
       max_attempts: number;
       lease_token_hash: string;
