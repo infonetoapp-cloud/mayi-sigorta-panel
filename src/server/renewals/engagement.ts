@@ -1,4 +1,5 @@
 import { evaluateAuthorization } from '../auth/authorization';
+import { z } from 'zod';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { buildSafeAuditRecord } from '../mutations/audit';
 import { computePayloadHash } from '../mutations/canonical';
@@ -15,7 +16,14 @@ import {
   createRenewalQuoteSchema,
   createRenewalQuoteVersionSchema,
   sendRenewalQuoteSchema,
+  previewRenewalWhatsAppSchema,
+  openRenewalWhatsAppSchema,
 } from './validation';
+import {
+  buildWhatsAppUrl,
+  normalizeWhatsAppPhone,
+  WHATSAPP_DEFAULT_MESSAGE,
+} from './whatsapp-target';
 
 const OPEN_STATES = [
   'CONTACT_PENDING',
@@ -307,6 +315,7 @@ function auditInsert(
   key: string,
   now: string,
   changedFields: readonly string[],
+  responseHash?: string,
 ): D1PreparedStatement {
   const audit = buildSafeAuditRecord({
     agencyId: active.agencyId,
@@ -319,7 +328,7 @@ function auditInsert(
     idempotencyKey: key,
     outcome: 'SUCCESS',
     createdAt: now,
-    metadata: { changedFields },
+    metadata: { changedFields, responseHash },
   });
   return db
     .prepare(
@@ -1002,6 +1011,324 @@ export async function listRenewalInteractions(
       role: contact.role,
     })),
   };
+}
+
+interface WhatsAppContact {
+  readonly phone: string;
+  readonly rawPhone: string;
+  readonly companyContactId: string | null;
+}
+
+async function resolveWhatsAppContact(
+  db: D1Database,
+  parent: RenewalParent,
+  companyContactId: string | null,
+): Promise<WhatsAppContact> {
+  if (parent.customer_type === 'COMPANY' && !companyContactId)
+    throw new RenewalCommandError('COMPANY_CONTACT_REQUIRED', 409);
+  if (parent.customer_type === 'INDIVIDUAL' && companyContactId)
+    throw new RenewalCommandError('COMPANY_CONTACT_NOT_ALLOWED', 409);
+  const row = companyContactId
+    ? await db
+        .prepare(
+          `SELECT phone FROM company_contacts
+        WHERE agency_id=? AND customer_id=? AND id=? AND status='ACTIVE'`,
+        )
+        .bind(parent.agency_id, parent.customer_id, companyContactId)
+        .first<{ phone: string | null }>()
+    : await db
+        .prepare(`SELECT phone FROM customers WHERE agency_id=? AND id=? AND archived_at IS NULL`)
+        .bind(parent.agency_id, parent.customer_id)
+        .first<{ phone: string | null }>();
+  if (!row) throw new RenewalCommandError('NOT_FOUND', 404);
+  return { phone: normalizeWhatsAppPhone(row.phone), rawPhone: row.phone!, companyContactId };
+}
+
+export async function previewRenewalWhatsApp(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  renewalId: string,
+  rawInput: unknown,
+): Promise<{
+  phone: string;
+  message: string;
+  url: string;
+  companyContactId: string | null;
+  expectedRenewalVersion: number;
+}> {
+  const input = previewRenewalWhatsAppSchema.parse(rawInput);
+  const { active, parent } = await authorizeParent(context, db, renewalId, 'interaction.create');
+  const contact = await resolveWhatsAppContact(db, parent, input.companyContactId);
+  const live = await whatsAppAuthorityStatement(
+    db,
+    context,
+    parent,
+    active,
+    contact,
+    parent.version,
+    false,
+  ).first<{ authorized: number }>();
+  if (live?.authorized !== 1) throw new RenewalCommandError('FORBIDDEN', 403);
+  return {
+    phone: contact.phone,
+    message: WHATSAPP_DEFAULT_MESSAGE,
+    url: buildWhatsAppUrl(contact.phone, WHATSAPP_DEFAULT_MESSAGE),
+    companyContactId: contact.companyContactId,
+    expectedRenewalVersion: parent.version,
+  };
+}
+
+function whatsAppAuthorityStatement(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  parent: RenewalParent,
+  active: ActiveMembership,
+  contact: WhatsAppContact,
+  expectedVersion: number | null,
+  mutating: boolean,
+): D1PreparedStatement {
+  const permissions = [
+    'renewal.read',
+    'policy.read',
+    'customer.read',
+    'interaction.read',
+    'interaction.create',
+  ];
+  const permissionChecks = permissions
+    .map((code) => {
+      const scope =
+        code === 'customer.read'
+          ? 'c.assignee_membership_id=m.id'
+          : code === 'policy.read'
+            ? '(p.assignee_membership_id=m.id OR c.assignee_membership_id=m.id)'
+            : '(r.assignee_membership_id=m.id OR c.assignee_membership_id=m.id)';
+      return `(m.type='OWNER' OR EXISTS(SELECT 1 FROM membership_permissions permission
+      WHERE permission.membership_id=m.id AND permission.permission_code='${code}'
+        AND permission.scope IN ('AGENCY','ASSIGNED') AND (permission.scope='AGENCY' OR ${scope})))`;
+    })
+    .join(' AND ');
+  const prefix = mutating
+    ? 'INSERT INTO d1_cas_assertions(id,expected,actual,failure_code) SELECT ?,1,CASE WHEN'
+    : 'SELECT CASE WHEN';
+  const suffix = mutating
+    ? "THEN 1 ELSE 0 END,'FINAL_AUTHORITY_RECHECK_FAILED'"
+    : 'THEN 1 ELSE 0 END AS authorized';
+  const args: unknown[] = mutating ? [crypto.randomUUID()] : [];
+  return db
+    .prepare(
+      `${prefix} EXISTS(
+      SELECT 1 FROM renewal_opportunities r
+      JOIN policies p ON p.agency_id=r.agency_id AND p.id=r.expiring_policy_id
+      JOIN customers c ON c.agency_id=p.agency_id AND c.id=p.customer_id
+      JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
+      JOIN agency_memberships m ON m.agency_id=r.agency_id AND m.id=?
+      JOIN users u ON u.id=m.user_id AND u.status='ACTIVE'
+      JOIN agencies a ON a.id=m.agency_id AND a.status='ACTIVE'
+      JOIN auth_identities identity ON identity.user_id=u.id AND identity.id=? AND identity.status='ACTIVE'
+      WHERE r.agency_id=? AND r.id=? AND c.id=? AND c.type=?
+        AND m.user_id=? AND m.status='ACTIVE' AND m.type=? AND m.permission_version=?
+        AND (? IS NULL OR r.version=?) AND ${permissionChecks}
+        AND p.status='ACTIVE' AND p.archived_at IS NULL AND c.archived_at IS NULL
+        AND b.id=? AND b.data_classification=?
+        AND (b.data_classification='GENERAL' OR (
+          EXISTS(SELECT 1 FROM membership_permissions health WHERE health.membership_id=m.id
+            AND health.permission_code='sensitive.health.read' AND health.scope='UNSCOPED')
+          AND EXISTS(SELECT 1 FROM membership_permissions health WHERE health.membership_id=m.id
+            AND health.permission_code='sensitive.health.write' AND health.scope='UNSCOPED')))
+        AND (m.type='OWNER' OR EXISTS(
+          SELECT 1 FROM membership_permissions direct
+          JOIN membership_permissions dependency ON dependency.membership_id=direct.membership_id
+            AND dependency.permission_code='interaction.read'
+          WHERE direct.membership_id=m.id AND direct.permission_code='interaction.create'
+            AND (dependency.scope='AGENCY' OR direct.scope=dependency.scope)))
+        AND ((? IS NULL AND c.type='INDIVIDUAL' AND c.phone=?) OR
+          (c.type='COMPANY' AND EXISTS(SELECT 1 FROM company_contacts cc
+            WHERE cc.agency_id=c.agency_id AND cc.customer_id=c.id AND cc.id=?
+              AND cc.status='ACTIVE' AND cc.phone=?)))
+    ) ${suffix}`,
+    )
+    .bind(
+      ...args,
+      active.id,
+      context.identityId,
+      parent.agency_id,
+      parent.id,
+      parent.customer_id,
+      parent.customer_type,
+      context.userId,
+      active.type,
+      active.permissionVersion,
+      expectedVersion,
+      expectedVersion,
+      parent.branch_id,
+      parent.branch_data_classification,
+      contact.companyContactId,
+      contact.rawPhone,
+      contact.companyContactId,
+      contact.rawPhone,
+    );
+}
+
+const whatsAppReceiptSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    interactionId: z.string().uuid(),
+    renewalId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/),
+    outcome: z.literal('WHATSAPP_OPENED'),
+    occurredAt: z.string().datetime(),
+  })
+  .strict();
+
+export async function openRenewalWhatsApp(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  renewalId: string,
+  rawInput: unknown,
+  rawKey: string,
+): Promise<{ data: InteractionResult & { url: string }; replayed: boolean; status: 201 }> {
+  const input = openRenewalWhatsAppSchema.parse(rawInput);
+  const key = validateKey(rawKey);
+  const { active, parent } = await authorizeParent(context, db, renewalId, 'interaction.create');
+  const contact = await resolveWhatsAppContact(db, parent, input.companyContactId);
+  if (contact.phone !== input.expectedPhone)
+    throw new RenewalCommandError('WHATSAPP_PREVIEW_STALE', 409);
+  const url = buildWhatsAppUrl(contact.phone, input.message);
+  const fingerprint = await computePayloadHash({
+    action: 'renewal.whatsapp.open',
+    renewalId,
+    input,
+  });
+  const replay = async (receipt: ReceiptRow) => {
+    if (receipt.action !== 'renewal.whatsapp.open' || receipt.payload_fingerprint !== fingerprint)
+      throw new RenewalCommandError('IDEMPOTENCY_CONFLICT', 409);
+    if (receipt.status !== 'COMPLETED' || receipt.response_status !== 201)
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    let data: z.infer<typeof whatsAppReceiptSchema>;
+    try {
+      data = whatsAppReceiptSchema.parse(JSON.parse(receipt.response_body ?? 'null'));
+    } catch {
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    }
+    if (
+      data.operationId !== receipt.id ||
+      data.renewalId !== renewalId ||
+      !canonicalTimestamp(data.occurredAt)
+    )
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    const responseHash = await computePayloadHash(data);
+    const proof = await db
+      .prepare(
+        `SELECT count(*) AS count FROM renewal_interactions i
+      JOIN audit_events a ON a.agency_id=i.agency_id AND a.target_id=i.renewal_id
+        AND a.target_type='renewal_opportunities' AND a.action='renewal.whatsapp.opened'
+        AND a.actor_user_id=i.actor_user_id AND a.actor_membership_id=i.actor_membership_id
+        AND a.idempotency_key=? AND a.outcome='SUCCESS' AND a.created_at=i.created_at
+        AND json_extract(a.metadata_json,'$.responseHash')=?
+      WHERE i.agency_id=? AND i.renewal_id=? AND i.id=? AND i.outcome='WHATSAPP_OPENED'
+        AND i.channel='WHATSAPP' AND i.note IS NULL AND i.occurred_at=?
+        AND i.customer_id=? AND i.company_contact_id IS ? AND i.actor_user_id=? AND i.actor_membership_id=?`,
+      )
+      .bind(
+        key,
+        responseHash,
+        active.agencyId,
+        renewalId,
+        data.interactionId,
+        data.occurredAt,
+        parent.customer_id,
+        contact.companyContactId,
+        context.userId,
+        active.id,
+      )
+      .first<{ count: number }>();
+    if (proof?.count !== 1) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    const live = await whatsAppAuthorityStatement(
+      db,
+      context,
+      parent,
+      active,
+      contact,
+      null,
+      false,
+    ).first<{ authorized: number }>();
+    if (live?.authorized !== 1) throw new RenewalCommandError('FORBIDDEN', 403);
+    return { data: { ...data, url }, replayed: true, status: 201 as const };
+  };
+  const prior = await readReceipt(db, active, context.userId, key);
+  if (prior) return replay(prior);
+  if (parent.version !== input.expectedRenewalVersion)
+    throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
+  const now = new Date().toISOString();
+  const data: z.infer<typeof whatsAppReceiptSchema> = {
+    operationId: crypto.randomUUID(),
+    interactionId: crypto.randomUUID(),
+    renewalId,
+    outcome: 'WHATSAPP_OPENED',
+    occurredAt: now,
+  };
+  const responseHash = await computePayloadHash(data);
+  try {
+    await db.batch([
+      whatsAppAuthorityStatement(
+        db,
+        context,
+        parent,
+        active,
+        contact,
+        input.expectedRenewalVersion,
+        true,
+      ),
+      receiptInsert(
+        db,
+        context,
+        active,
+        data.operationId,
+        'renewal.whatsapp.open',
+        key,
+        fingerprint,
+        data,
+        201,
+        now,
+      ),
+      db
+        .prepare(
+          `INSERT INTO renewal_interactions
+        (id,agency_id,renewal_id,customer_id,company_contact_id,outcome,channel,note,occurred_at,
+          actor_user_id,actor_membership_id,created_at)
+        VALUES(?,?,?,?,?,'WHATSAPP_OPENED','WHATSAPP',NULL,?,?,?,?)`,
+        )
+        .bind(
+          data.interactionId,
+          active.agencyId,
+          renewalId,
+          parent.customer_id,
+          contact.companyContactId,
+          now,
+          context.userId,
+          active.id,
+          now,
+        ),
+      changesAssertion(db, 'RENEWAL_INTERACTION_CONFLICT'),
+      auditInsert(
+        db,
+        context,
+        active,
+        'renewal.whatsapp.opened',
+        renewalId,
+        key,
+        now,
+        ['whatsapp_opened'],
+        responseHash,
+      ),
+    ]);
+  } catch (error) {
+    if (isReceiptRace(error)) {
+      const raced = await readReceipt(db, active, context.userId, key);
+      if (raced) return replay(raced);
+    }
+    mapWriteError(error);
+  }
+  return { data: { ...data, url }, replayed: false, status: 201 };
 }
 
 export async function createRenewalInteraction(

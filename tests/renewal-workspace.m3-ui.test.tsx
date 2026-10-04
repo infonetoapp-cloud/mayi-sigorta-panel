@@ -33,6 +33,70 @@ afterEach(() => {
 });
 
 describe('M3 Renewal workspace UI', () => {
+  it.each(['DENIED', 'NETWORK_FAILURE'])(
+    'keeps authorized WhatsApp available when unrelated Quote read fails: %s',
+    async (quoteFailure) => {
+      const replace = vi.fn();
+      vi.spyOn(window, 'open').mockReturnValue({
+        opener: window,
+        location: { replace },
+        close: vi.fn(),
+      } as unknown as Window);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith('/quotes')) {
+            if (quoteFailure === 'NETWORK_FAILURE') throw new Error('Quote network failed');
+            return new Response(JSON.stringify({ success: false, error: { code: 'FORBIDDEN' } }), {
+              status: 403,
+            });
+          }
+          if (url.endsWith('/interactions'))
+            return response({
+              interactions: [],
+              lastContactAt: null,
+              lastAttemptAt: null,
+              customerType: 'INDIVIDUAL',
+              companyContacts: [],
+            });
+          if (url.endsWith('/whatsapp-preview'))
+            return response({
+              phone: '905321234567',
+              message: 'Merhaba',
+              expectedRenewalVersion: 1,
+              companyContactId: null,
+            });
+          if (url.endsWith('/whatsapp-open') && init?.method === 'POST')
+            return response(
+              { outcome: 'WHATSAPP_OPENED', url: 'https://wa.me/905321234567?text=Merhaba' },
+              201,
+            );
+          return response({});
+        }),
+      );
+      render(
+        <RenewalWorkspacePanel
+          renewalId="renewal-a"
+          customerDisplayName="Individual A"
+          getCsrfToken={async () => 'csrf-token'}
+          invalidateCsrfToken={() => undefined}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'İletişim, teklif ve sonuçları aç: Individual A' }),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'WhatsApp önizle' }));
+      await screen.findByLabelText('WhatsApp taslağı');
+      expect(screen.queryByRole('button', { name: 'Teklif oluştur: Individual A' })).toBeNull();
+      expect(screen.getByRole('option', { name: 'Gerçek temas doğrulandı' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'WhatsApp aç' }));
+      await waitFor(() =>
+        expect(replace).toHaveBeenCalledWith('https://wa.me/905321234567?text=Merhaba'),
+      );
+      expect(screen.getByText('Başarılı temas: henüz kaydedilmedi')).toBeTruthy();
+    },
+  );
   it('labels successful contact separately from attempts and sends the selected exact interaction outcome', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     vi.stubGlobal(

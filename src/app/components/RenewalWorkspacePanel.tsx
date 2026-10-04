@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { WhatsAppPreviewPanel } from './WhatsAppPreviewPanel';
 
 interface VersionPayload {
   insurerId: string;
@@ -193,42 +194,61 @@ export function RenewalWorkspacePanel({
     setLoading(true);
     setError(null);
     try {
-      const [interactionResponse, quoteResponse] = await Promise.all([
+      const [interactionResult, quoteResult] = await Promise.allSettled([
         fetch(`/api/renewals/${encodeURIComponent(renewalId)}/interactions`, {
           method: 'GET',
           cache: 'no-store',
           signal: controller.signal,
-        }),
+        }).then(readEnvelope<WorkspaceData>),
         fetch(`/api/renewals/${encodeURIComponent(renewalId)}/quotes`, {
           method: 'GET',
           cache: 'no-store',
           signal: controller.signal,
-        }),
-      ]);
-      const [interactionData, quotes] = await Promise.all([
-        readEnvelope<WorkspaceData>(interactionResponse),
-        readEnvelope<QuoteListData>(quoteResponse),
+        }).then(readEnvelope<QuoteListData>),
       ]);
       if (generation !== requestGeneration.current) return;
-      setWorkspace(interactionData);
-      setQuoteData(quotes);
-      setPremiumMinor(String(quotes.defaultVersion.grossPremiumMinor));
-      if (!activeQuote && quotes.quotes.length > 0) {
-        const latest = quotes.quotes[quotes.quotes.length - 1]!;
-        const current = latest.versions.find((version) => version.id === latest.current_version_id);
-        if (current) {
-          setActiveQuote({
-            quoteId: latest.id,
-            quoteVersionId: current.id,
-            versionNumber: current.version_number,
-            quoteVersion: latest.version,
-            status: latest.status,
-          });
+      // Independent permissions and failures: Quote read must not gate authorized communication.
+      if (interactionResult.status === 'fulfilled') {
+        const interactionData = interactionResult.value;
+        setWorkspace(interactionData);
+        if (!companyContactId && interactionData.companyContacts.length === 1) {
+          setCompanyContactId(interactionData.companyContacts[0]!.id);
         }
+      } else {
+        setWorkspace(null);
       }
-      if (!companyContactId && interactionData.companyContacts.length === 1) {
-        setCompanyContactId(interactionData.companyContacts[0]!.id);
+      if (quoteResult.status === 'fulfilled') {
+        const quotes = quoteResult.value;
+        setQuoteData(quotes);
+        setPremiumMinor(String(quotes.defaultVersion.grossPremiumMinor));
+        if (!activeQuote && quotes.quotes.length > 0) {
+          const latest = quotes.quotes[quotes.quotes.length - 1]!;
+          const current = latest.versions.find(
+            (version) => version.id === latest.current_version_id,
+          );
+          if (current) {
+            setActiveQuote({
+              quoteId: latest.id,
+              quoteVersionId: current.id,
+              versionNumber: current.version_number,
+              quoteVersion: latest.version,
+              status: latest.status,
+            });
+          }
+        }
+      } else {
+        setQuoteData(null);
+        setActiveQuote(null);
       }
+      const errors = [
+        interactionResult.status === 'rejected'
+          ? 'İletişim bilgileri yüklenemedi veya erişilemiyor.'
+          : null,
+        quoteResult.status === 'rejected'
+          ? 'Teklif bilgileri yüklenemedi veya erişilemiyor.'
+          : null,
+      ].filter(Boolean);
+      setError(errors.length ? errors.join(' ') : null);
     } catch (caught) {
       if (generation !== requestGeneration.current) return;
       setError(caught instanceof Error ? caught.message : 'Bilgiler yüklenemedi.');
@@ -541,7 +561,7 @@ export function RenewalWorkspacePanel({
                   >
                     <option value="CONTACT_CONFIRMED">Gerçek temas doğrulandı</option>
                     <option value="ATTEMPT_NO_RESPONSE">Temas denemesi — yanıt yok</option>
-                    <option value="WHATSAPP_OPENED">WhatsApp açıldı (temas değildir)</option>
+
                     <option value="NOTE">Yalnızca not</option>
                   </select>
                 </label>
@@ -595,6 +615,17 @@ export function RenewalWorkspacePanel({
                   </li>
                 ))}
               </ul>
+              <WhatsAppPreviewPanel
+                key={`${renewalId}:${companyContactId}`}
+                renewalId={renewalId}
+                companyContactId={
+                  workspace.customerType === 'COMPANY' ? companyContactId || null : null
+                }
+                contactRequired={workspace.customerType === 'COMPANY'}
+                getCsrfToken={getCsrfToken}
+                invalidateCsrfToken={invalidateCsrfToken}
+                onOpened={() => void loadResources()}
+              />
             </>
           )}
           {quoteData && (

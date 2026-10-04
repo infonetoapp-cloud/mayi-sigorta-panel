@@ -24,6 +24,8 @@ import {
   closeRenewalWonSchema,
   correctWonRenewalSchema,
   createRenewalInteractionSchema,
+  previewRenewalWhatsAppSchema,
+  openRenewalWhatsAppSchema,
   createRenewalQuoteSchema,
   createRenewalQuoteVersionSchema,
   reopenRenewalSchema,
@@ -34,6 +36,8 @@ import {
 import { allocateRenewalPolicyLinks, issueRenewalPolicyLinksGrant } from './policy-links';
 import {
   createRenewalInteraction,
+  previewRenewalWhatsApp,
+  openRenewalWhatsApp,
   createRenewalQuote,
   createRenewalQuoteVersion,
   listRenewalInteractions,
@@ -908,6 +912,84 @@ export function registerRenewalCommandRoutes(
         return fail(c, error.status, error.code, message);
       }
       return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
+
+  const whatsAppFailure = (c: Context<RenewalRouteEnv>, error: unknown) => {
+    if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    if (error instanceof RenewalCommandError) {
+      const message = ['WHATSAPP_PHONE_REQUIRED', 'WHATSAPP_PHONE_INVALID'].includes(error.code)
+        ? 'Telefon eksik veya geçersiz. Müşteri/şirket yetkilisinin iletişim bilgisini tamamlayın.'
+        : error.code === 'COMPANY_CONTACT_REQUIRED'
+          ? 'Şirket iletişim kişisini seçin.'
+          : error.status === 403
+            ? 'Erişim reddedildi.'
+            : error.status === 404
+              ? 'Kayıt bulunamadı.'
+              : 'Kayıt değişti. Önizlemeyi yenileyin.';
+      return fail(c, error.status, error.code, message);
+    }
+    return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+  };
+
+  app.get(`${API_PREFIX}/renewals/:id/whatsapp-preview`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId))
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    try {
+      const query = c.req.queries();
+      if (
+        Object.keys(query).some((key) => key !== 'companyContactId') ||
+        (query.companyContactId && query.companyContactId.length !== 1)
+      )
+        return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      const input = previewRenewalWhatsAppSchema.parse({
+        companyContactId: query.companyContactId?.[0] ?? null,
+      });
+      const data = await previewRenewalWhatsApp(authenticated.context, c.env.DB, renewalId, input);
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data, timestamp: new Date().toISOString() }, 200);
+    } catch (error) {
+      return whatsAppFailure(c, error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/renewals/:id/whatsapp-open`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const renewalId = c.req.param('id');
+    if (!renewalId || !/^[A-Za-z0-9_.:-]{1,128}$/.test(renewalId))
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    const key = await secureMutationKey(c, authenticated.principal.subject);
+    if (!key) return fail(c, 403, 'CSRF_OR_IDEMPOTENCY_INVALID', 'İstek doğrulanamadı.');
+    let input: unknown;
+    try {
+      input = openRenewalWhatsAppSchema.parse(await c.req.json());
+    } catch {
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    }
+    try {
+      const result = await openRenewalWhatsApp(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        input,
+        key,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : result.status,
+      );
+    } catch (error) {
+      return whatsAppFailure(c, error);
     }
   });
 

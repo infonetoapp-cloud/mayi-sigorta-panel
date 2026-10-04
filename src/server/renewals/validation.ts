@@ -322,6 +322,39 @@ export const sendRenewalQuoteSchema = z
   })
   .strict();
 
+export const previewRenewalWhatsAppSchema = z
+  .object({ companyContactId: exactEntityId.nullable() })
+  .strict();
+
+export const openRenewalWhatsAppSchema = z
+  .object({
+    companyContactId: exactEntityId.nullable(),
+    expectedRenewalVersion: version,
+    expectedPhone: z.string().regex(/^[1-9]\d{7,14}$/),
+    // Plain-text draft; LF is permitted, hidden/bidi and other control characters are not.
+    // This is a bound, not a promise of sensitive free-text classification.
+    message: z
+      .string()
+      .min(1)
+      .max(1000)
+      .refine(
+        (value) =>
+          value.trim().length > 0 &&
+          Array.from(value).every((character) => {
+            const code = character.charCodeAt(0);
+            return (
+              !(code < 0x20 && code !== 0x0a) &&
+              !(code >= 0x7f && code <= 0x9f) &&
+              !(code >= 0x200b && code <= 0x200f) &&
+              !(code >= 0x202a && code <= 0x202e) &&
+              !(code >= 0x2066 && code <= 0x2069) &&
+              code !== 0xfeff
+            );
+          }),
+      ),
+  })
+  .strict();
+
 export const createRenewalInteractionSchema = z
   .object({
     outcome: z.enum(['CONTACT_CONFIRMED', 'ATTEMPT_NO_RESPONSE', 'WHATSAPP_OPENED', 'NOTE']),
@@ -332,6 +365,9 @@ export const createRenewalInteractionSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.outcome === 'WHATSAPP_OPENED') {
+      context.addIssue({ code: 'custom', path: ['outcome'], message: 'WHATSAPP_USE_OPEN_ACTION' });
+    }
     if (value.outcome === 'NOTE') {
       if (value.channel !== 'OTHER' || value.note === null) {
         context.addIssue({
