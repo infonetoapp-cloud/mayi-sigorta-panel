@@ -50,4 +50,38 @@
       "migrations_dir": "db/migrations",
     },
   ],
+  "env": {
+    // Read-proven foundation only. No Worker deployment or remote migrations yet.
+    "foundation": {
+      "name": "mayisigorta-crm-foundation",
+      "account_id": "af9fc98cb8d5f5508d58057bc794d863",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "DOCUMENTS_ENABLED": "false",
+      },
+      "triggers": {
+        "crons": [],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mayisigorta-crm",
+          "database_id": "1dd3b04e-14b8-459c-86d0-5c3c3ed8127d",
+          "migrations_dir": "db/migrations",
+        },
+      ],
+      // R2 checkout/usage-billing approval and private EU readback are pending.
+      "r2_buckets": [],
+      "queues": {
+        "producers": [
+          {
+            "binding": "DOCUMENT_JOB_QUEUE",
+            "queue": "mayisigorta-document-jobs",
+          },
+        ],
+        "consumers": [],
+      },
+    },
+  },
 }
