@@ -1,24 +1,45 @@
-# M4 — Cloudflare salt-okunur keşif ve credential doğrulaması
+# M4 — Cloudflare keşfi ve yönetici MFA güvenlik temeli
 
-Gözlem: **4 Ekim 2026 21:49 UTC** (5 Ekim Türkiye). Başlangıç: temiz `main`, `HEAD == origin/main == 94504b470df2ce2eee9c92b5a264d88dc5ecc36c`; fetch ve diff-check başarılı.
+İlk salt-okunur gözlem: **4 Ekim 2026 21:49 UTC** (5 Ekim Türkiye). İlk discovery başlangıcı: temiz `main`, `HEAD == origin/main == 94504b470df2ce2eee9c92b5a264d88dc5ecc36c`; fetch ve diff-check başarılı. Aşağıdaki MFA kaydı daha sonraki, ayrıca yetkilendirilmiş güvenlik değişikliğidir; resource envanterinin gözlem tarihi değişmez.
 
 **M4 COMPLETE=false; DOCUMENTS_ENABLED=false; M5 başlamadı.** Bu kayıt provisioning, deployment, gerçek veri kullanımı veya belge aktivasyonu onayı değildir.
 
-## Credential ve hesap
+## Güncel yönetici MFA güvenlik temeli — 5 Ekim 2026
+
+**CLOUDFLARE ADMINISTRATOR MFA BASELINE = VERIFIED.** Başlangıç: temiz `main`, fetch sonrası `HEAD == origin/main == f9ac79ba02563ea71b1957103a8f4952d04c23a8`. Son bağımsız API readback: **2026-10-05T07:56:23Z**.
+
+| Kontrol | Sonuç | Kanıt / sınır |
+| --- | --- | --- |
+| Yönetici MFA enabled | YES | `GET /user`: HTTP 200, `success=true`, `two_factor_authentication_enabled=true` |
+| Faktör türü | TOTP | Kullanıcı Mobile App Authentication kurulumunu tamamladığını teyit etti; `/user` faktör türünü kanıtlamaz |
+| Kurtarma kodları sunuldu / güvenle saklandı | YES / YES — USER CONFIRMED | Kullanıcı kişisel olarak sakladığını teyit etti; kodlar ajan tarafından okunmadı, loglanmadı veya repo'ya yazılmadı |
+| Hesap genelinde MFA zorunluluğu | YES | `GET /accounts/{account_id}`: HTTP 200, `success=true`, `settings.enforce_twofactor=true` |
+| Kullanıcı MFA zorunluluğu metaverisi | YES | Bağımsız `GET /user`: `two_factor_authentication_locked=true` |
+| Hedef hesap ve üyeler | PASS | `GET /zones?name=mayisigorta.com` aynı account ID'yi doğruladı. `GET /accounts/{account_id}/members`: HTTP 200/success, pagination tamam, toplam 1 accepted üye; mevcut Super Administrator ve üye MFA=true |
+| Yeni oturumda giriş | PASS — USER CONFIRMED | Ayrı Chrome gizli penceresinde parola + TOTP ile başarılı giriş kullanıcı tarafından teyit edildi; otomasyonla gözlemlenmiş runtime giriş kanıtı diye sunulmaz. Mevcut oturumlar kapatılmadı; recovery-code giriş testi istenmedi veya yapılmış sayılmadı |
+| Değişiklik sonrası readback | PASS | Yönetici MFA ve hesap zorunluluğu ayrı resmî GET sonuçlarıyla doğrulandı; yalnız UI düğmesi veya kullanıcı beyanı başarı sayılmadı |
+
+Güvenli sıra: enrollment öncesi user/account MFA=false ve tek accepted Super Administrator okundu; kullanıcı TOTP kurdu ve kurtarma kodlarını güvenle sakladığını bildirdi; ardından user ve tek üye MFA=true API'den doğrulandı. Hesap zorunluluğu ancak bundan sonra ele alındı. Belgelenmiş account PUT denemesi **HTTP 400 / code 1001 / Account name contains invalid character** ile reddedildi; mevcut hesap adı düzeltilmedi veya değiştirilmedi. Bu ret sonrası account ve membership readback'i değişiklik olmadığını doğruladı. Kullanıcı daha sonra **Members > Settings > Require two-factor authentication (2FA) for all members** kontrolünü etkinleştirdiğini bildirdi. İlk false readback'ler başarı sayılmadı; son true account readback'i ve user locked=true sonucu UI/API uyuşmazlığının artık bulunmadığını doğruladı. Üyelik veya rol değiştirme isteği gönderilmedi.
+
+Bu kabul yalnız **Cloudflare yönetici MFA güvenlik temeli** içindir. Normal Access uygulaması/8 saat, secure uygulama/ayrı audience/15 dakika, OTP + bağımsız TOTP, her-login MFA, bypass/service-token yokluğu, policy drift ve gerçek staging uygulama girişleri hâlâ dış kapıdır. Yönetici TOTP girişi bunları kanıtlamaz.
+
+Cloudflare'daki yetkili değişiklikler yalnız mevcut kullanıcı MFA enrollment ve hedef hesabın MFA zorunluluğudur. Uygulama kaynağı, ücretli ürün, Access, DNS/route/domain, secret, upload, backup veya restore değişikliği yapılmadı. Global API Key açığa çıkarılmadı, silinmedi veya rotate edilmedi; yeni token oluşturulmadı. TOTP seed/QR secret, recovery codes, cookies, session tokens veya credential/header değerleri kanıtta yoktur.
+
+## İlk salt-okunur keşif — credential ve hesap
 
 - Credential bulundu: **YES**. Tür: **Global API Key + email**, scoped API token değil. `/user` ve `/accounts` GET: HTTP 200, `success=true`; authentication valid: **YES**. Credential/token exposed: **NO**.
 - Credential yalnız süreç belleğinde okunup resmî `https://api.cloudflare.com/client/v4/` endpoint'lerine HTTPS header üzerinden kullanıldı. Komut argümanına, repo dosyasına veya loga yazılmadı; redirect takip edilmedi. Credential dosya yolu, email ve secret değerleri bu kayıtta tutulmaz.
 - Hesap listesi toplam **1**, tek sayfa ve tamamı okunmuş. `mayisigorta.com` aktif zone'unun account ID'si bu hesapla birebir eşleşiyor. Bu, projeyle ilişkiyi kanıtlar; şirketin hukukî hesap sahipliği teyidi değildir. Hesap/resource ID ve kişisel hesap adı git kanıtı için gerekli olmadığından burada tutulmaz.
-- `/user`: `two_factor_authentication_enabled=false`, `two_factor_authentication_locked=false`. Hesap ayrıntısı: `enforce_twofactor=false`. Bunlar yönetici MFA metaverisidir; CRM Access MFA ile aynı kontrol değildir.
+- **Tarihsel ilk discovery sonucu:** `/user`: `two_factor_authentication_enabled=false`, `two_factor_authentication_locked=false`; hesap `enforce_twofactor=false`. Bu false değerleri güncel durum değildir; yukarıdaki MFA kabulünde üçü de true olarak okunmuştur. Yönetici MFA metaverisi CRM Access MFA ile aynı kontrol değildir.
 - Global API Key için scoped token permission belgesi uygulanamaz. Global key'nin geniş kapsamı resmî legacy-key dokümanında açıklanır; bu keşif hiçbir write/delete yetkisini denemedi. Yerel no-delete interface gerçek IAM kanıtı değildir.
 
-## Gerçek GET sonuçları
+## İlk discovery — gerçek GET sonuçları
 
 `{account_id}` ve `{zone_id}` doğrulanmış hedeflerin yer tutucularıdır. Boş başarılı listeler ile ürün/plan engelleri ayrı sınıflandırılır.
 
 | Alan | GET yolu / kapsam | Gerçek sonuç | Kanıt sınırı |
 | --- | --- | --- | --- |
-| Kimlik | `/user` | 200 / success | Credential geçerli; yönetici MFA kapalı |
+| Kimlik | `/user` | 200 / success | İlk discovery'de yönetici MFA kapalıydı; güncel üç true değeri yukarıdaki MFA kabulünde doğrulandı |
 | Hesap | `/accounts`, `/accounts/{account_id}` | 200 / success; 1 görünür hesap | Ayrı backup hesabı görünmüyor; başka credential altındaki hesapların yokluğu kanıtlanmaz |
 | Zone | `/zones?name=mayisigorta.com` | 200 / success; 1 aktif eşleşme | Hesap ilişkisi kesin; plan `Free Website` |
 | Workers | `/accounts/{account_id}/workers/scripts` | 200 / success; boş liste | Yüklenmiş Worker script yok; deployment metaverisi okunacak kaynak yok |
@@ -53,7 +74,7 @@ Otorite: nihai plan 5, 10, 14.1, 15 ve Faz 4; dış kabul sınırı `M4_LOCAL_CL
 | M4 gereksinimi | Durum | Gerçek kanıt / kalan boşluk | Gelecekte mutation gerekir mi? |
 | --- | --- | --- | --- |
 | Ana hesap/project ilişkisi | EXISTS AND READ-PROVEN | Aktif mayisigorta.com zone aynı görünür hesaba bağlı | Hayır; hukukî sahiplik ayrı teyit |
-| Yönetici MFA güvenlik temeli | MISSING | Kullanıcı MFA ve hesap MFA zorunluluğu false | Evet; kullanıcı kurulumu ve hesap zorunluluğu, ayrıca onayla |
+| Yönetici MFA güvenlik temeli | VERIFIED / EXISTS AND READ-PROVEN | 5 Ekim 07:56:23Z: user MFA=true, user locked=true, account enforce_twofactor=true; tek accepted Super Administrator MFA=true; TOTP/recovery/yeni oturum kullanıcı teyitli | Hayır; bu kapı geçti, CRM Access/MFA kapısı ayrı ve açık |
 | CRM Worker | MISSING | Her iki Worker listesi boş | Evet; güvenli staging önkoşulları sonrası |
 | Remote D1 | MISSING | Liste total_count=0 | Evet; ortam ayrımı ve production EU jurisdiction ile |
 | Private primary R2 | NOT YET VERIFIED | R2 etkinleştirme engeli; başarılı bucket listesi alınamadı | En az ürün aktivasyonu; bucket oluşturma/config gereği sonra okunarak kesinleştirilir |
@@ -74,14 +95,16 @@ Otorite: nihai plan 5, 10, 14.1, 15 ve Faz 4; dış kabul sınırı `M4_LOCAL_CL
 
 ## Sonraki tek güvenli dış adım
 
-**Doğrulanmış ana Cloudflare hesabında yönetici MFA güvenlik temelini kurmak:** mevcut yönetici için MFA enrollment ve hesap üyeliğinde MFA zorunluluğu; ardından kullanıcı/account metadata readback'iyle doğrulamak. API şu anda ikisini de kapalı gösteriyor. Bu güvenlik önkoşulu, ücretli Workers/Container aktivasyonu, R2/backup ve korumalı Access staging provisioning'den önce gelir. Bu öneri mutation yetkisi değildir ve bu oturumda uygulanmadı; daha geniş credential talep edilmedi.
+**Ayrıca yetkilendirilecek credential daraltma görevi:** provisioning/deploy öncesinde operasyonel Global API Key kullanımının gereken hesap/kaynaklarla sınırlı scoped API token'lara geçirilmesi ve yetki sınırlarının doğrulanması. Bu oturum token oluşturmadı, mevcut Global API Key'yi silmedi veya rotate etmedi. Yönetici MFA temeli artık VERIFIED'dır; sonraki güvenlik görevi de kaynak oluşturma, ücretli aktivasyon veya deployment yetkisi değildir.
 
-## Kapsam ve doğrulama
+## İlk discovery kapsamı ve doğrulama
 
 - Cloudflare'a yalnız belgelenmiş **GET** istekleri gönderildi; Wrangler kullanılmadı. Remote write, token/IAM oluşturma, plan satın alma, deploy, DNS/route/policy/secret değişimi, Queue publish/pull/ack/purge ve restore yok.
 - D1 satırı/SQL, R2 nesne adı/içeriği veya müşteri belgesi okunmadı; ham API yanıtları repo'ya kaydedilmedi. Bucket-public-domain/lock ve Access policy çağrıları okunabilir hedef olmadan körlemesine denenmedi.
 - Kaynak/test/schema/migration/Wrangler değişmedi; bu keşif için uygulama full suite'i yeniden çalıştırılmadı. Güvenli evidence/status dokümantasyonu için diff/whitespace ve secret-value/pattern kontrolleri checkpoint kapısıdır.
 - Hermes skill/reference/asset authoring veya self-improvement yapılmadı. M5 başlamadı; belge modülü kapalı kaldı.
+
+MFA follow-up yalnız bu evidence/status dokümantasyonunu günceller; kaynak/test/schema/migration/Wrangler değişmez. Uygulama full suite'i değişmeyen kod için yeniden çalıştırılmadı. Safe diff ve iki tam evidence/status dosyasında known-credential/pattern secret taraması **PASS**, secret değer eşleşmesi **0**; `git diff --check` **PASS**, `npm run format:check` **PASS**. Planning pack `.prettierignore` kapsamındadır; format komutu Markdown biçim kabulü diye sunulmaz. Yayın sınırı yalnız bu iki dokümanın explicit-path staging/normal commit/push ve exact remote SHA/clean-worktree readback'idir. Başlangıçtaki bir geçici GitHub DNS/fetch hatası sonraki başarılı fetch ile giderildi; başarısız fetch remote doğrulaması sayılmadı.
 
 ## Resmî API kaynakları
 
@@ -94,3 +117,4 @@ Güncel endpoint ve GET davranışları `developers.cloudflare.com` API referenc
 - [Containers list](https://developers.cloudflare.com/api/resources/containers/subresources/applications/methods/list/index.md), [Containers pricing/instance types](https://developers.cloudflare.com/containers/platform/pricing/).
 - [Access apps](https://developers.cloudflare.com/api/resources/zero_trust/subresources/access/subresources/applications/methods/list/), [Access organization](https://developers.cloudflare.com/api/resources/zero_trust/subresources/organizations/).
 - [Worker domains](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/list/), [Worker routes](https://developers.cloudflare.com/api/resources/workers/subresources/routes/methods/list/), [DNS metadata](https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/).
+- MFA follow-up: [güncel kullanıcı 2FA/enrollment/WebAuthn/recovery ve account enforcement rehberi](https://developers.cloudflare.com/fundamentals/user-profiles/2fa/), [account members yönetimi](https://developers.cloudflare.com/fundamentals/manage-members/manage/), [üyelerin API readback'i](https://developers.cloudflare.com/api/resources/accounts/subresources/members/methods/list/), [account ayrıntıları](https://developers.cloudflare.com/api/resources/accounts/methods/get/), [account update ve enforce_twofactor şeması](https://developers.cloudflare.com/api/resources/accounts/methods/update/).
