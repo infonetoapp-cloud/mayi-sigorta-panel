@@ -142,17 +142,20 @@ export async function reclaimExpiredDocumentReconcileJob(
   return reclaimExpiredDocumentJob(db, job, 'DOCUMENT_RECONCILE');
 }
 
-async function reclaimExpiredDocumentJobs(db: D1Database): Promise<void> {
+async function reclaimExpiredDocumentJobs(
+  db: D1Database,
+  supportedJobTypes: readonly DocumentQueueJobType[],
+): Promise<void> {
   const expired = await db
     .prepare(
       `SELECT id,agency_id,job_type,attempt_count,max_attempts,lease_token_hash
        FROM background_jobs
-       WHERE job_type IN ('DOCUMENT_SCAN','DOCUMENT_BACKUP','DOCUMENT_RECONCILE') AND status='RUNNING'
+       WHERE job_type IN (${supportedJobTypes.map(() => '?').join(',')}) AND status='RUNNING'
          AND lease_token_hash IS NOT NULL
          AND julianday(lease_expires_at)<=julianday('now')
        ORDER BY lease_expires_at,id LIMIT ?`,
     )
-    .bind(DISPATCH_BATCH_LIMIT)
+    .bind(...supportedJobTypes, DISPATCH_BATCH_LIMIT)
     .all<{
       id: string;
       agency_id: string;
@@ -228,10 +231,10 @@ function toQueueMessage(row: PendingDocumentJobRow): DocumentJobQueueMessage | n
 export async function dispatchDueDocumentJobs(
   db: D1Database,
   queue: Pick<Queue<DocumentJobQueueMessage>, 'send'>,
-  supportedJobTypes: readonly DocumentQueueJobType[] = ['DOCUMENT_SCAN'],
+  supportedJobTypes: readonly DocumentQueueJobType[] = ['DOCUMENT_BACKUP', 'DOCUMENT_RECONCILE'],
 ): Promise<DocumentJobDispatchResult> {
-  await reclaimExpiredDocumentJobs(db);
   if (supportedJobTypes.length === 0) return { sent: 0, failed: 0 };
+  await reclaimExpiredDocumentJobs(db, supportedJobTypes);
   const jobTypePlaceholders = supportedJobTypes.map(() => '?').join(',');
   const pendingJobs = await db
     .prepare(

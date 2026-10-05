@@ -34,7 +34,7 @@ interface BackupJobRow {
   object_key: string;
   size_bytes: number;
   document_id: string;
-  scan_evidence_id: string | null;
+  validation_evidence_id: string | null;
   lease_token_hash: string | null;
   lease_expired: number;
 }
@@ -45,9 +45,9 @@ interface Claim {
   readonly attempt: number;
 }
 const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
-// The accepted immutable insertion guard validates the complete inspection result shape.
-// Legacy CLEAN rows with no inspection are excluded. Latest view rejects superseded jobs/runs
-// and stale signatures. Recheck before reads/writes and in final CAS across every await.
+// Immutable structural acceptance is separate from historical antivirus evidence.
+// The view accepts new validated bytes without asserting a malware verdict.
+// Recheck before reads/writes and in final CAS across every await.
 // A lease may also be claimed to terminate an obsolete job without reading/copying bytes;
 // leaving it active would block creation of the next backup generation after a rescan.
 const ELIGIBLE = `version.sha256=job.input_sha256 AND version.status='BACKUP_PENDING'
@@ -57,11 +57,9 @@ const ELIGIBLE = `version.sha256=job.input_sha256 AND version.status='BACKUP_PEN
   AND job.generation=(SELECT max(j.generation) FROM background_jobs j
     WHERE j.agency_id=job.agency_id AND j.job_type='DOCUMENT_BACKUP'
       AND j.document_version_id=job.document_version_id AND j.input_sha256=job.input_sha256)
-  AND EXISTS (SELECT 1 FROM document_latest_scan_evidence latest
-    JOIN document_scan_evidence inspection ON inspection.agency_id=latest.agency_id AND inspection.id=latest.id
-    WHERE latest.agency_id=version.agency_id AND latest.document_version_id=version.id
-      AND latest.sha256=version.sha256 AND latest.outcome='CLEAN'
-      AND latest.run_status='SUCCEEDED' AND latest.job_status='COMPLETED'
+  AND EXISTS (SELECT 1 FROM document_accepted_validation inspection
+    WHERE inspection.agency_id=version.agency_id AND inspection.document_version_id=version.id
+      AND inspection.sha256=version.sha256
       AND inspection.id=? AND inspection.content_inspection_version=?
       AND inspection.content_inspection_result IS NOT NULL)`;
 const JOINS = `JOIN document_versions version ON version.agency_id=job.agency_id AND version.id=job.document_version_id
@@ -120,9 +118,9 @@ async function loadJob(db: D1Database, message: DocumentJobQueueMessage) {
     .prepare(
       `SELECT job.*,version.object_key,version.size_bytes,version.document_id,
     CASE WHEN julianday(job.lease_expires_at)<=julianday('now') THEN 1 ELSE 0 END AS lease_expired,
-    (SELECT latest.id FROM document_latest_scan_evidence latest
+    (SELECT latest.id FROM document_accepted_validation latest
      WHERE latest.agency_id=job.agency_id AND latest.document_version_id=job.document_version_id
-       AND latest.sha256=job.input_sha256 AND latest.outcome='CLEAN' AND latest.run_status='SUCCEEDED') AS scan_evidence_id
+       AND latest.sha256=job.input_sha256) AS validation_evidence_id
     FROM background_jobs job ${JOINS} WHERE job.id=? AND job.job_type='DOCUMENT_BACKUP'`,
     )
     .bind(message.jobId)
@@ -220,7 +218,7 @@ async function finalize(
           claim.attempt,
           claim.token,
           ...live.values,
-          row.scan_evidence_id,
+          row.validation_evidence_id,
           REQUIRED_CONTENT_INSPECTION_VERSION,
         ),
       assertion(db, 'DOCUMENT_BACKUP_FINALIZE_RUN_RACE'),
@@ -447,7 +445,7 @@ export async function processDocumentBackupMessage(
         backupAbortable(
           db
             .prepare(`SELECT 1 FROM background_jobs job ${JOINS} WHERE ${live.sql} AND ${ELIGIBLE}`)
-            .bind(...live.values, row.scan_evidence_id, REQUIRED_CONTENT_INSPECTION_VERSION)
+            .bind(...live.values, row.validation_evidence_id, REQUIRED_CONTENT_INSPECTION_VERSION)
             .first(),
           signal,
         );

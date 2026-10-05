@@ -286,6 +286,174 @@ async function failed(input: LocalRestoreInput, code: string) {
 }
 
 describe('isolated local D1 + private backup object restore proof', () => {
+  it.each(['historical-scan', 'historical-structural', 'unscanned-structural'] as const)(
+    'rejects raw inspection JSON that D1 rejects without erasing syntax (%s)',
+    async (mode) => {
+      const current = mode === 'unscanned-structural' ? await createRestoreFixture(true) : fixture;
+      try {
+        const structural = mode !== 'historical-scan';
+        const table = structural ? 'document_versions' : 'document_scan_evidence';
+        const field = structural ? 'validation_result' : 'content_inspection_result';
+        const canonical = ' { "pageCount" : 1, "valid" : true, "format" : "PDF" } ';
+        const input = await changeColumns(
+          table,
+          structural
+            ? {
+                validation_version: sqlText('m4-content-inspection-v1'),
+                [field]: sqlText(canonical),
+              }
+            : { [field]: sqlText(canonical) },
+          {},
+          current.input(),
+        );
+        expect((await runLocalRestoreProof(input)).verdict).toBe('PASS');
+        for (const raw of [
+          '{"valid":false,"valid":true,"format":"PDF","pageCount":1}',
+          '{"valid":true,"format":"JPEG","format":"PDF","pageCount":1}',
+          '{"valid":false,"val\\u0069d":true,"format":"PDF","pageCount":1}',
+          '{"valid":true,"format":"PDF","pageCount":1.0}',
+        ]) {
+          const corrupted = await changeColumns(table, { [field]: sqlText(raw) }, {}, input);
+          const report = await failed(corrupted, 'DB_DOMAIN_FAILED');
+          expect(report.checks.rows).toBe(true);
+          expect(report.checks.domain).toBe(false);
+          expect(report.checks.objects).toBe(false);
+        }
+      } finally {
+        if (current !== fixture) await current.dispose();
+      }
+    },
+    300000,
+  );
+  it.each(['valid-history', 'scan-after-backup', 'latest-invalid-scan'] as const)(
+    'preserves historical scan causality despite structural metadata (%s)',
+    async (mode) => {
+      let input = fixture.input();
+      if (mode === 'scan-after-backup') {
+        const backupRun = await fixture.db
+          .prepare(
+            `SELECT r.started_at FROM background_job_runs r JOIN background_jobs j
+            ON j.agency_id=r.agency_id AND j.id=r.job_id WHERE j.job_type='DOCUMENT_BACKUP'`,
+          )
+          .first<{ started_at: string }>();
+        const shifted = sqlText(new Date(Date.parse(backupRun!.started_at) + 1).toISOString());
+        const scanJob = await fixture.db
+          .prepare("SELECT id FROM background_jobs WHERE job_type='DOCUMENT_SCAN'")
+          .first<{ id: string }>();
+        input = await changeColumns(
+          'background_job_runs',
+          { started_at: shifted, completed_at: shifted },
+          { job_id: sqlText(scanJob!.id) },
+          input,
+        );
+        input = await changeColumns(
+          'background_jobs',
+          { completed_at: shifted },
+          { id: sqlText(scanJob!.id) },
+          input,
+        );
+        input = await changeColumns(
+          'document_scan_evidence',
+          { scanned_at: shifted, signature_updated_at: shifted },
+          {},
+          input,
+        );
+        await failed(input, 'DB_DOMAIN_FAILED');
+      } else if (mode === 'latest-invalid-scan') {
+        const copy = await fixture.db
+          .prepare('SELECT created_at FROM document_backup_copies')
+          .first<{ created_at: string }>();
+        const later = new Date(Date.parse(copy!.created_at) + 1).toISOString();
+        const job = await fixture.db
+          .prepare("SELECT * FROM background_jobs WHERE job_type='DOCUMENT_SCAN'")
+          .first<Record<string, string | number | null>>();
+        const run = await fixture.db
+          .prepare('SELECT * FROM background_job_runs WHERE job_id=?')
+          .bind(job!.id)
+          .first<Record<string, string | number | null>>();
+        const evidence = await fixture.db
+          .prepare('SELECT * FROM document_scan_evidence WHERE job_run_id=?')
+          .bind(run!.id)
+          .first<Record<string, string | number | null>>();
+        input = insertSnapshot(
+          (await clonedRow('background_jobs', job!, {
+            id: 'restore-later-scan-job',
+            generation: 2,
+            created_at: later,
+            updated_at: later,
+            available_at: later,
+            completed_at: later,
+          })) +
+            (await clonedRow('background_job_runs', run!, {
+              id: 'restore-later-scan-run',
+              job_id: 'restore-later-scan-job',
+              status: 'PERMANENT_ERROR',
+              reason_code: 'CONTENT_INVALID',
+              started_at: later,
+              completed_at: later,
+            })) +
+            (await clonedRow('document_scan_evidence', evidence!, {
+              id: 'restore-later-scan-evidence',
+              job_run_id: 'restore-later-scan-run',
+              outcome: 'INVALID',
+              reason_code: 'CONTENT_INVALID',
+              scanned_at: later,
+              signature_updated_at: null,
+              signature_version: null,
+              scanner_engine_version: null,
+              content_inspection_version: null,
+              content_inspection_result: null,
+            })),
+          { background_jobs: 1, background_job_runs: 1, document_scan_evidence: 1 },
+          input,
+        );
+        await failed(input, 'DB_DOMAIN_FAILED');
+      }
+      input = await changeColumns(
+        'document_versions',
+        {
+          validation_version: sqlText('m4-content-inspection-v1'),
+          validation_result: sqlText(JSON.stringify({ valid: true, format: 'PDF', pageCount: 1 })),
+        },
+        {},
+        input,
+      );
+      if (mode !== 'valid-history') {
+        const report = await failed(input, 'DB_DOMAIN_FAILED');
+        expect(report.checks.rows).toBe(true);
+        expect(report.checks.domain).toBe(false);
+      } else {
+        const report = await runLocalRestoreProof(input);
+        expect(report.verdict, JSON.stringify(report)).toBe('PASS');
+        expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
+      }
+    },
+    180000,
+  );
+  it('restores structurally accepted unscanned documents without inventing historical CLEAN', async () => {
+    const current = await createRestoreFixture(true);
+    try {
+      expect(
+        await current.db
+          .prepare('SELECT count(*) AS count FROM document_scan_evidence')
+          .first('count'),
+      ).toBe(0);
+      const report = await runLocalRestoreProof(current.input());
+      expect(report.verdict, JSON.stringify(report)).toBe('PASS');
+      expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
+      expect(report.objectCount).toBe(1);
+      const corrupted = changeExport(
+        (sql) =>
+          changeInsert(sql, 'document_versions', (line) =>
+            line.replace('"pageCount":1', '"pageCount":0'),
+          ),
+        current.input(),
+      );
+      expect((await runLocalRestoreProof(corrupted)).code).toBe('DB_DOMAIN_FAILED');
+    } finally {
+      await current.dispose();
+    }
+  }, 180000);
   describe.each(['document_scan_evidence', 'document_backup_copies'] as const)(
     'completed job output identity (%s)',
     (table) => {
@@ -1130,7 +1298,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     [
       'schema version',
       (m: RestoreManifest) => {
-        m.schemaVersion = '0017' as '0018';
+        m.schemaVersion = '0017' as '0019';
       },
       'MANIFEST_INVALID',
     ],

@@ -104,9 +104,9 @@ SELECT json_object('foreignOwner',CASE WHEN EXISTS (
 'v',json((SELECT json_object('id',v.id,'documentId',v.document_id,'status',v.status,'sha256',v.sha256,'size',v.size_bytes,'key',v.object_key,'contentType',v.detected_content_type,
   'number',v.version_number,'latest',(SELECT max(n.version_number) FROM document_versions n WHERE n.agency_id=v.agency_id AND n.document_id=v.document_id),
   'documentStatus',d.status,'documentVersion',d.version,'current',d.current_version_id,
-  'scan',json((SELECT json_object('id',s.id,'sha256',s.sha256,'outcome',s.outcome,'runStatus',s.run_status,'jobStatus',s.job_status,'generation',s.generation,
-    'inspectionVersion',i.content_inspection_version,'inspectionResult',i.content_inspection_result)
-    FROM document_latest_scan_evidence s JOIN document_scan_evidence i ON i.agency_id=s.agency_id AND i.id=s.id
+  'validation',json((SELECT json_object('id',s.id,'sha256',s.sha256,'generation',s.generation,
+    'inspectionVersion',s.content_inspection_version,'inspectionResult',s.content_inspection_result)
+    FROM document_accepted_validation s
     WHERE s.agency_id=v.agency_id AND s.document_version_id=v.id AND s.sha256=v.sha256)),
   'scanJob',json((SELECT json_object('id',j.id,'generation',j.generation,'status',j.status,'attempt',j.attempt_count,'lease',j.lease_token_hash,'expires',j.lease_expires_at)
     FROM background_jobs j WHERE j.agency_id=v.agency_id AND j.document_version_id=v.id AND j.input_sha256=v.sha256 AND j.job_type='DOCUMENT_SCAN' ORDER BY j.generation DESC LIMIT 1)),
@@ -160,13 +160,10 @@ const snapshotSchema = z.object({
       documentVersion: z.number().int().positive(),
       current: id.nullable(),
       contentType: z.string(),
-      scan: z
+      validation: z
         .object({
           id,
           sha256: z.string(),
-          outcome: z.string(),
-          runStatus: z.string(),
-          jobStatus: z.string(),
           generation: z.number().int(),
           inspectionVersion: z.string().nullable(),
           inspectionResult: z.string().nullable(),
@@ -445,18 +442,14 @@ async function retryAttempt(
     throw error;
   }
 }
-function clean(v: NonNullable<Snapshot['v']>) {
-  const s = v.scan;
+function accepted(v: NonNullable<Snapshot['v']>) {
+  const s = v.validation;
   if (
     !s ||
-    s.outcome !== 'CLEAN' ||
     s.sha256 !== v.sha256 ||
-    s.runStatus !== 'SUCCEEDED' ||
-    s.jobStatus !== 'COMPLETED' ||
     s.inspectionVersion !== REQUIRED_CONTENT_INSPECTION_VERSION ||
     !s.inspectionResult ||
-    s.inspectionResult.length > 256 ||
-    s.generation !== v.scanJob?.generation
+    s.inspectionResult.length > 256
   )
     return false;
   const side = z.number().int().positive();
@@ -581,7 +574,7 @@ async function inspect(
     return investigate('RECONCILE_PRIMARY_CHECKSUM_MISMATCH');
   // Upload is a user-authorized receipt mutation; bytes alone cannot authorize replay.
   if (v.status === 'PENDING_UPLOAD') return investigate('RECONCILE_UPLOAD_INTERRUPTED');
-  if (!clean(v)) return investigate('RECONCILE_CLEAN_EVIDENCE_INVALID');
+  if (!accepted(v)) return investigate('RECONCILE_VALIDATION_EVIDENCE_INVALID');
   if (v.status !== 'AVAILABLE' && v.status !== 'BACKUP_PENDING')
     return investigate('RECONCILE_VERSION_STATE_CONFLICT');
   const job = v.backupJob;

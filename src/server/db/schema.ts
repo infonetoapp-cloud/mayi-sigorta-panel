@@ -2008,6 +2008,9 @@ export const documentVersions = sqliteTable(
     fileName: text('file_name').notNull(),
     declaredContentType: text('declared_content_type'),
     detectedContentType: text('detected_content_type').notNull(),
+    // Structural acceptance is not an antivirus verdict. Legacy scan evidence stays historical.
+    validationVersion: text('validation_version'),
+    validationResult: text('validation_result'),
     status: text('status', {
       enum: [
         'PENDING_UPLOAD',

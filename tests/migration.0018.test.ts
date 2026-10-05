@@ -17,6 +17,7 @@ const migration = '0018_document_backup_terminal_failure.sql';
 const root = process.cwd();
 const files = readdirSync('db/migrations')
   .filter((name) => /^\d{4}_.+\.sql$/u.test(name))
+  .filter((name) => Number(name.slice(0, 4)) <= 18)
   .sort();
 const seed = `
 INSERT INTO agencies(id,status) VALUES('backup-seed-agency','PROVISIONING');

@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
-import { createApp, createWorker, type Env } from '../src/server';
+import { createApp } from '../src/server';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import { createDocumentUpload, type DocumentUploadResult } from '../src/server/documents/service';
 import {
@@ -22,17 +22,24 @@ import {
   consumeDocumentQueueBatch,
   DOCUMENT_SCAN_DEAD_LETTER_QUEUE,
   processDocumentScanMessage,
+  unavailableDocumentScanner,
   type DocumentScannerAdapter,
   type DocumentScannerContentInspectionEvidence,
   type DocumentScannerResult,
 } from '../src/server/documents/scan';
 import { MAX_DOCUMENT_UPLOAD_BYTES } from '../src/server/documents/validation';
+import {
+  prepareQuarantinedDocumentObject,
+  createQuarantineObjectKey,
+  writePreparedQuarantinedDocumentObject,
+} from '../src/server/documents/quarantine';
 import { createSyntheticJpeg, createSyntheticPdf, createSyntheticPng } from './fixtures/documents';
+import { unsupportedXlsxBase64, unsupportedMacroOoxmlBase64 } from './fixtures/unsupported-office';
 
 interface LocalDocumentBindings {
   readonly DB: D1Database;
   readonly DOCS_QUARANTINE: R2Bucket;
-  readonly DOCUMENT_SCAN_QUEUE: Queue<DocumentJobQueueMessage>;
+  readonly DOCUMENT_JOB_QUEUE: Queue<DocumentJobQueueMessage>;
 }
 
 const root = process.cwd();
@@ -286,31 +293,58 @@ async function createQueuedCustomerDocument(
   fileName = `${idempotencyKey}.pdf`,
   declaredContentType = 'application/pdf',
 ) {
-  const membership = await db
-    .prepare('SELECT permission_version FROM agency_memberships WHERE id=?')
-    .bind(membershipId)
-    .first<{ permission_version: number }>();
-  if (!membership) throw new Error('Owner membership fixture missing');
-  const context: AuthenticatedUserContext = {
-    ...ownerContext,
-    memberships: [
-      { ...ownerContext.memberships[0]!, permissionVersion: membership.permission_version },
-    ],
-  };
-  const upload = await createDocumentUpload(
-    db,
-    quarantine,
-    context,
-    {
-      ownerType: 'CUSTOMER',
-      ownerId: customerId,
-      classification: 'GENERAL',
-      fileName,
+  // Historical scanner contract fixture, NOT the active production upload path.
+  const documentId = crypto.randomUUID(),
+    versionId = crypto.randomUUID(),
+    jobId = crypto.randomUUID();
+  const prepared = await prepareQuarantinedDocumentObject(file, { fileName, declaredContentType });
+  const key = createQuarantineObjectKey();
+  await db
+    .prepare(
+      `INSERT INTO documents(id,agency_id,owner_type,customer_id,classification,created_by_user_id,created_by_membership_id) VALUES(?,?,'CUSTOMER',?,'GENERAL',?,?)`,
+    )
+    .bind(documentId, agencyId, customerId, userId, membershipId)
+    .run();
+  await db
+    .prepare(
+      `INSERT INTO document_versions(id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,declared_content_type,detected_content_type,created_by_user_id,created_by_membership_id) VALUES(?,?,?,1,?,?,?,?,?,?,?,?)`,
+    )
+    .bind(
+      versionId,
+      agencyId,
+      documentId,
+      key,
+      prepared.sha256,
+      prepared.sizeBytes,
+      prepared.fileName,
       declaredContentType,
-      file,
+      prepared.contentType,
+      userId,
+      membershipId,
+    )
+    .run();
+  await db
+    .prepare(
+      `INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256) VALUES(?,?,'DOCUMENT_SCAN',?,?)`,
+    )
+    .bind(jobId, agencyId, versionId, prepared.sha256)
+    .run();
+  await db
+    .prepare(`UPDATE document_versions SET status='QUARANTINED' WHERE id=?`)
+    .bind(versionId)
+    .run();
+  await writePreparedQuarantinedDocumentObject(quarantine, key, prepared);
+  const upload = {
+    status: 202,
+    body: {
+      documentId,
+      versionId,
+      state: 'QUARANTINED',
+      classification: 'GENERAL',
+      versionNumber: 1,
     },
-    { correlationId: `${idempotencyKey}-correlation`, idempotencyKey },
-  );
+    replayed: false,
+  };
   const row = await db
     .prepare(
       `SELECT id,job_type,generation,document_version_id,input_sha256
@@ -342,11 +376,14 @@ async function postUpload(
   idempotencyKey: string,
   csrf = true,
   documentsEnabled?: boolean,
+  authenticated = true,
 ) {
-  const app = createApp({
-    createVerifier: (config) => ({ config, verify: async () => principal }),
-    createResolver: () => ({ resolve: async () => ownerContext }),
-  });
+  const app = authenticated
+    ? createApp({
+        createVerifier: (config) => ({ config, verify: async () => principal }),
+        createResolver: () => ({ resolve: async () => ownerContext }),
+      })
+    : createApp({ createResolver: () => ({ resolve: async () => ownerContext }) });
   const csrfToken = await generateIdentityBoundCsrfToken(
     { subject: principal.subject },
     csrfSecret,
@@ -357,6 +394,7 @@ async function postUpload(
     'Idempotency-Key': idempotencyKey,
   };
   if (csrf) headers['X-CSRF-Token'] = csrfToken;
+  if (!authenticated) delete headers['Cf-Access-Jwt-Assertion'];
   const env = {
     DB: db,
     DOCS_QUARANTINE: quarantine,
@@ -385,7 +423,7 @@ beforeAll(async () => {
   });
   db = platform.env.DB;
   quarantine = platform.env.DOCS_QUARANTINE;
-  localQueue = platform.env.DOCUMENT_SCAN_QUEUE;
+  localQueue = platform.env.DOCUMENT_JOB_QUEUE;
   disposePlatform = platform.dispose;
 
   for (const migrationName of migrationFiles) {
@@ -654,7 +692,122 @@ afterAll(async () => {
 });
 
 describe('document upload transaction', () => {
-  it('stores only quarantined content and atomically records its durable scan job and audit', async () => {
+  it('denies anonymous/public upload before writing any metadata', async () => {
+    const before = await db.prepare('SELECT count(*) AS count FROM documents').first('count');
+    const response = await postUpload(createUploadForm(), 'anonymous-upload', true, true, false);
+    expect(response.status).toBe(401);
+    expect(await db.prepare('SELECT count(*) AS count FROM documents').first('count')).toBe(before);
+  });
+  it.each([
+    ['PDF', 'valid.pdf', 'application/pdf', createSyntheticPdf()],
+    ['JPEG', 'valid.jpg', 'image/jpeg', createSyntheticJpeg(2, 2)],
+    ['PNG', 'valid.png', 'image/png', createSyntheticPng(2, 2)],
+  ] as const)(
+    'accepts structurally valid %s without creating any scanner job or verdict',
+    async (_format, fileName, declaredContentType, bytes) => {
+      const key = crypto.randomUUID();
+      const result = await createDocumentUpload(
+        db,
+        quarantine,
+        ownerContext,
+        {
+          ownerType: 'CUSTOMER',
+          ownerId: customerId,
+          classification: 'GENERAL',
+          fileName,
+          declaredContentType,
+          file: new Blob([bytes], { type: declaredContentType }),
+        },
+        { correlationId: key, idempotencyKey: key },
+      );
+      expect(result.body.state).toBe('BACKUP_PENDING');
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM background_jobs WHERE document_version_id=? AND job_type='DOCUMENT_SCAN'",
+          )
+          .bind(result.body.versionId)
+          .first('count'),
+      ).toBe(0);
+      expect(
+        await db
+          .prepare(
+            'SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?',
+          )
+          .bind(result.body.versionId)
+          .first('count'),
+      ).toBe(0);
+    },
+  );
+  it.each([
+    ['script', 'payload.js', 'application/pdf', createSyntheticPdf()],
+    ['executable', 'payload.exe', 'application/pdf', createSyntheticPdf()],
+    ['HTML', 'payload.html', 'text/html', new TextEncoder().encode('<script>alert(1)</script>')],
+    ['SVG', 'payload.svg', 'image/svg+xml', new TextEncoder().encode('<svg onload="alert(1)"/>')],
+    ['image/PDF mismatch', 'mismatch.pdf', 'application/pdf', createSyntheticPng(2, 2)],
+    [
+      'malformed PDF',
+      'malformed.pdf',
+      'application/pdf',
+      new TextEncoder().encode('%PDF-1.7\nnot-a-pdf\n%%EOF'),
+    ],
+    [
+      'unsupported real XLSX',
+      'workbook.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      Buffer.from(unsupportedXlsxBase64, 'base64'),
+    ],
+    [
+      'ZIP renamed XLSX',
+      'arbitrary.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      new Uint8Array([80, 75, 3, 4, 0, 0, 0, 0]),
+    ],
+    [
+      'macro OOXML renamed XLSX',
+      'macro.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      Buffer.from(unsupportedMacroOoxmlBase64, 'base64'),
+    ],
+    [
+      'macro-enabled Office',
+      'macro.xlsm',
+      'application/vnd.ms-excel.sheet.macroEnabled.12',
+      Buffer.from(unsupportedMacroOoxmlBase64, 'base64'),
+    ],
+    [
+      'binary Office',
+      'macro.xlsb',
+      'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
+      Buffer.from(unsupportedMacroOoxmlBase64, 'base64'),
+    ],
+  ] as const)(
+    'rejects %s before reserving metadata or writing R2',
+    async (_kind, fileName, declaredContentType, bytes) => {
+      const before = await db.prepare('SELECT count(*) AS count FROM documents').first('count');
+      const key = crypto.randomUUID();
+      await expect(
+        createDocumentUpload(
+          db,
+          quarantine,
+          ownerContext,
+          {
+            ownerType: 'CUSTOMER',
+            ownerId: customerId,
+            classification: 'GENERAL',
+            fileName,
+            declaredContentType,
+            file: new Blob([bytes], { type: declaredContentType }),
+          },
+          { correlationId: key, idempotencyKey: key },
+        ),
+      ).rejects.toMatchObject({ status: 415 });
+      expect(await db.prepare('SELECT count(*) AS count FROM documents').first('count')).toBe(
+        before,
+      );
+    },
+  );
+  it('accepts validated staff content without a scanner and atomically queues backup and audit', async () => {
     const result = await createDocumentUpload(
       db,
       quarantine,
@@ -676,7 +829,7 @@ describe('document upload transaction', () => {
         versionId: expect.any(String),
         classification: 'GENERAL',
         versionNumber: 1,
-        state: 'QUARANTINED',
+        state: 'BACKUP_PENDING',
       },
     });
     expect(JSON.stringify(result)).not.toContain('objectKey');
@@ -707,7 +860,7 @@ describe('document upload transaction', () => {
     expect(version).toMatchObject({
       id: result.body.versionId,
       document_id: result.body.documentId,
-      status: 'QUARANTINED',
+      status: 'BACKUP_PENDING',
       file_name: 'synthetic-policy.pdf',
       detected_content_type: 'application/pdf',
     });
@@ -725,7 +878,7 @@ describe('document upload transaction', () => {
       .bind(result.body.versionId)
       .first<Record<string, unknown>>();
     expect(job).toMatchObject({
-      job_type: 'DOCUMENT_SCAN',
+      job_type: 'DOCUMENT_BACKUP',
       document_version_id: result.body.versionId,
       input_sha256: version?.sha256,
       generation: 1,
@@ -756,6 +909,12 @@ describe('document upload transaction', () => {
       outcome: 'SUCCESS',
     });
     expect(String(audit?.metadata_json)).not.toContain('synthetic-policy.pdf');
+    expect(
+      await db
+        .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')
+        .bind(result.body.versionId)
+        .first('count'),
+    ).toBe(0);
   });
 
   it('resolves Policy and Renewal-backed Quote parents from the real local D1 graph', async () => {
@@ -968,9 +1127,9 @@ describe('document upload transaction', () => {
       createDocumentUpload(db, quarantine, memberAfterRevocation, policyInput, policyOptions),
     ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
 
-    expect(policyUpload.body.state).toBe('QUARANTINED');
-    expect(quoteUpload.body.state).toBe('QUARANTINED');
-    expect(customerUpload.body.state).toBe('QUARANTINED');
+    expect(policyUpload.body.state).toBe('BACKUP_PENDING');
+    expect(quoteUpload.body.state).toBe('BACKUP_PENDING');
+    expect(customerUpload.body.state).toBe('BACKUP_PENDING');
     const receipt = await db
       .prepare(
         `SELECT status,response_body FROM operation_receipts
@@ -1072,7 +1231,7 @@ describe('document upload transaction', () => {
       .prepare(
         `CREATE TRIGGER test_fail_document_scan_job
          BEFORE INSERT ON background_jobs
-         WHEN NEW.job_type='DOCUMENT_SCAN' AND EXISTS (
+         WHEN NEW.job_type='DOCUMENT_BACKUP' AND EXISTS (
            SELECT 1 FROM document_versions version
            WHERE version.id=NEW.document_version_id AND version.file_name='synthetic-retry.pdf'
          )
@@ -1118,7 +1277,7 @@ describe('document upload transaction', () => {
       body: {
         documentId: pending?.document_id,
         versionId: pending?.version_id,
-        state: 'QUARANTINED',
+        state: 'BACKUP_PENDING',
       },
       replayed: false,
     });
@@ -1150,7 +1309,11 @@ describe('document upload transaction', () => {
       data: DocumentUploadResult['body'];
       replayed: boolean;
     };
-    expect(body).toMatchObject({ success: true, replayed: false, data: { state: 'QUARANTINED' } });
+    expect(body).toMatchObject({
+      success: true,
+      replayed: false,
+      data: { state: 'BACKUP_PENDING' },
+    });
     expect(JSON.stringify(body)).not.toContain('objectKey');
     expect(JSON.stringify(body)).not.toContain('quarantine/');
   });
@@ -1296,7 +1459,7 @@ describe('document upload transaction', () => {
       .bind(accepted.body.documentId)
       .first<{ classification: string }>();
     expect(stored?.classification).toBe('HEALTH');
-    expect(accepted.body.state).toBe('QUARANTINED');
+    expect(accepted.body.state).toBe('BACKUP_PENDING');
   });
 
   it('rechecks assigned source Policy authority independently for a HEALTH Quote', async () => {
@@ -1399,7 +1562,7 @@ describe('document upload transaction', () => {
       input,
       options,
     );
-    expect(completed.body.state).toBe('QUARANTINED');
+    expect(completed.body.state).toBe('BACKUP_PENDING');
 
     const databaseWithPolicyReassignment = mutateDatabaseAfterStoredResultRead(db, async () => {
       await db
@@ -1598,7 +1761,7 @@ describe('document upload transaction', () => {
     expect(upload.body.state).toBe('QUARANTINED');
   });
 
-  it('uses a fail-closed unavailable scanner on enabled Worker Queue deliveries', async () => {
+  it('preserves historical unavailable-scanner retry semantics outside the active Worker', async () => {
     const { message } = await createQueuedCustomerDocument('scan-worker-no-adapter');
     let acknowledged = 0;
     let retried = 0;
@@ -1614,16 +1777,15 @@ describe('document upload transaction', () => {
       },
     };
 
-    await createWorker().queue(
+    await consumeDocumentQueueBatch(
       {
         queue: 'mayisigorta-document-scan',
         messages: [queueMessage],
       } as unknown as MessageBatch<DocumentJobQueueMessage>,
-      {
-        DB: db,
-        DOCS_QUARANTINE: quarantine,
-        DOCUMENTS_ENABLED: 'true',
-      } as Env,
+      db,
+      quarantine,
+      true,
+      unavailableDocumentScanner,
     );
 
     expect(acknowledged).toBe(1);
@@ -2018,7 +2180,7 @@ describe('document upload transaction', () => {
       .bind(message.jobId)
       .run();
     if (!localQueue) throw new Error('Local document Queue binding was not initialized');
-    const dispatch = await dispatchDueDocumentJobs(db, localQueue);
+    const dispatch = await dispatchDueDocumentJobs(db, localQueue, ['DOCUMENT_SCAN']);
     expect(dispatch.failed).toBe(0);
     const state = await db
       .prepare(
@@ -2880,7 +3042,7 @@ describe('document upload transaction', () => {
       )
       .bind(message.jobId)
       .run();
-    const dispatch = await dispatchDueDocumentJobs(db, localQueue);
+    const dispatch = await dispatchDueDocumentJobs(db, localQueue, ['DOCUMENT_SCAN']);
     expect(dispatch.failed).toBe(0);
 
     const reclaimed = await db

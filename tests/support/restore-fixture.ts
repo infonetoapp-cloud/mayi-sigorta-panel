@@ -26,7 +26,7 @@ export interface RestoreFixture {
   dispose(): Promise<void>;
 }
 
-export async function createRestoreFixture(): Promise<RestoreFixture> {
+export async function createRestoreFixture(validated = false): Promise<RestoreFixture> {
   const directory = mkdtempSync(join(tmpdir(), 'mayi-restore-source-'));
   const configPath = join(directory, 'wrangler.json');
   const state = join(directory, '.wrangler', 'state');
@@ -164,7 +164,7 @@ export async function createRestoreFixture(): Promise<RestoreFixture> {
     .run();
   const bytes = createSyntheticPdf();
   const checksum = createHash('sha256').update(bytes).digest('hex');
-  const doc = await seedDocument(db, platform.env.PRIMARY, bytes, checksum);
+  const doc = await seedDocument(db, platform.env.PRIMARY, bytes, checksum, validated);
   const result = await processDocumentBackupMessage(
     db,
     platform.env.PRIMARY,
@@ -199,7 +199,7 @@ export async function createRestoreFixture(): Promise<RestoreFixture> {
   const manifest = {
     format: 'mayi-local-restore-v1',
     appVersion: '0.1.0',
-    schemaVersion: '0018',
+    schemaVersion: '0019',
     createdAt: new Date().toISOString(),
     bookmark: 'synthetic-paused-native-export',
     dbExportSha256: createHash('sha256').update(exportSql).digest('hex'),
@@ -230,6 +230,7 @@ async function seedDocument(
   source: R2Bucket,
   bytes: Uint8Array<ArrayBuffer>,
   checksum: string,
+  validated: boolean,
 ) {
   const documentId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
@@ -251,6 +252,32 @@ async function seedDocument(
     )
     .bind(versionId, documentId, key, checksum, bytes.byteLength)
     .run();
+  if (validated) {
+    await db
+      .prepare(
+        `INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256) VALUES(?,'backup-agency','DOCUMENT_BACKUP',?,?)`,
+      )
+      .bind(jobId, versionId, checksum)
+      .run();
+    await db
+      .prepare(
+        `UPDATE document_versions SET status='BACKUP_PENDING',validation_version='m4-content-inspection-v1',validation_result='{"valid":true,"format":"PDF","pageCount":1}' WHERE id=?`,
+      )
+      .bind(versionId)
+      .run();
+    await source.put(key, bytes, {
+      customMetadata: { sha256: checksum },
+      httpMetadata: { contentType: 'application/pdf' },
+    });
+    const message: DocumentJobQueueMessage = {
+      jobId,
+      jobType: 'DOCUMENT_BACKUP',
+      generation: 1,
+      documentVersionId: versionId,
+      inputSha256: checksum,
+    };
+    return { documentId, versionId, scanId, scanRunId, jobId, key, message };
+  }
   await db
     .prepare(
       `INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256)

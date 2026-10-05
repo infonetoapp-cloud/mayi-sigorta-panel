@@ -5,6 +5,11 @@ import { buildSafeAuditRecord } from '../mutations/audit';
 import { computePayloadHash } from '../mutations/canonical';
 import { IdempotencyConflictError } from '../mutations/idempotency';
 import {
+  inspectDocumentContent,
+  REQUIRED_CONTENT_INSPECTION_VERSION,
+  type DocumentContentInspectionResult,
+} from './content-inspection';
+import {
   DocumentQuarantineError,
   createQuarantineObjectKey,
   prepareQuarantinedDocumentObject,
@@ -34,7 +39,7 @@ export interface DocumentUploadReceipt {
   readonly versionId: string;
   readonly classification: 'GENERAL' | 'IDENTITY' | 'HEALTH';
   readonly versionNumber: 1;
-  readonly state: 'QUARANTINED';
+  readonly state: 'BACKUP_PENDING';
 }
 
 export interface DocumentUploadResult {
@@ -691,7 +696,7 @@ function parseCompletedReceipt(raw: unknown): DocumentUploadReceipt | null {
       value.classification !== 'IDENTITY' &&
       value.classification !== 'HEALTH') ||
     value.versionNumber !== 1 ||
-    value.state !== 'QUARANTINED'
+    value.state !== 'BACKUP_PENDING'
   ) {
     return null;
   }
@@ -700,7 +705,7 @@ function parseCompletedReceipt(raw: unknown): DocumentUploadReceipt | null {
     versionId: value.versionId,
     classification: value.classification,
     versionNumber: 1,
-    state: 'QUARANTINED',
+    state: 'BACKUP_PENDING',
   };
 }
 
@@ -722,11 +727,18 @@ async function loadReceipt(
 
 async function prepareUpload(input: DocumentUploadInput) {
   try {
-    return await prepareQuarantinedDocumentObject(input.file, {
+    const prepared = await prepareQuarantinedDocumentObject(input.file, {
       fileName: input.fileName,
       declaredContentType: input.declaredContentType,
     });
+    const validation = await inspectDocumentContent(
+      prepared.format,
+      new Uint8Array(prepared.content),
+    );
+    if (!validation.valid) throw new DocumentUploadError('VALIDATION_ERROR', 415);
+    return { ...prepared, validation };
   } catch (error) {
+    if (error instanceof DocumentUploadError) throw error;
     if (!(error instanceof DocumentQuarantineError)) {
       throw new DocumentUploadError('SERVICE_UNAVAILABLE', 503);
     }
@@ -837,6 +849,7 @@ async function finalizeUpload(
   reservation: UploadReservation,
   idempotencyKey: string,
   sha256: string,
+  validation: Extract<DocumentContentInspectionResult, { valid: true }>,
 ): Promise<DocumentUploadResult> {
   const now = new Date().toISOString();
   const receiptBody: DocumentUploadReceipt = {
@@ -844,7 +857,7 @@ async function finalizeUpload(
     versionId: reservation.versionId,
     classification: input.classification,
     versionNumber: 1,
-    state: 'QUARANTINED',
+    state: 'BACKUP_PENDING',
   };
   const audit = buildSafeAuditRecord({
     agencyId: membership.agencyId,
@@ -873,7 +886,7 @@ async function finalizeUpload(
         .prepare(
           `INSERT INTO background_jobs
             (id,agency_id,job_type,document_version_id,input_sha256,generation,status,available_at,created_at,updated_at)
-           VALUES(?,?,'DOCUMENT_SCAN',?,?,1,'QUEUED',?,?,?)`,
+           VALUES(?,?,'DOCUMENT_BACKUP',?,?,1,'QUEUED',?,?,?)`,
         )
         .bind(
           crypto.randomUUID(),
@@ -886,10 +899,18 @@ async function finalizeUpload(
         ),
       db
         .prepare(
-          `UPDATE document_versions SET status='QUARANTINED',updated_at=?
+          `UPDATE document_versions SET status='BACKUP_PENDING',validation_version=?,validation_result=?,updated_at=?
            WHERE agency_id=? AND id=? AND document_id=? AND sha256=? AND status='PENDING_UPLOAD'`,
         )
-        .bind(now, membership.agencyId, reservation.versionId, reservation.documentId, sha256),
+        .bind(
+          REQUIRED_CONTENT_INSPECTION_VERSION,
+          JSON.stringify(validation),
+          now,
+          membership.agencyId,
+          reservation.versionId,
+          reservation.documentId,
+          sha256,
+        ),
       assertResultChanges(db, 'DOCUMENT_UPLOAD_VERSION_STATE_RACE'),
       db
         .prepare(
@@ -1084,6 +1105,7 @@ export async function createDocumentUpload(
       existingReservation,
       idempotencyKey,
       prepared.sha256,
+      prepared.validation,
     );
   }
 
@@ -1204,6 +1226,7 @@ export async function createDocumentUpload(
     reservation,
     idempotencyKey,
     prepared.sha256,
+    prepared.validation,
   );
 }
 

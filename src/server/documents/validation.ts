@@ -117,7 +117,8 @@ function invalid(reason: Extract<DocumentUploadPreflightResult, { valid: false }
 
 /**
  * Cheap streaming-envelope preflight only. A successful result remains quarantine-only;
- * PDF/image parsing, decompression/pixel limits, malware scanning, and availability are separate gates.
+ * PDF/image parsing, decompression/pixel limits and backup availability are separate gates.
+ * No antivirus verdict is implied by this preflight or by structural acceptance.
  */
 export function preflightDocumentUpload(
   input: DocumentUploadPreflightInput,

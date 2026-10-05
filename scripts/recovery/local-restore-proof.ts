@@ -58,7 +58,7 @@ const moneySchema = z.record(
 const manifestSchema = z.strictObject({
   format: z.literal('mayi-local-restore-v1'),
   appVersion: z.literal('0.1.0'),
-  schemaVersion: z.literal('0018'),
+  schemaVersion: z.literal('0019'),
   createdAt: z.iso.datetime({ precision: 3 }),
   bookmark: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
   dbExportSha256: digest,
@@ -288,6 +288,14 @@ export async function collectRestoreExpectations(
   return { rowCounts, money, objects };
 }
 
+// Structural metadata must not erase a version's real historical scan provenance.
+// Only versions with neither scan jobs nor scan evidence can omit legacy scan proof.
+const historicalScanProofRequired = `(v.validation_version IS NULL
+  OR EXISTS(SELECT 1 FROM background_jobs history WHERE history.agency_id=v.agency_id
+    AND history.document_version_id=v.id AND history.job_type='DOCUMENT_SCAN')
+  OR EXISTS(SELECT 1 FROM document_scan_evidence history WHERE history.agency_id=v.agency_id
+    AND history.document_version_id=v.id))`;
+
 // Read-only post-import domain checks; imported triggers do not retrospectively validate data.
 const domainQueries = [
   `SELECT c.id FROM company_contacts c JOIN customers p ON p.agency_id=c.agency_id AND p.id=c.customer_id WHERE p.type<>'COMPANY' LIMIT 1`,
@@ -402,6 +410,11 @@ const domainQueries = [
         WHERE e.agency_id=j.agency_id AND e.document_version_id=j.document_version_id AND e.job_run_id=r.id))) LIMIT 1`,
   `SELECT v.id FROM document_versions v WHERE v.version_number<>(SELECT count(*) FROM document_versions previous
     WHERE previous.agency_id=v.agency_id AND previous.document_id=v.document_id AND previous.version_number<=v.version_number) LIMIT 1`,
+  `SELECT v.id FROM document_versions v WHERE
+    (v.validation_version IS NULL AND v.validation_result IS NOT NULL)
+    OR (v.validation_version IS NOT NULL AND (v.validation_result IS NULL
+      OR v.validation_version<>'m4-content-inspection-v1'
+      OR v.status NOT IN ('BACKUP_PENDING','AVAILABLE','SCAN_FAILED','RETIRED'))) LIMIT 1`,
   `SELECT e.id FROM document_scan_evidence e JOIN document_versions v ON v.agency_id=e.agency_id AND v.id=e.document_version_id
     JOIN background_job_runs r ON r.agency_id=e.agency_id AND r.id=e.job_run_id JOIN background_jobs j ON j.agency_id=r.agency_id AND j.id=r.job_id
     WHERE e.sha256<>v.sha256 OR j.input_sha256<>v.sha256 OR j.document_version_id<>v.id OR j.job_type<>'DOCUMENT_SCAN'
@@ -418,18 +431,18 @@ const domainQueries = [
     WHERE c.source_sha256<>v.sha256 OR c.backup_sha256<>v.sha256 OR j.input_sha256<>v.sha256 OR j.document_version_id<>v.id OR j.job_type<>'DOCUMENT_BACKUP'
       OR j.status<>'COMPLETED' OR j.attempt_count<>r.attempt_number OR r.status<>'SUCCEEDED'
       OR julianday(c.created_at)<julianday(j.completed_at) OR julianday(c.created_at)<julianday(r.completed_at)
-      OR NOT EXISTS(SELECT 1 FROM document_scan_evidence e JOIN background_job_runs sr ON sr.agency_id=e.agency_id AND sr.id=e.job_run_id
+      OR (${historicalScanProofRequired} AND NOT EXISTS(SELECT 1 FROM document_scan_evidence e JOIN background_job_runs sr ON sr.agency_id=e.agency_id AND sr.id=e.job_run_id
         JOIN background_jobs sj ON sj.agency_id=sr.agency_id AND sj.id=sr.job_id
         WHERE e.agency_id=c.agency_id AND e.document_version_id=v.id AND e.sha256=v.sha256 AND e.outcome='CLEAN' AND sr.status='SUCCEEDED'
           AND julianday(e.scanned_at)<=julianday(r.started_at) AND julianday(sr.completed_at)<=julianday(r.started_at)
           AND NOT EXISTS(SELECT 1 FROM background_jobs later WHERE later.agency_id=sj.agency_id AND later.job_type='DOCUMENT_SCAN'
             AND later.document_version_id=v.id AND later.input_sha256=v.sha256 AND later.generation>sj.generation
-            AND julianday(later.created_at)<=julianday(c.created_at))) LIMIT 1`,
+            AND julianday(later.created_at)<=julianday(c.created_at)))) LIMIT 1`,
   `SELECT v.id FROM document_versions v WHERE v.status='AVAILABLE' AND (
     NOT EXISTS(SELECT 1 FROM document_backup_copies c JOIN background_job_runs r ON r.agency_id=c.agency_id AND r.id=c.job_run_id JOIN background_jobs j ON j.agency_id=r.agency_id AND j.id=r.job_id
       WHERE c.agency_id=v.agency_id AND c.document_version_id=v.id AND j.generation=(SELECT max(x.generation) FROM background_jobs x WHERE x.agency_id=v.agency_id AND x.document_version_id=v.id AND x.job_type='DOCUMENT_BACKUP') AND j.status='COMPLETED')
-    OR NOT EXISTS(SELECT 1 FROM document_scan_evidence e JOIN background_job_runs r ON r.agency_id=e.agency_id AND r.id=e.job_run_id JOIN background_jobs j ON j.agency_id=r.agency_id AND j.id=r.job_id
-      WHERE e.agency_id=v.agency_id AND e.document_version_id=v.id AND e.outcome='CLEAN' AND j.status='COMPLETED' AND j.generation=(SELECT max(x.generation) FROM background_jobs x WHERE x.agency_id=v.agency_id AND x.document_version_id=v.id AND x.job_type='DOCUMENT_SCAN'))) LIMIT 1`,
+    OR (${historicalScanProofRequired} AND NOT EXISTS(SELECT 1 FROM document_scan_evidence e JOIN background_job_runs r ON r.agency_id=e.agency_id AND r.id=e.job_run_id JOIN background_jobs j ON j.agency_id=r.agency_id AND j.id=r.job_id
+      WHERE e.agency_id=v.agency_id AND e.document_version_id=v.id AND e.outcome='CLEAN' AND j.status='COMPLETED' AND j.generation=(SELECT max(x.generation) FROM background_jobs x WHERE x.agency_id=v.agency_id AND x.document_version_id=v.id AND x.job_type='DOCUMENT_SCAN')))) LIMIT 1`,
   `SELECT d.id FROM documents d WHERE d.current_version_id IS NOT NULL AND NOT EXISTS(
     SELECT 1 FROM document_versions v WHERE v.id=d.current_version_id AND v.agency_id=d.agency_id AND v.document_id=d.id
       AND v.status='AVAILABLE' AND v.version_number=(SELECT max(latest.version_number) FROM document_versions latest
@@ -556,17 +569,32 @@ async function verifyInspectionEvidence(db: D1Database) {
     content_inspection_version: string | null;
     content_inspection_result: string | null;
     detected_content_type: string;
+    raw_shape_valid: number;
   }>(
     db,
-    `SELECT e.outcome,e.content_inspection_version,e.content_inspection_result,v.detected_content_type FROM document_scan_evidence e JOIN document_versions v ON v.agency_id=e.agency_id AND v.id=e.document_version_id`,
+    `WITH inspection AS (
+       SELECT e.outcome,e.content_inspection_version,e.content_inspection_result,v.detected_content_type
+       FROM document_scan_evidence e JOIN document_versions v ON v.agency_id=e.agency_id AND v.id=e.document_version_id
+       UNION ALL SELECT 'STRUCTURAL',v.validation_version,v.validation_result,v.detected_content_type FROM document_versions v
+       WHERE v.validation_version IS NOT NULL OR v.validation_result IS NOT NULL
+     ) SELECT inspection.*, CASE WHEN typeof(content_inspection_result)='text'
+       AND length(content_inspection_result) BETWEEN 1 AND 256 THEN
+       CASE WHEN json_valid(content_inspection_result)=1 THEN
+       CASE WHEN json_type(content_inspection_result)='object'
+         AND NOT EXISTS(SELECT 1 FROM json_each(content_inspection_result) GROUP BY key HAVING count(*)>1)
+         AND NOT EXISTS(SELECT 1 FROM json_each(content_inspection_result)
+           WHERE (key='valid' AND type<>'true') OR (key='format' AND type<>'text')
+             OR (key NOT IN ('valid','format') AND type<>'integer'))
+       THEN 1 ELSE 0 END ELSE 0 END ELSE 0 END AS raw_shape_valid FROM inspection`,
   )) {
-    if (e.outcome !== 'CLEAN') {
+    if (e.outcome !== 'CLEAN' && e.outcome !== 'STRUCTURAL') {
       if (e.content_inspection_result !== null || e.content_inspection_version !== null)
         return fail('DB_DOMAIN_FAILED');
       continue;
     }
     try {
       if (
+        e.raw_shape_valid !== 1 ||
         e.content_inspection_version !== REQUIRED_CONTENT_INSPECTION_VERSION ||
         !e.content_inspection_result ||
         e.content_inspection_result.length > 256

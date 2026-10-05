@@ -795,8 +795,11 @@ describe('M4 belge metadata/version gerçek yerel D1 şeması', () => {
     `);
     expect(staleCleanReuse.status).not.toBe(0);
     expect(`${staleCleanReuse.stdout}\\n${staleCleanReuse.stderr}`).toContain(
-      'DOCUMENT_VERSION_STATE_TRANSITION_INVALID',
+      'DOCUMENT_AVAILABLE_INSPECTION_EVIDENCE_REQUIRED',
     );
+    const stillRejected = execute("SELECT status FROM document_versions WHERE id='version-a'");
+    expectSuccess(stillRejected);
+    expect(stillRejected.stdout).toContain('REJECTED');
 
     expectSuccess(
       execute(`

@@ -5,7 +5,7 @@ import { getPlatformProxy } from 'wrangler';
 
 interface LocalDocumentBindings {
   readonly DOCS_QUARANTINE: R2Bucket;
-  readonly DOCUMENT_SCAN_QUEUE: Queue<unknown>;
+  readonly DOCUMENT_JOB_QUEUE: Queue<unknown>;
 }
 
 let bucket: R2Bucket | undefined;
@@ -57,11 +57,12 @@ describe('local private document R2 binding', () => {
       remoteBindings: false,
     });
     try {
-      await platform.env.DOCUMENT_SCAN_QUEUE.send({
+      await platform.env.DOCUMENT_JOB_QUEUE.send({
         jobId: 'job-synthetic-a',
+        jobType: 'DOCUMENT_BACKUP',
         generation: 1,
         documentVersionId: 'version-synthetic-a',
-        sha256: 'a'.repeat(64),
+        inputSha256: 'a'.repeat(64),
       });
     } finally {
       await platform.dispose();

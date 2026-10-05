@@ -21,7 +21,7 @@ import { registerTaskRoutes } from './tasks/routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
-import { consumeDocumentQueueBatch, unavailableDocumentScanner } from './documents/scan';
+import { consumeDurableDocumentJobs } from './documents/jobs';
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
 import type { DocumentReconcileStorage } from './documents/reconcile-storage';
@@ -39,7 +39,7 @@ export interface Env {
   ASSETS?: Fetcher;
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;
-  DOCUMENT_SCAN_QUEUE?: Queue<DocumentJobQueueMessage>;
+  DOCUMENT_JOB_QUEUE?: Queue<DocumentJobQueueMessage>;
   DOCUMENTS_ENABLED?: string;
   [key: string]: unknown;
 }
@@ -489,12 +489,12 @@ export function createWorker(
 ) {
   return {
     queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
-      return consumeDocumentQueueBatch(
+      return consumeDurableDocumentJobs(
         batch,
         env.DB,
         env.DOCS_QUARANTINE,
         env.DOCUMENTS_ENABLED === 'true',
-        unavailableDocumentScanner,
+
         documentBackup,
         documentReconcile,
       );
@@ -505,12 +505,11 @@ export function createWorker(
       }
       if (
         controller.cron === '*/5 * * * *' &&
-        env.DOCUMENT_SCAN_QUEUE &&
+        env.DOCUMENT_JOB_QUEUE &&
         env.DOCUMENTS_ENABLED === 'true'
       ) {
         ctx.waitUntil(
-          dispatchDueDocumentJobs(env.DB, env.DOCUMENT_SCAN_QUEUE, [
-            'DOCUMENT_SCAN',
+          dispatchDueDocumentJobs(env.DB, env.DOCUMENT_JOB_QUEUE, [
             'DOCUMENT_BACKUP',
             'DOCUMENT_RECONCILE',
           ]),

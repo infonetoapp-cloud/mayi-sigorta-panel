@@ -40,8 +40,8 @@ const snapshotSchema = z
     renewalId: id.nullable(),
     renewalAssignee: id.nullable(),
     parentHealth: z.number().int().min(0).max(1),
-    scanId: id,
-    scanGeneration: z.number().int().positive(),
+    validationId: id,
+    validationGeneration: z.number().int().positive(),
     inspectionResult: z.string().min(1).max(256),
     backupId: id,
     backupGeneration: z.number().int().positive(),
@@ -147,8 +147,8 @@ function grantPayload(actor: Actor, s: Snapshot, confirmation: z.infer<typeof co
     actorIdentityId: actor.identityId,
     classification: s.classification,
     parentHealth: s.parentHealth,
-    scanId: s.scanId,
-    scanGeneration: s.scanGeneration,
+    validationId: s.validationId,
+    validationGeneration: s.validationGeneration,
     backupId: s.backupId,
     backupGeneration: s.backupGeneration,
   };
@@ -313,7 +313,7 @@ const SNAPSHOT_SQL = `SELECT json_object(
   'policyId',p.id,'policyAssignee',p.assignee_membership_id,
   'renewalId',r.id,'renewalAssignee',r.assignee_membership_id,
   'parentHealth',CASE WHEN branch.data_classification='HEALTH' THEN 1 ELSE 0 END,
-  'scanId',scan.id,'scanGeneration',scan.generation,'inspectionResult',inspection.content_inspection_result,
+  'validationId',inspection.id,'validationGeneration',inspection.generation,'inspectionResult',inspection.content_inspection_result,
   'backupId',copy.id,'backupGeneration',backup.generation,
   'permissions',(SELECT json_group_array(json_object('id',id,'membership_id',membership_id,
     'permission_code',permission_code,'scope',scope)) FROM
@@ -331,9 +331,8 @@ LEFT JOIN renewal_opportunities r ON r.agency_id=q.agency_id AND r.id=q.renewal_
 LEFT JOIN policies p ON p.agency_id=d.agency_id AND p.id=CASE WHEN d.owner_type='POLICY' THEN d.policy_id WHEN d.owner_type='QUOTE' THEN r.expiring_policy_id END
 JOIN customers c ON c.agency_id=d.agency_id AND c.id=CASE WHEN d.owner_type='CUSTOMER' THEN d.customer_id ELSE p.customer_id END
 LEFT JOIN insurance_branches branch ON branch.agency_id=p.agency_id AND branch.id=p.branch_id
-JOIN document_latest_scan_evidence scan ON scan.agency_id=v.agency_id AND scan.document_version_id=v.id
-  AND scan.sha256=v.sha256 AND scan.outcome='CLEAN' AND scan.run_status='SUCCEEDED' AND scan.job_status='COMPLETED'
-JOIN document_scan_evidence inspection ON inspection.agency_id=scan.agency_id AND inspection.id=scan.id
+JOIN document_accepted_validation inspection ON inspection.agency_id=v.agency_id AND inspection.document_version_id=v.id
+  AND inspection.sha256=v.sha256
   AND inspection.content_inspection_version=? AND inspection.content_inspection_result IS NOT NULL
   AND length(inspection.content_inspection_result)<=256
   AND CASE WHEN json_valid(inspection.content_inspection_result)=1 THEN

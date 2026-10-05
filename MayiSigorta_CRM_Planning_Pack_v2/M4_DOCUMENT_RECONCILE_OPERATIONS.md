@@ -1,5 +1,7 @@
 # M4 — hedefli DOCUMENT_RECONCILE yerel işletim sözleşmesi
 
+Güncel F-26 supersession (5 Ekim 2026): yeni sürümlerde CLEAN/scanner kapısı değil immutable yapısal kabul+backup kanıtı aranır. `document_accepted_validation` view yeni structural metadata'yı ve gerçekten mevcut tarihsel scan/inspection kanıtını ayrı policy ile okur; false CLEAN üretmez. Aktif Worker yalnız BACKUP/RECONCILE job dispatch eder; scanner-specific Queue/hold gerekmez. Aşağıdaki scan-specific açıklamalar önceki accepted davranışın tarihsel kaydıdır; güncel otorite nihai plan ve `M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md` dosyasıdır.
+
 Bu belge nihai mimari planın 10.3 ve 14.1 bölümlerinin yerel/sentetik uzlaştırma uygulamasını açıklar. Restore veya retention/silme prosedürü değildir. `DOCUMENTS_ENABLED=false` korunur; gerçek hesap/IAM/lock/ClamAV ve restore kabul kapılarının yerine geçmez.
 
 ## Kalıcı hedef ve teslim

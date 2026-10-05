@@ -1,12 +1,14 @@
 # Mayı Sigorta — Nihai mimari ve uygulama planı
 
-**Sürüm:** 1.0 · **Tarih:** 16 Eylül 2026 · **Durum:** Uygulamanın esas alınacak tasarım sözleşmesi.
+**Sürüm:** 1.1 · **İlk tarih:** 16 Eylül 2026 · **F-26 güncellemesi:** 5 Ekim 2026 · **Durum:** Uygulamanın esas alınacak tasarım sözleşmesi.
 
 Kullanıcının son talimatıyla teknik ve ürün tasarımındaki açık seçenekler karara bağlandı. Personel izinlerini acente sahibi seçer. Bu belge önceki planlama paketinin ve mimari incelemesinin yerini alır; eski belgeler yürürlükte değildir. Gerçek ortam kimlikleri, hesap erişimleri ve mevzuata ilişkin teyitler mimari seçenek değil, 17. bölümde tanımlanan kurulum girdileridir. Bunların tamamlandığı varsayılmaz.
 
 **Ürün:** Mayı Sigorta çalışanlarına “bugün hangi müşteri için ne yapmalıyım?” sorusunun cevabını veren, yenileme odaklı güvenli CRM. Yaklaşık 15.000 poliçelik başlangıç portföyü için tasarlanır. Arayüz ve kullanıcı mesajları Türkçedir.
 
-**Bu teslim yalnız planlama ve dokümantasyon düzenlemesidir.** Kod, paket, veritabanı, dağıtım, ücretli ürün satın alımı ve Cloudflare ayar değişikliği yapılmamıştır. Sonraki uygulama görevi Faz 1'dir; G0 toplantısını veya eski incelemeyi yeniden başlatmak gerekmez.
+**Güncel ürün sınırı (F-26):** Yalnız önceden yetkilendirilmiş acente çalışanları giriş yapar ve belge yükler. Müşteri, sigortalı, dış ortak, anonim veya genel Internet kullanıcısı giriş/yükleme yapmaz. Küçük mevcut ekip bir tehdit modeli gözlemidir; çalışan sayısına mimari, şema, UI veya lisans sınırı konmaz. OWNER/MEMBER, kişi izinleri, çok-kullanıcılı CAS, idempotency ve audit korunur.
+
+**İlk 16 Eylül teslimi yalnız planlamaydı.** Gerçekleşen uygulama/altyapı kanıtı `UYGULAMA_DURUMU.md` dosyasındadır. F-26 ürün sahibinin ileri yönlü güvenlik kararıdır; bu belge tek başına kaynak oluşturma/ücretli ürün veya production deployment yetkisi vermez.
 
 ## İçindekiler ve okuma düzeni
 
@@ -45,7 +47,7 @@ Kullanıcının son talimatıyla teknik ve ürün tasarımındaki açık seçene
 | Liste | TanStack Table; sunucu filtre/sıralama/sayfalama |
 | Kalıcı veri | D1 + Drizzle; kritik atomik işlemde D1 batch ve gerektiğinde parametreli SQL |
 | Belgeler | Private R2; Worker üzerinden yetkili erişim; sürümlü dosya ve karantina |
-| Dosya tarama | Cloudflare Containers içinde ClamAV; Queue ile asenkron; yalnız tarama için sınırlı ek altyapı |
+| Belge kabulü | Zorunlu bounded server-side yapısal doğrulama; AV sonucu değildir. ClamAV/Containers zorunlu değildir (F-26) |
 | Giriş | Cloudflare Access; One-time PIN + Access bağımsız TOTP MFA; uygulamada parola sistemi yok |
 | İzinler | Sabit izin kataloğu; kişi başına kesin izin/kapsam kaydı; şablonlar yalnız başlangıç kopyası |
 | Varsayılan erişim | Personel atanmış kayıtlara; Yetkili Personel acente geneline; sahibi değiştirebilir |
@@ -96,19 +98,19 @@ flowchart TD
     S --> J[Kalıcı BackgroundJob]
     J --> Q[Cloudflare Queue]
     Q --> W
-    W --> V[İzole ClamAV Container\nyalnız dosya taraması]
+
     D --> K[Ayrı yetkili kurtarma deposu]
     R --> K
     X[mayisigorta.com] --> H[Mevcut PHP hosting]
 ```
 
-Şema mantıksal sınırları gösterir; Cloudflare iç fazlarının fiziksel sırasını iddia etmez. Container ve Queue, dosya güvenliği/uzun işlerin CRM isteğini durdurmaması için vardır. CRM domain'i mikroservislere bölünmez. Container'ın ihtiyaç duyduğu Durable Object yönetimi, domain için ayrı bir Durable Objects veri modeli kurma gerekçesi değildir.
+Şema mantıksal sınırları gösterir; Cloudflare iç fazlarının fiziksel sırasını iddia etmez. Queue yalnız backup/uzlaştırma gibi kalıcı D1 işleri için teslim hızlandırıcısıdır; tarama kuyruğu veya Container yoktur. CRM domain'i mikroservislere bölünmez.
 
 Frontend ve API aynı Worker dağıtımı ve origin'dedir. `/api/*` ve `/secure/*` Worker'a önce yönlendirilir. Bilinmeyen API yolu SPA HTML cevabına düşmez. Statik build'e müşteri verisi veya secret gömülmez. SSR/Next.js, tRPC, genel event bus, Redis/KV cache, event sourcing ve monorepo orkestrasyonu V1'e eklenmez.
 
-Workers Paid üretim tabanıdır. Zone için Pro düzeyi managed WAF tabanı seçilmiştir; Enterprise-only malware taramasına bağımlılık yoktur. Zero Trust planı çalışan sayısını ve burada zorunlu tutulan MFA/policy yeteneklerini karşılamalıdır. Bu bir satın alma işlemi değildir; Faz 1 kurulum kontrolünde özellikler ve güncel maliyet doğrulanır. Kontrol bulunamıyorsa güvenlik gereksinimi kaldırılmaz.
+Workers Free ve uygun Free Cloudflare yetenekleri hedeflenir. Workers Paid, Zone Pro, ücretli Zero Trust veya Containers bu görevde satın alınmaz/etkinleştirilmez. Access/MFA, scoped edge koruma ve uygulama yetkilendirmesi zorunludur; gereken kontrol Free yetenekle kanıtlanamıyorsa güvenlik kaldırılmaz, dış kapı açık tutulur. Ücret taahhüdü/usage-billing doğuran aktivasyondan önce güncel resmî allowance, ödeme yöntemi, overage ve hard-cap durumu açıkça bildirilir ve insan onayı beklenir. Free plan kapasite sınırları ürünün personel sayısı sınırı değildir; büyüme kapasite/plan değerlendirmesi gerektirir, authorization mimarisini değiştirmez.
 
-D1 bu ölçeğe uygundur; belge binary'si D1'de tutulmaz. Ücretli veritabanı boyut limiti ve tek veritabanının sorgu kapasitesi izlenir. Veritabanı kapasitesinin %60'ında kapasite değerlendirmesi, %80'inde kontrollü büyüme/migration planı zorunludur. 15.000 başlangıç poliçesi, 100.000 sentetik poliçeye kadar regresyon ölçümüyle tasarlanır; sonsuz ölçek vaadi yoktur.
+D1 bu ölçeğe uygundur; belge binary'si D1'de tutulmaz. Geçerli Free planın veritabanı boyut limiti ve tek veritabanının sorgu kapasitesi izlenir; ücretli kapasite var sayılmaz. Veritabanı kapasitesinin %60'ında kapasite değerlendirmesi, %80'inde kontrollü büyüme/migration planı zorunludur. 15.000 başlangıç poliçesi, 100.000 sentetik poliçeye kadar regresyon ölçümüyle tasarlanır; sonsuz ölçek vaadi yoktur.
 
 Sürüm seçimi: Faz 1'de uyumlu güncel kararlı sürümler seçilip lockfile ve compatibility date ile sabitlenir. Beta/RC ve otomatik major upgrade yok. Drizzle genel transaction API'sinin tüm seçenekleri D1'e taşınıyor kabul edilmez. ORM domain kurallarının veya DB kısıtlarının yerine geçmez.
 
@@ -154,7 +156,7 @@ Kapsamlı izinlerde değerler: `NONE` (yok), `ASSIGNED` (atanmış), `AGENCY` (a
 | task.create | ✓ | ✓ | Erişilebilir kayıt üzerinde/kendine görev |
 | task.update | A | T | Kapsamdaki görev güncellemesi |
 | task.assign | — | T | Başka personele görev |
-| document.read | A | T | Yetkili kaydın temiz belgeleri |
+| document.read | A | T | Yetkili kaydın doğrulanmış ve yedeklenmiş belgeleri; antivirüs güvenliği iddiası yok |
 | document.upload | A | T | Belge ekleme |
 | document.archive | — | T | Belgeyi kullanımdan kaldırma |
 | sensitive.identity.read | — | — | Tam TCKN/VKN ve kimlik sınıfı belge |
@@ -255,13 +257,13 @@ Her iş kaydı agency kapsamındadır. Kullanıcı kimliği global `User`, acent
 | Quote / QuoteVersion | Renewal'a bağlı teklif kimliği; değişmez sürümlerde sigortacı/ürün/tutar/currency/tarih/geçerlilik/belge; gönderme/kabul kanıtı tam sürüme bağlı |
 | Interaction | Gerçekleşen temas/deneme/not; ilgili müşteri ve iş; CompanyContact; aktör/zaman/kanal/sonuç |
 | Task | Genel görev veya birincil RENEWAL_FOLLOWUP; sahip, due_at, durum; next_action'ın otoritesi |
-| Document / DocumentVersion | Yetki/sınıf/sahip kaydı ile fiziksel nesne sürümü, checksum, tarama ve saklama durumunu ayırır |
+| Document / DocumentVersion | Yetki/sınıf/sahip kaydı ile fiziksel sürüm, checksum, yapısal kabul ve saklama durumunu ayırır; tarihsel scan metadata korunur |
 | Notification | İşe referans, alıcı, okundu/çözüldü; işi ikinci yerde yönetmez |
 | AuditEvent | Maskeli güvenlik/işlem denetimi; aktör veya SYSTEM/IMPORT kimliği |
 | ImportBatch / ImportRow | Dosya/hash/mapping/parser sürümü, satır sonucu, eşleme/çatışma/karar ve provenance |
 | OperationReceipt | Idempotency anahtarı+payload hash+sonuç; tekrar isteği güvenli yapar |
 | SensitiveActionGrant | Tek kullanımlık aktör/işlem/payload/versiyon yetki belgesi |
-| BackgroundJob / JobRun | Tarama/export/yedek/uzlaştırma işi; retry/lease/sonuç; job son çalışma kanıtı |
+| BackgroundJob / JobRun | Export/yedek/uzlaştırma işi; retry/lease/sonuç; job son çalışma kanıtı. Tarihsel scan işleri aktif runtime'da dispatch edilmez |
 | ExportSnapshotRow | Yetkili export işine ait geçici satır snapshot'ı; iş+satır sırası unique; 24 saatlik temizleme |
 | RetentionProfile / LegalHold | Kayıt sınıfına göre retention ve onay; hukuki saklama engeli |
 
@@ -389,7 +391,7 @@ Raporun başında veri kapsamı, tarih tipi, zaman dilimi, currency ve üretim z
 
 ## 9. API ve kod sınırları
 
-Tek repo/tek package içinde `src/app`, `src/server`, `src/shared`, `db/migrations`, `tests` ve kontrollü `scripts` dizinleri yeterli. Container tarama bileşeni aynı repoda ayrı build hedefidir. `shared` yalnız güvenli DTO/validation/permission kodlarını paylaşır; server secret/binding modülleri frontend import grafiğine giremez.
+Tek repo/tek package içinde `src/app`, `src/server`, `src/shared`, `db/migrations`, `tests` ve kontrollü `scripts` dizinleri yeterli. Aktif Container tarama build hedefi gerekmez. `shared` yalnız güvenli DTO/validation/permission kodlarını paylaşır; server secret/binding modülleri frontend import grafiğine giremez.
 
 İstek yolu: route → kimlik/izin middleware → validation → domain komutu → scoped repository/query → response DTO. Basit CRUD için gereksiz katman üretme; state/para/izin gibi kritik kurallar domain servisinde tek yerde yaşasın. Repository doğrudan kullanıcıdan gelen agency veya SQL sort string'ini kabul etmez.
 
@@ -403,7 +405,7 @@ Hata kodları: 400 doğrulama, 401 kimlik yok/geçersiz, 403 izin yok, 404 gör�
 
 Eşzamanlılık her mutasyonda expected_version ile. Kullanıcının yazdığı not/form çatışmada kaybolmaz; ekranda yerel taslak ile güncel sürüm gösterilir. Son yazan kazansın yaklaşımı personel izni, poliçe, teklif ve renewal'da kullanılmaz.
 
-Arka plan işinde D1 BackgroundJob kaydı kaynak mutasyonla birlikte oluşturulur; Queue publish ayrıysa 5 dakikalık dispatcher gönderilmemiş işi tekrar yayınlar. Queue duplicate teslim edebilir: job_id + input_version + checksum üzerinden lease/CAS ve idempotent consumer gerekir. Sonuç yazıldıktan sonra ack; hata retry, sınır sonrası dead-letter ve görünür uyarı. İstemciye 202/job ID döner; bitmemiş iş başarılı gösterilmez.
+Arka plan işinde D1 BackgroundJob kaydı kaynak mutasyonla birlikte oluşturulur; Queue publish ayrıysa 5 dakikalık dispatcher due işleri tekrar yayınlar. D1 kalıcı doğruluk kaynağıdır: Queue retention bitmesi veya teslim denemelerinin tükenmesi işi kaybettirmez; bitmemiş D1 işi yeniden teslim edilir. Queue duplicate teslim edebilir: job_id + input_version + checksum üzerinden lease/CAS ve idempotent consumer gerekir. Sonuç yazıldıktan sonra ack; transient hata durable retry, gerçek D1 attempt sınırı sonrası DEAD/investigation ve görünür uyarı. Scanner-specific DLQ/overflow/terminal/hold ve ücretli 14 gün Queue retention önkoşulu kaldırılmıştır. İstemciye 202 döner; backup bitmeden belge AVAILABLE gösterilmez.
 
 Export için yetkili veri alanları D1'de bounded `INSERT ... SELECT` ile `ExportSnapshotRow` geçici snapshot'ına tek statement'ta alınır; sonradan sayfalama bu snapshot üzerindedir. Başlangıç üst sınırı 50.000 satır/iş; aşılırsa tarih/filtre daraltılır. Üretimde snapshot oluşturma süresi sınırına uyduğu test edilir. Snapshot 24 saat, indirilebilir dosya 1 saat sonra silinir. Oluşturma, üretme ve indirmede aktiflik/izin yeniden denetlenir; yetki düşerse snapshot/dosya verilmez. Ham müşteri verisi Queue payload'ında taşınmaz.
 
@@ -415,23 +417,23 @@ V1 PDF/JPEG/PNG, dosya başına **20 MiB**, tek dosya upload. ZIP, SVG, HTML, Of
 
 Document tek bir ana sahip taşır: CUSTOMER, POLICY veya QUOTE; typed nullable FK ve tam bir owner koşulu. Diğer ilişkiler ana sahipten türetilir. Aynı dokümanın farklı müşterilere görünmesi için rastgele genel entity link'i kurulmaz. Başka bağlamda gerçekten gerekli belge ayrı yetkili ilişki işlemi gerektirir.
 
-DocumentVersion durumu: `PENDING_UPLOAD → QUARANTINED → SCANNING → BACKUP_PENDING → AVAILABLE`; hata/reddetmede `REJECTED` veya `SCAN_FAILED`. Kullanımdan kaldırma `RETIRED`. Checksum, scanner engine/signature version, tarama zamanı ve job_id kayıtlıdır. Download yalnız AVAILABLE ve güncel erişim izinleriyle.
+Aktif DocumentVersion akışı: `PENDING_UPLOAD → BACKUP_PENDING → AVAILABLE`. Bounded parser başarılı, R2 yazımı tamam ve canlı canonical upload yetkisi geçerli olduğunda aynı D1 finalization batch'i immutable `validation_version/validation_result`, backup işi, receipt ve audit yazar. AVAILABLE yalnız exact sürüm/checksum, kabul kanıtı ve doğrulanmış immutable backup/run/job ile mümkündür. Tarihsel QUARANTINED/SCANNING/REJECTED/SCAN_FAILED durumları ve scan tabloları silinmez; SCAN_FAILED eski şemadaki teknik failure kodu olarak backup failure için de kalır, AV yapıldığı anlamına gelmez. Yeni belgede scan kaydı yoktur: taranmamış içerik CLEAN/INFECTED olarak işaretlenmez. Download ayrıca güncel erişim izinlerini denetler.
 
-### 10.2 Otomatik tarama kararı
+### 10.2 Çalışan-kaynaklı belge güvenliği — F-26
 
-Cloudflare Container içinde ClamAV/clamd kullanılır. CRM Worker Queue handler'ı private R2 içeriğini **stream** ile tarama container'ına yollar; kullanıcıdan gelen arbitrary URL/path container'a fetch ettirilmez. Container'a D1 binding, CRM secret, Cloudflare yönetim token'ı veya R2 yönetim anahtarı verilmez. Tarama portu public değildir; yalnız Worker'ın container binding çağrısı.
+Zorunlu sunucu antivirüsü, ClamAV Container, scanner binding, signature freshness ve CLEAN availability gate artık ürün gereksinimi değildir. Belge kaynağı yalnız kimliği ve upload izni doğrulanmış çalışanlardır; çalışan olmak kendi başına permission oluşturmaz. Public/müşteri upload yüzeyi yoktur. İç tehdit ve ele geçirilmiş çalışan hesabı riski yok sayılmaz: Access+MFA, canonical permission/parent/sensitive kontrolü, default-deny format, private storage, attachment indirme ve audit zorunlu kalır.
 
-Başlangıç: ortam başına bir `standard-1` container, en fazla iki eşzamanlı dosya taraması; bellek/CPU ölçülerek sınırlar korunur. Durable Object yalnız bu instance'ın yönetim aracı. İmza güncelleme en az günlük; 48 saatten eski imza, şifreli/açılamayan PDF, parser hatası, süre/boyut limitinin aşılması ve tarama sonucu bilinmezliği CLEAN sayılmaz. Worker sonucu dosya checksum ve version ile eşler; eski tarama yeni sürümü serbest bırakamaz.
+Gerçek destek PDF/JPEG/PNG ile sınırlıdır; XLSX dahil Office upload için aktif ürün/UI gereksinimi yoktur. Bu nedenle gerçek XLSX, arbitrary ZIP→XLSX, XLSM/XLSB ve VBA içeren OOXML paketleri tümüyle default-deny'dır; ZIP magic-byte üzerinden XLSX kabulü yoktur. İleride XLSX açıkça istenirse bounded ZIP/OOXML content-types/workbook/relationship doğrulaması ve VBA/macro reddi ayrı güvenlik değişikliği olarak zorunludur; bu dilim format listesini genişletmez.
 
-Container image digest ile sabitlenir, güvenlik güncellemeleri kontrollü uygulanır. Dosya içerikleri loglanmaz; geçici içerik tarama sonrası temizlenir. Gerekli imza indirme origin'leri dışında egress kısıtlanır. PDF içi aktif öğeler, açılan içerik boyutu ve image pixel sınırları doğrulanır; AV tüm tehditleri yakalıyor varsayılmaz.
+Mevcut bounded parser aynen zorunludur: PDF parse/xref/object/token/nesting/page/geometri ve aktif içerik reddi; baseline JPEG imza/geometri/segment/strict decoder sınırları; PNG CRC/order/palette/DEFLATE pre-expansion/pixel sınırları. Şifreli/bozuk/desteklenmeyen içerik reddedilir. 20 MiB dosya ve parser resource sınırları kaldırılmaz. Worker Office içeriği açmaz/dönüştürmez/çalıştırmaz; HTML/SVG/script alınmaz veya render edilmez.
 
-Timeout: tarama denemesi 120 saniye; toplam beş deneme artan beklemeyle. 15 dakika bekleyen karantina ve dead-letter olayları işletime uyarı verir. Kullanıcı “tarama bekliyor” görür, normal CRM işine devam eder. **Manuel “tarama yapmadan aç” butonu yoktur.** Zararsız dosya yanlış pozitifse scanner/imza düzeltilir ve aynı sürüm yeniden taranır; güvenlik kapısı kaldırılmaz.
+Son dosya açma riski çalışan cihazındadır: güncel Windows Defender/kurumsal endpoint koruması, yamalar, cihaz kilidi ve güvenli Office/PDF açma prosedürü operasyonel kontroldür. Endpoint güvenliği kapatılmaz. Private storage veya parser başarısı dosyayı kötü amaçlı içerikten arınmış saymaz; UI/audit bu yönde AV iddiası üretmez. Eski scan işleri aktif Worker'da ACK edilir ve dispatcher tarafından tekrar çalıştırılmaz; historical doğrulayıcı kaynak/testleri production import grafiğine girmez.
 
-ClamAV için ek Container/Queue maliyeti bilinçli seçilmiştir. Cloudflare WAF malicious upload taraması Enterprise ücretli eklenti olduğundan standart Pro WAF'da var sayılmaz. Bu çözüm tüm belge akışını pahalı bir Enterprise varsayımına bağlamaz.
+F-26, geçmiş kabulü falsifiye etmez: gerçek yerel ClamAV/EICAR kanıtı ve accepted migrations git'te değişmeden korunur, ancak production kapısı değildir. Ayrıntılı supersession kaydı [M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md) içindedir; bu nihai plan mimari otorite olmaya devam eder.
 
 ### 10.3 Erişim ve geri kazanılabilirlik
 
-R2 public domain ve r2.dev kapalı. Kullanıcı Document ID ile Worker endpoint'ine gelir; auth → permission → parent scope → classification → temiz sürüm → stream. V1 presigned download/public paylaşım linki yoktur. Dosya `Content-Disposition: attachment`, `nosniff`, private/no-store ile iner. PDF inline preview V1 dışında; ileride ayrıca sandbox tasarımı gerekir.
+R2 public domain ve r2.dev kapalı. Kullanıcı Document ID ile Worker endpoint'ine gelir; auth → permission → parent scope → classification → doğrulanmış/yedeklenmiş AVAILABLE sürüm → stream. Upload/download ayrı canonical action'lardır. V1 presigned download/public paylaşım linki yoktur. Dosya `Content-Disposition: attachment`, `nosniff`, private/no-store ile iner. PDF inline preview V1 dışında; ileride ayrıca sandbox tasarımı gerekir.
 
 Kimlik/sağlık belge indirmesi secure kapı ve açıklayıcı onay gerektirir. Dosyanın fiziksel silinmesi ayrı retention sürecidir. Belge sürümü değiştirilirken eski key'in üzerine yazılmaz. D1 ve R2 ortak transaction değildir: yarım upload, kayıp nesne, sahipsiz nesne ve yarım backup uzlaştırma işiyle bulunur. Rastgele “orphan” gördüğü nesne anında silinmez; en az 24 saat karantina ve job durumu denetimi vardır.
 
@@ -469,7 +471,7 @@ Audit ilk entity değişiminden itibaren atomik yazılır. Olaylar: müşteri/po
 
 Audit alanları: actor kind/ID, agency, action, entity ID, request/operation ID, zaman, değişen alan isimleri, gerekçe ve maskeli özet. Tam body, JWT, TCKN, telefon, arama kelimesi, PDF gövdesi log yok. User timeline audit'in tamamını göstermez. Sıradan kullanıcı audit değiştiremez; DB yöneticisinin teknik erişimi için mutlak immutability iddiası yok. Audit günlük korunan arşive aktarılır.
 
-D1/R2 için binding; frontend env'de yalnız public config. Deploy credential least-privilege; PR build'e prod token/binding verilmez. Runtime'a Cloudflare hesap yönetim token'ı koyulmaz. Secret taraması, lockfile, bağımlılık vulnerability taraması, lisans/maintenance kontrolü ve container image taraması CI kapısıdır. Kritik açık çözülmeden release olmaz; giderilemeyen yüksek açık gerekçesiz kabul edilmez.
+D1/R2 için binding; frontend env'de yalnız public config. Deploy credential least-privilege hedefi korunur; Global API Key yalnız yerel administrative provisioning için geçici operasyonel bootstrap credential'ıdır, scoped-token daraltması ertelenmiş teknik borçtur. PR build'e prod token/binding verilmez; runtime'a Cloudflare hesap yönetim credential'ı koyulmaz. Secret taraması, lockfile, bağımlılık vulnerability ve lisans/maintenance kontrolü CI kapısıdır. Aktif Container yoktur; image tarama kapısı uygulanmaz. Kritik açık çözülmeden release olmaz; giderilemeyen yüksek açık gerekçesiz kabul edilmez.
 
 CSV/XLSX export'ta kullanıcı metni formül olarak yazılmaz; `= + - @` ve kontrol karakterli hücreler güvenli text olarak işlenir. Exportta varsayılan hassas kimlik/sağlık alanı yok; eklenmesi ilgili read izni ve explicit sütun seçimi gerektirir. Doğru kayıt okuma hakkı olan kişinin ekran görüntüsünü teknik olarak tamamen engellemek vaat edilmez; toplu anormal erişim izlenir.
 
@@ -513,7 +515,7 @@ Kabul: satırların tamamı created/matched/skipped/rejected/conflict olarak aç
 
 **RPO hedefi 1 saat, RTO hedefi 4 saat.** Bunlar test edilerek kanıtlanacak kabul hedefleridir. D1 Time Travel kısa dönem geri dönüş, saatlik tutarlı mantıksal export bağımsız kurtarma kaynağıdır. Export database API'nin tutarlı export mekanizmasıyla yapılır; tabloları farklı zamanlarda keyfi SELECT edip snapshot diye etiketleme.
 
-Her temiz belge sürümü ikinci, ayrı yetki sınırındaki EU R2 kurtarma bucket'ına kopyalanıp checksum doğrulanmadan AVAILABLE olmaz. CRM'nin backup credential'ı yalnız gereken yazma yetkisine sahip; restore/delete credential'ı runtime'da yok. Backup bucket lock 35 gün; DB saatlik yedekler 35 gün tutulur. Ayrı Cloudflare backup hesabı ve ayrı yönetici credential'ı kullanılır; aynı token'la hem asıl hem yedek silinemez. Hesap kurulumları production kapısında doğrulanır.
+Her yapısal olarak kabul edilen belge sürümü ikinci, ayrı yetki sınırındaki EU R2 kurtarma bucket'ına kopyalanıp checksum doğrulanmadan AVAILABLE olmaz. CRM'nin backup credential'ı yalnız gereken yazma yetkisine sahip; restore/delete credential'ı runtime'da yok. Backup bucket lock 35 gün; DB saatlik yedekler 35 gün tutulur. Ayrı Cloudflare backup hesabı ve ayrı yönetici credential'ı kullanılır; aynı token'la hem asıl hem yedek silinemez. Hesap kurulumları production kapısında doğrulanır.
 
 Her yedek manifesti: schema/app sürümü, timestamp/bookmark, export hash, dosya version key/checksum listesi, tamamlandı işareti. DB'nin referans verdiği bütün dosyalar geri dönebilmelidir. Backup hash/key uyuşmazlığı alarmdır. Kimlik şifreleme anahtarlarının ayrı kurtarma kopyası ve key_version tutulur; anahtar kayıpsa sadece DB dump'ın varlığı başarı değildir.
 
@@ -531,17 +533,21 @@ Yedekler anında satır bazlı düzenlenebilir kabul edilmez. Silme taleplerinin
 
 ## 15. Ortamlar, dağıtım ve işletim
 
-LOCAL, STAGING, PRODUCTION ayrı D1/R2, secrets, Access audience ve konfigürasyon kullanır. Production D1 ve R2 **EU jurisdiction** ile oluşturulur; yalnız location hint'e güvenilmez. Worker/Container işlemesinin otomatik olarak EU ile sınırlı olduğu iddia edilmez. Veri aktarımı değerlendirmesi runtime, scanner, log, yedek ve alt işleyenleri de kapsar. Türkiye-only veri ikameti vaat edilmez.
+LOCAL, STAGING, PRODUCTION ayrı D1/R2, secrets, Access audience ve konfigürasyon kullanır. Production D1 ve R2 **EU jurisdiction** ile oluşturulur; yalnız location hint'e güvenilmez. Worker işlemesinin otomatik olarak EU ile sınırlı olduğu iddia edilmez. Veri aktarımı değerlendirmesi runtime, log, yedek ve alt işleyenleri de kapsar. Türkiye-only veri ikameti vaat edilmez.
+
+F-26 minimum gerçek foundation adları: Worker capability `mayisigorta-crm`, boş EU D1 `mayisigorta-crm`, private EU primary R2 `mayisigorta-documents-quarantine`, yalnız generic durable iş hızlandırıcısı Queue `mayisigorta-document-jobs`. Eski quarantine bucket/key adı depolama uyumluluğudur, scan yapılmış sayılmaz. LOCAL mevcut synthetic binding'leri kullanır; gerçek foundation ayrı `foundation` Wrangler ortamında yalnız readback ile kanıtlanmış resource ID'lerini taşır. STAGING daha sonra ayrı kaynak/audience ile kurulur. Foundation resource varlığı public deploy veya belge enablement değildir; bu slice remote migration/customer data veya production custom domain oluşturmaz.
+
+Free production uygunluğu ayrıca gerçek kapasite kapısıdır: mevcut resmî Worker Free CPU bütçesi, bounded parser/crypto/API iş yükünün tamamını karşılıyor varsayılmaz. Özellikle büyük JPEG/PDF ve 20 MiB sınırına yakın dosyalar için gerçek runtime CPU/peak-memory ölçümü ve fail-closed behavior gerekir. Free D1 invocation/query ve storage kotaları da gerçek auth/command akışında kanıtlanmalıdır; kısa Time Travel penceresi bağımsız 35 günlük backup gereksiniminin yerine geçmez. Ücretli plan otomatik alınmaz, parser/authorization/resource sınırları sessizce gevşetilmez; bütçe sağlanamıyorsa belge enablement kapısı açık kalır ve ürün sahibine kanıtla dönülür.
 
 CI: format/lint → typecheck → unit → Worker/D1/R2 integration → kritik E2E → build → dependency/secret/image taraması → staging → kabul → production. D1 migration versioned ve incelenmiş; production schema push yok. Ortam binding kimlikleri otomatik fail-fast kontrol edilir; yanlışlıkla staging'i production DB'ye bağlayan build reddedilir.
 
 Migration yaklaşımı expand → geriye uyumlu uygulama → backfill → doğrulama → ayrı release'de contract. Eski uygulama yeni şemayla çalışmıyorsa sadece kod rollback'i yapılamaz; yedek/restore ve kontrollü downtime planı gerekir. Deploy öncesi bookmark/manifest alınır. V1 production deployment owner/işletim sorumlusunun açık operasyon onayıyla yapılır; bu belge kendi başına satın alma veya deployment komutu değildir.
 
-Monitoring: son başarılı cron, beklenen job sayısı, hata oranı/p95, D1 boyut/okuma-yazma, Queue retry/dead-letter, scanner imza yaşı, bekleyen karantina, export/indirme anomalisi, yedek tamamlanma ve restore kanıtı. Cron 26 saati, saatlik backup 90 dakikayı, karantina 15 dakikayı aşarsa uyarı. 5xx veya latency eşiği pilot ölçümüyle kaydedilir. Operasyon ekranı yalnız yetkili yönetim/işletime; personelin ana ekranı teknik log duvarı değildir.
+Monitoring: son başarılı cron, D1 due/lease/DEAD/investigation job backlog, hata oranı/p95, D1 boyut/okuma-yazma, Queue acceleration teslim/expiry/retry, yarım upload/backup, export/indirme anomalisi, yedek tamamlanma ve restore kanıtı. Cron 26 saati, saatlik backup 90 dakikayı, bekleyen belge backup 15 dakikayı aşarsa uyarı. Scanner signature/hold Queue alarmı artık aktif kapı değildir. 5xx veya latency eşiği pilot ölçümüyle kaydedilir. Operasyon ekranı yalnız yetkili yönetim/işletime; personelin ana ekranı teknik log duvarı değildir.
 
 Operasyon sahibi acente sahibidir; teknik bakım sorumlusu kurulum kaydında isimli atanır. Uyarı hedefi doğrulanmış operasyon e-postasıdır; test alarmı gerçekten ulaştığı görülmeden monitoring tamam sayılmaz. Başarılı her job için spam bildirim yok. P1 olayda önce etkilenmiş erişim/işlem durdurulur, kanıt korunur, sonra düzeltme/restore; acentenin hukuki bildirim prosedürü gerçek sorumluya devredilir, ajan süre/başvuru yükümlülüğü uydurmaz.
 
-Günlük: başarısız backup/job/scan uyarıları. Haftalık: kapasite ve reddedilen erişim/export incelemesi. Aylık: izin ve aktif personel gözden geçirme, bağımlılık patch'leri, sentetik restore. Üç aylık: gerçek kurtarma tatbikatı ve erişim/retention kontrolü. Bildirilen kritik açığa acil müdahale aylık bakımı beklemez.
+Günlük: başarısız backup/job ve belge investigation uyarıları. Haftalık: kapasite ve reddedilen erişim/export incelemesi. Aylık: izin ve aktif personel gözden geçirme, bağımlılık patch'leri, sentetik restore. Üç aylık: gerçek kurtarma tatbikatı ve erişim/retention kontrolü. Bildirilen kritik açığa acil müdahale aylık bakımı beklemez.
 
 ## 16. Fazlar ve kabul kapıları
 
@@ -575,11 +581,11 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 
 ### Faz 4 — Belgeler ve iletişim
 
-**Çıktı:** Private R2, version/karantina, kalıcı job+Queue, ClamAV Container, backup kopyası, yetkili stream, uzlaştırma; WhatsApp önizleme/açılma ve gerçek görüşme ayrımı.
+**Çıktı:** Çalışan-only tehdit modeli, bounded yapısal kabul, private R2/version, kalıcı D1 backup/uzlaştırma job + Queue accelerator, backup kopyası, yetkili safe attachment stream; WhatsApp önizleme/açılma ve gerçek görüşme ayrımı. Container/scanner gerekmez.
 
-**Zorunlu testler:** gerçek PDF/JPEG/PNG sentetik örnekleri; EICAR güvenli test dosyası; MIME/uzantı aldatması; şifreli/bozuk PDF; decompression/pixel limitleri; scanner down/eski imza; replay/eski checksum; karantinadan direct download reddi; cross-agency/parent/sensitive belge reddi; runtime'da backup delete yetkisi yok; D1+R2 birlikte restore; WhatsApp açıldı≠gönderildi.
+**Zorunlu testler:** gerçek PDF/JPEG/PNG sentetik örnekleri; executable/script/HTML/SVG/Office/ZIP ret; MIME/uzantı/içerik aldatması; şifreli/bozuk PDF; decompression/pixel/boyut limitleri; key injection/path traversal ret; scanner olmadan yapısal kabul+backup+yetkili indirme; false CLEAN yok; replay/eski checksum/CAS/audit; non-AVAILABLE direct download reddi; cross-agency/parent/sensitive/secure belge reddi; private R2; durable write/retry/Queue kaybı sonrası redispatch; obsolete scan retry yok; runtime'da backup delete yetkisi yok; D1+R2 birlikte restore; WhatsApp açıldı≠gönderildi.
 
-**Kapı:** UNKNOWN scan sonucu temiz sayılamaz. Tarama ve restore kanıtı olmadan gerçek belge modülü açılmaz; diğer CRM modülleri scanner arızasından bağımsız çalışır.
+**Kapı:** Yapısal doğrulama malware güvenliği sayılmaz ve taranmamış belge CLEAN olamaz. Gerçek private primary R2/EU, Access/authz/MFA/alternatif URL koruması, safe download, durable writes/reconciliation, ayrı backup yetki sınırı/no-delete/lock/EU ve gerçek restore/RPO-RTO kanıtları geçmeden belge modülü açılmaz. M4 COMPLETE=false ve DOCUMENTS_ENABLED=false bu supersession diliminde korunur; M5 başlamaz. Container/digest/egress/scan CPU-memory ve scan-specific hold kapıları superseded'dır.
 
 ### Faz 5 — Tam operasyon, rapor ve export
 
@@ -601,7 +607,7 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 
 **Çıktı:** Acente senaryoları, training, ölçülmüş yük/erişilebilirlik, izin/negatif test matrisi, legal/data/retention girdileri, restore tatbikatı, monitoring uyarı testi, final migration ve yakın izleme.
 
-**Go-live için hepsi zorunlu:** Access+MFA ve secure policy runtime kanıtı; alternatif URL kapalı; her sensitive route/scope negatif test; temiz-only dosya; PII log ve secret taraması; veri aktarım/saklama sorumluları kayıtlı; D1+R2 restore RPO/RTO ölçümü; tüm import mutabakatı; açık kritik/yüksek güvenlik engeli yok; owner'ın açık canlıya geçiş yetkisi.
+**Go-live için hepsi zorunlu:** Access+MFA ve secure policy runtime kanıtı; alternatif URL kapalı; her sensitive route/scope negatif test; yapısal kabul+backup ve güvenli yetkili dosya erişimi; PII log ve secret taraması; veri aktarım/saklama sorumluları kayıtlı; D1+R2 restore RPO/RTO ölçümü; tüm import mutabakatı; açık kritik/yüksek güvenlik engeli yok; owner'ın açık canlıya geçiş yetkisi.
 
 **Kesim:** kaynak freeze → bookmark/yedek+manifest → onaylı import → reconciliation → kullanıcı açılışı → smoke test → kısa yakın izleme. Geri dönüş eşiği: veri tutarsızlığı, izin sızıntısı, kritik işin tamamlanamaması. Güvenlik sızıntısında önce erişim durdurulur; yalnız eski UI'a dönmek çözüm sayılmaz.
 
@@ -650,9 +656,9 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-13 | Tenant hazırlığı | KESİN: Agency/Membership ve birleşik FK; tam SaaS ERTELENDİ |
 | F-14 | Stack/router/ORM | KESİN: 1. ve 3. bölüm stack'i; same-origin tek CRM Worker |
 | F-15 | FTS/risk JSON | ERTELENDİ: harici arama, FTS ve generic risk motoru; typed alanlar/indeksler |
-| F-16 | Belge/malware | KESİN: 20 MiB PDF/JPEG/PNG, private sürüm, ClamAV Container+Queue, temiz-only |
+| F-16 | Belge/malware | F-26 ile superseded: 20 MiB PDF/JPEG/PNG, private sürüm, bounded yapısal kabul+backup; zorunlu AV yok |
 | F-17 | Turnstile | KESİN: V1 public app form yok; iç ekranlara CAPTCHA yok; public yeni yüzeyde zorunlu server validation |
-| F-18 | WAF/limit | KESİN: Workers Paid+Pro zone tabanı; scoped WAF; kullanıcı limitleri ve kesin D1 iş kotası |
+| F-18 | WAF/limit | F-26: uygun Free yetenekler; ücretli plan aktivasyonu yok; Access/MFA/scoped edge/app sınırları ve kesin D1 iş kotası korunur |
 | F-19 | Region/retention | KESİN: D1/R2 EU; global compute dürüstçe belgeli; hukukî profil gerçek veri kapısında KURULUM GİRDİSİ |
 | F-20 | Backup/restore | KESİN: RPO1h/RTO4h; ayrı yetki hesabı, saatlik D1 ve belge sürümü yedeği; 35 günlük kurtarma |
 | F-21 | Soft delete/audit | KESİN: gerekçeli archive, ayrı legal erasure, ilk mutasyondan audit |
@@ -662,6 +668,8 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-25 | Kaynakların çelişmesi | KESİN: yalnız bu nihai dosya; eski paket arşiv ve normatif değil |
 
 Yeni değişiklik kaydı aynı bölümde tarih, kullanıcı yetkisi/gerekçe, etkilenen bölüm/test ve sonuçla eklenir. Çelişkili ikinci bir FINAL dosyası üretilmez. Bu planı geliştirmek mümkündür; “nihai” kontrolsüz tasarım drift'ini önler, gerçek hatayı düzeltmeyi yasaklamaz.
+
+F-26 — 5 Ekim 2026; ürün sahibinin açık kararı, accepted checkpoint `5d71586a0a18189b726b55f7899fd5d5dd55d3fd`: çalışan-only internal CRM için zorunlu server-side ClamAV/Containers/CLEAN ve scanner-specific Queue/14-gün hold gereksinimleri superseded. Bölüm 1/3/6/9/10/14/15/16 ve F-16/F-18 aktif kapıları yukarıdaki modele geçer; geçmiş test/evidence/migration tarihçesi korunur. Personel sayısı sınırlanmaz; RG-00 ve tüm domain/multi-user/backup/restore invariant'ları değişmez. Global API Key yalnız local administrative provisioning; scoped-token geçişi ertelenmiş teknik borçtur, bu görevin engeli değildir. Workers Paid/Zone Pro/ücretli Zero Trust/Containers satın alma yetkisi yoktur.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 

@@ -1,5 +1,7 @@
 # M4 Queue dead-letter operations
 
+Historical scanner runbook — F-26 (5 October 2026) supersedes this production requirement. Do NOT provision this scan/DLQ/hold chain or purchase 14-day retention. Active durable BACKUP/RECONCILE jobs use D1 as authority and Queue only as acceleration; see `M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md` and the current final architecture plan. The procedure below records the previously accepted scanner design, not the active enablement gate.
+
 This runbook covers the M4 document scan Queue chain only. It does not enable documents, provision infrastructure, or authorize production access.
 
 ## Queue path

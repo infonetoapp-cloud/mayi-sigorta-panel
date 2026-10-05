@@ -18,6 +18,12 @@ import {
   documentDownloadConfirmation,
 } from '../src/server/documents/stream';
 import { listRenewalQuotes } from '../src/server/renewals/engagement';
+import { createDocumentUpload } from '../src/server/documents/service';
+import {
+  enqueueDocumentReconcile,
+  processDocumentReconcileMessage,
+} from '../src/server/documents/reconcile';
+import { createR2DocumentReconcileStorage } from '../src/server/documents/reconcile-storage';
 const timestamp = '2026-09-28T12:00:00.000Z';
 const agencyId = 'upload-agency-a';
 const userId = 'upload-owner-a';
@@ -553,7 +559,73 @@ async function corruptTable(table: string, statement: D1PreparedStatement) {
     for (const trigger of triggers.results) await db.prepare(trigger.sql).run();
   }
 }
-describe('authorized CLEAN primary document stream', () => {
+describe('authorized validated primary document stream (including historical scans)', () => {
+  it('uploads, backs up, downloads and reconciles valid staff bytes with no scanner or CLEAN row', async () => {
+    const uploaded = await createDocumentUpload(
+      db,
+      source,
+      ownerContext,
+      {
+        ownerType: 'CUSTOMER',
+        ownerId: customerId,
+        classification: 'GENERAL',
+        fileName: '../../unsafe.pdf',
+        declaredContentType: 'application/pdf',
+        file: new Blob([bytes], { type: 'application/pdf' }),
+      },
+      { correlationId: 'internal-flow', idempotencyKey: 'internal-flow' },
+    );
+    const row = await db
+      .prepare(
+        `SELECT id,generation,input_sha256 FROM background_jobs WHERE document_version_id=? AND job_type='DOCUMENT_BACKUP'`,
+      )
+      .bind(uploaded.body.versionId)
+      .first<{ id: string; generation: number; input_sha256: string }>();
+    const message: DocumentJobQueueMessage = {
+      jobId: row!.id,
+      jobType: 'DOCUMENT_BACKUP',
+      generation: row!.generation,
+      documentVersionId: uploaded.body.versionId,
+      inputSha256: row!.input_sha256,
+    };
+    await expect(
+      downloadDocument(db, source, ownerContext, uploaded.body.documentId, {}),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(
+      await processDocumentBackupMessage(
+        db,
+        source,
+        createR2DocumentBackupAdapter(destination),
+        message,
+      ),
+    ).toBe('COMPLETED');
+    const response = await downloadDocument(db, source, ownerContext, uploaded.body.documentId, {});
+    expect(response.headers.get('content-disposition')).toBe('attachment; filename="document.pdf"');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array(bytes));
+    await expect(
+      downloadDocument(db, source, memberContext, uploaded.body.documentId, {}),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(
+      await db
+        .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')
+        .bind(uploaded.body.versionId)
+        .first('count'),
+    ).toBe(0);
+    const job = await enqueueDocumentReconcile(
+      db,
+      agencyId,
+      { versionId: uploaded.body.versionId },
+      crypto.randomUUID(),
+    );
+    expect(
+      await processDocumentReconcileMessage(
+        db,
+        createR2DocumentReconcileStorage(source, destination),
+        job,
+      ),
+    ).toBe('SAFE_NOOP');
+  });
   it.each(['renewal.read', 'policy.read', 'customer.read'] as const)(
     'retains Quote parent %s authority across confirmation, issuance and download',
     async (revoked) => {

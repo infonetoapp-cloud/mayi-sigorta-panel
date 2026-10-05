@@ -1,5 +1,7 @@
 # M4 — D1 + R2 yerel/sentetik restore kanıtı
 
+F-26 ileri yönlü güncelleme (5 Ekim 2026): güncel harness schema `0019` bekler. Yeni `validation_version/validation_result` kanıtı structural acceptance'tır, AV verdict değildir; yeni backup/AVAILABLE için scan/CLEAN şartı yoktur. Historical scan row/job/outcome/causal kanıtları hâlâ doğrulanır ve yeniden yazılmaz. Aşağıdaki `0018`/CLEAN metinleri önceki accepted tatbikatı kaydeder; güncel karar `M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md` ve nihai plandadır. Sealed publication, current offboarding/permission/deletion tombstone ve ayrı backup/restore kontrolleri değişmez.
+
 Nihai plan 14.1 ve Faz 4 kabul kapısı için offline recovery harness: `scripts/recovery/local-restore-proof.ts`. Uygulama import özelliği, Worker handler'ı veya production cutover değildir. `DOCUMENTS_ENABLED=false` korunur.
 
 ## İzolasyon ve yetki

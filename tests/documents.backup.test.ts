@@ -102,7 +102,7 @@ afterAll(async () => {
   if (directory) rmSync(directory, { recursive: true, force: true });
 });
 
-async function fixture(database = db, legacy = false) {
+async function fixture(database = db, legacy = false, validated = false) {
   const db = database;
   const documentId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
@@ -124,6 +124,36 @@ async function fixture(database = db, legacy = false) {
     )
     .bind(versionId, documentId, key, checksum, bytes.byteLength)
     .run();
+  if (validated) {
+    await db
+      .prepare(
+        `INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256) VALUES(?,'backup-agency','DOCUMENT_BACKUP',?,?)`,
+      )
+      .bind(jobId, versionId, checksum)
+      .run();
+    await db
+      .prepare(
+        `UPDATE document_versions SET status='BACKUP_PENDING',validation_version='m4-content-inspection-v1',validation_result='{"valid":true,"format":"PDF","pageCount":1}' WHERE id=?`,
+      )
+      .bind(versionId)
+      .run();
+    await source.put(key, bytes, { customMetadata: { sha256: checksum } });
+    return {
+      documentId,
+      versionId,
+      scanId,
+      scanRunId,
+      jobId,
+      key,
+      message: {
+        jobId,
+        jobType: 'DOCUMENT_BACKUP' as const,
+        generation: 1,
+        documentVersionId: versionId,
+        inputSha256: checksum,
+      },
+    };
+  }
   await db
     .prepare(
       `INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256)
@@ -239,6 +269,37 @@ async function waitUntilDue(jobId: string) {
 }
 
 describe('local synthetic DOCUMENT_BACKUP', () => {
+  it('publishes a structurally accepted unscanned document after verified backup without CLEAN evidence', async () => {
+    const f = await fixture(db, false, true);
+    expect(
+      await processDocumentBackupMessage(
+        db,
+        source,
+        createR2DocumentBackupAdapter(destination),
+        f.message,
+      ),
+    ).toBe('COMPLETED');
+    expect(
+      await db
+        .prepare('SELECT status FROM document_versions WHERE id=?')
+        .bind(f.versionId)
+        .first('status'),
+    ).toBe('AVAILABLE');
+    expect(
+      await db
+        .prepare('SELECT count(*) AS count FROM document_scan_evidence WHERE document_version_id=?')
+        .bind(f.versionId)
+        .first('count'),
+    ).toBe(0);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS count FROM background_jobs WHERE document_version_id=? AND job_type='DOCUMENT_SCAN'",
+        )
+        .bind(f.versionId)
+        .first('count'),
+    ).toBe(0);
+  });
   it('an expired worker cannot finalize after a newer lease holder completes the same job', async () => {
     const f = await fixture();
     const adapter = createR2DocumentBackupAdapter(destination);
@@ -350,6 +411,7 @@ describe('local synthetic DOCUMENT_BACKUP', () => {
     for (const name of [
       '0017_document_scan_inspection_evidence.sql',
       '0018_document_backup_terminal_failure.sql',
+      '0019_m4_internal_document_validation.sql',
     ]) {
       for (const sql of readFileSync(resolve('db/migrations', name), 'utf8')
         .split('--> statement-breakpoint')

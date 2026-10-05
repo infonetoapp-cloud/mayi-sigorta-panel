@@ -2,20 +2,45 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getPlatformProxy } from 'wrangler';
-import { createWorker, type Env } from '../src/server';
+import { createWorker as createActiveWorker, type Env } from '../src/server';
 import {
   DOCUMENT_SCAN_DEAD_LETTER_QUEUE,
   DOCUMENT_SCAN_OVERFLOW_QUEUE,
   DOCUMENT_SCAN_TERMINAL_QUEUE,
+  consumeDocumentQueueBatch,
+  unavailableDocumentScanner,
 } from '../src/server/documents/scan';
 import {
-  dispatchDueDocumentJobs,
+  dispatchDueDocumentJobs as dispatchJobs,
   type DocumentJobQueueMessage,
 } from '../src/server/documents/queue';
 
 interface LocalDocumentBindings {
   readonly DB: D1Database;
-  readonly DOCUMENT_SCAN_QUEUE: Queue<unknown>;
+  readonly DOCUMENT_JOB_QUEUE: Queue<unknown>;
+}
+
+// Explicit historical job types; production defaults only to BACKUP/RECONCILE.
+const dispatchDueDocumentJobs = (
+  db: D1Database,
+  queue: Pick<Queue<DocumentJobQueueMessage>, 'send'>,
+) => dispatchJobs(db, queue, ['DOCUMENT_SCAN']);
+
+// Historical scanner/DLQ regression harness; this consumer is NOT in the active Worker graph.
+// The scheduled method below is the real active Worker and must ignore legacy scan jobs.
+function createWorker() {
+  return {
+    ...createActiveWorker(),
+    queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env) {
+      return consumeDocumentQueueBatch(
+        batch,
+        env.DB,
+        env.DOCS_QUARANTINE,
+        env.DOCUMENTS_ENABLED === 'true',
+        unavailableDocumentScanner,
+      );
+    },
+  };
 }
 
 let db: D1Database | undefined;
@@ -30,7 +55,7 @@ beforeAll(async () => {
     remoteBindings: false,
   });
   db = platform.env.DB;
-  localQueue = platform.env.DOCUMENT_SCAN_QUEUE;
+  localQueue = platform.env.DOCUMENT_JOB_QUEUE;
   disposePlatform = platform.dispose;
   await db
     .prepare(
@@ -83,6 +108,48 @@ beforeEach(async () => {
 });
 
 describe('document background job dispatcher', () => {
+  it('redispatches durable backup state after Free Queue retention while leaving expired legacy scans dormant', async () => {
+    if (!db || !localQueue) throw new Error('Local D1/Queue missing');
+    await db
+      .prepare(
+        `INSERT INTO background_jobs(id,job_type,document_version_id,input_sha256,generation,status,available_at,queue_dispatched_at,updated_at) VALUES('free-backup','DOCUMENT_BACKUP','free-version','${'a'.repeat(64)}',1,'QUEUED',strftime('%Y-%m-%dT%H:%M:%fZ','now','-25 hours'),strftime('%Y-%m-%dT%H:%M:%fZ','now','-25 hours'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
+      )
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO background_jobs(id,job_type,document_version_id,input_sha256,generation,status,attempt_count,lease_token_hash,lease_expires_at,available_at,updated_at) VALUES('expired-legacy-scan','DOCUMENT_SCAN','legacy-version','${'b'.repeat(64)}',1,'RUNNING',1,'${'c'.repeat(64)}',strftime('%Y-%m-%dT%H:%M:%fZ','now','-25 hours'),strftime('%Y-%m-%dT%H:%M:%fZ','now','-25 hours'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
+      )
+      .run();
+    const sent: DocumentJobQueueMessage[] = [];
+    expect(
+      await dispatchJobs(db, {
+        send: async (m) => {
+          sent.push(m);
+          return localQueue!.send(m);
+        },
+      }),
+    ).toEqual({ sent: 1, failed: 0 });
+    expect(sent.map((m) => m.jobType)).toEqual(['DOCUMENT_BACKUP']);
+    expect(
+      await db
+        .prepare("SELECT attempt_count FROM background_jobs WHERE id='expired-legacy-scan'")
+        .first('attempt_count'),
+    ).toBe(1);
+    await db
+      .prepare(
+        "UPDATE background_jobs SET queue_dispatched_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-25 hours') WHERE id='free-backup'",
+      )
+      .run();
+    expect(
+      await dispatchJobs(db, {
+        send: async (m) => {
+          sent.push(m);
+          return localQueue!.send(m);
+        },
+      }),
+    ).toEqual({ sent: 1, failed: 0 });
+    expect(sent[1]).toEqual(sent[0]);
+  });
   it('publishes only due jobs and marks them for the five-minute duplicate-safe window', async () => {
     if (!db || !localQueue) throw new Error('Local D1/Queue bindings were not initialized');
     await db
@@ -187,7 +254,7 @@ describe('document background job dispatcher', () => {
     const worker = createWorker();
     worker.scheduled(
       { cron: '*/5 * * * *' } as ScheduledController,
-      { DB: db, DOCUMENT_SCAN_QUEUE: localQueue, DOCUMENTS_ENABLED: 'true' } as Env,
+      { DB: db, DOCUMENT_JOB_QUEUE: localQueue, DOCUMENTS_ENABLED: 'true' } as Env,
       {
         waitUntil: (promise: Promise<unknown>) => {
           pendingWork.push(promise);
@@ -199,7 +266,7 @@ describe('document background job dispatcher', () => {
     const row = await db
       .prepare("SELECT queue_dispatched_at FROM background_jobs WHERE id='job-scheduled'")
       .first<{ queue_dispatched_at: string | null }>();
-    expect(row?.queue_dispatched_at).not.toBeNull();
+    expect(row?.queue_dispatched_at).toBeNull();
     const backupRow = await db
       .prepare("SELECT queue_dispatched_at FROM background_jobs WHERE id='job-scheduled-backup'")
       .first<{ queue_dispatched_at: string | null }>();
