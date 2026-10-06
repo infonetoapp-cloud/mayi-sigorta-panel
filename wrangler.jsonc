@@ -71,8 +71,14 @@
           "migrations_dir": "db/migrations",
         },
       ],
-      // R2 checkout/usage-billing approval and private EU readback are pending.
-      "r2_buckets": [],
+      // Private Standard EU bucket verified by control-plane readback; no public access.
+      "r2_buckets": [
+        {
+          "binding": "DOCS_QUARANTINE",
+          "bucket_name": "mayisigorta-documents-quarantine",
+          "jurisdiction": "eu",
+        },
+      ],
       "queues": {
         "producers": [
           {
