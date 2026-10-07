@@ -320,3 +320,60 @@ Tam local supersession, D1 0020/generated snapshot, local identity/provenance, o
 Gerçek Workers Free KDF CPU/capacity; exact panel TLS/headers/alternative URL; gerçek bootstrap/forced change/session-reset-revoke/own-password reauth/bruteforce/binding proof; private R2 anonymous-denial; ayrı EU backup/no-delete IAM/35-day lock/durable reconciliation/restore RPO1h-RTO4h/current permission+tombstone publication/alerts/legal inputs **EXTERNAL** kalır. Cloudflare administrative MFA uygulama login mekanizmasından ayrıdır. Host secrecy/noindex auth değildir.
 
 Commit/push/deploy/remote migration/bootstrap real credential/Cloudflare resource-DNS-R2-Queue mutation/paid plan activation yok. Ajan spawn ve Hermes skill/tool/config authoring veya self-improvement yok. **M4 COMPLETE=false; DOCUMENTS_ENABLED=false; M5 başlamadı.**
+
+## Güncel geçici Custom Domain KDF denemesi — 7 Ekim 2026: INCONCLUSIVE / NOT ACCEPTED
+
+Bu yeni kayıt yukarıdaki üç INCONCLUSIVE benchmark denemesini değiştirmez. Başlangıç temiz `main`, HEAD=origin/main=`ad2e123bb51c6d77347115735aa8bc21d929f52e`; fetch/branch/SHA/status/diff-check exit0. Kullanıcı yalnız bir geçici benchmark Worker/Custom Domain ve bunlara özgü DNS/secret/sertifika yaşam döngüsünü yetkilendirdi. **workers.dev ve remote-preview yöntemleri tekrar denenmedi.**
+
+### Güncel resmî platform ve read-only preflight
+
+- [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) güncel resmî markdown: Free HTTP **10 ms CPU/request**,128MB. Nadir CPU aşım toleransı vardır; sürekli aşım Error1102/`exceededCpu` ile sonlanabilir. Wall time CPU değildir.
+- [Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/) PBKDF2 importKey/deriveBits desteğini doğrular; algoritma desteği Free kapasite kabulü değildir.
+- [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) Worker'ın hostname için origin olması, otomatik DNS ve gerekli TLS sertifikası oluşturulmasını doğrular. Mevcut CNAME üstüne oluşturma yasaktır. Domain için Advanced Certificate üretilir; ayrı Advanced Certificate Manager aboneliği gerekmez. **Custom Domain silme, associated Advanced Certificate'ı otomatik silmez**; ayrıca Edge Certificates/API cleanup gerekir.
+- Güncel resmî API: [domain PUT](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/update/), [domain GET/list](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/list/), [domain DELETE](https://developers.cloudflare.com/api/resources/workers/subresources/domains/methods/delete/), [certificate-pack GET/list](https://developers.cloudflare.com/api/resources/ssl/subresources/certificate_packs/methods/list/) ve [advanced certificate DELETE](https://developers.cloudflare.com/api/resources/ssl/subresources/certificate_packs/methods/delete/). Wrangler `routes[].custom_domain=true` belgelenmiştir; bu görev repo-dışı doğrudan API kullandı.
+
+Fresh GET-only preflight `2026-10-07T12:43:58.966296+00:00`: active mayisigorta.com zone; DNS **9/9**, Worker scripts0/domains0/routes0; mevcut universal sertifika2 (active+backup_issued). Subscriptions **2/2**, yalnız zone `free / Cloudflare Free Plan` ve ayrı account `r2_paid / R2 Paid`. Workers Paid/trial ve paid Zero Trust aboneliği yok; yeni ücret/abonelik/plan aktivasyonu yapılmadı. `state=Paid` alanı Workers Paid değildir. DNS içeriği evidence'a taşınmadı; tam envanterin SHA256 özeti başlangıç/son karşılaştırmasında kullanıldı.
+
+Tek rastgele hostname **`kdf-2ccdcd8659c525b5.mayisigorta.com`**, tek rastgele Worker **`mayisigorta-kdf-domain-benchmark-116ff4fad627fb10`**. Başlangıçta exact hostname ve wildcard DNS yok; A/AAAA/CNAME/Worker route/Custom Domain çatışması yok. Random hedefte unrelated service ilişkisinin kanıtı bulunmadı; mevcut hizmet üstüne yazılmadı.
+
+### Exact source, protection ve gerçek yürütme sınırı
+
+Repo-dışı esbuild harness unchanged `src/server/auth/password.ts` içindeki `productionPasswordHasher`'ı doğrudan import etti: PBKDF2-HMAC-SHA256/**600000**,128-bit random salt,256-bit verifier,v1 envelope ve32byte native constant-time compare. Source-map exact `sourcesContent` equality=true; yalnız password/shared-input/harness3input. Valid fixture exact production modülüyle native local workerd hazırlığında üretildi; hazırlık remote benchmark değildir. UNKNOWN/DUMMY production `routes.ts:210` expression ve `routes.ts:262` tek expensive verify davranışına eşdeğerdir. Work-factor override/test hasher/Node-only replacement/offload/cache/Paid CPU override yoktur.
+
+- Password sourceSHA256: `ae4ff758980a5e438ced6a007fa2c4ab63664232896dac080dac68de731f0d3f`.
+- Shared-input sourceSHA256: `d968acfd1fba64661b2aa7003149362334d819780602cf134ca78a1e4f333e7d`.
+- Deployed bundleSHA256: `40dab0ae616d5c9959eb8ff1fd0bf02f135b48381fd0b244379482e4f7a47b2e`.
+
+Authenticated deployed bundle GET exact equality=true. Settings: compatibility_date2026-09-01/nodejs_compat, usage_model standard, CPU override yok, schedules boş, logpush kapalı/tail_consumers boş. Tek binding **BENCHMARK_AUTH/secret_text**; CSPRNG32byte fresh secret yalnız process memory→TLS secret upload'dadır. Binding'de Cloudflare yönetim credential'ı yok. workers.dev enabled=false, previews_enabled=false readback edildi. D1/R2/Queue/assets/CRM/session/customer/employee/Access/panel route/binding yoktur.
+
+Harness path/query allowlist dışında404, POST dışında405, missing/wrong auth403 before KDF; authorization encoded byte-length+full native timingSafeEqual ile denetlenir ve45dakika expiry vardır. KDF response yalnız operation/completed/iteration taşır; password/verifier/salt/derived bytes/log/environment dump yoktur. **Bunlar source/config kanıtıdır; remote HTTP protection kabulü yapılmadı.**
+
+`2026-10-07T12:45:57.686215+00:00`–`12:46:17.979025+00:00`: tek Worker upload ve Custom Domain PUT başarılı; exact domain GET hostname/service eşlemesini doğruladı, API `cert_id` döndürdü. Sonraki DNS listesinde harness'in enumerated-count/provider-total reconciliation assertion'ı **`INCOMPLETE_INVENTORY`** verdi. Uyuşmazlığın raw counts/record seti artifact'a kaydedilmedi; platform root cause veya belirli pagination sebebi kesinleşmiş değildir. **Otomatik benchmark DNS creation/readback başarıyla tamamlandı iddiası yoktur.** Preflight'teki DNS9/9 doğrulaması bu post-create başarısız kontrolün yerine sunulmaz.
+
+Bu kontrol düzlemi/harness engeli nedeniyle DNS-resolution/TLS-provisioning/HTTPS protection aşamasına geçilmedi: endpoint HTTP attempt0, TLS attempt0, unauth/wrong-auth/404/405 remote probe0. Sertifika issuance/hostname-valid TLS ve gerçek edge KDF execution **NOT PROVEN**. Bu denemede TLS failure veya Free CPU failure gözlenmiş değildir; önceki TLS hataları bu yeni hostname'e aktarılmaz. Exactly-one resource sınırı korunarak ikinci Worker/domain veya recreate yapılmadı.
+
+| Operation | Warm-up attempted / completed | Measured attempted / completed / success | Wall p50/p95/max | Genuine CPU p50/p95/max |
+|---|---:|---:|---|---|
+| HASH | 0 / 0 | 0 / 0 / 0 | N/A | N/A |
+| VALID VERIFY | 0 / 0 | 0 / 0 / 0 | N/A | N/A |
+| INVALID VERIFY | 0 / 0 | 0 / 0 / 0 | N/A | N/A |
+| UNKNOWN/DUMMY | 0 / 0 | 0 / 0 / 0 | N/A | N/A |
+
+CPU-limit errors/terminations ölçülmedi; sıfır invocation CPU-error0 veya safety-margin PASS değildir. **Verdict INCONCLUSIVE / NOT ACCEPTED**: post-create inventory reconciliation engeli gerçek endpoint ve repeated600000KDF/10msmargin kanıtını önledi. Auth redesign veya production commissioning başlatılmadı. PASS olmadığı için fresh HIGH reviewer başlatılmadı.
+
+### Cleanup — bağımsız son durum kanıtı
+
+İlk cleanup domain-list API kontrolü RuntimeError, DNS cleanup reconciliation kontrolü aynı assertion verdi; bu iki ara cleanup adımı başarı diye yazılmaz. Exact Worker delete uygulandı; Worker/secret settings/secrets/subdomain404/code10007 ile yokluk doğrulandı. Ardından domain/DNS envanteri başlangıca döndü. **Ayrı exact-domain DELETE veya exact-DNS DELETE başarılı oldu iddiası yoktur**; son yokluk bağımsız GET'lerle kanıtlıdır.
+
+Custom Domain'in döndürdüğü exact certificate-pack ID ayrıca GET edildi: **`3d7de470-a6df-46c6-b245-29ef54d6aa2c`**, type advanced, hosts apex+exact benchmark hostname+benchmark-altı wildcard, **status=`deleted`**. Pack normal `status=all` envanterinde yoktur; direct GET200 deleted tombstone hâlâ okunabilir. Sertifika hiç issued/active gözlenmedi. Bu host listesi apex içerdiğinden yalnız `[benchmark-host]` varsayımıyla certificate delete yapılmadı; mevcut universal/wildcard production sertifikalara dokunulmadı. Artık deleted olan pack'e gereksiz ikinci delete gönderilmedi. Bu observed state, docs'taki domain-delete certificate-cleanup gereğini genelleştirilmiş otomatik deletion garantisine dönüştürmez.
+
+Bağımsız GET-only process başlangıcı **`2026-10-07T12:47:41.092130+00:00`**,15s aralıklı2readback:
+
+- Exact random hostname DNS absent=true; tüm mevcut **9DNS kaydı full JSON SHA256-equal**. Başlangıç/son özet `0696df3c3c46a05c153d8e422da12dbbbaa9436ceb35fafdc8802f693e3a1016`.
+- Scripts0/domains0/zone routes0; exact domain GET404/code100114; exact Worker settings/secrets/subdomain404/code10007. Geçici Worker ve secret yok; CRM deployed değildir.
+- Benchmark certificate exact GET status deleted, active/pending inventory'de yok; mevcut universal2 identity hash unchanged. **Aktif residual benchmark certificate yoktur; deleted API tombstone güvenli biçimde hesap verilmiştir.**
+- Subscriptions aynı2/2; Workers Paid/trial/paid Zero Trust veya yeni billing aktivasyonu yok.
+
+Sanitized artifacts: `C:/Users/sinan/AppData/Local/Temp/mayi-kdf-domain-preflight.json`, `mayi-kdf-domain-result.json`, `mayi-kdf-domain-independent-readback.json`; repo-dışı inventory/build/run/readback harness'leri. Original result ara cleanup failure'larını değiştirmeden korur; independent readback final cleanup kanıtıdır. Result save sırasında memory-only benchmark-secret ve Cloudflare credential exact-match0. Final docs için artık bellekte bulunmayan benchmark secret'ın post-hoc exact-value scan'i yapılmış diye sunulmaz; sanitized artifacts + mevcut Cloudflare credential exact-match ve secret-pattern scan kullanılır.
+
+Yalnız bu evidence ve UYGULAMA_DURUMU değişir; production source/test/schema/config unchanged.1522tests/lint/typecheck/build tekrarlanmadı. `npm run format:check` exit0 (planning pack formatter ignore kapsamında), `git diff --check` exit0; iki changed dosya+exact diff+sanitized artifacts Cloudflare credential exact-match0/secret-pattern0/synthetic-password0/tracked actual.env-dev.vars0, **secret scanPASS**. Önceki AUTH evidence exact prefix ve status historical body preserved=true; repo-dışı `mayi-kdf-domain-final-safety.json` kanıtı içerir. D1/0020/R2/Queue/OWNER bootstrap/employee/customer/gerçek credential/CRM deployment/panel-domain/Access/existing mail-DNS/production certificate/paid/Hermes mutation **NO**. **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Tek güvenli sonraki adım: yeni kaynak oluşturmadan Cloudflare auto-managed DNS/domain envanterinin count/pagination davranışını ve harness cleanup reconciliation'ını read-only incelemek; yeni gerçek benchmark ancak ayrı yetkiyle, auth/migration/bootstrap/deployment olmadan yapılır.
