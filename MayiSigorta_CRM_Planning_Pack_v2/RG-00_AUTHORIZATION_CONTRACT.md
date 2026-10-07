@@ -552,6 +552,8 @@ Catalog davranışı:
 
 Chicken-and-egg çözümü:
 
+- İlk acente oluşturma OWNER bootstrap'tan ayrı controlled LOCAL-ADMIN `provisionInitialAgency` işlemidir; yeni HTTP/action permission veya authorization bypass değildir. Exact account/D1/agency/operation key, trusted terminal ve exact tuple confirmation ile yalnız boş ilk commissioning state'inde version1 PROVISIONING acente + immutable `auth.admin.provision-agency` SYSTEM audit aynı D1 CAS/batch'te yazılır. User/Membership/AuthIdentity/credential/session/parola oluşturmaz. Exact retry yalnız özgün audit/target/tuple + değişmemiş PROVISIONING/boş auth state'inde aynı sonucu verir; conflicting replay, ikinci acente veya kanıtsız mevcut state fail-closed'dur. Remote mode bu LOCAL-only dilimde desteklenmez; ayrıntı nihai plan5.3'tedir.
+
 - İlk owner normal authorization evaluator üzerinden oluşturulmaz.
 - Public bootstrap endpoint'i yoktur.
 - Bootstrap yalnız kontrollü provisioning CLI/operasyon yoludur.

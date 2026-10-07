@@ -2,15 +2,19 @@
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 import { createInterface } from 'node:readline/promises';
 import { build } from 'esbuild';
 import { getPlatformProxy, unstable_readConfig } from 'wrangler';
+import miniflare from 'miniflare';
 const { fetch } = globalThis;
 
-// No password/token command argument, dotenv file, persistence of plaintext or public endpoint.
-async function main() {
+// No password/token command argument or public endpoint. Agency-only mode loads no dotenv.
+export function parseAdminArguments(args = process.argv.slice(2)) {
   const { values } = parseArgs({
+    args,
     options: {
       mode: { type: 'string' },
       account: { type: 'string' },
@@ -27,10 +31,47 @@ async function main() {
     },
     strict: true,
   });
-  if (!process.stdin.isTTY || !process.stdout.isTTY)
-    throw new Error('TRUSTED_INTERACTIVE_TERMINAL_REQUIRED');
   if (Boolean(values.local) === Boolean(values.remote))
     throw new Error('EXPLICIT_LOCAL_OR_REMOTE_REQUIRED');
+  if (values.mode === 'provision-agency') {
+    if (!values.local || values.remote) throw new Error('AGENCY_PROVISIONING_LOCAL_ONLY');
+    if (values.owner !== undefined || values.email !== undefined || values.name !== undefined)
+      throw new Error('AGENCY_PROVISIONING_NO_OWNER_INPUT');
+  }
+  return values;
+}
+
+export function adminConfirmationTuple(target) {
+  return target.mode === 'provision-agency'
+    ? `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.operationKey}`
+    : `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.ownerUserId}`;
+}
+
+// Agency-only D1 composition uses the accepted native local test/runtime pattern.
+// Never loads Wrangler dev vars, cf metadata or unrelated resource bindings.
+async function openLocalAgencyDatabase(databaseId, persistTo) {
+  const { Miniflare, convertV4MiniflareOptions } = miniflare;
+  const mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {}',
+      cf: false,
+      d1Databases: { DB: databaseId },
+      resourcePersistencePath: persistTo,
+    }),
+  );
+  try {
+    return { db: await mf.getD1Database('DB'), dispose: () => mf.dispose() };
+  } catch (error) {
+    await mf.dispose();
+    throw error;
+  }
+}
+
+async function main() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY)
+    throw new Error('TRUSTED_INTERACTIVE_TERMINAL_REQUIRED');
+  const values = parseAdminArguments();
   const bundle = await build({
     entryPoints: ['src/server/auth/admin.ts'],
     bundle: true,
@@ -39,28 +80,37 @@ async function main() {
     target: 'node24',
     write: false,
   });
-  const { adminTargetSchema, administerLocalOwner, assertLocalAdminBinding } = await import(
+  const {
+    adminTargetSchema,
+    initialAgencyTargetSchema,
+    provisionInitialAgency,
+    administerLocalOwner,
+    assertLocalAdminBinding,
+  } = await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
-  const target = adminTargetSchema.parse({
+  const agencyOnly = values.mode === 'provision-agency';
+  const common = {
     mode: values.mode,
     accountId: values.account,
     databaseId: values.d1,
     agencyId: values.agency,
-    ownerUserId: values.owner,
-    email: values.email,
-    name: values.name,
     operationKey: values.key,
-  });
+  };
+  const target = agencyOnly
+    ? initialAgencyTargetSchema.parse(common)
+    : adminTargetSchema.parse({
+        ...common,
+        ownerUserId: values.owner,
+        email: values.email,
+        name: values.name,
+      });
   const prompt = createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await prompt.question(
-      `Tam hedefi ve Cloudflare administrative MFA kontrolünü doğrulayın. ${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.ownerUserId} yazın: `,
+      `Tam hedefi ve Cloudflare administrative MFA kontrolünü doğrulayın. ${adminConfirmationTuple(target)} yazın: `,
     );
-    if (
-      answer !==
-      `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.ownerUserId}`
-    )
+    if (answer !== adminConfirmationTuple(target))
       throw new Error('OPERATOR_CONFIRMATION_REQUIRED');
   } finally {
     prompt.close();
@@ -70,14 +120,18 @@ async function main() {
     if (!values.config || !values['persist-to'])
       throw new Error('EXACT_LOCAL_CONFIG_AND_STATE_REQUIRED');
     assertLocalAdminBinding(unstable_readConfig({ config: values.config }), target);
-    const platform = await getPlatformProxy({
-      configPath: values.config,
-      envFiles: [],
-      persist: { path: values['persist-to'] },
-      remoteBindings: false,
-    });
-    db = platform.env.DB;
-    dispose = platform.dispose;
+    if (agencyOnly) {
+      ({ db, dispose } = await openLocalAgencyDatabase(target.databaseId, values['persist-to']));
+    } else {
+      const platform = await getPlatformProxy({
+        configPath: values.config,
+        envFiles: [],
+        persist: { path: values['persist-to'] },
+        remoteBindings: false,
+      });
+      db = platform.env.DB;
+      dispose = platform.dispose;
+    }
     if (!db) throw new Error('EXACT_D1_BINDING_REQUIRED');
   } else {
     const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -146,6 +200,13 @@ async function main() {
     };
   }
   try {
+    if (agencyOnly) {
+      const result = await provisionInitialAgency(db, target);
+      process.stdout.write(
+        `Acente PROVISIONING: ${result.agencyId}; işlem ${result.outcome}; correlation ${result.correlationId}. OWNER veya şifre oluşturulmadı.\n`,
+      );
+      return;
+    }
     const result = await administerLocalOwner(db, target);
     // Exactly one successful trusted-terminal display; never receipt/retrieval/log/file output.
     process.stdout.write(
@@ -155,9 +216,10 @@ async function main() {
     await dispose?.();
   }
 }
-main().catch(() => {
-  process.stderr.write(
-    'Yönetim işlemi reddedildi veya tamamlanamadı. Ayrıntı/secret loglanmadı.\n',
-  );
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main().catch(() => {
+    process.stderr.write(
+      'Yönetim işlemi reddedildi veya tamamlanamadı. Ayrıntı/secret loglanmadı.\n',
+    );
+    process.exitCode = 1;
+  });

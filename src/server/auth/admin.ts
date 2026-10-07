@@ -20,8 +20,19 @@ export const adminTargetSchema = z
   })
   .strict();
 export type AdminTarget = z.infer<typeof adminTargetSchema>;
-export function assertLocalAdminBinding(config: unknown, input: AdminTarget): void {
-  const target = adminTargetSchema.parse(input);
+export const initialAgencyTargetSchema = adminTargetSchema
+  .pick({ accountId: true, databaseId: true, agencyId: true, operationKey: true })
+  .extend({
+    mode: z.literal('provision-agency'),
+    agencyId: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/),
+  })
+  .strict();
+export type InitialAgencyTarget = z.infer<typeof initialAgencyTargetSchema>;
+export function assertLocalAdminBinding(
+  config: unknown,
+  input: AdminTarget | InitialAgencyTarget,
+): void {
+  const target = z.union([adminTargetSchema, initialAgencyTargetSchema]).parse(input);
   const parsed = z
     .object({
       account_id: z.string(),
@@ -35,6 +46,97 @@ export function assertLocalAdminBinding(config: unknown, input: AdminTarget): vo
   const db = parsed.data.d1_databases.filter((b) => b.binding === 'DB');
   if (db.length !== 1 || db[0]!.database_id !== target.databaseId || db[0]!.remote === true)
     throw new Error('EXACT_LOCAL_D1_REQUIRED');
+}
+
+// Static, reviewed identifiers only. Residual grants/receipts/audits are not a fresh commissioning.
+const initialAuthStateEmpty = [
+  'users',
+  'agency_memberships',
+  'auth_identities',
+  'local_credentials',
+  'local_sessions',
+  'membership_permissions',
+  'sensitive_action_grants',
+  'operation_receipts',
+  'credential_operation_receipts',
+  'audit_events',
+]
+  .map((table) => `NOT EXISTS (SELECT 1 FROM ${table})`)
+  .join(' AND ');
+
+/** Controlled admin composition only, never HTTP. No password/KDF/OWNER side effect.
+ * Exact retry is accepted only while the original unactivated first-agency state remains.
+ * All decisions and the immutable agency/audit effect execute inside one native D1 batch.
+ */
+export async function provisionInitialAgency(
+  db: D1Database,
+  input: InitialAgencyTarget,
+): Promise<{ agencyId: string; correlationId: string; outcome: 'COMPLETED' }> {
+  const target = initialAgencyTargetSchema.parse(input);
+  const auditKey = `provision-agency:${target.operationKey}`;
+  const metadata = JSON.stringify({ accountId: target.accountId, databaseId: target.databaseId });
+  const completed = `
+    (SELECT count(*) FROM agencies)=1 AND
+    (SELECT count(*) FROM system_audit_events)=1 AND
+    EXISTS (SELECT 1 FROM agencies a JOIN system_audit_events e ON e.agency_id=a.id
+      WHERE a.id=? AND a.status='PROVISIONING' AND a.version=1
+      AND a.bootstrap_completed_at IS NULL AND a.activated_at IS NULL
+      AND e.system_actor_code='LOCAL_AUTH_OPERATOR' AND e.action='auth.admin.provision-agency'
+      AND e.target_type='agencies' AND e.target_id=a.id AND e.idempotency_key=?
+      AND e.outcome='SUCCESS' AND e.reason_code='OPERATOR_CONFIRMED' AND e.metadata_json=?)`;
+  const proofParams = [target.agencyId, auditKey, metadata];
+  const results = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+      SELECT ?,1,CASE WHEN ${initialAuthStateEmpty} AND (
+        (NOT EXISTS (SELECT 1 FROM agencies) AND NOT EXISTS (SELECT 1 FROM system_audit_events))
+        OR (${completed})) THEN 1 ELSE 0 END,'OPTIMISTIC_CONCURRENCY_CONFLICT'`,
+      )
+      .bind(crypto.randomUUID(), ...proofParams),
+    db
+      .prepare(
+        `INSERT INTO agencies(id,status)
+      SELECT ?,'PROVISIONING' WHERE NOT EXISTS (SELECT 1 FROM agencies)`,
+      )
+      .bind(target.agencyId),
+    db
+      .prepare(
+        `INSERT INTO system_audit_events(
+      id,agency_id,system_actor_code,action,target_type,target_id,correlation_id,
+      idempotency_key,outcome,reason_code,metadata_json)
+      SELECT ?,?,'LOCAL_AUTH_OPERATOR','auth.admin.provision-agency','agencies',?,?,?,
+        'SUCCESS','OPERATOR_CONFIRMED',? WHERE NOT EXISTS (SELECT 1 FROM system_audit_events)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        target.agencyId,
+        target.agencyId,
+        crypto.randomUUID(),
+        auditKey,
+        metadata,
+      ),
+    db
+      .prepare(
+        `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+      SELECT ?,1,CASE WHEN ${initialAuthStateEmpty} AND (${completed})
+        THEN 1 ELSE 0 END,'BUSINESS_MUTATION_FAILED'`,
+      )
+      .bind(crypto.randomUUID(), ...proofParams),
+    db
+      .prepare(
+        `SELECT agency_id,correlation_id FROM system_audit_events
+      WHERE agency_id=? AND system_actor_code='LOCAL_AUTH_OPERATOR'
+      AND action='auth.admin.provision-agency' AND idempotency_key=?`,
+      )
+      .bind(target.agencyId, auditKey),
+  ]);
+  const evidence = results[4]!.results[0] as { agency_id: string; correlation_id: string };
+  return {
+    agencyId: evidence.agency_id,
+    correlationId: evidence.correlation_id,
+    outcome: 'COMPLETED',
+  };
 }
 /** No HTTP caller/import. This is a controlled administrative composition, not user authorization. */
 export async function administerLocalOwner(
