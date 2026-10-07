@@ -1,4 +1,5 @@
-import { AccessVerificationError } from './errors';
+// DORMANT F-27 historical Access unit evidence; never a Worker runtime dependency.
+import { AccessVerificationError } from './access-errors';
 
 /**
  * Cloudflare Access Başlık Çıkarma Yardımcısı (M1-T05).

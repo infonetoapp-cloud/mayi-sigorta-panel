@@ -1,4 +1,4 @@
-import type { VerifiedAccessPrincipal, AccessAssurance } from './types';
+import type { AuthenticatedPrincipal, AuthenticationAssurance } from './types';
 import type { UserMeDto, UserMeMembershipDto } from '../../shared/types';
 
 /**
@@ -70,13 +70,14 @@ export interface ActiveMembershipContext {
 export interface AuthenticatedUserContext {
   readonly userId: string;
   readonly identityId: string;
+  readonly sessionHash?: string;
   readonly email?: string;
-  readonly assurance: AccessAssurance;
+  readonly assurance: AuthenticationAssurance;
   readonly memberships: readonly ActiveMembershipContext[];
 }
 
 export interface ApplicationIdentityResolver {
-  resolve(principal: VerifiedAccessPrincipal): Promise<AuthenticatedUserContext>;
+  resolve(principal: AuthenticatedPrincipal): Promise<AuthenticatedUserContext>;
 }
 
 interface RawAuthIdentityRow {
@@ -145,11 +146,11 @@ function validateD1QueryResult<T>(
 }
 
 /**
- * Doğrulanmış Access principal nesnesini D1 üzerindeki aktif kimlik ve üyelik bağlamına çözümler.
+ * Sunucu oturumundan doğrulanmış principal nesnesini D1 üzerindeki aktif kimlik ve üyelik bağlamına çözümler.
  */
 export async function resolveAuthenticatedUserContext(
   db: D1Database,
-  principal: VerifiedAccessPrincipal,
+  principal: AuthenticatedPrincipal,
 ): Promise<AuthenticatedUserContext> {
   // Girdi savunması
   if (!principal || typeof principal !== 'object') {
@@ -350,6 +351,7 @@ export async function resolveAuthenticatedUserContext(
   return Object.freeze({
     userId: rawUser.id,
     identityId: rawIdentity.id,
+    ...(principal.sessionHash ? { sessionHash: principal.sessionHash } : {}),
     ...(informationalEmail ? { email: informationalEmail } : {}),
     assurance: principal.assurance,
     memberships: Object.freeze(activeMemberships),
@@ -361,7 +363,7 @@ export async function resolveAuthenticatedUserContext(
  */
 export function createApplicationIdentityResolver(db: D1Database): ApplicationIdentityResolver {
   return {
-    resolve: (principal: VerifiedAccessPrincipal) => resolveAuthenticatedUserContext(db, principal),
+    resolve: (principal: AuthenticatedPrincipal) => resolveAuthenticatedUserContext(db, principal),
   };
 }
 

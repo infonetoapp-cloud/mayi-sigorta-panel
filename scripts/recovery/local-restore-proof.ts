@@ -58,7 +58,7 @@ const moneySchema = z.record(
 const manifestSchema = z.strictObject({
   format: z.literal('mayi-local-restore-v1'),
   appVersion: z.literal('0.1.0'),
-  schemaVersion: z.literal('0019'),
+  schemaVersion: z.literal('0020'),
   createdAt: z.iso.datetime({ precision: 3 }),
   bookmark: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
   dbExportSha256: digest,

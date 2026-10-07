@@ -1,3 +1,4 @@
+// DORMANT F-27 historical Access unit evidence; never a Worker runtime dependency.
 import {
   jwtVerify,
   createRemoteJWKSet,
@@ -7,10 +8,10 @@ import {
   type JWTVerifyGetKey,
   type JWTPayload,
 } from 'jose';
-import { assertTrustedAccessConfig, type AccessConfig } from './config';
-import { AccessVerificationError } from './errors';
-import { extractAccessJwtAssertion } from './extraction';
-import type { VerifiedAccessPrincipal, AccessAssurance } from './types';
+import { assertTrustedAccessConfig, type AccessConfig } from './access-config';
+import { AccessVerificationError } from './access-errors';
+import { extractAccessJwtAssertion } from './access-extraction';
+import type { VerifiedAccessPrincipal, AccessAssurance } from './access-types';
 
 /**
  * Cloudflare Access JWT Doğrulayıcı Temeli (M1-T05).

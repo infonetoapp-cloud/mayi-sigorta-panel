@@ -3,6 +3,7 @@
 **Proje:** Mayı Sigorta CRM
 **Kapı:** RG-00 Authorization Contract Resolution
 **Durum:** PASS
+**F-27 authentication/assurance supersession:** Tarihsel RG-00 authorization kabulü korunur; yeni local-auth implementasyon/review PASS iddiası değildir. Aktif kimlik yalnız OWNER-provisioned email/parola ve hash-only opaque D1 session; günlük çalışan Access/JWT/OTP/TOTP/MFA/secure audience SUPERSEDED. Cloudflare administrative MFA ayrı kalır. OWNER/MEMBER/NORMAL/SENSITIVE/scope/dependency/tenant/last-owner/CAS/idempotency/audit invariant'ları değişmez. Ayrıntılı aktif auth/credential/session/reauth/CLI sözleşmesi nihai plan bölüm5/F-27'dedir.
 **Amaç:** Agency, membership, permission, authorization evaluator, sensitive-data authorization, owner administration ve personnel management implementasyonları için deterministik source-of-truth sözleşmesi.
 
 Bu sözleşme `NIHAI_MIMARI_VE_UYGULAMA_PLANI.md` içindeki authorization kararlarını ayrıntılandırır ve CF-01 OWNER effective-permission belirsizliğini kapatır. Authorization implementasyonunda bu dosyadaki daha özel kurallar uygulanır. Belirsiz yorum, role hierarchy, policy DSL veya örtük istisna eklenemez.
@@ -18,7 +19,7 @@ RG-00 authorization modeli şu şekilde kesinleştirilmiştir:
   - Acente sınırı içindeki tüm NORMAL operational permission'ları implicit olarak alır.
   - SENSITIVE permission'ları implicit olarak almaz.
   - Owner-only yönetim capability'lerine sahiptir.
-  - Agency, üyelik durumu, hassas veri, MFA/secure action grant, audit, karantina, yeniden doğrulama ve sistem invariant'larını aşamaz.
+  - Agency, üyelik durumu, hassas veri, own-password reauth/secure action grant, audit, karantina, yeniden doğrulama ve sistem invariant'larını aşamaz.
 - Normal MEMBER yalnız açık `MembershipPermission` grant'leriyle yetki kazanır.
 - `MembershipPermission` yalnız pozitif GRANT taşır. Explicit DENY yoktur.
 - Kayıt bulunmaması her zaman DENY'dır.
@@ -33,7 +34,7 @@ Model bileşenlerinin sınırları:
 
 - **Agency:** Tenant ve veri sınırıdır. Yetki vermez. Bir kaydın agency sınırı doğrulanmadan permission hesabı yapılmaz.
 - **User:** Global insan hesabıdır. Tek başına hiçbir acente erişimi sağlamaz.
-- **AuthIdentity:** Doğrulanmış `(issuer, subject)` kimliğini User'a bağlar. Email tek başına authorization kaynağı değildir.
+- **AuthIdentity:** Sabit local issuer+rastgele stable subject ile User'a bağlanır; credential/session canlı doğrulanır. Email tek başına authorization kaynağı değildir. Legacy verified_email adı OWNER_PROVISIONED provenance ile email sahipliği doğrulanmış iddiası taşımaz.
 - **AgencyMembership:** User'ın Agency ile ilişkisini, üyelik durumunu, `OWNER | MEMBER` türünü ve authorization sürümlerini taşır.
 - **Membership status:** Üyeliğin evaluator'a girip giremeyeceğini belirler. Yalnız `ACTIVE` girebilir.
 - **OWNER:** Korunan membership type'tır. Grant edilebilir checkbox veya katalog permission'ı değildir.
@@ -41,7 +42,7 @@ Model bileşenlerinin sınırları:
 - **MembershipPermission:** Bir membership'e verilmiş açık, pozitif permission grant'idir. Rol, deny, policy script veya template bağlantısı değildir.
 - **Record scope:** Permission'ın hangi Agency kayıtları üzerinde kullanılabileceğini belirleyen server-side resolver'dır.
 - **Sensitive permission:** Kimlik, sağlık ve gelecekteki benzer hassas veri sınıfları için ek ve zorunlu bir kapıdır. Normal kayıt izninin yerine geçmez.
-- **SensitiveActionGrant:** Yakın zamanda secure audience üzerinden doğrulanmış, kısa ömürlü, tek kullanımlık ve payload-bound işlem kanıtıdır. Permission değildir.
+- **SensitiveActionGrant:** Son5dakika kendi kalıcı parolasıyla reauth edilen normal session'dan üretilmiş, ≤3dakika tek kullanımlık payload-bound işlem kanıtıdır. Permission değildir.
 - **Audit:** Kararın veya mutasyonun kanıtıdır. Yetki kaynağı değildir ve geçmiş audit kaydı yeni işlem için authorization sağlamaz.
 
 ## B. Owner contract
@@ -60,7 +61,7 @@ OWNER'ın kesin davranışı:
 - OWNER başka Agency'ye erişemez.
 - OWNER yalnız `ACTIVE` membership ve aktif User ile yetkilendirilebilir.
 - OWNER tüm SENSITIVE permission'lar için explicit `MembershipPermission` grant'ine ihtiyaç duyar.
-- OWNER high-risk işlemlerde secure audience ve `SensitiveActionGrant` gereksinimini aşamaz.
+- OWNER high-risk işlemlerde recent own-password assurance ve `SensitiveActionGrant` gereksinimini aşamaz.
 - OWNER last-owner invariant'ını aşamaz.
 - OWNER bozuk veya bilinmeyen action'ı çalıştıramaz.
 - OWNER karantina, retention, legal hold, optimistic version veya domain invariant'larını aşamaz.
@@ -181,8 +182,8 @@ Permission kataloğu runtime'da kullanıcı tarafından değiştirilemez. Catalo
 
 Grant özellikleri:
 
-- Secure Access audience üzerinden üretilir.
-- Secure session süresi grant TTL'i değildir.
+- Canlı NORMAL opaque session + son5dakika own-password reauth ile üretilir; Access token/audience değildir.
+- Session/assurance süresi grant TTL'i değildir.
 - Grant TTL en fazla 3 dakikadır.
 - Tek kullanımlıdır.
 - Actor user ID, actor membership ID, agency ID, action code, canonical payload hash, hedef entity ID veya ID'leri, hedef expected version, actor permission_version, issued_at ve expires_at alanlarına bağlıdır.
@@ -211,6 +212,7 @@ Etkin aktif OWNER tanımı:
 - `AgencyMembership.status = ACTIVE`
 - Bağlı User aktif
 - AuthIdentity bağlı ve geçerli
+- F-27: acentede yerel credential provision edildikten sonra yalnız matching ACTIVE local issuer/OWNER_PROVISIONED identity + ACTIVE User + enabled LocalCredential + ACTIVE OWNER membership etkin owner sayılır; legacy-only identity/owner sayılmaz. Temporary forced-change teknik recovery durumudur, normal CRM session yetkisi değildir.
 - Aynı Agency'ye ait
 
 Şunlar aktif OWNER sayılmaz:
@@ -249,6 +251,7 @@ Atomic koruma:
 - D1 transaction/batch içinde mutasyon, son durum assertion'ı ve audit birlikte commit edilir.
 - Sonuçtaki etkin owner sayısı en az bir değilse DB işlemi hata vererek tamamını rollback eder.
 - DB seviyesinde owner azaltan update/delete işlemlerini durduran aborting guard/trigger zorunludur.
+- Additive0020 bu yerel owner invariant'ını credential disable/delete, identity revoke/binding değişikliği, User inactive, membership type/status ve Agency activation kardeş yollarında korur. Credential'a bağlı identity id/user/issuer/subject/email/provenance değişmez; historical membership reparent/hard-delete yasağı korunur. Transferde önce geçerli local hedef OWNER yapılır. Reset/forced-change owner sayısını düşürmez.
 - Eşzamanlı işlemlerden hiçbiri stale count'a güvenemez.
 - Direct membership hard-delete normal repository yüzeyinde sunulmaz.
 
@@ -350,8 +353,8 @@ Resource bağlantıları:
    - Unknown, malformed veya metadata'sı eksik action → DENY.
 
 2. **Authentication**
-   - JWT imzası, issuer, audience, algorithm, exp ve nbf doğrulanır.
-   - Gerekli audience normal veya secure descriptor'dan belirlenir.
+   - Strict known-session hash lookup; opaque cookie, expiry/idle/revoke, credential-version, live identity/User/Agency/membership/permission-version doğrulanır.
+   - Restricted ACTIVATION domain authorization'a giremez; secure descriptor canlı recent-password assurance ister. Access/Bearer alone DENY.
    - Doğrulama hatası → DENY.
 
 3. **Identity**
@@ -396,12 +399,12 @@ Resource bağlantıları:
     - İhlal → DENY veya domain conflict; işlem çalıştırılmaz.
 
 11. **High-risk assurance**
-    - Descriptor `SECURE_GRANT` gerektiriyorsa secure audience zorunludur.
+    - Descriptor `SECURE_GRANT` gerektiriyorsa son5dakika own-password assurance zorunludur.
     - SensitiveActionGrant actor, membership, agency, action, payload hash, target ID, target version, permission_version ve TTL ile eşleşmelidir.
     - Grant kullanılmış/expired/eşleşmiyor → DENY.
 
 12. **Final atomic recheck**
-    - Mutasyon transaction'ı içinde User, membership, permissions, versions, grant ve invariant'lar tekrar okunur.
+    - Mutasyon batch'i içinde local session/kind/expiry/idle/revoke/credential-version, identity/User/Agency/membership/permissions/versions/grant/invariant tekrar okunur; KDF await öncesi preflight yeterli değildir.
     - Grant conditional olarak tüketilir.
     - Mutation conditional olarak uygulanır.
     - Post-condition'lar ve active-owner invariant'ı doğrulanır.
@@ -420,7 +423,7 @@ descriptor = registry.exact(action)
 if descriptor missing or invalid:
     return DENY
 
-identity = verifyRequiredAudience(context.token, descriptor.assurance)
+identity = verifyLiveLocalSession(context.cookie, descriptor.assurance)
 if identity invalid:
     return DENY
 
@@ -482,7 +485,7 @@ Explicit DENY kaydı kullanılmayacaktır.
 Mutlak precedence:
 
 1. Unknown/malformed action veya eksik catalog metadata
-2. Authentication/JWT/audience hatası
+2. Authentication/session/credential-version/recent-password hatası
 3. Inactive User
 4. Eksik veya ACTIVE olmayan membership
 5. Agency/resource boundary uyuşmazlığı
@@ -554,23 +557,15 @@ Chicken-and-egg çözümü:
 - Bootstrap yalnız kontrollü provisioning CLI/operasyon yoludur.
 - İşlemi CRM kullanıcısı değil, isimlendirilmiş teknik provisioning operatörü çalıştırır.
 - Operatör CRM OWNER sayılmaz.
-- Bootstrap koşulları:
-  - Agency status PROVISIONING
-  - Agency'de hiç membership bulunmaması
-  - Açıkça belirlenmiş ilk owner kurumsal email'i
-  - Ortama özel provisioning yetkisi
-- Bootstrap Agency'yi veya mevcut PROVISIONING Agency'yi doğrular, User ve OWNER membership'i INVITED olarak oluşturur, membership type'ını önceden OWNER olarak belirler ve davet/bootstrap olayını audit eder.
-- İlk doğrulanmış giriş:
-  - Önceden oluşturulmuş davetle email eşleşmesini doğrular.
-  - AuthIdentity `(issuer, subject)` bağını kurar.
-  - User ve membership'i ACTIVE yapar.
-  - Agency'yi aynı transaction'da ACTIVE yapar.
-  - Agency ACTIVE olmadan önce en az bir etkin owner bulunduğunu assert eder.
+- F-27 bootstrap: exact account/D1/agency/owner/email, trusted interactive terminal+explicit target confirmation; local config hedefleri ve remote metadata/admin MFA fail-closed doğrulanır.
+- Initial yalnız PROVISIONING+sıfır membership+existing user yok; User/stable local identity/ACTIVE OWNER membership/Agency/temp credential ve system audit tek atomik batch. İlk login yalnız ACTIVATION; kalıcı replacement tamamlanmadan domain erişimi yoktur.
+- Legacy bootstrap yalnız ACTIVE agency'de tek ACTIVE intended OWNER+aynı legacy email+yerel credential yokken; owner-count/lifecycle/email/agency-version KDF sonrası batch'te tekrar assert edilir. Başka owner/ambiguous setup DENY.
+- Break-glass yalnız exact existing OWNER; verifier+credential-version+must-change/expiry+all-session revoke+safe audit atomik, membership/permission değişmez. HTTP yüzeyi yok; plaintext başarılı terminal'de bir kez ve hiçbir arg/file/log/receipt içinde değil.
 - İlk login yapan rastgele kullanıcı owner olmaz.
 - Email domain üyeliği owner veya CRM membership üretmez.
-- Agency ACTIVE olduktan sonra bootstrap yolu kalıcı olarak kapanır.
-- Süresi dolmuş ilk owner daveti yalnız PROVISIONING recovery yoluyla aynı önceden belirlenmiş owner için yenilenebilir.
-- Bootstrap tekrar yarışı idempotent/unique koşullarla en fazla bir owner daveti üretir.
+- Başarı sonrası bootstrap tekrar secret göstermez; lost response recovery yeni key ile break-glass'tır. Credential varlığı ikinci bootstrap'ı engeller.
+- Süresi dolmuş temp için exact owner recovery yeni temporary üretir; eski credential/session geri gelmez.
+- Bootstrap tekrar yarışı atomic CAS/unique+system-audit idempotency ile en fazla bir intended owner credential üretir.
 - Production açılmadan önce ikinci aktif recovery OWNER oluşturulması zorunlu commissioning kontrolüdür.
 
 ## M. Audit contract
@@ -598,6 +593,7 @@ Zorunlu event'ler:
 - `sensitive_action.denied`
 - `bootstrap.owner_invited`
 - `bootstrap.owner_activated`
+- F-27 active auth events: `auth.login`, `auth.logout`, `auth.password.activated`, `auth.password.changed`, `auth.password.reauthenticated`, `personnel.create/reset/suspend/inactivate/reactivate/permissions/promote/demote/transfer`, `auth.admin.bootstrap/break-glass`; grant issuance ve consume aynı atomic evidence ile ilişkilidir. Tarihsel invitation olayları yeni auth onboarding'i değildir.
 
 Minimum alanlar:
 
@@ -635,6 +631,7 @@ Audit içine yazılmayacaklar:
 - Belge içeriği
 - Arama sorgusu
 - Secret veya credential
+- Temporary/permanent plaintext, verifier/salt, session cookie/token/hash, CSRF ve reauth body. Surrogate actor/target/operation IDs ve allowlisted semantic değişiklik kanıtı kullanılır.
 
 Ek kurallar:
 
@@ -704,7 +701,7 @@ Kompakt karar matrisi:
 
 | Actor | Normal action | Sensitive data action | High-risk administrative action |
 |---|---|---|---|
-| OWNER | Implicit NORMAL grant + AGENCY scope; diğer bütün kapılar zorunlu | Implicit temel NORMAL + explicit SENSITIVE grant + Agency scope; gerekiyorsa SensitiveActionGrant | Owner-only capability + secure audience + exact SensitiveActionGrant + invariant/post-condition |
+| OWNER | Implicit NORMAL grant + AGENCY scope; diğer bütün kapılar zorunlu | Implicit temel NORMAL + explicit SENSITIVE grant + Agency scope; gerekiyorsa SensitiveActionGrant | Owner-only capability + recent own-password assurance + exact SensitiveActionGrant + invariant/post-condition |
 | Normal MEMBER | Explicit positive MembershipPermission + record scope | Explicit normal grant + explicit sensitive grant + record scope; gerekiyorsa SensitiveActionGrant | DENY; owner-only capability permission olarak verilemez |
 | SUSPENDED member/OWNER | DENY | DENY | DENY |
 
@@ -792,14 +789,7 @@ M1-T03'te yapılmaması gerekenler:
 
 ### M1-T05 — Access JWT verifier
 
-- JWT verifier authentication yapmalı, authorization yapmamalıdır.
-- Exact issuer, subject, audience, algorithm, exp ve nbf doğrulanmalıdır.
-- Normal ve secure audience ayrı sonuç tipleri üretmelidir.
-- Email header veya email claim membership sağlamamalıdır.
-- AuthIdentity lookup exact `(issuer, subject)` ile yapılmalıdır.
-- Secure audience bilgisi action grant üretiminde kullanılmalıdır.
-- Token'dan gelen role, agency veya owner claim'i güvenilmez sayılmalıdır.
-- Lookup/JWKS/verification hatalarının tamamı fail-closed olmalıdır.
+Bu başlık tarihsel checkpoint adıdır, F-27 ile SUPERSEDED. Active verifier strict opaque cookie/hash lookup+live session/credential/identity/agency/membership'tir. Normal vs secure sonuç recent own-password assurance'dan gelir. Header/email/role/agency iddiası yetki vermez. Historical Access isolated unit testleri runtime import grafiğine giremez.
 
 ### M1-T06 — Active membership + /api/me
 
@@ -810,8 +800,8 @@ M1-T03'te yapılmaması gerekenler:
 - OWNER için effective NORMAL permission'lar katalogdan hesaplanmalıdır; DB'de owner grant satırı aranmaz.
 - Sensitive izinler yalnız explicit grant olarak gösterilmelidir.
 - `/api/me` çıktısı UI kolaylığıdır; sonraki API isteklerinde server re-evaluation yerine geçmez.
-- First-owner identity binding yalnız pre-provisioned OWNER daveti üzerinden yapılmalıdır.
-- Agency activation ile ilk owner activation atomik olmalıdır.
+- First-owner local stable identity yalnız exact controlled bootstrap üzerinden kurulmalıdır; public login binding/provisioning yapmaz.
+- Agency/owner/temp credential bootstrap atomiktir; ACTIVATION password replacement ayrı atomik restricted→NEW normal session geçişidir.
 
 ### M1-T07 — Authorization evaluator
 
@@ -853,7 +843,7 @@ Gerekli `SensitiveActionGrant` bilgileri:
 - actor permission_version
 - issued/expires timestamps
 - consumed timestamp veya state
-- issuing secure audience/session evidence
+- issuing live local session/recent-password assurance evidence
 - request/operation ID
 
 Gerekli davranış:
@@ -879,7 +869,7 @@ M1-T09 tamamlanmadan membership mutation, permission mutation, owner mutation ve
 
 - Owner normal permission'larının implicit olması, nihai plandaki "MembershipPermission tek runtime otoritesidir" ifadesini şu kesin anlamla sınırlar: MembershipPermission explicit kullanıcı grant'lerinin otoritesidir; OWNER normal yetkisinin otoritesi korunan membership type + catalog classification'dır.
 - Catalog classification güvenlik sınırıdır. Yeni sensitive yetkinin yanlışlıkla NORMAL işaretlenmesi OWNER'a otomatik erişim verir. Bu nedenle classification zorunlu, defaultsuz ve security review/test kapılıdır.
-- Tek aktif owner teknik invariant'ı hesap/posta/MFA kaybından doğan operasyonel lockout'u tek başına çözmez. Production açılmadan ikinci aktif recovery OWNER ve Access recovery prosedürü doğrulanmalıdır.
+- Tek aktif owner teknik invariant'ı hesap/posta/MFA kaybından doğan operasyonel lockout'u tek başına çözmez. Production açılmadan ikinci aktif recovery OWNER ve MFA-korumalı administrative CLI break-glass prosedürü doğrulanmalıdır.
 - Last-owner koruması yalnız membership mutation'a değil User inactivation ve AuthIdentity unlink/revoke yollarına da uygulanmalıdır.
 - Minimal SensitiveActionGrant Phase 5'e ertelenemez. M1-T09 tamamlanana kadar personel/permission/owner mutation yüzeylerinin kapalı kalması zorunludur.
 - Denied-attempt audit altyapısı arızalansa bile authorization fail-closed kalmalıdır; logging başarısızlığı erişim açma gerekçesi olamaz.

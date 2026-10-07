@@ -1,8 +1,8 @@
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { API_PREFIX } from '../../shared/constants';
-import { parseAccessConfig } from '../auth/config';
-import { createAccessVerifier } from '../auth/verifier';
+import { parseLocalSessionConfig } from '../auth/session';
+import { createLocalSessionVerifier, csrfSessionSubject } from '../auth/session';
 import { createApplicationIdentityResolver } from '../auth/identity';
 import { parseCsrfConfig } from '../config';
 import { generateIdentityBoundCsrfToken, verifyCsrfMutationGuard } from '../security/csrf';
@@ -51,10 +51,10 @@ export function registerPolicyRoutes(app: Hono<E>, dependencies: AppDependencies
   async function auth(c: Context<E>, expectedAssurance?: 'NORMAL' | 'SECURE') {
     try {
       if (!c.env.DB) return null;
-      const config = parseAccessConfig(c.env);
-      const verifier = dependencies.createVerifier
-        ? dependencies.createVerifier(config)
-        : createAccessVerifier({ config });
+      const config = parseLocalSessionConfig(c.env);
+      const verifier = dependencies.createSessionVerifier
+        ? dependencies.createSessionVerifier(config)
+        : createLocalSessionVerifier({ config });
       const principal = await verifier.verify(c.req.raw, expectedAssurance);
       const resolver = dependencies.createResolver
         ? dependencies.createResolver(c.env.DB)
@@ -359,7 +359,7 @@ export function registerPolicyRoutes(app: Hono<E>, dependencies: AppDependencies
       return fail(c, 403, 'FORBIDDEN', 'Secure doğrulama zorunludur.');
     try {
       const token = await generateIdentityBoundCsrfToken(
-        { subject: a.principal.subject },
+        { subject: csrfSessionSubject(c.req.raw, a.principal.subject) },
         parseCsrfConfig(c.env).CSRF_SECRET,
       );
       return c.json({ success: true, data: { token }, timestamp: new Date().toISOString() });

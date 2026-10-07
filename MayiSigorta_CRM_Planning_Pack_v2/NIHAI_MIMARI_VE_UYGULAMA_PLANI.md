@@ -1,6 +1,8 @@
 # Mayı Sigorta — Nihai mimari ve uygulama planı
 
-**Sürüm:** 1.1 · **İlk tarih:** 16 Eylül 2026 · **F-26 güncellemesi:** 5 Ekim 2026 · **Durum:** Uygulamanın esas alınacak tasarım sözleşmesi.
+**Sürüm:** 1.2 · **İlk tarih:** 16 Eylül 2026 · **F-27 güncellemesi:** 6 Ekim 2026 · **Durum:** Uygulamanın esas alınacak tasarım sözleşmesi.
+
+**F-27 ileri yönlü auth supersession:** Tek çalışan auth yolu kapalı OWNER-provisioned email/parola + opaque D1 cookie session'dır. Aşağıdaki tarihsel Access/JWT/audience/OTP/TOTP/MFA gereksinimlerinin tamamı çalışan auth açısından SUPERSEDED'dır, tamamlanmış sayılmaz. Cloudflare administrative MFA ayrı kalır. AUTH evidence bir mimari kaynak değil uygulama kanıtıdır. M4 COMPLETE=false, DOCUMENTS_ENABLED=false, M5 başlamadı.
 
 Kullanıcının son talimatıyla teknik ve ürün tasarımındaki açık seçenekler karara bağlandı. Personel izinlerini acente sahibi seçer. Bu belge önceki planlama paketinin ve mimari incelemesinin yerini alır; eski belgeler yürürlükte değildir. Gerçek ortam kimlikleri, hesap erişimleri ve mevzuata ilişkin teyitler mimari seçenek değil, 17. bölümde tanımlanan kurulum girdileridir. Bunların tamamlandığı varsayılmaz.
 
@@ -16,7 +18,7 @@ Kullanıcının son talimatıyla teknik ve ürün tasarımındaki açık seçene
 2. V1 kapsamı ve başarı ölçütü
 3. Sistem mimarisi ve teknoloji
 4. Personel bazlı izinler
-5. Kimlik, MFA ve kritik işlem doğrulaması
+5. Yerel kimlik, oturum ve kritik işlem doğrulaması
 6. Domain ve veri modeli
 7. Yenileme, görev ve iletişim kuralları
 8. Raporların kesin tanımları
@@ -48,7 +50,7 @@ Kullanıcının son talimatıyla teknik ve ürün tasarımındaki açık seçene
 | Kalıcı veri | D1 + Drizzle; kritik atomik işlemde D1 batch ve gerektiğinde parametreli SQL |
 | Belgeler | Private R2; Worker üzerinden yetkili erişim; sürümlü dosya ve karantina |
 | Belge kabulü | Zorunlu bounded server-side yapısal doğrulama; AV sonucu değildir. ClamAV/Containers zorunlu değildir (F-26) |
-| Giriş | Cloudflare Access; One-time PIN + Access bağımsız TOTP MFA; uygulamada parola sistemi yok |
+| Giriş | F-27: kapalı OWNER-provisioned email/parola; opaque server-side cookie; günlük çalışan Access/OTP/TOTP/MFA yok |
 | İzinler | Sabit izin kataloğu; kişi başına kesin izin/kapsam kaydı; şablonlar yalnız başlangıç kopyası |
 | Varsayılan erişim | Personel atanmış kayıtlara; Yetkili Personel acente geneline; sahibi değiştirebilir |
 | Müşteri | Bireysel/kurumsal tek Customer; ayrı CompanyContact |
@@ -88,9 +90,9 @@ Başarı: Bir çalışan kendisine verilen yenilemeyi bulup görüşme/teklif/ta
 ```mermaid
 flowchart TD
     B[Çalışan tarayıcısı] --> E[Panel hostname\nTLS + WAF + oran sınırı]
-    E --> A[Access + TOTP MFA]
+    E --> A[Yerel email/parola + login abuse sınırı]
     A --> W[CRM Worker\nReact Static Assets + Hono API]
-    W --> P[JWT + aktif üyelik\nkişi izinleri + kayıt kapsamı]
+    W --> P[Opaque cookie + canlı D1 oturumu\naktif kimlik/üyelik + izin/kayıt kapsamı]
     P --> S[Domain servisleri\nvalidation + atomik değişiklik + audit]
     S --> D[(D1)]
     S --> R[(Private R2)]
@@ -108,7 +110,7 @@ flowchart TD
 
 Frontend ve API aynı Worker dağıtımı ve origin'dedir. `/api/*` ve `/secure/*` Worker'a önce yönlendirilir. Bilinmeyen API yolu SPA HTML cevabına düşmez. Statik build'e müşteri verisi veya secret gömülmez. SSR/Next.js, tRPC, genel event bus, Redis/KV cache, event sourcing ve monorepo orkestrasyonu V1'e eklenmez.
 
-Workers Free ve uygun Free Cloudflare yetenekleri hedeflenir. Workers Paid, Zone Pro, ücretli Zero Trust veya Containers bu görevde satın alınmaz/etkinleştirilmez. Access/MFA, scoped edge koruma ve uygulama yetkilendirmesi zorunludur; gereken kontrol Free yetenekle kanıtlanamıyorsa güvenlik kaldırılmaz, dış kapı açık tutulur. Ücret taahhüdü/usage-billing doğuran aktivasyondan önce güncel resmî allowance, ödeme yöntemi, overage ve hard-cap durumu açıkça bildirilir ve insan onayı beklenir. Free plan kapasite sınırları ürünün personel sayısı sınırı değildir; büyüme kapasite/plan değerlendirmesi gerektirir, authorization mimarisini değiştirmez.
+Workers Free ve uygun Free Cloudflare yetenekleri hedeflenir. Workers Paid, Zone Pro, ücretli Zero Trust veya Containers bu görevde satın alınmaz/etkinleştirilmez. Yerel password/session/own-password reauth, scoped edge koruma ve uygulama yetkilendirmesi zorunludur; gereken kontrol Free yetenekle kanıtlanamıyorsa güvenlik kaldırılmaz, dış kapı açık tutulur. Ücret taahhüdü/usage-billing doğuran aktivasyondan önce güncel resmî allowance, ödeme yöntemi, overage ve hard-cap durumu açıkça bildirilir ve insan onayı beklenir. Free plan kapasite sınırları ürünün personel sayısı sınırı değildir; büyüme kapasite/plan değerlendirmesi gerektirir, authorization mimarisini değiştirmez.
 
 D1 bu ölçeğe uygundur; belge binary'si D1'de tutulmaz. Geçerli Free planın veritabanı boyut limiti ve tek veritabanının sorgu kapasitesi izlenir; ücretli kapasite var sayılmaz. Veritabanı kapasitesinin %60'ında kapasite değerlendirmesi, %80'inde kontrollü büyüme/migration planı zorunludur. 15.000 başlangıç poliçesi, 100.000 sentetik poliçeye kadar regresyon ölçümüyle tasarlanır; sonsuz ölçek vaadi yoktur.
 
@@ -120,7 +122,7 @@ Sürüm seçimi: Faz 1'de uyumlu güncel kararlı sürümler seçilip lockfile v
 
 **Acente sahibi kullanıcıyı oluştururken şablon seçer, sonra izinleri tek tek düzenler.** Her personelin nihai izinleri `MembershipPermission` kayıtlarıdır. Şablon seçimi bu kayıtları başlangıçta kopyalar; ileride şablon değişmesi mevcut personeli sessizce değiştirmez. Rol + override + deny + grup mirası zinciri kurulmaz. Kaydı bulunmayan izin yok sayılır.
 
-`Personel` ve `Yetkili Personel` birer başlangıç şablonudur. `Acente Sahibi` ayrı, korunan owner üyelik türüdür. Sahipler tüm acente içi iş kayıtlarını yönetebilir; başka acenteye erişemez ve MFA, audit, karantina, yeniden doğrulama gibi kuralları aşamaz. Owner yetkisi checkbox ile personele verilemez; ayrı sahibi ekleme/devretme işlemi gerekir. Son aktif sahip kaldırılamaz.
+`Personel` ve `Yetkili Personel` birer başlangıç şablonudur. `Acente Sahibi` ayrı, korunan owner üyelik türüdür. Sahipler tüm acente içi iş kayıtlarını yönetebilir; başka acenteye erişemez ve own-password reauth, audit, karantina, yeniden doğrulama gibi kuralları aşamaz. Owner yetkisi checkbox ile personele verilemez; ayrı sahibi ekleme/devretme işlemi gerekir. Son aktif sahip kaldırılamaz.
 
 İzin kataloğu kodda sabittir; Türkçe başlık/açıklamalarla UI'da sunulur. Sahibi yeni permission kodu, SQL filtresi, formül veya özel rol programı yazamaz. Bu, personel bazlı esneklik sağlarken güvenlik modelini test edilebilir tutar.
 
@@ -175,7 +177,7 @@ Yalnız owner işlemleri: personel/izin yönetimi, owner devri, ilk importun pro
 
 ### 4.3 Yetki hesabının kesin kuralları
 
-Her işlem: doğrulanmış Access kimliği + aktif User + aktif AgencyMembership + permission + kayıt kapsamı + hassasiyet kontrolü. `agency_id` ve membership sunucunun kimliğinden gelir. Client'ın gönderdiği rol, email, agency veya sorumlu erişim yetkisi oluşturmaz.
+Her işlem: doğrulanmış yerel session + aktif identity/User/AgencyMembership/Agency + permission + kayıt kapsamı + hassasiyet kontrolü. `agency_id` ve membership sunucunun kimliğinden gelir. Client'ın rol/email/agency/sorumlu iddiası yetki oluşturmaz.
 
 - ASSIGNED müşteri: sorumlusu kullanıcı olan müşteri. Customer sahipliği, ilgili permission varsa alt poliçe/yenilemeler için kapsam oluşturabilir.
 - ASSIGNED poliçe: poliçe sorumlusu kullanıcı veya müşterinin sorumlusu kullanıcı; ayrıca kullanıcıya atanmış yenilemenin kaynak/sonuç poliçesi görev bağlamında erişilebilir.
@@ -191,39 +193,45 @@ Her işlem: doğrulanmış Access kimliği + aktif User + aktif AgencyMembership
 
 ### 4.4 Personel oluşturma ve değişiklik
 
-Akış: kurumsal email → şablon → izin/kapsam ekranı → örnek erişim özeti → kritik işlem doğrulaması → kayıt. Kullanıcı `INVITED` başlar. İlk doğrulanmış giriş, yalnız bu önceden oluşturulmuş daveti sabit issuer/subject kimliğine bağlar; e-posta domaininden otomatik User veya owner üretilmez. Davet yedi gün sonra sona erer ve sahip yenileyebilir. Davet için otomatik e-posta gönderme V1 zorunluluğu değildir; owner panel adresini paylaşır.
+F-27 akışı: ad+kurumsal email → şablon → explicit izin/kapsam snapshot → own-password reauth+grant → atomik yerel identity/ACTIVE membership/temporary credential. Şifre bir kez gösterilir, 24 saat; ilk giriş ACTIVATION dışında yetki vermez. Public davet/registration yoktur. Çalışan sayısı sınırlanmaz; personel listesi stable cursor ve bounded page permission query kullanır.
 
 İzin değişimi tek transaction'da yeni kayıtlar + permission_version artışı + audit yazar. Sonraki API isteği güncel permission_version ve aktifliği D1'den denetler; uzun TTL permission cache yok. Ekrandaki açık butonlar eski kalsa da sunucu reddeder. Client kimlik/izin değişiminde veri cache'ini temizler.
 
 Pasifleştirme önce erişimi durdurur, sonra açık işleri seçilen aktif personele aktarır. Toplu aktarım sürerken sahipsiz/aktif olmayan kullanıcı işleri owner'ın Atanmamış kuyruğunda görünür; iş kaybolmaz. Tamamlanan görevlerde eski aktör korunur. Kullanıcı silinmez. Email'in başka kişiye devrinde eski subject üzerinden erişim devam etmez; yeni davet/kimlik eşleme gerekir.
 
-## 5. Kimlik, MFA ve kritik işlem doğrulaması
+## 5. Yerel kimlik, oturum ve kritik işlem doğrulaması
 
-### 5.1 Giriş için kesin başlangıç
+### 5.1 Kapalı giriş için kesin başlangıç — F-27
 
-V1 Access One-time PIN ile kurumsal email sahipliğini doğrular ve **Access bağımsız TOTP MFA'yı** zorunlu kılar. Kurumda başka bir IdP bulunduğu varsayılmaz; uygulamaya parola, TOTP secret'ı, login formu veya parola kurtarma servisi eklenmez. İleride SSO değişimi kimlik katmanı değişikliği olarak yönetilir.
+OWNER ad+normalize email+şablon+explicit grant snapshot'ıyla çalışan oluşturur; email trim/lowercase ile kanoniktir ve bu dilimde değişmez. Stable issuer `urn:mayisigorta:local-auth:v1`, subject rastgele internal kimliktir, email değildir. Legacy `verified_email` adı additive `email_provenance=OWNER_PROVISIONED` ile dürüstçe kullanılır; owner-provisioned email cryptographically verified değildir. Signup/customer login/acente chooser/davet isteği/public forgotten-password-reset route'u yoktur. Access veya Bearer header tek başına authenticate etmez. Önceki Access başlangıcı F-27 ile yürürlükten kalkmıştır.
 
-Access eligibility kurumsal email domain'i `mayisigorta.com` ile ve bootstrap sırasında tek tek eklenen owner/kurtarma email'leriyle sınırlıdır. Kurumsal email sahibi olmak CRM erişimi vermez: önceden kayıtlı aktif üyelik zorunludur. Böylece normal personel eklemek Cloudflare yönetim API token'ını uygulamaya koymayı gerektirmez. Kurumsal mailbox yoksa kurulması personel onboarding girdisidir; kişisel e-postalara domain-wide izin verilmez.
+Paylaşımlı hesap yasaktır; kurumsal mailbox ve cihaz kilidi onboarding kontrolüdür. Tarihsel Access/JWT doğrulayıcı kanıtları geçmiş checkpoint'lerde korunur, production import grafiğine giremez. Local/staging/production ayrı bindings ve session/CSRF configuration kullanır.
 
-Tüm kullanıcıların Access app oturumu 8 saat, global oturum 8 saat. MFA her Access login'inde gerekir. WARP/Cloudflare One Client kimliğiyle bu zorunluluğu atlayan giriş açılmaz. Paylaşımlı hesap yasak; kurumsal posta hesabı ve cihaz kilidi personel onboarding kontrolüdür. UI hareketsizlikte 30 dakika sonra hassas içeriği örter; bu yalnız gizlilik ekranıdır, backend oturumu iptal edilmiş gibi sunulmaz.
+### 5.2 Hassas işlem alanı — F-27
 
-JWT sunucuda olgun `jose` kütüphanesiyle imza/JWKS, algoritma allowlist, issuer, route'a özgü audience, exp/nbf üzerinden doğrulanır. Sadece email header'ı kabul edilmez. Static Assets router sınırlaması nedeniyle yalnız `ctx.access` varlığına dayanılmaz. Production ve staging issuer/audience/config ayrıdır. JWKS cache anahtar rotasyonunu destekler; doğrulanamayan token fail-closed.
+Güncel `/secure/*` own-password reauth gerektirir: origin/host/bounded body/session-bound CSRF/limiter önce, kendi kalıcı parola KDF'si sonra. Başarı YENİ token ve 5 dakikalık recent-password assurance verir; izin vermez. Normal gezinmede prompt yoktur, stale secure HTML yüzeyi “Devam etmek için şifrenizi tekrar girin” gösterir. Grant en fazla 3 dakika, single-use ve actor/membership/agency/action/payload/target/version/permission_version bağlıdır; canlı recheck, consume, CAS, mutation, receipt ve audit atomiktir. Önceki Access audience/MFA kontrolü superseded tarihçedir.
 
-### 5.2 Hassas işlem alanı
-
-Kritik işlemler `/secure/*` altında **ayrı audience'lı Access uygulaması** ile korunur. Bu uygulama oturumu 15 dakika; bağımsız MFA Authentication duration `Require every login`. Buradaki `mfa_config.session_duration=0m` MFA hatırlama süresidir; uygulama token süresiyle karıştırılmaz. Normal app token'ı secure endpoint'te kabul edilmez; bypass/service-token policy yoktur.
-
-Akış: işlem içeriği sunucuda hazırlanır → kullanıcı üst seviye `/secure/confirm` sayfasına yönlenir → kısa ömürlü Access/MFA doğrulaması → işlem özeti/onay → action grant → komut. Grant üç dakika, tek kullanım, aktör+agency+işlem türü+payload hash+hedef versiyonuna bağlıdır. İşlem sırasında izinler ve hedef tekrar kontrol edilir; grant başka payload veya kullanıcıyla kullanılamaz. Aktif secure oturum içinde her işlem için ayrıca MFA tekrarı gerekmeyebilir; izin verilen MFA güvencesi penceresi en fazla 15 dakikadır.
-
-Bu tasarım yalnız JWT `iat` değerini “MFA yapıldı” sanmaz: güvence, ayrı audience ve o uygulamanın atlanamayan MFA policy'sidir. Policy drift denetimi ve gerçek staging login testleri zorunludur. Token yenilenmesinin MFA'yı atlayabildiği herhangi bir konfigürasyon production kapısını geçemez. Background job secure oturum bitti diye yarıda bozulmaz; onaylanmış kapsamla çalışır, fakat aktörün aktifliğini ve güncel izinlerini tekrar denetler.
+Akış: server-owned işlem özeti → own-password reauth stale ise prompt → exact action grant → komut. Recent assurance permission değildir. Background job assurance süresi bitti diye yarıda bozulmaz; onaylanmış kapsamla çalışır fakat canlı aktör/izin denetimini sürdürür.
 
 Kapsam: personel/izin, owner devri, export oluşturma ve indirme, production import, toplu veri değişikliği, saklama/silme/güvenlik ayarı, hassas belge indirme. Normal görüşme, görev ve poliçe kaydı bu ek kapıdan geçmez. Tek kayıt arşivinde açıklayıcı confirmation ve audit yeterli; toplu arşiv secure kapı kullanır.
 
-### 5.3 Bootstrap ve kurtarma
+### 5.3 Bootstrap ve kurtarma — F-27
 
-İlk owner, `memberships=0` koşuluyla yalnız kontrollü CLI/bootstrap işlemiyle ve açıkça belirlenmiş email üzerinden oluşturulur; ilk giriş yapan otomatik owner olmaz. Public bootstrap endpoint'i yoktur. Bootstrap bir daha çalışmaz. İkinci kurtarma sahibi acente sahibinin açık işlemiyle eklenir; sistem rastgele bir personele sahiplik vermez.
+CLI exact account/D1/agency/owner/email hedefini mevcut state'den doğrular. Local config account/D1 mismatch fail-closed; remote metadata ve administrative MFA, trusted interactive terminal ve exact operator confirmation gereklidir. İlk bootstrap yalnız PROVISIONING+sıfır membership ve açık intended owner ile; mevcut legacy-owner bootstrap yalnız ACTIVE agency'de tek ACTIVE intended OWNER, aynı legacy email, yerel credential yokken mümkündür. Belirsizlik/ikinci owner KDF sonrası batch'te tekrar denetlenir. Bootstrap repeat secret döndürmez. Break-glass yalnız exact mevcut OWNER credential'ını değiştirir, credential version artırır, tüm sessions revoke ve forced change sağlar; membership/status/permissions aynıdır. Public admin endpoint/backdoor/default owner yoktur. Plaintext successful trusted terminal'de bir kez; arg/history/file/log yoktur. Önceki Access recovery kontrolü superseded'dır; Cloudflare hesap MFA'sı ayrı zorunlu kalır.
 
-TOTP kurtarma Access'in kayıtlı yönetim süreci üzerinden, kimlik teyidi ve audit ile yapılır. Uygulamada MFA bypass anahtarı bulunmaz. Cloudflare hesap yöneticileri de MFA kullanır; kurtarma erişimleri işletim sorumlusunda güvenli biçimde tutulur. Acil erişim, kontrolsüz ortak CRM hesabı açmak değildir.
+### 5.4 Parola ve oturum sözleşmesi — F-27
+
+Permanent parola NFC sonrası 15–128 Unicode codepoint; normalization/KDF öncesi ham girdi en fazla 256 UTF-16 unit. No truncation/trim/composition/periodic change; spaces/emoji/paste/managers kabul edilir. Local whole-value common/pattern/email/ürün-acente blocklist vardır; breach API yoktur. Native Worker Web Crypto PBKDF2-HMAC-SHA256 sabit 600000 iteration, random 128-bit salt, full 256-bit constant-time compare, versioned verifier kullanır. Argon2id memory-hard preferred fakat native Worker argon2 unsupported; PBKDF2 memory-hard diye sunulmaz. Weak production env knob yok; test hasher yalnız explicit test composition. Gerçek Workers Free KDF CPU/kapasite benchmark EXTERNAL deployment kapısıdır; work factor düşürülmez veya Paid alınmaz.
+
+Temporary CSPRNG uniform 32 sembol×20 karakter=100 bit, 24 saat; D1 verifier-only. Create/reset/admin başarılı yanıtında bir kez plaintext gösterilir; receipt/audit/log/file/storage'da bulunmaz. Lost response/replay `409 ONE_TIME_RESPONSE_UNAVAILABLE`; yeni key/grant ile yeni reset gerekir. Kalıcı/eski parola OWNER'a gösterilmez. İlk login restricted ACTIVATION session, yalnız minimal session/CSRF/password-change/logout; CRM DTO/API/secure erişimi yoktur.
+
+Browser `__Host-mayi-session`: CSPRNG 256-bit opaque secret, Secure/HttpOnly/SameSite=Strict/Path=/, Domain yok. D1 yalnız token SHA256 hash'ini saklar; parola SHA ile saklanmaz. Unknown token kayıt oluşturmaz. Normal absolute12h/idle8h server-enforced, idle writes15m bounded; activation≤15m ve temporary expiry. Her auth/authz canlı identity/User/Agency/membership/permission/credential-version kontrol eder. Activation/self-change atomik verifier replacement+must-change/expiry clear+credential-version increment+all-session revoke+YENİ NORMAL token+safe audit'tir. Reset/suspend/inactivate/offboard/disable/compromise tüm oturumları iptal eder; reset status/permissions değiştirmez, inactive aynı kalır; reactivation yeni temp+forced change gerektirir. Logout görünür CSRF-safe revoke+cookie expiry'dir. Session/credential/CSRF URL/localStorage/sessionStorage/log'a yazılmaz.
+
+Sıra: request security → local session → identity → ACTIVE membership → authorization → session-bound CSRF → canonical action → expectedVersion/CAS → idempotency → atomic mutation/audit. OWNER implicit NORMAL, explicit SENSITIVE/dependencies/scope/tenant/last-owner invariant'ları değişmez. Login normalize email üzerinden limiter BEFORE KDF ve unknown/unusable için aynı-cost dummy kullanır; unknown/wrong/inactive/expired temp aynı “E-posta veya şifre hatalı.” 401 cevabıdır. Workers account10/60s ve office-safe source1000/60s bindingleri approximate/eventually-consistent, accounting değildir; missing protection production fail-closed. Reauth/password yolları da limitlidir, permanent attacker lockout yoktur.
+
+Yerel credential provision edilmiş ACTIVE acentede son etkin owner yalnız enabled matching local credential + ACTIVE local issuer/OWNER_PROVISIONED identity + ACTIVE User + ACTIVE OWNER membership üzerinden sayılır; legacy Access identity veya legacy-only owner bu sayıyı artırmaz. Additive0020 identity binding/email/provenance immutability ve tüm owner azaltan kardeş yolları korur; historical membership reparent/hard-delete yasağı değişmez. Temporary forced-change owner recovery state'dir, CRM yetkisi değildir. Transfer önce geçerli local hedefi OWNER yapar; meşru reset/forced-change ve co-owner reduction korunur.
+
+İkinci recovery OWNER açık owner işlemiyle eklenir; Cloudflare admin hesabı ayrı MFA-korumalıdır. Kontrolsüz ortak CRM hesabı veya HTTP bypass yoktur.
 
 ## 6. Domain ve veri modeli
 
@@ -238,7 +246,8 @@ Her iş kaydı agency kapsamındadır. Kullanıcı kimliği global `User`, acent
 | Varlık | Kesin sorumluluk / önemli ilişkiler |
 |---|---|
 | Agency / AgencySettings | Tek acente başlangıcı; tek ayar kaynağı; varsayılan sigortacı, timezone, eşikler |
-| User / AuthIdentity | İnsan kimliği; issuer+subject unique; doğrulanmış email görüntüleme/eşleme alanı |
+| User / AuthIdentity | İnsan kimliği; issuer+random subject unique; OWNER_PROVISIONED email provenance, cryptographic verification iddiası yok |
+| LocalCredential / LocalSession | Versioned password verifier/temporary expiry; token hash-only opaque session, live version/lifecycle ve idle/absolute/recent assurance |
 | AgencyMembership | User+Agency unique; INVITED/ACTIVE/INACTIVE; OWNER/MEMBER; permission_version |
 | MembershipPermission | Membership+permission_code unique; NONE/ASSIGNED/AGENCY veya bool; runtime otoritesi |
 | Customer | INDIVIDUAL/COMPANY; display_name; ad/soyad veya unvan; iletişim/adres; sorumlu; arşiv |
@@ -421,7 +430,7 @@ Aktif DocumentVersion akışı: `PENDING_UPLOAD → BACKUP_PENDING → AVAILABLE
 
 ### 10.2 Çalışan-kaynaklı belge güvenliği — F-26
 
-Zorunlu sunucu antivirüsü, ClamAV Container, scanner binding, signature freshness ve CLEAN availability gate artık ürün gereksinimi değildir. Belge kaynağı yalnız kimliği ve upload izni doğrulanmış çalışanlardır; çalışan olmak kendi başına permission oluşturmaz. Public/müşteri upload yüzeyi yoktur. İç tehdit ve ele geçirilmiş çalışan hesabı riski yok sayılmaz: Access+MFA, canonical permission/parent/sensitive kontrolü, default-deny format, private storage, attachment indirme ve audit zorunlu kalır.
+Zorunlu sunucu antivirüsü, ClamAV Container, scanner binding, signature freshness ve CLEAN availability gate artık ürün gereksinimi değildir. Belge kaynağı yalnız kimliği ve upload izni doğrulanmış çalışanlardır; çalışan olmak kendi başına permission oluşturmaz. Public/müşteri upload yüzeyi yoktur. İç tehdit ve ele geçirilmiş çalışan hesabı riski yok sayılmaz: yerel password/session/reauth, canonical permission/parent/sensitive kontrolü, default-deny format, private storage, attachment indirme ve audit zorunlu kalır.
 
 Gerçek destek PDF/JPEG/PNG ile sınırlıdır; XLSX dahil Office upload için aktif ürün/UI gereksinimi yoktur. Bu nedenle gerçek XLSX, arbitrary ZIP→XLSX, XLSM/XLSB ve VBA içeren OOXML paketleri tümüyle default-deny'dır; ZIP magic-byte üzerinden XLSX kabulü yoktur. İleride XLSX açıkça istenirse bounded ZIP/OOXML content-types/workbook/relationship doğrulaması ve VBA/macro reddi ayrı güvenlik değişikliği olarak zorunludur; bu dilim format listesini genişletmez.
 
@@ -457,9 +466,9 @@ HSTS yalnız panel host'unda; staging TLS/kurtarma doğrulamasından sonra önce
 
 ### 11.3 Edge ve oran sınırları
 
-WAF managed saldırı kuralları, gerekli method allowlist ve payload sınırı panel host'una scoped. PHP hosting'in TLS modu, DNS/MX kayıtları, cache veya zone-wide bot ayarı bu proje uğruna değiştirilmez. `workers.dev`, previews, alternatif domain ve route'lar kapalı veya eşdeğer Access korumasında. `/secure` encoded path, slash normalizasyonu ve alias'larla normal audience'a düşmemeli.
+WAF managed saldırı kuralları, gerekli method allowlist ve payload sınırı panel host'una scoped. PHP hosting'in TLS modu, DNS/MX kayıtları, cache veya zone-wide bot ayarı bu proje uğruna değiştirilmez. `workers.dev`, previews, alternatif domain ve route'lar kapalı. `/secure` encoded path, slash normalizasyonu ve alias'larla own-password assurance atlanmamalı.
 
-V1 public uygulama registration/recovery/invitation/upload formu yoktur. Uygulama içi CAPTCHA yok; Access+MFA, edge bot denetimi ve oran sınırı kullanılır. Sonradan public form eklemek mimari değişikliktir: Turnstile server-side doğrulama, hostname/action/süre/tek kullanım, rate limit ve yetki modeli birlikte gerekir.
+V1 public uygulama registration/recovery/invitation/upload formu yoktur. Uygulama içi CAPTCHA yok; yerel password/session/reauth, edge bot denetimi ve oran sınırı kullanılır. Kapalı hesap login formu public erişilebilir; public signup/recovery değildir. Sonradan public form eklemek mimari değişikliktir: Turnstile server-side doğrulama, hostname/action/süre/tek kullanım, rate limit ve yetki modeli birlikte gerekir.
 
 İlk üretim limitleri (ölçümle ayarlanabilir sabit ayarlar): doğrulanmış kullanıcı başına arama 120/dk, mutasyon 60/dk, dosya indirme 30/dk, upload 10/dk; export saatte 3 başlatma ve kullanıcı başına 1 aktif iş; agency başına 2 aktif export ve 1 aktif import. Sayfa üst sınırı 100, upload 20 MiB. Ortak ofis IP'sindeki normal çalışan trafiğini engelleyecek düşük toplu IP limiti konmaz. WAF IP saldırı sınırı pilot yükünde normal peak'in üstünde belirlenip kaydedilir; per-user limitlerin yerini almaz.
 
@@ -533,9 +542,9 @@ Yedekler anında satır bazlı düzenlenebilir kabul edilmez. Silme taleplerinin
 
 ## 15. Ortamlar, dağıtım ve işletim
 
-LOCAL, STAGING, PRODUCTION ayrı D1/R2, secrets, Access audience ve konfigürasyon kullanır. Production D1 ve R2 **EU jurisdiction** ile oluşturulur; yalnız location hint'e güvenilmez. Worker işlemesinin otomatik olarak EU ile sınırlı olduğu iddia edilmez. Veri aktarımı değerlendirmesi runtime, log, yedek ve alt işleyenleri de kapsar. Türkiye-only veri ikameti vaat edilmez.
+LOCAL, STAGING, PRODUCTION ayrı D1/R2, secrets, session/CSRF ve canonical origin konfigürasyonu kullanır. Production D1 ve R2 **EU jurisdiction** ile oluşturulur; yalnız location hint'e güvenilmez. Worker işlemesinin otomatik olarak EU ile sınırlı olduğu iddia edilmez. Veri aktarımı değerlendirmesi runtime, log, yedek ve alt işleyenleri de kapsar. Türkiye-only veri ikameti vaat edilmez.
 
-F-26 minimum gerçek foundation adları: Worker capability `mayisigorta-crm`, boş EU D1 `mayisigorta-crm`, private EU primary R2 `mayisigorta-documents-quarantine`, yalnız generic durable iş hızlandırıcısı Queue `mayisigorta-document-jobs`. Eski quarantine bucket/key adı depolama uyumluluğudur, scan yapılmış sayılmaz. LOCAL mevcut synthetic binding'leri kullanır; gerçek foundation ayrı `foundation` Wrangler ortamında yalnız readback ile kanıtlanmış resource ID'lerini taşır. STAGING daha sonra ayrı kaynak/audience ile kurulur. Foundation resource varlığı public deploy veya belge enablement değildir; bu slice remote migration/customer data veya production custom domain oluşturmaz.
+F-26 minimum gerçek foundation adları: Worker capability `mayisigorta-crm`, boş EU D1 `mayisigorta-crm`, private EU primary R2 `mayisigorta-documents-quarantine`, yalnız generic durable iş hızlandırıcısı Queue `mayisigorta-document-jobs`. Eski quarantine bucket/key adı depolama uyumluluğudur, scan yapılmış sayılmaz. LOCAL mevcut synthetic binding'leri kullanır; gerçek foundation ayrı `foundation` Wrangler ortamında yalnız readback ile kanıtlanmış resource ID'lerini taşır. STAGING daha sonra ayrı kaynak/session configuration ile kurulur. Foundation resource varlığı public deploy veya belge enablement değildir; bu slice remote migration/customer data veya production custom domain oluşturmaz.
 
 Free production uygunluğu ayrıca gerçek kapasite kapısıdır: mevcut resmî Worker Free CPU bütçesi, bounded parser/crypto/API iş yükünün tamamını karşılıyor varsayılmaz. Özellikle büyük JPEG/PDF ve 20 MiB sınırına yakın dosyalar için gerçek runtime CPU/peak-memory ölçümü ve fail-closed behavior gerekir. Free D1 invocation/query ve storage kotaları da gerçek auth/command akışında kanıtlanmalıdır; kısa Time Travel penceresi bağımsız 35 günlük backup gereksiniminin yerine geçmez. Ücretli plan otomatik alınmaz, parser/authorization/resource sınırları sessizce gevşetilmez; bütçe sağlanamıyorsa belge enablement kapısı açık kalır ve ürün sahibine kanıtla dönülür.
 
@@ -555,11 +564,11 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 
 ### Faz 1 — Güvenli temel ve personel izinleri
 
-**Çıktı:** Repo/paket/CI, React/Vite/Hono shell, typed sözleşmeler, synthetic Agency/User/Membership/Permission, audit temeli; normal ve secure Access app entegrasyonu; personel izin ekranının işleyen temeli; ilk sentetik backup/restore.
+**Çıktı:** Repo/paket/CI, React/Vite/Hono shell, typed sözleşmeler, synthetic Agency/User/Membership/Permission, audit temeli; yerel password/opaque session/own-password reauth entegrasyonu; personel izin ekranının işleyen temeli; ilk sentetik backup/restore.
 
 **DB/API/UI:** Kimlik+izin+açık schema migration; `/api/me`, owner personel komutları, CSRF, DTO, hata formatı, tasarım token'ları ve yetkisiz/oturum/conflict durumları.
 
-**Zorunlu testler:** sahte/eksik/yanlış audience/expired JWT; normal token ile secure reddi; her-login MFA gerçek staging testi; inactive kullanıcı; son owner koruması; personelin kendi iznini yükseltememesi; permission bağımlılıkları; şablon değişimi mevcut kullanıcıyı değiştirmez; ikinci sentetik agency erişim reddi; PHP origin'inden CSRF reddi; preview bypass; secret bundle sızıntısı yok.
+**Zorunlu testler:** sahte/eksik/random/expired/revoked cookie; Access/Bearer alone denied; normal session ile stale secure reddi; gerçek login/forced-change/reauth/rate-binding commissioning; inactive kullanıcı; son owner koruması; personelin kendi iznini yükseltememesi; permission bağımlılıkları; şablon değişimi mevcut kullanıcıyı değiştirmez; ikinci sentetik agency erişim reddi; PHP origin'inden CSRF reddi; preview bypass; secret bundle sızıntısı yok.
 
 **Kapı:** Güvenli staging iskeleti. Public korumasız staging önce deploy edilip güvenlik sonra eklenmez. Gerçek customer verisi henüz yok. Faz 1 API/izin invariant'ları geçmeden iş modülleri başlamaz.
 
@@ -585,13 +594,13 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 
 **Zorunlu testler:** gerçek PDF/JPEG/PNG sentetik örnekleri; executable/script/HTML/SVG/Office/ZIP ret; MIME/uzantı/içerik aldatması; şifreli/bozuk PDF; decompression/pixel/boyut limitleri; key injection/path traversal ret; scanner olmadan yapısal kabul+backup+yetkili indirme; false CLEAN yok; replay/eski checksum/CAS/audit; non-AVAILABLE direct download reddi; cross-agency/parent/sensitive/secure belge reddi; private R2; durable write/retry/Queue kaybı sonrası redispatch; obsolete scan retry yok; runtime'da backup delete yetkisi yok; D1+R2 birlikte restore; WhatsApp açıldı≠gönderildi.
 
-**Kapı:** Yapısal doğrulama malware güvenliği sayılmaz ve taranmamış belge CLEAN olamaz. Gerçek private primary R2/EU, Access/authz/MFA/alternatif URL koruması, safe download, durable writes/reconciliation, ayrı backup yetki sınırı/no-delete/lock/EU ve gerçek restore/RPO-RTO kanıtları geçmeden belge modülü açılmaz. M4 COMPLETE=false ve DOCUMENTS_ENABLED=false bu supersession diliminde korunur; M5 başlamaz. Container/digest/egress/scan CPU-memory ve scan-specific hold kapıları superseded'dır.
+**Kapı:** Yapısal doğrulama malware güvenliği sayılmaz ve taranmamış belge CLEAN olamaz. Gerçek private primary R2/EU, native auth/authz/reauth/Free KDF CPU+capacity/rate-binding/alternatif URL koruması, safe download, durable writes/reconciliation, ayrı backup yetki sınırı/no-delete/lock/EU ve gerçek restore/RPO-RTO kanıtları geçmeden belge modülü açılmaz. M4 COMPLETE=false ve DOCUMENTS_ENABLED=false bu supersession diliminde korunur; M5 başlamaz. Container/digest/egress/scan CPU-memory ve scan-specific hold kapıları superseded'dır.
 
 ### Faz 5 — Tam operasyon, rapor ve export
 
 **Çıktı:** Genel task, bildirim merkezi, teklif listesi, filtreli Kanban, kapsamlı izin yönetimi UX, onaylı formüllere göre raporlar, ExportSnapshotRow ile snapshot export, secure action grant akışı.
 
-**Zorunlu testler:** read notification işi kapatmaz; atama değişimi erişimi günceller; raporların scope/health/currency/kohort paydası; split/merge revenue; geçici export süresi; formule injection; permission değişince eski job sonucu indirilemez; secure token normal audience'dan üretilemez; expired/reused grant; payload hash ve hedef version bağlamı.
+**Zorunlu testler:** read notification işi kapatmaz; atama değişimi erişimi günceller; raporların scope/health/currency/kohort paydası; split/merge revenue; geçici export süresi; formule injection; permission değişince eski job sonucu indirilemez; secure grant stale own-password assurance ile üretilemez; expired/reused grant; payload hash ve hedef version bağlamı.
 
 **Kapı:** Onaylı PDF'deki V1 operasyon modülleri tamam; 360 px, klavye/focus ve loading/error/conflict testleri geçer. Export etiketleri ve metrik sözlüğü UI ile tutarlı.
 
@@ -607,7 +616,7 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 
 **Çıktı:** Acente senaryoları, training, ölçülmüş yük/erişilebilirlik, izin/negatif test matrisi, legal/data/retention girdileri, restore tatbikatı, monitoring uyarı testi, final migration ve yakın izleme.
 
-**Go-live için hepsi zorunlu:** Access+MFA ve secure policy runtime kanıtı; alternatif URL kapalı; her sensitive route/scope negatif test; yapısal kabul+backup ve güvenli yetkili dosya erişimi; PII log ve secret taraması; veri aktarım/saklama sorumluları kayıtlı; D1+R2 restore RPO/RTO ölçümü; tüm import mutabakatı; açık kritik/yüksek güvenlik engeli yok; owner'ın açık canlıya geçiş yetkisi.
+**Go-live için hepsi zorunlu:** yerel login/forced-change/session-reset-revoke/own-password reauth/rate-binding/KDF Free CPU+capacity runtime kanıtı; alternatif URL kapalı; her sensitive route/scope negatif test; yapısal kabul+backup ve güvenli yetkili dosya erişimi; PII log ve secret taraması; veri aktarım/saklama sorumluları kayıtlı; D1+R2 restore RPO/RTO ölçümü; tüm import mutabakatı; açık kritik/yüksek güvenlik engeli yok; owner'ın açık canlıya geçiş yetkisi.
 
 **Kesim:** kaynak freeze → bookmark/yedek+manifest → onaylı import → reconciliation → kullanıcı açılışı → smoke test → kısa yakın izleme. Geri dönüş eşiği: veri tutarsızlığı, izin sızıntısı, kritik işin tamamlanamaması. Güvenlik sızıntısında önce erişim durdurulur; yalnız eski UI'a dönmek çözüm sayılmaz.
 
@@ -623,8 +632,8 @@ Planlama tamamdır. Sonraki ajan açık mimari soruları yeniden tartışmak yer
 |---|---|---|---|
 | Gerçek Cloudflare account/zone/binding ID, plan özellikleri | Teknik işletim; bağlı hesaptan okunur | Local sentetik uygulama | Staging/production kaynak kurulumu |
 | İlk owner email'i ve kurtarma kişisi | Acente sahibi | Sentetik kullanıcı testleri | İlk gerçek kullanıcı açılışı |
-| Personelin kurumsal mailbox'ları ve MFA kurulumu | Acente sahibi | Personel davet taslağı/izin seçimi | O kişinin login'i |
-| Access team domain, normal/secure audience | Teknik işletim, kurulumdan elde edilir | Local doğrulayıcı testleri | Gerçek kimlikli deployment |
+| Personelin kurumsal email'leri ve güvenli credential teslimi | Acente sahibi | Sentetik create/izin/activation | O kişinin login'i |
+| Native auth commissioning: gerçek owner bootstrap/forced change/KDF Free CPU+capacity/cookie session/reset-revoke/own-password reauth/bruteforce/binding proof | Teknik işletim | Local native D1/auth/UI matrisi | Gerçek kimlikli deployment; eski Access team/AUD/OTP/TOTP kapısı SUPERSEDED |
 | Kişisel veri işleme/aktarım, EU storage ve global processing değerlendirmesi | Acente sahibi/veri sorumlusu; yetkin hukuk danışmanı | Sentetik geliştirme | Gerçek veri ingest |
 | Sınıfa özgü onaylı RetentionProfile ve LegalHold yetkilisi | Veri sorumlusu | Retention motoru/sentetik test | Gerçek sınıf verisi kabulü |
 | Backup hesabı, ayrı credential, anahtar kurtarma saklayıcısı | Owner + teknik işletim | Sentetik restore | Production veri |
@@ -644,8 +653,8 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-01 | Personel tüm/atanmış erişim | KESİN: kişi bazlı izin+kapsam; varsayılan A; sahibi seçer |
 | F-02 | Roller/özelleştirme | KESİN: template snapshot; tek MembershipPermission otoritesi; owner korumalı |
 | F-03 | Manager arşiv/rapor/atama | KESİN: şablonda açık; sahip kişiye göre kapatabilir; export varsayılan kapalı |
-| F-04 | IdP/MFA | KESİN: Access email PIN + bağımsız TOTP; app password yok |
-| F-05 | Oturum/step-up | KESİN: normal 8h; secure app 15m+her-login MFA; payload-bound 3m action grant |
+| F-04 | IdP/MFA | F-27 ile SUPERSEDED: kapalı yerel email/parola; yalnız Cloudflare administrative MFA ayrı |
+| F-05 | Oturum/step-up | F-27: opaque normal absolute12h/idle8h; own-password assurance5m; payload-bound3m grant |
 | F-06 | Customer profile/contact | KESİN: tek Customer + ayrı CompanyContact |
 | F-07 | Policy identity/party/zeyil | KESİN: dönem kaydı, aday+variant güvenliği, PolicyParty ve minimal Amendment |
 | F-08 | Split/merge | KESİN: RenewalPolicyLink + explicit yeni prim tahsisi; secure atomik grup komutu |
@@ -658,7 +667,7 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-15 | FTS/risk JSON | ERTELENDİ: harici arama, FTS ve generic risk motoru; typed alanlar/indeksler |
 | F-16 | Belge/malware | F-26 ile superseded: 20 MiB PDF/JPEG/PNG, private sürüm, bounded yapısal kabul+backup; zorunlu AV yok |
 | F-17 | Turnstile | KESİN: V1 public app form yok; iç ekranlara CAPTCHA yok; public yeni yüzeyde zorunlu server validation |
-| F-18 | WAF/limit | F-26: uygun Free yetenekler; ücretli plan aktivasyonu yok; Access/MFA/scoped edge/app sınırları ve kesin D1 iş kotası korunur |
+| F-18 | WAF/limit | F-26: uygun Free yetenekler; ücretli plan aktivasyonu yok; F-27 yerel auth/reauth/scoped edge/app sınırları ve kesin D1 iş kotası korunur |
 | F-19 | Region/retention | KESİN: D1/R2 EU; global compute dürüstçe belgeli; hukukî profil gerçek veri kapısında KURULUM GİRDİSİ |
 | F-20 | Backup/restore | KESİN: RPO1h/RTO4h; ayrı yetki hesabı, saatlik D1 ve belge sürümü yedeği; 35 günlük kurtarma |
 | F-21 | Soft delete/audit | KESİN: gerekçeli archive, ayrı legal erasure, ilk mutasyondan audit |
@@ -671,6 +680,8 @@ Yeni değişiklik kaydı aynı bölümde tarih, kullanıcı yetkisi/gerekçe, et
 
 F-26 — 5 Ekim 2026; ürün sahibinin açık kararı, accepted checkpoint `5d71586a0a18189b726b55f7899fd5d5dd55d3fd`: çalışan-only internal CRM için zorunlu server-side ClamAV/Containers/CLEAN ve scanner-specific Queue/14-gün hold gereksinimleri superseded. Bölüm 1/3/6/9/10/14/15/16 ve F-16/F-18 aktif kapıları yukarıdaki modele geçer; geçmiş test/evidence/migration tarihçesi korunur. Personel sayısı sınırlanmaz; RG-00 ve tüm domain/multi-user/backup/restore invariant'ları değişmez. Global API Key yalnız local administrative provisioning; scoped-token geçişi ertelenmiş teknik borçtur, bu görevin engeli değildir. Workers Paid/Zone Pro/ücretli Zero Trust/Containers satın alma yetkisi yoktur.
 
+F-27 — 6 Ekim 2026; ürün sahibinin açık local-auth implementation/devam yetkisi, accepted HEAD `d4c386b0e825e88394cd401036144562cd5b105d`. Çalışan Access OTP/TOTP/JWT/normal-secure audience kapıları tamamlanmış değil SUPERSEDED; tek auth native password+opaque session'dır. Bölüm1/3/4/5/6/9/11/12/15/16/17 ve RG-00 authentication/assurance/bootstrap/audit güncellenir; tenant/OWNER/MEMBER/permission/scope/last-owner/CAS/idempotency/domain/audit/offboarding/backup/tombstone invariant'ları değişmez. Additive0020; historical SQL/snapshots/journalprefix immutable. Gerçek bootstrap/login/forced-change/KDF Free CPU+capacity/session-reset-revoke/own-password reauth/bruteforce/rate binding/exact panel TLS-headers/alternateURL-off kapıları EXTERNAL. R2 anonymous-denial/separate EU backup/no-delete IAM/35daylock/durable reconciliation/restoreRPO1hRTO4h/current-permission+tombstone+session-revocation publication/alerts/legal gates aynen EXTERNAL. Host secrecy/noindex auth değildir. Deployment/remote migration/bootstrap real credential/CF-DNS-R2-Queue writes/ücretli aktivasyon yetkisi yoktur. M4 COMPLETE=false; DOCUMENTS_ENABLED=false; M5 başlamadı. Test sonuçları yalnız durum/evidence kaydında; fresh HIGH review henüz PASS değildir.
+
 ## 19. Ajan çalışma ve devir sözleşmesi
 
 1. Türkçe yanıt ver. Aktif proje `MayiSigorta_CRM_Planning_Pack_v2`; ana kaynak bu dosya, ilerleme kaynağı `UYGULAMA_DURUMU.md`.
@@ -682,7 +693,7 @@ F-26 — 5 Ekim 2026; ürün sahibinin açık kararı, accepted checkpoint `5d71
 7. Her faz sonunda durum dosyasına gerçek değişiklikler, migration ortamı, test komut/sonuçları, riskler ve sonraki tek görevi yaz. Mimariyi oraya kopyalama.
 8. Hiçbir faz test kapısını geçmeden tamam sayılmaz; veri kaybı/yetki sızıntısı kritik engeldir. Tekrarlanan tool hatasında korumayı kaldırma veya production datasını local'e çekme.
 
-**Sonraki somut görev:** Kullanıcı uygulama istediğinde Faz 1 güvenli temelini kur. Önce mevcut klasör/kurulum durumunu doğrula, kararlı bağımlılıkları sabitle, sentetik kimlik/izin altyapısı ve gerçek Access entegrasyon kabulünü sırala. Eski G0 soruları kapalıdır; yalnız gerçek kurulum girdileri gerekebilir.
+**Sonraki somut görev:** Kullanıcı uygulama istediğinde Faz 1 güvenli temelini kur. Önce mevcut klasör/kurulum durumunu doğrula, kararlı bağımlılıkları sabitle, sentetik kimlik/izin altyapısı ve gerçek F-27 native auth commissioning kabulünü sırala. Eski G0 soruları kapalıdır; yalnız gerçek kurulum girdileri gerekebilir.
 
 ## 20. Doğrulanan kaynaklar
 

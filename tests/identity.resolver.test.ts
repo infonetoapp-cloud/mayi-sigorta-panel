@@ -10,7 +10,7 @@ import {
   toUserMeDto,
   type AuthenticatedUserContext,
 } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
@@ -177,7 +177,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     const p = 't06-valid';
     await bootstrapActiveAgency(p, TEST_ISSUER, `${p}-sub`);
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-sub`,
       assurance: 'NORMAL',
@@ -208,7 +208,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     const p = 't06-unknown-sub';
     await bootstrapActiveAgency(p, TEST_ISSUER, `${p}-sub`);
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'completely-unknown-sub',
       assurance: 'NORMAL',
@@ -228,7 +228,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     await bootstrapActiveAgency(p, TEST_ISSUER, `${p}-sub-real`);
 
     // Attacker token has the same email, but a different subject
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-sub-attacker`,
       assurance: 'NORMAL',
@@ -245,7 +245,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     const p = 't06-wrong-iss';
     await bootstrapActiveAgency(p, TEST_ISSUER, `${p}-sub`);
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: OTHER_ISSUER,
       subject: `${p}-sub`,
       assurance: 'NORMAL',
@@ -272,7 +272,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-member-id`)
       .run();
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-member-sub`,
       assurance: 'NORMAL',
@@ -296,7 +296,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-member-user`)
       .run();
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-member-sub`,
       assurance: 'NORMAL',
@@ -339,7 +339,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-mem-invited`, `${p}-agency`, `${p}-invited-user`, `${p}-inv@test.com`)
       .run();
 
-    const principalInvited: VerifiedAccessPrincipal = {
+    const principalInvited: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-invited-sub`,
       assurance: 'NORMAL',
@@ -379,7 +379,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-mem-suspended`, `${p}-agency`, `${p}-suspended-user`, `${p}-susp@test.com`)
       .run();
 
-    const principalSuspended: VerifiedAccessPrincipal = {
+    const principalSuspended: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-suspended-sub`,
       assurance: 'NORMAL',
@@ -419,7 +419,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-mem-inactive`, `${p}-agency`, `${p}-inactive-user`, `${p}-inact@test.com`)
       .run();
 
-    const principalInactive: VerifiedAccessPrincipal = {
+    const principalInactive: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-inactive-sub`,
       assurance: 'NORMAL',
@@ -458,7 +458,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-mem`, `${p}-agency`, `${p}-user`, `${p}@test.com`)
       .run();
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-sub`,
       assurance: 'NORMAL',
@@ -524,7 +524,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       .bind(`${p}-mem-b`, `${p}-b-agency`, multiUserId, `${p}-multi@test.com`)
       .run();
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: multiSub,
       assurance: 'SECURE',
@@ -566,7 +566,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     await addActiveMember(p, `${p}-agency`, TEST_ISSUER, `${p}-member-sub`);
 
     // In DB, this user is MEMBER
-    const principal: VerifiedAccessPrincipal & Record<string, unknown> = {
+    const principal: AuthenticatedPrincipal & Record<string, unknown> = {
       issuer: TEST_ISSUER,
       subject: `${p}-member-sub`,
       assurance: 'NORMAL',
@@ -592,7 +592,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       },
     } as unknown as D1Database;
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'sub-anything',
       assurance: 'NORMAL',
@@ -609,7 +609,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
     await bootstrapActiveAgency(p, TEST_ISSUER, `${p}-sub`);
 
     const resolver = createApplicationIdentityResolver(db);
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-sub`,
       assurance: 'NORMAL',
@@ -713,7 +713,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       },
     } as unknown as D1Database;
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: `${p}-sub`,
       assurance: 'NORMAL',
@@ -760,7 +760,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       },
     } as unknown as D1Database;
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'sub-missing-user',
       assurance: 'NORMAL',
@@ -806,7 +806,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       },
     } as unknown as D1Database;
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'sub-1',
       assurance: 'NORMAL',
@@ -912,7 +912,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
       },
     } as unknown as D1Database;
 
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'sub-1',
       assurance: 'NORMAL',
@@ -931,7 +931,7 @@ describe('M1-T06 Gerçek Yerel Miniflare D1 Identity Resolver Testleri', () => {
   // =========================================================================
 
   it('unsuccessful or malformed D1 results fail closed as DATABASE_ERROR or CORRUPT_*_DATA', async () => {
-    const principal: VerifiedAccessPrincipal = {
+    const principal: AuthenticatedPrincipal = {
       issuer: TEST_ISSUER,
       subject: 'sub-adv',
       assurance: 'NORMAL',

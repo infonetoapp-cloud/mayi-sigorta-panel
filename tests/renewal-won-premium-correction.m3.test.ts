@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import { correctWonPolicyPremium } from '../src/server/renewals/won-premium-correction';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
@@ -24,11 +24,11 @@ const owner: AuthenticatedUserContext = {
     },
   ],
 };
-const principal = { subject: 'premium-owner-subject' } as VerifiedAccessPrincipal;
+const principal = { subject: 'premium-owner-subject' } as AuthenticatedPrincipal;
 
 function createTestApp(context = owner) {
   return createApp({
-    createVerifier: (config) => ({ config, verify: async () => principal }),
+    createSessionVerifier: (config) => ({ config, verify: async () => principal }),
     createResolver: () => ({ resolve: async () => context }) as never,
   });
 }
@@ -188,16 +188,9 @@ describe('M3 WON Policy premium correction on local D1', () => {
     ]);
     env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
-    const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
-      {},
-      env,
-    );
+    const csrfResponse = await app.request('https://panel.mayisigorta.com/api/csrf-token', {}, env);
     csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
   });
 
@@ -225,7 +218,7 @@ describe('M3 WON Policy premium correction on local D1', () => {
       policyId = 'premium-new-policy',
     ) =>
       app.request(
-        `https://panel.mayisigorta.test/secure/api/policies/${policyId}/correct-won-premium`,
+        `https://panel.mayisigorta.com/secure/api/policies/${policyId}/correct-won-premium`,
         {
           method: 'POST',
           headers: {
@@ -523,7 +516,7 @@ describe('M3 WON Policy premium correction on local D1', () => {
 
     const send = (body: unknown, key: string) =>
       app.request(
-        'https://panel.mayisigorta.test/secure/api/policies/premium-split-new-policy/correct-won-premium',
+        'https://panel.mayisigorta.com/secure/api/policies/premium-split-new-policy/correct-won-premium',
         {
           method: 'POST',
           headers: {
@@ -866,7 +859,7 @@ describe('M3 WON Policy premium correction on local D1', () => {
     };
     const sendConcurrent = () =>
       app.request(
-        'https://panel.mayisigorta.test/secure/api/policies/premium-race-new-policy/correct-won-premium',
+        'https://panel.mayisigorta.com/secure/api/policies/premium-race-new-policy/correct-won-premium',
         {
           method: 'POST',
           headers: {

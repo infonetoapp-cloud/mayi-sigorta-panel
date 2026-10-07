@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import { createApp, type Env } from '../src/server/index';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import {
   previewRenewalWhatsApp,
   openRenewalWhatsApp,
@@ -663,20 +663,18 @@ describe('M4 WhatsApp preview/open semantics', () => {
   it('wires no-store authorized preview and CSRF/idempotency guarded open routes', async () => {
     const id = await seed('routes');
     const app = createApp({
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
-        verify: async () => ({ subject: 'wa-subject' }) as VerifiedAccessPrincipal,
+        verify: async () => ({ subject: 'wa-subject' }) as AuthenticatedPrincipal,
       }),
       createResolver: () => ({ resolve: async () => actor }) as never,
     });
     const env: Env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     };
-    const base = `https://panel.mayisigorta.test/api/renewals/${id}`;
+    const base = `https://panel.mayisigorta.com/api/renewals/${id}`;
     const response = await app.request(`${base}/whatsapp-preview`, { method: 'GET' }, env);
     expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toBe('private, no-store');
@@ -693,7 +691,7 @@ describe('M4 WhatsApp preview/open semantics', () => {
     });
     const csrf = (
       (await (
-        await app.request('https://panel.mayisigorta.test/api/csrf-token', {}, env)
+        await app.request('https://panel.mayisigorta.com/api/csrf-token', {}, env)
       ).json()) as { data: { token: string } }
     ).data.token;
     const headers = {

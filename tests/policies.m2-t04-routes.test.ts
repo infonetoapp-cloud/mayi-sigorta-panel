@@ -61,7 +61,7 @@ describe('M2-T04 policy route contract', () => {
     const app = new Hono<{ Bindings: Env }>();
     let expectedAssurance: string | undefined;
     registerPolicyRoutes(app, {
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
         verify: async (_request, expected) => {
           expectedAssurance = expected;
@@ -70,13 +70,10 @@ describe('M2-T04 policy route contract', () => {
       }),
     });
     const response = await app.request(
-      'https://panel.mayisigorta.test/secure/api/policies/policy-1/identity-variants',
+      'https://panel.mayisigorta.com/secure/api/policies/policy-1/identity-variants',
       { method: 'POST' },
       {
         DB: {} as D1Database,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       },
     );
     expect(expectedAssurance).toBe('SECURE');
@@ -87,7 +84,7 @@ describe('M2-T04 policy route contract', () => {
     const app = new Hono<{ Bindings: Env }>();
     let expectedAssurance: string | undefined;
     registerPolicyRoutes(app, {
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
         verify: async (_request, expected) => {
           expectedAssurance = expected;
@@ -96,13 +93,10 @@ describe('M2-T04 policy route contract', () => {
       }),
     });
     const response = await app.request(
-      'https://panel.mayisigorta.test/secure/confirm/policies/policy-1/identity-variant',
+      'https://panel.mayisigorta.com/secure/confirm/policies/policy-1/identity-variant',
       { method: 'GET', headers: { accept: 'text/html' } },
       {
         DB: {} as D1Database,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       },
     );
     expect(expectedAssurance).toBe('SECURE');
@@ -113,7 +107,7 @@ describe('M2-T04 policy route contract', () => {
     const app = new Hono<{ Bindings: Env }>();
     let expectedAssurance: string | undefined;
     registerPolicyRoutes(app, {
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
         verify: async (_request, expected) => {
           expectedAssurance = expected;
@@ -122,13 +116,10 @@ describe('M2-T04 policy route contract', () => {
       }),
     });
     const response = await app.request(
-      'https://panel.mayisigorta.test/secure/api/policies/policy-1/identity-variant-grants',
+      'https://panel.mayisigorta.com/secure/api/policies/policy-1/identity-variant-grants',
       { method: 'POST' },
       {
         DB: {} as D1Database,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       },
     );
     expect(expectedAssurance).toBe('SECURE');

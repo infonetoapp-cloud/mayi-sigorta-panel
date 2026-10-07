@@ -1298,7 +1298,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     [
       'schema version',
       (m: RestoreManifest) => {
-        m.schemaVersion = '0017' as '0019';
+        m.schemaVersion = '0017' as '0020';
       },
       'MANIFEST_INVALID',
     ],

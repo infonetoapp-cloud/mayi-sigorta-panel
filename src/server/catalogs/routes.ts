@@ -10,9 +10,9 @@
 import type { Hono, Context } from 'hono';
 import { API_PREFIX } from '../../shared/constants';
 import { parseCsrfConfig } from '../config';
-import { parseAccessConfig } from '../auth/config';
-import { AccessVerificationError } from '../auth/errors';
-import { createAccessVerifier } from '../auth/verifier';
+import { parseLocalSessionConfig } from '../auth/session';
+import { SessionVerificationError } from '../auth/errors';
+import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import { verifyCsrfMutationGuard } from '../security/csrf';
 import { OptimisticConcurrencyError } from '../db/optimistic';
@@ -79,7 +79,7 @@ export function registerCatalogRoutes(
 
     let accessConfig;
     try {
-      accessConfig = parseAccessConfig(c.env);
+      accessConfig = parseLocalSessionConfig(c.env);
     } catch {
       return {
         error: c.json(
@@ -98,13 +98,13 @@ export function registerCatalogRoutes(
 
     let principal;
     try {
-      const verifier = dependencies.createVerifier
-        ? dependencies.createVerifier(accessConfig)
-        : createAccessVerifier({ config: accessConfig });
+      const verifier = dependencies.createSessionVerifier
+        ? dependencies.createSessionVerifier(accessConfig)
+        : createLocalSessionVerifier({ config: accessConfig });
       principal = await verifier.verify(c.req.raw);
     } catch (err) {
-      if (err instanceof AccessVerificationError) {
-        if (err.code === 'JWKS_FETCH_FAILED' || err.code === 'CONFIGURATION_ERROR') {
+      if (err instanceof SessionVerificationError) {
+        if (err.code === 'CONFIGURATION_ERROR') {
           return {
             error: c.json(
               {

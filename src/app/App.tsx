@@ -258,6 +258,16 @@ export function parseAppError(
     };
   }
 
+  if (status === 401) {
+    invalidateCsrfToken();
+    document.dispatchEvent(new Event('mayi-session-ended'));
+    return {
+      message: 'Oturum sona erdi. Yeniden giriş yapın.',
+      isRetryable: false,
+      category: 'FORBIDDEN',
+    };
+  }
+
   const csrfFailureCodes = new Set([
     'MISSING_CSRF_TOKEN',
     'MALFORMED_TOKEN',

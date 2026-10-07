@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler, Env } from 'hono';
 import type { CsrfFailureCode, CsrfVerificationResult } from './types';
+import { csrfSessionSubject } from '../auth/session';
 
 interface CsrfPayload {
   sub: string;
@@ -305,7 +306,7 @@ export async function verifyCsrfMutationGuard(
 
   const verification = await verifyIdentityBoundCsrfToken(
     rawToken,
-    authenticatedSubject.trim(),
+    csrfSessionSubject(request, authenticatedSubject.trim()),
     secret,
   );
 

@@ -5,7 +5,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'n
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import { createApp, type Env } from '../src/server';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import { processDocumentBackupMessage } from '../src/server/documents/backup';
@@ -75,7 +75,7 @@ const memberContext: AuthenticatedUserContext = {
   ],
 };
 
-const principal: VerifiedAccessPrincipal = {
+const principal: AuthenticatedPrincipal = {
   issuer: `https://${teamDomain}`,
   subject: 'upload-owner-subject',
   assurance: 'NORMAL',
@@ -506,10 +506,10 @@ async function availableFixture(
 async function appFor(context = ownerContext, bucket: Pick<R2Bucket, 'get'> = source) {
   const p = { ...principal, assurance: context.assurance };
   const app = createApp({
-    createVerifier: (config) => ({
+    createSessionVerifier: (config) => ({
       config,
       verify: async (_request, expected) => {
-        if (expected && expected !== p.assurance) throw new Error('WRONG_AUDIENCE');
+        if (expected === 'SECURE' && p.assurance !== 'SECURE') throw new Error('REAUTH_REQUIRED');
         return p;
       },
     }),
@@ -521,9 +521,6 @@ async function appFor(context = ownerContext, bucket: Pick<R2Bucket, 'get'> = so
     DOCUMENTS_ENABLED: 'true',
     PANEL_ORIGIN: 'https://panel.example.test',
     APP_ENV: 'test',
-    CF_ACCESS_TEAM_DOMAIN: teamDomain,
-    CF_ACCESS_AUDIENCE: 'normal',
-    CF_ACCESS_SECURE_AUDIENCE: 'secure',
     CSRF_SECRET: csrfSecret,
   };
   const csrf = await generateIdentityBoundCsrfToken({ subject: p.subject }, csrfSecret);
@@ -560,6 +557,11 @@ async function corruptTable(table: string, statement: D1PreparedStatement) {
   }
 }
 describe('authorized validated primary document stream (including historical scans)', () => {
+  it('recent password assurance does not deny a normal authorized document download', async () => {
+    const fixture = await availableFixture();
+    const { post } = await appFor({ ...ownerContext, assurance: 'SECURE' });
+    expect((await post('/api/documents/' + fixture.documentId + '/download')).status).toBe(200);
+  });
   it('uploads, backs up, downloads and reconciles valid staff bytes with no scanner or CLEAN row', async () => {
     const uploaded = await createDocumentUpload(
       db,
@@ -1285,7 +1287,7 @@ describe('authorized validated primary document stream (including historical sca
     ).toBe(404);
     expect((await app.request(request(), undefined, env)).status).toBe(403);
     const denied = createApp({
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
         verify: async () => {
           throw new Error('UNAUTHORIZED');
@@ -1301,7 +1303,7 @@ describe('authorized validated primary document stream (including historical sca
       ).status,
     ).toBe(404);
   });
-  it('uses the established unavailable API envelope for missing Access configuration', async () => {
+  it('uses the established unavailable API envelope for missing local session configuration', async () => {
     const { app, env } = await appFor();
     const response = await app.request(
       'https://panel.example.test/api/documents/unknown/download',
@@ -1310,7 +1312,7 @@ describe('authorized validated primary document stream (including historical sca
         headers: { Origin: 'https://panel.example.test', 'Content-Type': 'application/json' },
         body: '{}',
       },
-      { ...env, CF_ACCESS_TEAM_DOMAIN: undefined },
+      { ...env, DB: undefined },
     );
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({

@@ -7,7 +7,7 @@ import { createApp, type Env } from '../src/server/index';
 import { listRenewalTaskAssignmentOptions, listTodayTasks } from '../src/server/tasks/service';
 import { TaskValidationError } from '../src/server/tasks/errors';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const root = resolve(__dirname, '..');
@@ -39,11 +39,11 @@ const memberContext: AuthenticatedUserContext = {
     },
   ],
 };
-const principal = { subject: 'task-actor-subject' } as VerifiedAccessPrincipal;
+const principal = { subject: 'task-actor-subject' } as AuthenticatedPrincipal;
 
 function createTaskApp(authenticatedContext: AuthenticatedUserContext) {
   return createApp({
-    createVerifier: (config) => ({ config, verify: async () => principal }),
+    createSessionVerifier: (config) => ({ config, verify: async () => principal }),
     createResolver: () => ({ resolve: async () => authenticatedContext }) as never,
   });
 }
@@ -300,13 +300,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
       ),
     ).toEqual(['task-primary-unassigned']);
     const response = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/tasks/today',
+      'https://panel.mayisigorta.com/api/tasks/today',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -353,13 +351,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     } satisfies Partial<TaskValidationError>);
 
     const response = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/tasks/today',
+      'https://panel.mayisigorta.com/api/tasks/today',
       { method: 'GET' },
       {
         DB: failingDb,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -372,13 +368,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
 
   it('filters ASSIGNED collections by persisted Renewal/Customer ownership and hides the unassigned queue', async () => {
     const response = await createTaskApp(memberContext).request(
-      'https://panel.mayisigorta.test/api/tasks/today',
+      'https://panel.mayisigorta.com/api/tasks/today',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -413,7 +407,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
       .run();
     try {
       const response = await createTaskApp(memberContext).request(
-        'https://panel.mayisigorta.test/api/tasks/today',
+        'https://panel.mayisigorta.com/api/tasks/today',
         { method: 'GET' },
         {
           DB: db,
@@ -448,13 +442,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
 
   it('limits assignment options to active members with linked Renewal and Task read access', async () => {
     const response = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assignment-options',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assignment-options',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -482,13 +474,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ).rejects.toMatchObject({ code: 'ASSIGNMENT_OPTIONS_QUERY_FAILED' });
 
     const response = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assignment-options',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assignment-options',
       { method: 'GET' },
       {
         DB: failingDb,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -501,13 +491,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
 
   it('does not disclose assignment options outside the current Renewal scope', async () => {
     const response = await createTaskApp(memberContext).request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assignment-options',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assignment-options',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -518,13 +506,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
   it('paginates deterministically within the authorized task collection', async () => {
     const secondUnassignedTask = await seedRenewalTask(db, 'unassigned-queue-page');
     const first = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/tasks/today?limit=1',
+      'https://panel.mayisigorta.com/api/tasks/today?limit=1',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -548,13 +534,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(firstEnvelope.data.unassignedNextCursor).not.toBeNull();
 
     const second = await createTaskApp(context).request(
-      `https://panel.mayisigorta.test/api/tasks/today?limit=1&cursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
+      `https://panel.mayisigorta.com/api/tasks/today?limit=1&cursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -565,13 +549,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(secondEnvelope.data.hasMore).toBe(false);
 
     const secondUnassignedPage = await createTaskApp(context).request(
-      `https://panel.mayisigorta.test/api/tasks/today?limit=1&unassignedCursor=${encodeURIComponent(firstEnvelope.data.unassignedNextCursor!)}`,
+      `https://panel.mayisigorta.com/api/tasks/today?limit=1&unassignedCursor=${encodeURIComponent(firstEnvelope.data.unassignedNextCursor!)}`,
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -585,13 +567,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(secondUnassignedEnvelope.data.unassignedHasMore).toBe(false);
 
     const assignedCursorUsedForQueue = await createTaskApp(context).request(
-      `https://panel.mayisigorta.test/api/tasks/today?unassignedCursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
+      `https://panel.mayisigorta.com/api/tasks/today?unassignedCursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -602,13 +582,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     });
 
     const ownerCursorUsedByMember = await createTaskApp(memberContext).request(
-      `https://panel.mayisigorta.test/api/tasks/today?cursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
+      `https://panel.mayisigorta.com/api/tasks/today?cursor=${encodeURIComponent(firstEnvelope.data.nextCursor!)}`,
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -621,13 +599,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
 
   it('rejects malformed task pagination cursors', async () => {
     const response = await createTaskApp(context).request(
-      'https://panel.mayisigorta.test/api/tasks/today?cursor=not-base64',
+      'https://panel.mayisigorta.com/api/tasks/today?cursor=not-base64',
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -656,13 +632,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     );
     expect(cursor.length).toBe(268);
     const response = await createTaskApp(context).request(
-      `https://panel.mayisigorta.test/api/tasks/today?unassignedCursor=${encodeURIComponent(cursor)}`,
+      `https://panel.mayisigorta.com/api/tasks/today?unassignedCursor=${encodeURIComponent(cursor)}`,
       { method: 'GET' },
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env,
     );
@@ -677,13 +651,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
@@ -696,7 +668,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     };
     const request = () =>
       app.request(
-        'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assign',
+        'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assign',
         {
           method: 'POST',
           headers: {
@@ -775,7 +747,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ).toBe(1);
 
     const otherTargetConflict = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/assign',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/assign',
       {
         method: 'POST',
         headers: {
@@ -792,7 +764,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
 
     const changedPayload = { ...body, assigneeMembershipId: null };
     const conflict = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assign',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assign',
       {
         method: 'POST',
         headers: {
@@ -808,7 +780,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(conflict.status).toBe(409);
 
     const staleVersion = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal/tasks/task-primary/assign',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal/tasks/task-primary/assign',
       {
         method: 'POST',
         headers: {
@@ -845,19 +817,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
       const app = createTaskApp(context);
       const env = {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env;
       const csrfResponse = await app.request(
-        'https://panel.mayisigorta.test/api/csrf-token',
+        'https://panel.mayisigorta.com/api/csrf-token',
         { method: 'GET' },
         env,
       );
       const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
       const response = await app.request(
-        'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/assign',
+        'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/assign',
         {
           method: 'POST',
           headers: {
@@ -971,13 +941,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
@@ -993,7 +961,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ];
     for (const attempt of attempts) {
       const response = await app.request(
-        `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/assign`,
+        `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/assign`,
         {
           method: 'POST',
           headers: {
@@ -1053,13 +1021,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
@@ -1071,7 +1037,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     };
     const request = () =>
       app.request(
-        'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
+        'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
         {
           method: 'POST',
           headers: {
@@ -1226,7 +1192,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ).toEqual({ count: 1 });
 
     const conflict = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
       {
         method: 'POST',
         headers: {
@@ -1242,7 +1208,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(conflict.status).toBe(409);
 
     const otherTargetConflict = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
       {
         method: 'POST',
         headers: {
@@ -1269,19 +1235,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const response = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
       {
         method: 'POST',
         headers: {
@@ -1339,19 +1303,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
       const app = createTaskApp(context);
       const env = {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-        CF_ACCESS_AUDIENCE: 'normal-audience',
-        CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
         CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
       } satisfies Env;
       const csrfResponse = await app.request(
-        'https://panel.mayisigorta.test/api/csrf-token',
+        'https://panel.mayisigorta.com/api/csrf-token',
         { method: 'GET' },
         env,
       );
       const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
       const response = await app.request(
-        `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
+        `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
         {
           method: 'POST',
           headers: {
@@ -1411,13 +1373,11 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
@@ -1428,7 +1388,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ];
     for (const attempt of attempts) {
       const response = await app.request(
-        `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
+        `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
         {
           method: 'POST',
           headers: {
@@ -1486,20 +1446,18 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const request = () =>
       app.request(
-        `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
+        `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
         {
           method: 'POST',
           headers: {
@@ -1567,19 +1525,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(memberContext);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const response = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
       {
         method: 'POST',
         headers: {
@@ -1615,7 +1571,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     });
 
     const replay = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
       {
         method: 'POST',
         headers: {
@@ -1650,7 +1606,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
       )
       .run();
     const revokedReplay = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-member/tasks/task-primary-member/complete',
       {
         method: 'POST',
         headers: {
@@ -1683,19 +1639,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(memberContext);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const response = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
       {
         method: 'POST',
         headers: {
@@ -1767,19 +1721,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(memberWithCurrentPermissionVersion);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const response = await app.request(
-      `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
+      `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/complete`,
       {
         method: 'POST',
         headers: {
@@ -1837,19 +1789,17 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(context);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const response = await app.request(
-      `https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/${completion.replacementTaskId}/assign`,
+      `https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/${completion.replacementTaskId}/assign`,
       {
         method: 'POST',
         headers: {
@@ -1882,7 +1832,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     ).toEqual({ assignee_membership_id: 'task-member-membership', version: 2 });
 
     const replay = await app.request(
-      'https://panel.mayisigorta.test/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
+      'https://panel.mayisigorta.com/api/renewals/task-renewal-unassigned/tasks/task-primary-unassigned/complete',
       {
         method: 'POST',
         headers: {
@@ -1940,20 +1890,18 @@ describe('M3-T02 scoped Today’s Work API', () => {
     const app = createTaskApp(managerContext);
     const env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
+
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const request = () =>
       app.request(
-        `https://panel.mayisigorta.test/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/assign`,
+        `https://panel.mayisigorta.com/api/renewals/${fixture.renewalId}/tasks/${fixture.taskId}/assign`,
         {
           method: 'POST',
           headers: {

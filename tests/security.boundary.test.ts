@@ -1,3 +1,4 @@
+import { controlledSessionCookie } from './support/controlled-session';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApp, createWorker } from '../src/server/index';
 import { parseServerConfig } from '../src/server/config';
@@ -14,8 +15,8 @@ import {
   getSecurityHeaders,
   applySecurityHeaders,
 } from '../src/server/security/index';
-import type { AccessConfig } from '../src/server/auth/config';
-import type { AccessVerifier } from '../src/server/auth/verifier';
+import type { LocalSessionConfig } from '../src/server/auth/session';
+import type { LocalSessionVerifier } from '../src/server/auth/session';
 import type {
   ApplicationIdentityResolver,
   AuthenticatedUserContext,
@@ -548,15 +549,18 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
       );
 
       for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-        const res = await appWithMutation.request('/api/test-mutation', {
-          method,
-          headers: {
-            Origin: TRUSTED_ORIGIN,
-            [CSRF_HEADER_NAME]: validToken,
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-Mode': 'cors',
+        const res = await appWithMutation.request(
+          'https://panel.mayisigorta.com/api/test-mutation',
+          {
+            method,
+            headers: {
+              Origin: TRUSTED_ORIGIN,
+              [CSRF_HEADER_NAME]: validToken,
+              'Sec-Fetch-Site': 'same-origin',
+              'Sec-Fetch-Mode': 'cors',
+            },
           },
-        });
+        );
         expect(res.status).toBe(200);
         expect(res.headers.get('x-content-type-options')).toBe('nosniff');
         expect(res.headers.get('cache-control')).toContain('no-store');
@@ -564,7 +568,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('X-CSRF-Token başlığı eksik olduğunda mutasyon 403 ile fail-closed reddedilmelidir', async () => {
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: TRUSTED_ORIGIN,
@@ -586,7 +590,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
       );
       const tampered = validToken.slice(0, -6) + 'ZZZZZZ';
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: TRUSTED_ORIGIN,
@@ -607,7 +611,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         TEST_SECRET,
       );
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: TRUSTED_ORIGIN,
@@ -629,7 +633,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         TEST_SECRET,
       );
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: TRUSTED_ORIGIN,
@@ -650,7 +654,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         TEST_SECRET,
       );
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           [CSRF_HEADER_NAME]: validToken,
@@ -668,7 +672,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         TEST_SECRET,
       );
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: 'https://evil.com',
@@ -687,7 +691,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         TEST_SECRET,
       );
 
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'POST',
         headers: {
           Origin: 'https://mayisigorta.com',
@@ -701,14 +705,14 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('GET ve HEAD istekleri Origin başlığı olmaksızın serbestçe çalışmalıdır', async () => {
-      const getRes = await appWithMutation.request('/api/health', {
+      const getRes = await appWithMutation.request('https://panel.mayisigorta.com/api/health', {
         method: 'GET',
       });
       expect(getRes.status).toBe(200);
       expect(getRes.headers.get('cache-control')).toContain('no-store');
       expect(getRes.headers.get('x-content-type-options')).toBe('nosniff');
 
-      const headRes = await appWithMutation.request('/api/health', {
+      const headRes = await appWithMutation.request('https://panel.mayisigorta.com/api/health', {
         method: 'HEAD',
       });
       expect(headRes.status).toBe(200);
@@ -716,7 +720,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('GET isteğinde cross-site Sec-Fetch-Site varsa 403 ile engellenmelidir', async () => {
-      const res = await appWithMutation.request('/api/health', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/health', {
         method: 'GET',
         headers: {
           'Sec-Fetch-Site': 'cross-site',
@@ -729,7 +733,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('OPTIONS isteği güvenilen origin ile yapıldığında güvenli CORS başlıkları dönmelidir', async () => {
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'OPTIONS',
         headers: {
           Origin: TRUSTED_ORIGIN,
@@ -743,7 +747,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('OPTIONS isteği düşmanca origin ile yapıldığında 403 dönmeli ve origin yansıtılmamalıdır', async () => {
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'OPTIONS',
         headers: {
           Origin: 'https://evil.com',
@@ -755,7 +759,7 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('OPTIONS isteği Origin olmaksızın yapıldığında 204 dönmeli fakat CORS başlığı açmamalıdır', async () => {
-      const res = await appWithMutation.request('/api/test-mutation', {
+      const res = await appWithMutation.request('https://panel.mayisigorta.com/api/test-mutation', {
         method: 'OPTIONS',
       });
       expect(res.status).toBe(204);
@@ -764,9 +768,12 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     });
 
     it('tüm API hata yanıtları (404, 500 vb.) güvenlik ve no-store başlıklarını taşımalıdır', async () => {
-      const res = await appWithMutation.request('/api/bilinmeyen-endpoint-404', {
-        method: 'GET',
-      });
+      const res = await appWithMutation.request(
+        'https://panel.mayisigorta.com/api/bilinmeyen-endpoint-404',
+        {
+          method: 'GET',
+        },
+      );
       expect(res.status).toBe(404);
       expect(res.headers.get('cache-control')).toContain('no-store');
       expect(res.headers.get('pragma')).toBe('no-cache');
@@ -843,8 +850,8 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
         email: 'test@mayisigorta.com',
       };
 
-      const mockVerifier: AccessVerifier = {
-        config: {} as AccessConfig,
+      const mockVerifier: LocalSessionVerifier = {
+        config: {} as LocalSessionConfig,
         verify: vi.fn().mockResolvedValue(mockPrincipal),
       };
 
@@ -869,23 +876,20 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
       };
 
       const testApp = createApp({
-        createVerifier: () => mockVerifier,
+        createSessionVerifier: () => mockVerifier,
         createResolver: () => mockResolver,
       });
 
       const res = await testApp.request(
-        '/api/me',
+        'https://panel.mayisigorta.com/api/me',
         {
           method: 'GET',
           headers: {
-            'Cf-Access-Jwt-Assertion': 'mock.jwt.token',
+            cookie: controlledSessionCookie('mock.jwt.token'),
           },
         },
         {
           DB: {} as D1Database,
-          CF_ACCESS_TEAM_DOMAIN: 'mayi-test.cloudflareaccess.com',
-          CF_ACCESS_AUDIENCE: 'synthetic-normal-aud-1234567890abcdef',
-          CF_ACCESS_SECURE_AUDIENCE: 'synthetic-secure-aud-9876543210fedcba',
         },
       );
 
@@ -904,15 +908,12 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     it('GET /api/me kimlik doğrulama başarısızlığında 401 ve güvenlik başlıkları dönmelidir', async () => {
       const testApp = createApp();
       const res = await testApp.request(
-        '/api/me',
+        'https://panel.mayisigorta.com/api/me',
         {
           method: 'GET',
         },
         {
           DB: {} as D1Database,
-          CF_ACCESS_TEAM_DOMAIN: 'mayi-test.cloudflareaccess.com',
-          CF_ACCESS_AUDIENCE: 'synthetic-normal-aud-1234567890abcdef',
-          CF_ACCESS_SECURE_AUDIENCE: 'synthetic-secure-aud-9876543210fedcba',
         },
       );
 

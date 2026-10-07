@@ -141,6 +141,13 @@
       "when": 1791189319908,
       "tag": "0019_m4_internal_document_validation",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791271597493,
+      "tag": "0020_local_authentication",
+      "breakpoints": true
     }
   ]
 }

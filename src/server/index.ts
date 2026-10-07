@@ -1,17 +1,27 @@
 import { Hono } from 'hono';
 import { API_PREFIX } from '../shared/constants';
-import type { ApiResponse, CsrfTokenDto, HealthCheckData, UserMeDto } from '../shared/types';
 import { parseCsrfConfig, parseServerConfig } from './config';
-import { parseAccessConfig, type AccessConfig } from './auth/config';
-import { AccessVerificationError } from './auth/errors';
-import { createAccessVerifier, type AccessVerifier } from './auth/verifier';
+import {
+  createLocalSessionVerifier,
+  parseLocalSessionConfig,
+  csrfSessionSubject,
+  getRequestSession,
+  loadLocalSession,
+  type LocalSessionConfig,
+  type LocalSessionVerifier,
+} from './auth/session';
 import {
   createApplicationIdentityResolver,
   IdentityResolutionError,
   toUserMeDto,
   type ApplicationIdentityResolver,
 } from './auth/identity';
-import type { VerifiedAccessPrincipal } from './auth/types';
+import { registerLocalAuthRoutes, auditAuthDenial } from './auth/routes';
+import { REAUTH_PAGE, REAUTH_SCRIPT } from './auth/reauth-page';
+import { SessionVerificationError } from './auth/errors';
+import { sessionBoundDatabase } from './auth/session-database';
+import { registerPersonnelRoutes } from './auth/personnel';
+import type { PasswordHasher } from './auth/password';
 import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './security';
 import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
@@ -26,57 +36,43 @@ import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
 import type { DocumentReconcileStorage } from './documents/reconcile-storage';
 
-/**
- * Mayı Sigorta CRM - Cloudflare Worker Sunucu Kabuğu (Hono Worker Shell).
- *
- * Mimari Sözleşme (NIHAI_MIMARI_VE_UYGULAMA_PLANI):
- * 1. /api/* yolları öncelikli olarak Hono tarafından işlenir.
- * 2. Eşleşmeyen /api/* istekleri asla SPA HTML'e düşmez; standart JSON 404 döner.
- * 3. Statik varlıklar Cloudflare Static Assets (ASSETS binding) üzerinden sunulur.
- */
-
 export interface Env {
   ASSETS?: Fetcher;
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;
   DOCUMENT_JOB_QUEUE?: Queue<DocumentJobQueueMessage>;
   DOCUMENTS_ENABLED?: string;
+  AUTH_ACCOUNT_RATE_LIMITER?: RateLimit;
+  AUTH_SOURCE_RATE_LIMITER?: RateLimit;
   [key: string]: unknown;
 }
-
+/** Explicit trusted composition seams, never selected by Env/request/header/config. */
 export interface AppDependencies {
-  readonly createVerifier?: (config: AccessConfig) => AccessVerifier;
+  readonly createSessionVerifier?: (config: LocalSessionConfig) => LocalSessionVerifier;
+  readonly passwordHasher?: PasswordHasher;
   readonly createResolver?: (db: D1Database) => ApplicationIdentityResolver;
 }
-
 function apiNotFoundResponse(): Response {
   return Response.json(
     {
       success: false,
-      error: {
-        code: 'NOT_FOUND',
-        message: 'Bilinmeyen API uç noktası',
-      },
+      error: { code: 'NOT_FOUND', message: 'Bilinmeyen API uç noktası' },
       timestamp: new Date().toISOString(),
     },
     { status: 404 },
   );
 }
-
 function canonicalizeRoutePath(pathname: string): string | null {
   let decoded = pathname;
   try {
-    for (let depth = 0; depth <= pathname.length; depth += 1) {
+    for (let depth = 0; depth <= pathname.length; depth++) {
       const next = decodeURIComponent(decoded);
       if (next === decoded) {
         const segments: string[] = [];
         for (const segment of decoded.replace(/\\/g, '/').split('/')) {
           if (!segment || segment === '.') continue;
-          if (segment === '..') {
-            segments.pop();
-          } else {
-            segments.push(segment);
-          }
+          if (segment === '..') segments.pop();
+          else segments.push(segment);
         }
         return `/${segments.join('/')}`;
       }
@@ -87,23 +83,19 @@ function canonicalizeRoutePath(pathname: string): string | null {
   }
   return null;
 }
-
 function isNamespacePath(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
-
 function acceptsHtml(request: Request): boolean {
   const accept = request.headers.get('accept');
   if (!accept) return false;
-
-  let selectedSpecificity = -1;
-  let selectedQuality = 0;
+  let selectedSpecificity = -1,
+    selectedQuality = 0;
   for (const rawRange of accept.toLowerCase().split(',')) {
     const [rawMediaType, ...parameters] = rawRange.trim().split(';');
     const mediaType = rawMediaType?.trim();
     const specificity = mediaType === 'text/html' ? 2 : mediaType === 'text/*' ? 1 : 0;
     if (mediaType !== 'text/html' && mediaType !== 'text/*' && mediaType !== '*/*') continue;
-
     let quality = 1;
     for (const parameter of parameters) {
       const [name, value] = parameter.trim().split('=');
@@ -119,13 +111,12 @@ function acceptsHtml(request: Request): boolean {
   }
   return selectedQuality > 0;
 }
-
 function isStaticAssetPath(pathname: string): boolean {
-  if (isNamespacePath(pathname, '/assets')) return true;
-  const finalSegment = pathname.slice(pathname.lastIndexOf('/') + 1);
-  return finalSegment.includes('.');
+  return (
+    isNamespacePath(pathname, '/assets') ||
+    pathname.slice(pathname.lastIndexOf('/') + 1).includes('.')
+  );
 }
-
 async function serveFrontend(
   request: Request,
   assets: Fetcher,
@@ -133,355 +124,159 @@ async function serveFrontend(
 ): Promise<Response> {
   const assetResponse = await assets.fetch(request);
   if (assetResponse.status !== 404) return assetResponse;
-
-  const canUseSpaFallback =
-    canonicalPath !== null &&
-    request.method === 'GET' &&
-    acceptsHtml(request) &&
-    !isStaticAssetPath(canonicalPath);
-  if (!canUseSpaFallback) return assetResponse;
-
-  const indexUrl = new URL('/index.html', request.url);
-  const indexRequest = new Request(indexUrl, request);
-  return assets.fetch(indexRequest);
+  if (
+    canonicalPath === null ||
+    request.method !== 'GET' ||
+    !acceptsHtml(request) ||
+    isStaticAssetPath(canonicalPath)
+  )
+    return assetResponse;
+  return assets.fetch(new Request(new URL('/index.html', request.url), request));
 }
-
 export function createApp(
   dependencies: AppDependencies = {},
   configureRoutes?: (app: Hono<{ Bindings: Env }>) => void,
 ): Hono<{ Bindings: Env }> {
   const app = new Hono<{ Bindings: Env }>();
-
-  // İstek Güvenlik Sınırı ve Başlık Ara Yazılımı (M1-T08 Request Security Boundary)
   app.use('*', createSecurityBoundaryMiddleware());
-
-  // Temel sistem sağlık kontrolü (Baseline Health Endpoint)
-  app.get(`${API_PREFIX}/health`, (c) => {
-    const config = parseServerConfig(c.env);
-    const response: ApiResponse<HealthCheckData> = {
-      success: true,
-      data: {
-        status: 'healthy',
-        version: '0.1.0',
-        environment: config.APP_ENV,
-        timestamp: new Date().toISOString(),
-      },
-      timestamp: new Date().toISOString(),
-    };
-    return c.json(response, 200);
-  });
-
-  // Doğrulanmış Kullanıcı ve Aktif Üyelik Bağlamı (M1-T06 - GET /api/me)
-  // Akış: Request -> Access Config -> Verifier -> Assertion Header -> Identity Resolver -> Safe DTO
-  app.get(`${API_PREFIX}/me`, async (c) => {
-    c.header('Cache-Control', 'no-store');
-
-    if (!c.env.DB) {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'SERVICE_UNAVAILABLE',
-          message: 'Veritabanı bağlantısı kullanılamıyor.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 503);
+  app.use('*', async (c, next) => {
+    const path = new URL(c.req.url).pathname;
+    if (path.startsWith('/api/auth/') || path === '/api/health' || !c.req.header('cookie')) {
+      await next();
+      return;
     }
-
-    let accessConfig: AccessConfig;
     try {
-      accessConfig = parseAccessConfig(c.env);
-    } catch {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'SERVICE_UNAVAILABLE',
-          message: 'Kimlik doğrulama yapılandırması eksik veya geçersiz.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 503);
-    }
-
-    let principal: VerifiedAccessPrincipal;
-    try {
-      const verifier: AccessVerifier = dependencies.createVerifier
-        ? dependencies.createVerifier(accessConfig)
-        : createAccessVerifier({ config: accessConfig });
-
-      principal = await verifier.verify(c.req.raw);
-    } catch (err) {
-      if (err instanceof AccessVerificationError) {
-        if (err.code === 'JWKS_FETCH_FAILED' || err.code === 'CONFIGURATION_ERROR') {
-          const errorResponse: ApiResponse<never> = {
-            success: false,
-            error: {
-              code: 'SERVICE_UNAVAILABLE',
-              message: 'Kimlik doğrulama altyapısı geçici olarak kullanılamıyor.',
-            },
-            timestamp: new Date().toISOString(),
-          };
-          return c.json(errorResponse, 503);
-        }
-      }
-
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Kimlik doğrulaması sağlanamadı.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 401);
-    }
-
-    try {
-      const resolver: ApplicationIdentityResolver = dependencies.createResolver
-        ? dependencies.createResolver(c.env.DB)
-        : createApplicationIdentityResolver(c.env.DB);
-
-      const context = await resolver.resolve(principal);
-      const data = toUserMeDto(context);
-
-      const response: ApiResponse<UserMeDto> = {
-        success: true,
-        data,
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(response, 200);
-    } catch (err) {
-      if (err instanceof IdentityResolutionError) {
-        if (
-          err.code === 'DATABASE_ERROR' ||
-          err.code === 'CORRUPT_IDENTITY_DATA' ||
-          err.code === 'CORRUPT_MEMBERSHIP_DATA'
-        ) {
-          const errorResponse: ApiResponse<never> = {
-            success: false,
-            error: {
-              code: 'SERVICE_UNAVAILABLE',
-              message: 'Hizmet şu anda kullanılamıyor.',
-            },
-            timestamp: new Date().toISOString(),
-          };
-          return c.json(errorResponse, 503);
-        }
-
-        // Bilinmeyen / iptal edilmiş kimlik, inaktif kullanıcı veya aktif üyeliği olmayan durumlar:
-        // Ayrıntı sızdırmayan genel fail-closed 403 (do not reveal which lookup failed)
-        const errorResponse: ApiResponse<never> = {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Erişim reddedildi.',
-          },
-          timestamp: new Date().toISOString(),
+      const config = parseLocalSessionConfig(c.env);
+      await (
+        dependencies.createSessionVerifier?.(config) ?? createLocalSessionVerifier({ config })
+      ).verify(c.req.raw);
+      const session = getRequestSession(c.req.raw);
+      if (session)
+        c.env = {
+          ...c.env,
+          DB: sessionBoundDatabase(
+            c.env.DB,
+            session,
+            isNamespacePath(canonicalizeRoutePath(path) ?? path, '/secure'),
+          ),
         };
-        return c.json(errorResponse, 403);
-      }
-
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Beklenmeyen bir hata oluştu.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 500);
-    }
-  });
-
-  // Doğrulanmış Kullanıcı ve Aktif Üyelik Bağlamına Bağlı CSRF Belirteci Sağlama (GET /api/csrf-token)
-  // Akış: Request -> Security Boundary -> Access Config -> Verifier -> Identity Resolver -> Identity-Bound CSRF Token
-  app.get(`${API_PREFIX}/csrf-token`, async (c) => {
-    c.header('Cache-Control', 'no-store, private');
-    c.header('Pragma', 'no-cache');
-
-    if (!c.env.DB) {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'SERVICE_UNAVAILABLE',
-          message: 'Veritabanı bağlantısı kullanılamıyor.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 503);
-    }
-
-    let accessConfig: AccessConfig;
-    try {
-      accessConfig = parseAccessConfig(c.env);
-    } catch {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'SERVICE_UNAVAILABLE',
-          message: 'Kimlik doğrulama yapılandırması eksik veya geçersiz.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 503);
-    }
-
-    let principal: VerifiedAccessPrincipal;
-    try {
-      const verifier: AccessVerifier = dependencies.createVerifier
-        ? dependencies.createVerifier(accessConfig)
-        : createAccessVerifier({ config: accessConfig });
-
-      principal = await verifier.verify(c.req.raw);
-    } catch (err) {
-      if (err instanceof AccessVerificationError) {
-        if (err.code === 'JWKS_FETCH_FAILED' || err.code === 'CONFIGURATION_ERROR') {
-          const errorResponse: ApiResponse<never> = {
-            success: false,
-            error: {
-              code: 'SERVICE_UNAVAILABLE',
-              message: 'Kimlik doğrulama altyapısı geçici olarak kullanılamıyor.',
-            },
-            timestamp: new Date().toISOString(),
-          };
-          return c.json(errorResponse, 503);
+      await next();
+    } catch (error) {
+      if (path.startsWith('/secure/')) await auditAuthDenial(c, 'auth.secure.denied');
+      if (
+        error instanceof SessionVerificationError &&
+        error.code === 'REAUTH_REQUIRED' &&
+        c.req.method === 'GET' &&
+        path.startsWith('/secure/') &&
+        acceptsHtml(c.req.raw)
+      ) {
+        try {
+          await loadLocalSession(c.env.DB, c.req.raw);
+          return c.html(REAUTH_PAGE);
+        } catch {
+          /* Invalid/restricted sessions never receive any domain data. */
         }
       }
-
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Kimlik doğrulaması sağlanamadı.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 401);
-    }
-
-    try {
-      const resolver: ApplicationIdentityResolver = dependencies.createResolver
-        ? dependencies.createResolver(c.env.DB)
-        : createApplicationIdentityResolver(c.env.DB);
-
-      await resolver.resolve(principal);
-    } catch (err) {
-      if (err instanceof IdentityResolutionError) {
-        if (
-          err.code === 'DATABASE_ERROR' ||
-          err.code === 'CORRUPT_IDENTITY_DATA' ||
-          err.code === 'CORRUPT_MEMBERSHIP_DATA'
-        ) {
-          const errorResponse: ApiResponse<never> = {
-            success: false,
-            error: {
-              code: 'SERVICE_UNAVAILABLE',
-              message: 'Hizmet şu anda kullanılamıyor.',
-            },
-            timestamp: new Date().toISOString(),
-          };
-          return c.json(errorResponse, 503);
-        }
-
-        const errorResponse: ApiResponse<never> = {
+      return c.json(
+        {
           success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Erişim reddedildi.',
-          },
+          error: { code: 'UNAUTHORIZED', message: 'Oturum veya güncel şifre doğrulaması gerekli.' },
           timestamp: new Date().toISOString(),
-        };
-        return c.json(errorResponse, 403);
-      }
-
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Beklenmeyen bir hata oluştu.',
         },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 500);
-    }
-
-    let csrfSecret: string;
-    try {
-      csrfSecret = parseCsrfConfig(c.env).CSRF_SECRET;
-    } catch {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'SERVICE_UNAVAILABLE',
-          message: 'CSRF güvenlik yapılandırması eksik veya geçersiz.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 503);
-    }
-
-    try {
-      const token = await generateIdentityBoundCsrfToken(
-        { subject: principal.subject },
-        csrfSecret,
+        401,
       );
-
-      const response: ApiResponse<CsrfTokenDto> = {
-        success: true,
-        data: {
-          token,
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(response, 200);
-    } catch {
-      const errorResponse: ApiResponse<never> = {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'CSRF belirteci üretilemedi.',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return c.json(errorResponse, 500);
     }
   });
-
-  // M2-T01 Müşteri ve Kişi API Rotaları (Customer & CompanyContact Domain Routes)
+  registerLocalAuthRoutes(app, dependencies);
+  app.get('/api/auth/reauth.js', (c) =>
+    c.body(REAUTH_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }),
+  );
+  registerPersonnelRoutes(app, dependencies);
+  app.get(`${API_PREFIX}/health`, (c) =>
+    c.json(
+      { success: true, data: { status: 'healthy' }, timestamp: new Date().toISOString() },
+      200,
+    ),
+  );
+  for (const path of [`${API_PREFIX}/me`, `${API_PREFIX}/csrf-token`])
+    app.get(path, async (c) => {
+      c.header('Cache-Control', 'private, no-store');
+      if (!c.env.DB)
+        return c.json(
+          {
+            success: false,
+            error: { code: 'SERVICE_UNAVAILABLE', message: 'Hizmet kullanılamıyor.' },
+            timestamp: new Date().toISOString(),
+          },
+          503,
+        );
+      try {
+        const config = parseLocalSessionConfig(c.env);
+        const verifier =
+          dependencies.createSessionVerifier?.(config) ?? createLocalSessionVerifier({ config });
+        const principal = await verifier.verify(c.req.raw);
+        const context = await (
+          dependencies.createResolver?.(c.env.DB) ?? createApplicationIdentityResolver(c.env.DB)
+        ).resolve(principal);
+        if (path.endsWith('/me'))
+          return c.json(
+            { success: true, data: toUserMeDto(context), timestamp: new Date().toISOString() },
+            200,
+          );
+        let secret: string;
+        try {
+          secret = parseCsrfConfig(c.env).CSRF_SECRET;
+        } catch {
+          return c.json(
+            {
+              success: false,
+              error: { code: 'SERVICE_UNAVAILABLE', message: 'Güvenlik yapılandırması eksik.' },
+              timestamp: new Date().toISOString(),
+            },
+            503,
+          );
+        }
+        const token = await generateIdentityBoundCsrfToken(
+          { subject: csrfSessionSubject(c.req.raw, principal.subject) },
+          secret,
+        );
+        return c.json({ success: true, data: { token }, timestamp: new Date().toISOString() }, 200);
+      } catch (error) {
+        const infrastructure =
+          error instanceof IdentityResolutionError &&
+          ['DATABASE_ERROR', 'CORRUPT_IDENTITY_DATA', 'CORRUPT_MEMBERSHIP_DATA'].includes(
+            error.code,
+          );
+        const forbidden = error instanceof IdentityResolutionError && !infrastructure;
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: infrastructure
+                ? 'SERVICE_UNAVAILABLE'
+                : forbidden
+                  ? 'FORBIDDEN'
+                  : 'UNAUTHORIZED',
+              message: 'Oturum veya erişim kullanılamıyor.',
+            },
+            timestamp: new Date().toISOString(),
+          },
+          infrastructure ? 503 : forbidden ? 403 : 401,
+        );
+      }
+    });
   registerCustomerRoutes(app, dependencies);
-
-  // M2-T03 Katalog ve Acente Ayarları API Rotaları (Catalog & Agency Settings Domain Routes)
   registerCatalogRoutes(app, dependencies);
-
-  // M2-T04 Policy CORE API routes
   registerPolicyRoutes(app, dependencies);
-
-  // M3-T02 primary renewal Task and Today’s Work API routes
   registerTaskRoutes(app, dependencies);
-
-  // M3-T03 explicit Renewal outcome commands
   registerRenewalCommandRoutes(app, dependencies);
-
-  // M4: belge yükleme akışı yalnız yetkili parent kapsamı ve karantina state'i üretir.
   registerDocumentRoutes(app, dependencies);
-
-  if (configureRoutes) {
-    configureRoutes(app);
-  }
-
-  // Bilinmeyen /api/* isteklerini yakalayan güvenlik kapısı (Fail-Closed API Fallback)
-  // NIHAI_MIMARI_VE_UYGULAMA_PLANI Bölüm 9: "Bilinmeyen API yolu SPA HTML cevabına düşmez."
-  app.all(`${API_PREFIX}/*`, (_c) => {
-    return apiNotFoundResponse();
-  });
-
+  configureRoutes?.(app);
+  app.all(`${API_PREFIX}/*`, () => apiNotFoundResponse());
+  app.all('/secure/*', () => apiNotFoundResponse());
   return app;
 }
-
 export const app = createApp();
-
-// Backup capability is injected explicitly; no broad backup bucket/admin binding in CRM Env.
-// Real separate-account capability provisioning remains an external enablement gate.
 export function createWorker(
   appInstance: Hono<{ Bindings: Env }> = app,
   documentBackup?: DocumentBackupAdapter,
@@ -494,31 +289,52 @@ export function createWorker(
         env.DB,
         env.DOCS_QUARANTINE,
         env.DOCUMENTS_ENABLED === 'true',
-
         documentBackup,
         documentReconcile,
       );
     },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-      if (!controller.cron || controller.cron === '0 0 * * *') {
+      if (!controller.cron || controller.cron === '0 0 * * *')
         ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
-      }
       if (
         controller.cron === '*/5 * * * *' &&
         env.DOCUMENT_JOB_QUEUE &&
         env.DOCUMENTS_ENABLED === 'true'
-      ) {
+      )
         ctx.waitUntil(
           dispatchDueDocumentJobs(env.DB, env.DOCUMENT_JOB_QUEUE, [
             'DOCUMENT_BACKUP',
             'DOCUMENT_RECONCILE',
           ]),
         );
-      }
     },
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-      const url = new URL(request.url);
-      const canonicalPath = canonicalizeRoutePath(url.pathname);
+      const url = new URL(request.url),
+        canonicalPath = canonicalizeRoutePath(url.pathname);
+      const appEnv =
+        (env.APP_ENV as 'development' | 'test' | 'staging' | 'production' | undefined) ??
+        'development';
+      const isHttps = url.protocol === 'https:';
+      let origin: string;
+      try {
+        origin = parseServerConfig(env).PANEL_ORIGIN;
+      } catch {
+        return applySecurityHeaders(new Response(null, { status: 503 }), {
+          appEnv,
+          isHttps,
+          isApi: true,
+        });
+      }
+      if (
+        !isHttps ||
+        url.origin !== origin ||
+        (request.headers.has('host') && request.headers.get('host') !== url.host)
+      )
+        return applySecurityHeaders(new Response(null, { status: 403 }), {
+          appEnv,
+          isHttps,
+          isApi: true,
+        });
       const isApiRequest =
         canonicalPath === null
           ? url.pathname.startsWith(API_PREFIX)
@@ -527,45 +343,25 @@ export function createWorker(
         canonicalPath === null
           ? url.pathname.startsWith('/secure')
           : isNamespacePath(canonicalPath, '/secure');
-
-      const appEnv =
-        (env?.APP_ENV as 'development' | 'test' | 'staging' | 'production' | undefined) ??
-        'development';
-      const isHttps = url.protocol === 'https:';
-
-      // API veya güvenlik onay istekleri doğrudan Hono'ya yönlendirilir
       if (isApiRequest || isSecureRequest) {
-        if (canonicalPath !== url.pathname && isApiRequest) {
-          return applySecurityHeaders(apiNotFoundResponse(), {
-            appEnv,
-            isHttps,
-            isApi: true,
-          });
-        }
+        if (canonicalPath !== url.pathname)
+          return applySecurityHeaders(apiNotFoundResponse(), { appEnv, isHttps, isApi: true });
         return appInstance.fetch(request, env, ctx);
       }
-
-      // Statik varlıklar mevcutsa ASSETS binding'e yönlendirilir
       if (env.ASSETS) {
-        const frontendResponse = await serveFrontend(request, env.ASSETS, canonicalPath);
-        return applySecurityHeaders(frontendResponse, {
+        const response = await serveFrontend(request, env.ASSETS, canonicalPath);
+        return applySecurityHeaders(response, {
           appEnv,
           isHttps,
-          isApi: false,
+          isApi: response.headers.get('content-type')?.includes('text/html') ?? false,
         });
       }
-
       return applySecurityHeaders(
         new Response('Static assets binding unavailable', { status: 503 }),
-        {
-          appEnv,
-          isHttps,
-          isApi: false,
-        },
+        { appEnv, isHttps, isApi: false },
       );
     },
   };
 }
-
 export const worker = createWorker(app);
 export default worker;

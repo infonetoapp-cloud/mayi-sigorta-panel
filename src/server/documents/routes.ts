@@ -1,8 +1,8 @@
 import type { Context, Hono } from 'hono';
 import { API_PREFIX } from '../../shared/constants';
-import { AccessConfigError, parseAccessConfig } from '../auth/config';
-import { AccessVerificationError } from '../auth/errors';
-import { createAccessVerifier } from '../auth/verifier';
+import { LocalSessionConfigError, parseLocalSessionConfig } from '../auth/session';
+import { SessionVerificationError } from '../auth/errors';
+import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import { parseCsrfConfig } from '../config';
 import { IdempotencyConflictError } from '../mutations/idempotency';
@@ -60,12 +60,9 @@ function errorResponse(
 }
 
 function isAccessInfrastructureError(error: unknown): boolean {
-  if (error instanceof AccessConfigError) return true;
+  if (error instanceof LocalSessionConfigError) return true;
   if (error instanceof IdentityResolutionError) return error.code === 'DATABASE_ERROR';
-  return (
-    error instanceof AccessVerificationError &&
-    (error.code === 'JWKS_FETCH_FAILED' || error.code === 'CONFIGURATION_ERROR')
-  );
+  return error instanceof SessionVerificationError && error.code === 'CONFIGURATION_ERROR';
 }
 
 export function registerDocumentRoutes(
@@ -87,10 +84,10 @@ export function registerDocumentRoutes(
     let principal;
     let context;
     try {
-      const accessConfig = parseAccessConfig(c.env);
-      const verifier = dependencies.createVerifier
-        ? dependencies.createVerifier(accessConfig)
-        : createAccessVerifier({ config: accessConfig });
+      const accessConfig = parseLocalSessionConfig(c.env);
+      const verifier = dependencies.createSessionVerifier
+        ? dependencies.createSessionVerifier(accessConfig)
+        : createLocalSessionVerifier({ config: accessConfig });
       principal = await verifier.verify(c.req.raw);
       const resolver = dependencies.createResolver
         ? dependencies.createResolver(c.env.DB)

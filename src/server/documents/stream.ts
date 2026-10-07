@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { evaluateAuthorization } from '../auth/authorization';
+import { requireRecentPassword } from '../auth/session-database';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { MAX_DOCUMENT_UPLOAD_BYTES } from './validation';
 import { REQUIRED_CONTENT_INSPECTION_VERSION } from './content-inspection';
@@ -215,6 +216,7 @@ export async function issueDocumentDownloadGrant(
     const s = await loadSnapshot(db, actor, id.parse(documentId));
     await authorize(db, actor, s.data);
     const action = sensitiveAction(s.data);
+    requireRecentPassword(db);
     const payload = grantPayload(actor, s.data, confirmation);
     const payloadHash = await computePayloadHash(payload);
     const token = await computePayloadHash({
@@ -592,6 +594,8 @@ export async function downloadDocument(
     const sensitive = s.data.classification !== 'GENERAL' || !!s.data.parentHealth;
     let grantBindings: (string | number)[] | undefined;
     if (sensitive) {
+      // Classification is loaded by the server, not selected by the download URL/body.
+      requireRecentPassword(db);
       const command = commandSchema.parse(raw);
       const { grantEvidenceToken, ...confirmation } = command;
       const action = sensitiveAction(s.data);

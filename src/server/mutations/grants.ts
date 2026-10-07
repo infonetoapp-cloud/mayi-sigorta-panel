@@ -2,7 +2,7 @@
  * Mayı Sigorta CRM — SensitiveActionGrant Yöneticisi (M1-T09 / RG-00)
  *
  * KRİTİK GÜVENLİK KURALLARI:
- * 1. Yalnızca doğrulanmış Secure Access Audience (CF_ACCESS_SECURE_AUDIENCE) üzerinden üretilebilir.
+ * 1. Yalnızca son beş dakikada kendi kalıcı parolasını doğrulamış yerel oturum üzerinden üretilebilir.
  * 2. TTL kesinlikle en fazla 180 saniyedir (3 dakika).
  * 3. Tek kullanımlıktır (Single-use).
  * 4. Aktör kullanıcı, aktör üyelik, acente, eylem, kanonik payload hash, hedef ID'leri,
@@ -12,6 +12,7 @@
 
 import { computePayloadHash } from './canonical';
 import type { AuthenticatedUserContext } from '../auth/identity';
+import { assertSessionChange } from '../auth/session';
 
 export const MAX_GRANT_TTL_SECONDS = 180;
 
@@ -188,7 +189,7 @@ export async function issueAndPersistSensitiveActionGrant(
     consumedOperationId: null,
   };
 
-  await db
+  const insertStatement = db
     .prepare(
       `INSERT INTO sensitive_action_grants (
          id, evidence_hash, agency_id, actor_user_id, actor_membership_id,
@@ -212,8 +213,14 @@ export async function issueAndPersistSensitiveActionGrant(
       grantRecord.expiresAt,
       grantRecord.issuedAt,
       grantRecord.issuedAt,
-    )
-    .run();
+    );
+  if (userContext.sessionHash) {
+    // HTTP composition supplies a session-bound batch capability with live recent-password assertion.
+    await db.batch([insertStatement, assertSessionChange(db)]);
+  } else {
+    // Trusted domain/unit compositions have no HTTP cookie; they never enter production from Env.
+    await insertStatement.run();
+  }
 
   return {
     grantToken,

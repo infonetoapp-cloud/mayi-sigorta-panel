@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 const root = process.cwd();
 const migration = '0019_m4_internal_document_validation.sql';
 const files = readdirSync('db/migrations')
-  .filter((n) => /^\d{4}_.+\.sql$/u.test(n))
+  .filter((n) => /^\d{4}_.+\.sql$/u.test(n) && Number(n.slice(0, 4)) <= 19)
   .sort();
 const seed = `INSERT INTO agencies(id,status) VALUES('internal-agency','PROVISIONING');
 INSERT INTO users(id,status) VALUES('internal-user','INACTIVE');
@@ -144,7 +144,8 @@ describe('0019 forward structural acceptance', () => {
     );
     ok(old);
     const journal = JSON.parse(readFileSync('db/migrations/meta/_journal.json', 'utf8'));
-    expect(journal.entries.slice(0, -1)).toEqual(JSON.parse(String(old.stdout)).entries);
-    expect(journal.entries.at(-1).tag).toBe('0019_m4_internal_document_validation');
+    const prefix = JSON.parse(String(old.stdout)).entries;
+    expect(journal.entries.slice(0, prefix.length)).toEqual(prefix);
+    expect(journal.entries[prefix.length].tag).toBe('0019_m4_internal_document_validation');
   });
 });

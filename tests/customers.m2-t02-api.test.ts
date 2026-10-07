@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
-import { generateKeyPair, exportJWK, SignJWT, type JWK, createLocalJWKSet } from 'jose';
 import { createApp, type Env } from '../src/server/index';
-import { createAccessVerifier } from '../src/server/auth/verifier';
+import { mintFixtureSession } from './support/domain-local-session';
+import { LOCAL_AUTH_ISSUER } from '../src/server/auth/session';
 import type {
   ApiResponse,
   ApiSuccessEnvelope,
@@ -18,10 +18,7 @@ import type {
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
 
-const TEST_TEAM_DOMAIN = 'mayi-test.cloudflareaccess.com';
-const TEST_ISSUER = `https://${TEST_TEAM_DOMAIN}`;
-const TEST_NORMAL_AUDIENCE = 'synthetic-normal-aud-1234567890abcdef';
-const PRIMARY_KID = 'key-synthetic-primary-001';
+const TEST_ISSUER = LOCAL_AUTH_ISSUER;
 const CSRF_SECRET = 'super-secret-csrf-key-for-test-32-chars-long';
 const TRUSTED_ORIGIN = 'https://panel.mayisigorta.com';
 
@@ -55,7 +52,7 @@ function queryRequest(url: string, jwt: string): Request {
   return new Request(url, {
     method: 'GET',
     headers: {
-      'Cf-Access-Jwt-Assertion': jwt,
+      Cookie: jwt,
     },
   });
 }
@@ -63,8 +60,6 @@ function queryRequest(url: string, jwt: string): Request {
 describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Miniflare D1)', () => {
   let mf: miniflare.Miniflare;
   let db: D1Database;
-  let primaryKeyPair: Awaited<ReturnType<typeof generateKeyPair>>;
-  let keyResolver: ReturnType<typeof createLocalJWKSet>;
   let testApp: ReturnType<typeof createApp>;
 
   const AGENCY_ID = 'ag-m2t02-api';
@@ -90,16 +85,6 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
   const OTHER_OWNER_SUB = 'sub-other-owner';
 
   beforeAll(async () => {
-    primaryKeyPair = await generateKeyPair('RS256');
-    const publicJWK = await exportJWK(primaryKeyPair.publicKey);
-    publicJWK.kid = PRIMARY_KID;
-    publicJWK.use = 'sig';
-    publicJWK.alg = 'RS256';
-
-    keyResolver = createLocalJWKSet({
-      keys: [publicJWK as JWK],
-    });
-
     mf = new Miniflare(
       convertV4MiniflareOptions({
         modules: true,
@@ -276,27 +261,16 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
         .run();
     }
 
-    testApp = createApp({
-      createVerifier: (cfg) =>
-        createAccessVerifier({
-          config: cfg,
-          keyResolver,
-        }),
-    });
+    testApp = createApp();
   });
 
   afterAll(async () => {
     if (mf) await mf.dispose();
   });
 
-  const TEST_SECURE_AUDIENCE = 'synthetic-secure-aud-9876543210fedcba';
-
   function getEnv(): Env {
     return {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: TEST_TEAM_DOMAIN,
-      CF_ACCESS_AUDIENCE: TEST_NORMAL_AUDIENCE,
-      CF_ACCESS_SECURE_AUDIENCE: TEST_SECURE_AUDIENCE,
       CSRF_SECRET,
       IDENTITY_ENCRYPTION_KEY: IDENTITY_KEY,
       IDENTITY_HMAC_KEY: IDENTITY_HMAC_KEY,
@@ -308,26 +282,14 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     return testApp.fetch(req, getEnv());
   }
 
-  async function makeJwt(sub: string, email: string): Promise<string> {
-    const nowSec = Math.floor(Date.now() / 1000);
-    return new SignJWT({
-      email,
-      sub,
-      iss: TEST_ISSUER,
-      aud: TEST_NORMAL_AUDIENCE,
-      type: 'app',
-      iat: nowSec - 60,
-      nbf: nowSec - 60,
-      exp: nowSec + 3600,
-    })
-      .setProtectedHeader({ alg: 'RS256', kid: PRIMARY_KID, typ: 'JWT' })
-      .sign(primaryKeyPair.privateKey);
+  async function createSessionCookie(sub: string, email: string): Promise<string> {
+    return mintFixtureSession(db, sub, email);
   }
 
   async function getCsrfToken(jwt: string): Promise<string> {
     const res = await send(
       new Request('https://panel.mayisigorta.com/api/csrf-token', {
-        headers: { 'Cf-Access-Jwt-Assertion': jwt },
+        headers: { Cookie: jwt },
       }),
     );
     if (res.status !== 200) {
@@ -340,12 +302,9 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
   }
 
   it('keeps health and basic customer listing available while identity capabilities fail closed without crypto secrets', async () => {
-    const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+    const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
     const envWithoutIdentitySecrets: Env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: TEST_TEAM_DOMAIN,
-      CF_ACCESS_AUDIENCE: TEST_NORMAL_AUDIENCE,
-      CF_ACCESS_SECURE_AUDIENCE: TEST_SECURE_AUDIENCE,
       CSRF_SECRET,
     };
 
@@ -373,7 +332,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
         'https://panel.mayisigorta.com/api/customers/nonexistent/identity',
         'PUT',
         {
-          'Cf-Access-Jwt-Assertion': ownerJwt,
+          Cookie: ownerJwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idem-missing-identity-config',
         },
@@ -388,7 +347,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
         'https://panel.mayisigorta.com/api/customers/search-sensitive',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': ownerJwt,
+          Cookie: ownerJwt,
           'X-CSRF-Token': csrf,
         },
         { identityType: 'TCKN', identityValue: '12345678901' },
@@ -400,7 +359,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
 
   describe('PUT /api/customers/:id/identity & GET /api/customers/:id/identity', () => {
     it('sets TCKN on individual customer, verifies masked in DTO, and reveals plaintext with no-store', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create INDIVIDUAL customer
@@ -409,7 +368,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-api-create-indiv',
           },
@@ -432,7 +391,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${created.id}/identity`,
           'PUT',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-api-put-id-1',
           },
@@ -501,7 +460,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${created.id}/identity`,
           'PUT',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-api-put-id-clear',
           },
@@ -524,7 +483,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     });
 
     it('rejects invalid TCKN (not 11 digits) or VKN (not 10 digits)', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create customer first
@@ -533,7 +492,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-for-bad-id',
           },
@@ -553,7 +512,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/identity`,
           'PUT',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-bad-tckn',
           },
@@ -572,7 +531,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/identity`,
           'PUT',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-bad-vkn',
           },
@@ -587,7 +546,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     });
 
     it('rejects generic PATCH sending identity or assignment fields', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       const createRes = await send(
@@ -595,7 +554,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-for-patch-guard',
           },
@@ -614,7 +573,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-patch-forbidden-field',
           },
@@ -631,12 +590,12 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
 
   describe('POST /api/customers/search-sensitive', () => {
     it('requires CSRF before parsing the sensitive search body', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const response = await send(
         mutationRequest(
           'https://panel.mayisigorta.com/api/customers/search-sensitive',
           'POST',
-          { 'Cf-Access-Jwt-Assertion': ownerJwt },
+          { Cookie: ownerJwt },
           { identityType: 'TCKN', identityValue: '12345678901' },
         ),
       );
@@ -648,7 +607,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     });
 
     it('finds customer by exact identity search and enforces no query strings and no-store', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create company customer
@@ -657,7 +616,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-comp-search',
           },
@@ -676,7 +635,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${companyCust.id}/identity`,
           'PUT',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-put-vkn-search',
           },
@@ -694,7 +653,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers/search-sensitive?vkn=9876543210',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
           },
           {
@@ -711,7 +670,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers/search-sensitive',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
           },
           {
@@ -732,8 +691,8 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     });
 
     it('returns only customers inside an ASSIGNED member effective scope', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
-      const memberJwt = await makeJwt(MEMBER_ASSIGNED_SUB, 'mem-ass@test.com');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
+      const memberJwt = await createSessionCookie(MEMBER_ASSIGNED_SUB, 'mem-ass@test.com');
       const ownerCsrf = await getCsrfToken(ownerJwt);
       const memberCsrf = await getCsrfToken(memberJwt);
       const identityValue = '11111111111';
@@ -749,7 +708,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
             'https://panel.mayisigorta.com/api/customers',
             'POST',
             {
-              'Cf-Access-Jwt-Assertion': jwt,
+              Cookie: jwt,
               'X-CSRF-Token': csrf,
               'Idempotency-Key': `${key}-create`,
             },
@@ -782,7 +741,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
             `https://panel.mayisigorta.com/api/customers/${customer.id}/identity`,
             'PUT',
             {
-              'Cf-Access-Jwt-Assertion': jwt,
+              Cookie: jwt,
               'X-CSRF-Token': csrf,
               'Idempotency-Key': key,
             },
@@ -797,7 +756,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers/search-sensitive',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberJwt,
+            Cookie: memberJwt,
             'X-CSRF-Token': memberCsrf,
           },
           { identityType: 'TCKN', identityValue },
@@ -811,14 +770,14 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
 
   describe('GET /api/customers/:id/assignment-options', () => {
     it('returns only active same-agency memberships after assignment authorization', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const ownerCsrf = await getCsrfToken(ownerJwt);
       const createResponse = await send(
         mutationRequest(
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'idem-assignment-options-customer',
           },
@@ -863,7 +822,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
 
   describe('POST /api/customers/:id/assign', () => {
     it('reassigns customer and verifies immediate live ASSIGNED scope switch', async () => {
-      const memberAssignedJwt = await makeJwt(MEMBER_ASSIGNED_SUB, 'mem-ass@test.com');
+      const memberAssignedJwt = await createSessionCookie(MEMBER_ASSIGNED_SUB, 'mem-ass@test.com');
       const csrfMember = await getCsrfToken(memberAssignedJwt);
 
       // Create customer assigned to Member Assigned
@@ -873,7 +832,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-create-for-reassign',
           },
@@ -894,7 +853,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-create-for-reassign',
           },
@@ -915,7 +874,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-assign-action-1',
           },
@@ -935,7 +894,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-create-for-reassign',
           },
@@ -982,7 +941,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-assign-action-1',
           },
@@ -995,7 +954,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
         error: { code: 'FORBIDDEN' },
       });
 
-      const memberOtherJwt = await makeJwt(MEMBER_OTHER_SUB, 'mem-oth@test.com');
+      const memberOtherJwt = await createSessionCookie(MEMBER_OTHER_SUB, 'mem-oth@test.com');
       const newAssigneeRead = await send(
         queryRequest(`https://panel.mayisigorta.com/api/customers/${cust.id}`, memberOtherJwt),
       );
@@ -1017,7 +976,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': memberAssignedJwt,
+            Cookie: memberAssignedJwt,
             'X-CSRF-Token': csrfMember,
             'Idempotency-Key': 'idem-member-blocked-update',
           },
@@ -1031,7 +990,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     });
 
     it('rejects assignment to inactive member or cross-agency member', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create customer
@@ -1040,7 +999,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-for-bad-assign',
           },
@@ -1059,7 +1018,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-stale-assign',
           },
@@ -1074,7 +1033,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-bad-assign-inact',
           },
@@ -1092,7 +1051,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-bad-assign-cross',
           },
@@ -1108,7 +1067,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
 
   describe('POST & GET /api/customers/:id/external-references', () => {
     it('creates external reference, increments version, lists references, and rejects duplicates', async () => {
-      const ownerJwt = await makeJwt(OWNER_SUB, 'owner@mayi.test');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@mayi.test');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create customer
@@ -1117,7 +1076,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-for-ext-ref',
           },
@@ -1137,7 +1096,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/external-references`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-post-ext-ref-1',
           },
@@ -1159,7 +1118,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/external-references`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-post-ext-ref-1',
           },
@@ -1176,7 +1135,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-create-for-ext-ref-second-target',
           },
@@ -1196,7 +1155,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${secondCustomer.id}/external-references`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-post-ext-ref-1',
           },
@@ -1210,7 +1169,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/external-references`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-post-ext-ref-1',
           },
@@ -1246,7 +1205,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           `https://panel.mayisigorta.com/api/customers/${cust.id}/external-references`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idem-post-ext-ref-dup',
           },

@@ -1,3 +1,4 @@
+// Historical Access/JWKS crypto evidence only. F-27 runtime uses native local sessions.
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import {
   generateKeyPair,
@@ -12,19 +13,19 @@ import {
   assertTrustedAccessConfig,
   type AccessConfig,
   AccessConfigError,
-} from '../src/server/auth/config';
+} from './historical/access-config';
 import { parseServerConfig } from '../src/server/config';
 import {
   extractAccessJwtAssertion,
   MAX_ASSERTION_LENGTH_BYTES,
-} from '../src/server/auth/extraction';
-import { AccessVerificationError } from '../src/server/auth/errors';
+} from './historical/access-extraction';
+import { AccessVerificationError } from './historical/access-errors';
 import {
   AccessVerifier,
   createAccessVerifier,
   createHardenedJwksFetch,
   type AccessKeyResolver,
-} from '../src/server/auth/verifier';
+} from './historical/access-verifier';
 import { app } from '../src/server/index';
 import { API_PREFIX } from '../src/shared/constants';
 import type { ApiResponse, HealthCheckData } from '../src/shared/types';
@@ -1230,7 +1231,7 @@ describe('M1-T05 Cloudflare Access JWT Doğrulama Temeli (Offline Synthetic Test
 
     it('7.4. /api/health uç noktası Access yapılandırması olmasa dahi bozulmadan çalışmalıdır', async () => {
       // Access config olmadan çağrıldığında bile /api/health 200 dönmelidir
-      const res = await app.request(`${API_PREFIX}/health`);
+      const res = await app.request(`https://panel.mayisigorta.com${API_PREFIX}/health`);
       expect(res.status).toBe(200);
       const json = (await res.json()) as ApiResponse<HealthCheckData>;
       expect(json.success).toBe(true);

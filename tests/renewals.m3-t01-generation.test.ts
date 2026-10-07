@@ -20,7 +20,7 @@ import { registerPolicyRoutes } from '../src/server/policies/routes';
 import { computePayloadHash } from '../src/server/mutations/canonical';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const root = resolve(__dirname, '..');
@@ -583,9 +583,9 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
 
   it('generates renewal work through the guarded manual Policy create route and exact replay', async () => {
     const app = new Hono<{ Bindings: Env }>();
-    const principal = { subject: 'identity-a' } as unknown as VerifiedAccessPrincipal;
+    const principal = { subject: 'identity-a' } as unknown as AuthenticatedPrincipal;
     registerPolicyRoutes(app, {
-      createVerifier: (config) => ({ config, verify: async () => principal }),
+      createSessionVerifier: (config) => ({ config, verify: async () => principal }),
       createResolver: () => ({ resolve: async () => ownerContext as AuthenticatedUserContext }),
     });
     const token = await generateIdentityBoundCsrfToken(
@@ -608,9 +608,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         },
         {
           DB: db,
-          CF_ACCESS_TEAM_DOMAIN: 'mayi-test.cloudflareaccess.com',
-          CF_ACCESS_AUDIENCE: 'm3-test-audience',
-          CF_ACCESS_SECURE_AUDIENCE: 'm3-test-secure-audience',
+
           CSRF_SECRET: 'm3-manual-policy-route-csrf-secret-2026',
         },
       );
@@ -652,9 +650,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         },
         {
           DB: db,
-          CF_ACCESS_TEAM_DOMAIN: 'mayi-test.cloudflareaccess.com',
-          CF_ACCESS_AUDIENCE: 'm3-test-audience',
-          CF_ACCESS_SECURE_AUDIENCE: 'm3-test-secure-audience',
+
           CSRF_SECRET: 'm3-manual-policy-route-csrf-secret-2026',
         },
       );

@@ -1,10 +1,10 @@
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { API_PREFIX } from '../../shared/constants';
-import { parseAccessConfig } from '../auth/config';
+import { parseLocalSessionConfig } from '../auth/session';
 import { parseCsrfConfig } from '../config';
-import { AccessVerificationError } from '../auth/errors';
-import { createAccessVerifier } from '../auth/verifier';
+import { SessionVerificationError } from '../auth/errors';
+import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import type { AppDependencies, Env } from '../index';
 import { IdempotencyConflictError } from '../mutations/idempotency';
@@ -50,20 +50,19 @@ export function registerTaskRoutes(
     }
     let config;
     try {
-      config = parseAccessConfig(c.env);
+      config = parseLocalSessionConfig(c.env);
     } catch {
       return { error: fail(c, 503, 'SERVICE_UNAVAILABLE', 'Hizmet şu anda kullanılamıyor.') };
     }
     let principal;
     try {
-      const verifier = dependencies.createVerifier
-        ? dependencies.createVerifier(config)
-        : createAccessVerifier({ config });
+      const verifier = dependencies.createSessionVerifier
+        ? dependencies.createSessionVerifier(config)
+        : createLocalSessionVerifier({ config });
       principal = await verifier.verify(c.req.raw);
     } catch (error) {
       const unavailable =
-        error instanceof AccessVerificationError &&
-        (error.code === 'JWKS_FETCH_FAILED' || error.code === 'CONFIGURATION_ERROR');
+        error instanceof SessionVerificationError && error.code === 'CONFIGURATION_ERROR';
       return {
         error: fail(
           c,

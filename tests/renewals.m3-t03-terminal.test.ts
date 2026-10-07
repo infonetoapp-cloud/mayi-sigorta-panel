@@ -6,7 +6,7 @@ import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import { closeRenewalLost, closeRenewalWon, voidRenewal } from '../src/server/renewals/commands';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const root = resolve(__dirname, '..');
@@ -24,7 +24,7 @@ const actor: AuthenticatedUserContext = {
     },
   ],
 };
-const principal = { subject: 'terminal-subject' } as VerifiedAccessPrincipal;
+const principal = { subject: 'terminal-subject' } as AuthenticatedPrincipal;
 const memberActor: AuthenticatedUserContext = {
   userId: 'terminal-member-user',
   identityId: 'terminal-member-identity',
@@ -39,7 +39,7 @@ const memberActor: AuthenticatedUserContext = {
     },
   ],
 };
-const memberPrincipal = { subject: 'terminal-member-subject' } as VerifiedAccessPrincipal;
+const memberPrincipal = { subject: 'terminal-member-subject' } as AuthenticatedPrincipal;
 const wonActor: AuthenticatedUserContext = {
   userId: 'terminal-won-user',
   identityId: 'terminal-won-identity',
@@ -54,14 +54,14 @@ const wonActor: AuthenticatedUserContext = {
     },
   ],
 };
-const wonPrincipal = { subject: 'terminal-won-subject' } as VerifiedAccessPrincipal;
+const wonPrincipal = { subject: 'terminal-won-subject' } as AuthenticatedPrincipal;
 
 function terminalApp(
   context: AuthenticatedUserContext = actor,
-  verifiedPrincipal: VerifiedAccessPrincipal = principal,
+  verifiedPrincipal: AuthenticatedPrincipal = principal,
 ) {
   return createApp({
-    createVerifier: (config) => ({ config, verify: async () => verifiedPrincipal }),
+    createSessionVerifier: (config) => ({ config, verify: async () => verifiedPrincipal }),
     createResolver: () => ({ resolve: async () => context }) as never,
   });
 }
@@ -373,20 +373,17 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
     env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const app = terminalApp();
     const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
     csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const memberCsrfResponse = await terminalApp(memberActor, memberPrincipal).request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       { method: 'GET' },
       env,
     );
@@ -410,7 +407,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       idempotencyKey = 'terminal-close-lost-key',
     ) =>
       terminalApp().request(
-        'https://panel.mayisigorta.test/api/renewals/terminal-renewal/close-lost',
+        'https://panel.mayisigorta.com/api/renewals/terminal-renewal/close-lost',
         {
           method: 'POST',
           headers: {
@@ -425,7 +422,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       );
 
     const unauthorized = await terminalApp(memberActor, memberPrincipal).request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/close-lost',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/close-lost',
       {
         method: 'POST',
         headers: {
@@ -674,7 +671,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       reopenReasonCode: 'CUSTOMER_REQUESTED_RENEWAL',
     };
     const unauthorized = await terminalApp(memberActor, memberPrincipal).request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/reopen',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/reopen',
       {
         method: 'POST',
         headers: {
@@ -689,7 +686,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     );
     expect(unauthorized.status).toBe(403);
     const staleTaskVersion = await terminalApp().request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/reopen',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/reopen',
       {
         method: 'POST',
         headers: {
@@ -712,7 +709,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       )
       .run();
     const taskFailure = await terminalApp().request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/reopen',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/reopen',
       {
         method: 'POST',
         headers: {
@@ -748,7 +745,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ).toEqual({ count: 0 });
     await db.prepare('DROP TRIGGER fail_reopen_task_insert').run();
     const response = await terminalApp().request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/reopen',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/reopen',
       {
         method: 'POST',
         headers: {
@@ -842,7 +839,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       created_by_user_id: 'terminal-user',
     });
     const replay = await terminalApp().request(
-      'https://panel.mayisigorta.test/api/renewals/terminal-renewal/reopen',
+      'https://panel.mayisigorta.com/api/renewals/terminal-renewal/reopen',
       {
         method: 'POST',
         headers: {
@@ -869,7 +866,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         .first<{ count: number }>(),
     ).toEqual({ count: 1 });
     const assignment = await terminalApp().request(
-      `https://panel.mayisigorta.test/api/renewals/terminal-renewal/tasks/${envelope.data.primaryTaskId}/assign`,
+      `https://panel.mayisigorta.com/api/renewals/terminal-renewal/tasks/${envelope.data.primaryTaskId}/assign`,
       {
         method: 'POST',
         headers: {
@@ -971,7 +968,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       idempotencyKey = 'terminal-close-void-key',
     ) =>
       terminalApp().request(
-        'https://panel.mayisigorta.test/api/renewals/terminal-void-renewal/void',
+        'https://panel.mayisigorta.com/api/renewals/terminal-void-renewal/void',
         {
           method: 'POST',
           headers: {
@@ -1094,7 +1091,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const request = (body = payload) =>
       terminalApp().request(
-        'https://panel.mayisigorta.test/api/renewals/terminal-void-renewal/reopen',
+        'https://panel.mayisigorta.com/api/renewals/terminal-void-renewal/reopen',
         {
           method: 'POST',
           headers: {
@@ -1297,7 +1294,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       .run();
     try {
       const replay = await terminalApp().request(
-        'https://panel.mayisigorta.test/api/renewals/terminal-renewal/close-lost',
+        'https://panel.mayisigorta.com/api/renewals/terminal-renewal/close-lost',
         {
           method: 'POST',
           headers: {
@@ -1398,14 +1395,14 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const wonApp = terminalApp(wonActor, wonPrincipal);
     const wonCsrfResponse = await wonApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
     const wonCsrf = ((await wonCsrfResponse.json()) as { data: { token: string } }).data.token;
     const close = () =>
       wonApp.request(
-        'https://panel.mayisigorta.test/api/renewals/won-create-renewal/close-won',
+        'https://panel.mayisigorta.com/api/renewals/won-create-renewal/close-won',
         {
           method: 'POST',
           headers: {
@@ -1568,11 +1565,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       },
     }) as D1Database;
     const app = terminalApp(wonActor, wonPrincipal);
-    const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
-      {},
-      env,
-    );
+    const csrfResponse = await app.request('https://panel.mayisigorta.com/api/csrf-token', {}, env);
     const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const policyInput = (policyNumber: string) => ({
       customerId: 'terminal-customer',
@@ -1590,7 +1583,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     });
     const close = (key: string, policyNumber: string) =>
       app.request(
-        'https://panel.mayisigorta.test/api/renewals/won-only-race-renewal/close-won',
+        'https://panel.mayisigorta.com/api/renewals/won-only-race-renewal/close-won',
         {
           method: 'POST',
           headers: {
@@ -1696,7 +1689,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ]);
     const wonApp = terminalApp(wonActor, wonPrincipal);
     const csrfResponse = await wonApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -1717,7 +1710,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const post = (path: string, key: string, body: unknown) =>
       wonApp.request(
-        `https://panel.mayisigorta.test${path}`,
+        `https://panel.mayisigorta.com${path}`,
         {
           method: 'POST',
           headers: {
@@ -1835,7 +1828,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ]);
     const wonApp = terminalApp(wonActor, wonPrincipal);
     const csrfResponse = await wonApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -1847,7 +1840,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const request = () =>
       wonApp.request(
-        'https://panel.mayisigorta.test/api/renewals/won-split-renewal/close-won',
+        'https://panel.mayisigorta.com/api/renewals/won-split-renewal/close-won',
         {
           method: 'POST',
           headers: {
@@ -1941,7 +1934,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ]);
     const wonApp = terminalApp(wonActor, wonPrincipal);
     const csrfResponse = await wonApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -1959,7 +1952,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const close = () =>
       wonApp.request(
-        'https://panel.mayisigorta.test/api/renewals/won-link-renewal/close-won',
+        'https://panel.mayisigorta.com/api/renewals/won-link-renewal/close-won',
         {
           method: 'POST',
           headers: {
@@ -2000,10 +1993,10 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       identityId: 'terminal-identity-backup',
       assurance: 'SECURE',
     };
-    const correctionPrincipal = { subject: 'terminal-subject-backup' } as VerifiedAccessPrincipal;
+    const correctionPrincipal = { subject: 'terminal-subject-backup' } as AuthenticatedPrincipal;
     const correctionApp = terminalApp(secureOwner, correctionPrincipal);
     const correctionCsrfResponse = await correctionApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -2016,7 +2009,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       correctionReasonCode: 'WON_RESULT_CORRECTION',
     };
     const correctionGrant = await correctionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-link-renewal/won-correction-grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-link-renewal/won-correction-grants',
       {
         method: 'POST',
         headers: {
@@ -2034,7 +2027,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { grantId: string; grantEvidenceToken: string };
     };
     const exactCorrectionGrantRetry = await correctionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-link-renewal/won-correction-grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-link-renewal/won-correction-grants',
       {
         method: 'POST',
         headers: {
@@ -2053,7 +2046,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       replayed: true,
     });
     const changedCorrectionGrant = await correctionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-link-renewal/won-correction-grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-link-renewal/won-correction-grants',
       {
         method: 'POST',
         headers: {
@@ -2073,7 +2066,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const correct = (database: D1Database = db) =>
       correctionApp.request(
-        'https://panel.mayisigorta.test/secure/api/renewals/won-link-renewal/correct-won',
+        'https://panel.mayisigorta.com/secure/api/renewals/won-link-renewal/correct-won',
         {
           method: 'POST',
           headers: {
@@ -2273,15 +2266,11 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       ),
     ]);
     const app = terminalApp(wonActor, wonPrincipal);
-    const csrfResponse = await app.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
-      {},
-      env,
-    );
+    const csrfResponse = await app.request('https://panel.mayisigorta.com/api/csrf-token', {}, env);
     const wonCsrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const request = (path: string, key: string, body?: unknown) =>
       app.request(
-        `https://panel.mayisigorta.test${path}`,
+        `https://panel.mayisigorta.com${path}`,
         {
           method: body === undefined ? 'GET' : 'POST',
           headers: {
@@ -2623,9 +2612,9 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
                ('terminal-member-interaction-read','terminal-member-membership','interaction.read','AGENCY')`,
       ),
     ]);
-    const quotesUrl = 'https://panel.mayisigorta.test/api/renewals/m3-individual-renewal/quotes';
+    const quotesUrl = 'https://panel.mayisigorta.com/api/renewals/m3-individual-renewal/quotes';
     const interactionsUrl =
-      'https://panel.mayisigorta.test/api/renewals/m3-individual-renewal/interactions';
+      'https://panel.mayisigorta.com/api/renewals/m3-individual-renewal/interactions';
     const parentReadPermissions = [
       ['terminal-member-renewal-read', 'renewal.read'],
       ['terminal-member-policy-read', 'policy.read'],
@@ -2717,14 +2706,14 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ]);
     const ownerApp = terminalApp();
     const csrfResponse = await ownerApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
     const csrfToken = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const post = (path: string, key: string, body: unknown) =>
       ownerApp.request(
-        `https://panel.mayisigorta.test${path}`,
+        `https://panel.mayisigorta.com${path}`,
         {
           method: 'POST',
           headers: {
@@ -2851,14 +2840,14 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     ]);
     const ownerApp = terminalApp();
     const csrfResponse = await ownerApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
     const csrfToken = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const post = (path: string, key: string, body: unknown) =>
       ownerApp.request(
-        `https://panel.mayisigorta.test${path}`,
+        `https://panel.mayisigorta.com${path}`,
         {
           method: 'POST',
           headers: {
@@ -2989,7 +2978,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     const groupPrincipal = wonPrincipal;
     const groupApp = terminalApp(groupActor, groupPrincipal);
     const csrfResponse = await groupApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -3019,7 +3008,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const issueGroupGrant = (key: string, database: D1Database = db, payload = groupInput) =>
       groupApp.request(
-        'https://panel.mayisigorta.test/secure/api/renewals/won-group/grants',
+        'https://panel.mayisigorta.com/secure/api/renewals/won-group/grants',
         {
           method: 'POST',
           headers: {
@@ -3098,7 +3087,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       token = groupGrantToken,
     ) =>
       groupApp.request(
-        'https://panel.mayisigorta.test/secure/api/renewals/won-group',
+        'https://panel.mayisigorta.com/secure/api/renewals/won-group',
         {
           method: 'POST',
           headers: {
@@ -4196,10 +4185,10 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const groupCorrectionPrincipal = {
       subject: 'terminal-subject-backup',
-    } as VerifiedAccessPrincipal;
+    } as AuthenticatedPrincipal;
     const groupCorrectionApp = terminalApp(groupCorrectionActor, groupCorrectionPrincipal);
     const groupCorrectionCsrfResponse = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       { ...env, DB: db },
     );
@@ -4214,7 +4203,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       correctionReasonCode: 'GROUP_CORRECTION_TEST',
     };
     const preallocatedPremiumCorrection = await groupCorrectionApp.request(
-      `https://panel.mayisigorta.test/secure/api/policies/${preallocatedGroupFixture.targetPolicyId}/correct-won-premium`,
+      `https://panel.mayisigorta.com/secure/api/policies/${preallocatedGroupFixture.targetPolicyId}/correct-won-premium`,
       {
         method: 'POST',
         headers: {
@@ -4251,7 +4240,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { links: Array<{ newLinkId: string; renewalId: string }> };
     };
     const preallocatedCorrectionGrantResponse = await groupCorrectionApp.request(
-      `https://panel.mayisigorta.test/secure/api/renewals/${preallocatedGroupFixture.renewalA}/won-correction-grants`,
+      `https://panel.mayisigorta.com/secure/api/renewals/${preallocatedGroupFixture.renewalA}/won-correction-grants`,
       {
         method: 'POST',
         headers: {
@@ -4272,7 +4261,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { grantEvidenceToken: string };
     };
     const preallocatedCorrectionResponse = await groupCorrectionApp.request(
-      `https://panel.mayisigorta.test/secure/api/renewals/${preallocatedGroupFixture.renewalA}/correct-won`,
+      `https://panel.mayisigorta.com/secure/api/renewals/${preallocatedGroupFixture.renewalA}/correct-won`,
       {
         method: 'POST',
         headers: {
@@ -4323,7 +4312,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       ]),
     );
     const groupCorrectionGrantResponse = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group-renewal-a/won-correction-grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group-renewal-a/won-correction-grants',
       {
         method: 'POST',
         headers: {
@@ -4344,7 +4333,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { grantEvidenceToken: string };
     };
     const groupCorrectionResponse = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group-renewal-a/correct-won',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group-renewal-a/correct-won',
       {
         method: 'POST',
         headers: {
@@ -4417,7 +4406,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       correction_audits: 2,
     });
     const correctionReplay = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group-renewal-a/correct-won',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group-renewal-a/correct-won',
       {
         method: 'POST',
         headers: {
@@ -4457,7 +4446,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       200,
     );
     const cancelledPolicyCorrectionReplay = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group-renewal-a/correct-won',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group-renewal-a/correct-won',
       {
         method: 'POST',
         headers: {
@@ -4480,7 +4469,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
     const crossCustomerGroup = await seedGroupFixture('won-group-cross-customer', true);
     const crossCustomerGrantResponse = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group/grants',
       {
         method: 'POST',
         headers: {
@@ -4500,7 +4489,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { grantEvidenceToken: string };
     };
     const crossCustomerWonResponse = await groupCorrectionApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/won-group',
+      'https://panel.mayisigorta.com/secure/api/renewals/won-group',
       {
         method: 'POST',
         headers: {
@@ -4567,7 +4556,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         .first(),
     ).toEqual({ scope: 'UNSCOPED' });
     const crossCustomerCorrectionGrantResponse = await groupApp.request(
-      `https://panel.mayisigorta.test/secure/api/renewals/${crossCustomerGroup.renewalA}/won-correction-grants`,
+      `https://panel.mayisigorta.com/secure/api/renewals/${crossCustomerGroup.renewalA}/won-correction-grants`,
       {
         method: 'POST',
         headers: {
@@ -4588,7 +4577,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: { grantEvidenceToken: string };
     };
     const crossCustomerCorrectionResponse = await groupApp.request(
-      `https://panel.mayisigorta.test/secure/api/renewals/${crossCustomerGroup.renewalA}/correct-won`,
+      `https://panel.mayisigorta.com/secure/api/renewals/${crossCustomerGroup.renewalA}/correct-won`,
       {
         method: 'POST',
         headers: {

@@ -44,6 +44,21 @@ export function createSecurityBoundaryMiddleware(
     const trustedOrigin = (envObj.PANEL_ORIGIN as string | undefined) ?? baseTrustedOrigin;
     const hstsMaxAge = baseHstsMaxAge;
 
+    // F-27: the public Worker, not Access, owns the canonical HTTPS request boundary.
+    if (
+      url.protocol !== 'https:' ||
+      url.origin !== trustedOrigin ||
+      (rawReq.headers.has('host') && rawReq.headers.get('host') !== url.host)
+    ) {
+      return applySecurityHeaders(
+        Response.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'İstek kaynağı geçersiz.' } },
+          { status: 403 },
+        ),
+        { appEnv, isHttps, isApi: true, hstsMaxAge },
+      );
+    }
+
     // 1. OPTIONS İstek Yönetimi (Explicit Safe Preflight)
     if (method === 'OPTIONS') {
       const originHeader = rawReq.headers.get('origin');
@@ -65,7 +80,7 @@ export function createSecurityBoundaryMiddleware(
           'Access-Control-Allow-Origin': trustedOrigin,
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD',
           'Access-Control-Allow-Headers':
-            'Content-Type, Authorization, Cf-Access-Jwt-Assertion, X-Requested-With, X-CSRF-Token',
+            'Content-Type, X-Requested-With, X-CSRF-Token, Idempotency-Key',
           'Access-Control-Max-Age': '86400',
           Vary: 'Origin',
         };
@@ -134,6 +149,42 @@ export function createSecurityBoundaryMiddleware(
         };
         const res = Response.json(errorBody, { status: 403 });
         return applySecurityHeaders(res, { appEnv, isHttps, isApi: true, hstsMaxAge });
+      }
+    }
+
+    // Bound actual JSON streams before any handler can parse them; Content-Length is not proof.
+    if (
+      rawReq.body &&
+      rawReq.headers.get('content-type')?.toLowerCase().startsWith('application/json')
+    ) {
+      const reader = rawReq.clone().body!.getReader();
+      let total = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.byteLength;
+          if (total > 65536) {
+            void reader.cancel();
+            return applySecurityHeaders(
+              Response.json(
+                { success: false, error: { code: 'INPUT_TOO_LARGE', message: 'Girdi çok büyük.' } },
+                { status: 413 },
+              ),
+              { appEnv, isHttps, isApi: true, hstsMaxAge },
+            );
+          }
+        }
+      } catch {
+        return applySecurityHeaders(
+          Response.json(
+            { success: false, error: { code: 'INVALID_INPUT', message: 'Girdi okunamadı.' } },
+            { status: 400 },
+          ),
+          { appEnv, isHttps, isApi: true, hstsMaxAge },
+        );
+      } finally {
+        reader.releaseLock();
       }
     }
 

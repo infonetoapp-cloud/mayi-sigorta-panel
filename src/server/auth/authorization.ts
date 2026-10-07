@@ -6,6 +6,7 @@ import {
   type StableScopeResolver,
 } from '../../shared/permissions';
 import type { AuthenticatedUserContext, ActiveMembershipContext } from './identity';
+import { inheritSessionPolicy, requireRecentPassword } from './session-database';
 import { canonicalizePayload } from '../mutations/canonical';
 import { canonicalizeTargetIds, computeEvidenceHash } from '../mutations/grants';
 
@@ -221,7 +222,7 @@ function createDatabaseAdapterSnapshot(value: unknown): D1Database {
 
   const prepare = ((query: string) =>
     Reflect.apply(capturedPrepare, value, [query])) as D1Database['prepare'];
-  return Object.freeze({ prepare }) as unknown as D1Database;
+  return inheritSessionPolicy(value, Object.freeze({ prepare }) as unknown as D1Database);
 }
 
 const DECISION_MESSAGES: Readonly<Record<AuthorizationReasonCode, string>> = Object.freeze({
@@ -779,7 +780,20 @@ export function createDefaultActionRegistry(): ActionRegistry {
     }
   }
 
-  for (const code of ['permission.grant', 'permission.revoke', 'permission.scope.change']) {
+  for (const code of [
+    'permission.grant',
+    'permission.revoke',
+    'permission.scope.change',
+    'personnel.create',
+    'personnel.reset',
+    'personnel.suspend',
+    'personnel.inactivate',
+    'personnel.reactivate',
+    'personnel.permissions',
+    'personnel.promote',
+    'personnel.demote',
+    'personnel.transfer',
+  ]) {
     normalActions.push(
       validateAndCreateActionDefinition({
         code,
@@ -1482,6 +1496,7 @@ function validateAuthenticatedUserContext(
   let capturedEmail: unknown;
   let capturedAssurance: unknown;
   let capturedMemberships: unknown;
+  let capturedSessionHash: unknown;
 
   try {
     const rec = rawContext as Record<string, unknown>;
@@ -1490,9 +1505,18 @@ function validateAuthenticatedUserContext(
     capturedEmail = rec.email;
     capturedAssurance = rec.assurance;
     capturedMemberships = rec.memberships;
+    const sessionDescriptor = Object.getOwnPropertyDescriptor(rec, 'sessionHash');
+    if (sessionDescriptor && !('value' in sessionDescriptor)) return { valid: false };
+    capturedSessionHash = sessionDescriptor?.value;
   } catch {
     return { valid: false };
   }
+
+  if (
+    capturedSessionHash !== undefined &&
+    (typeof capturedSessionHash !== 'string' || !/^[a-f0-9]{64}$/.test(capturedSessionHash))
+  )
+    return { valid: false };
 
   // rawContext nesnesi bundan sonra ASLA okunmaz!
 
@@ -1652,6 +1676,7 @@ function validateAuthenticatedUserContext(
   const snapshot: AuthenticatedUserContext = Object.freeze({
     userId: capturedUserId,
     identityId: capturedIdentityId,
+    ...(typeof capturedSessionHash === 'string' ? { sessionHash: capturedSessionHash } : {}),
     ...(canonicalEmail ? { email: canonicalEmail } : {}),
     assurance: capturedAssurance,
     memberships: Object.freeze(canonicalMemberships),
@@ -2479,6 +2504,13 @@ export async function evaluateAuthorization(
       return deny('UNKNOWN_ACTION');
     }
     actionDef = actionValidation.action;
+    // A caller-selected context assurance or alternate registry cannot lower the
+    // production action's atomic password requirement, including on /api routes.
+    if (
+      actionDef.assurance === 'SECURE_GRANT' ||
+      DEFAULT_ACTION_REGISTRY.get(rawActionCode)?.assurance === 'SECURE_GRANT'
+    )
+      requireRecentPassword(stableDb);
   } catch {
     return deny('UNKNOWN_ACTION');
   }
@@ -2492,7 +2524,9 @@ export async function evaluateAuthorization(
     return deny('UNKNOWN_ACTION');
   }
 
-  let requiresSecureGrant = actionDef.assurance === 'SECURE_GRANT';
+  let requiresSecureGrant =
+    actionDef.assurance === 'SECURE_GRANT' ||
+    DEFAULT_ACTION_REGISTRY.get(rawActionCode)?.assurance === 'SECURE_GRANT';
 
   // Gerekli izin grafiğini katalog üzerinden topla
   const graphResult = collectPermissionGraph(actionDef);
@@ -2579,6 +2613,33 @@ export async function evaluateAuthorization(
     return deny('INVALID_CONTEXT');
   }
   const activeMembership = matchingMemberships[0]!;
+  if (userContext.sessionHash) {
+    try {
+      const now = Date.now();
+      const session = await db
+        .prepare(
+          `SELECT s.token_hash FROM local_sessions s JOIN local_credentials c ON c.user_id=s.user_id AND c.identity_id=s.identity_id JOIN auth_identities i ON i.id=s.identity_id AND i.user_id=s.user_id JOIN users u ON u.id=s.user_id JOIN agency_memberships m ON m.id=s.membership_id AND m.user_id=s.user_id JOIN agencies a ON a.id=m.agency_id
+        WHERE s.token_hash=? AND s.user_id=? AND s.identity_id=? AND m.id=? AND a.id=? AND s.revoked_at IS NULL AND s.kind='NORMAL' AND s.expires_at>? AND s.last_seen_at>? AND s.credential_version=c.credential_version AND s.permission_version=m.permission_version AND m.permission_version=? AND c.login_enabled=1 AND c.must_change_password=0 AND i.status='ACTIVE' AND u.status='ACTIVE' AND m.status='ACTIVE' AND a.status='ACTIVE' AND (?=0 OR (s.recent_password_at<=? AND s.recent_password_at>?))`,
+        )
+        .bind(
+          userContext.sessionHash,
+          userContext.userId,
+          userContext.identityId,
+          activeMembership.id,
+          targetAgencyId,
+          now,
+          now - 28800000,
+          activeMembership.permissionVersion,
+          requiresSecureGrant ? 1 : 0,
+          now,
+          now - 300000,
+        )
+        .first();
+      if (!session) return deny('INVALID_CONTEXT');
+    } catch {
+      return deny('DATABASE_ERROR');
+    }
+  }
 
   // Kaynak verilmişse acente sınırını yakalanan meta veri üzerinden kesin olarak doğrula
   if (resourceSnapshot) {

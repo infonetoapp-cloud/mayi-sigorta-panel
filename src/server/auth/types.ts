@@ -1,26 +1,14 @@
-/**
- * Cloudflare Access Kimlik Doğrulama Tipleri (M1-T05).
- *
- * KRİTİK GÜVENLİK SÖZLEŞMESİ (RG-00 & NIHAI_MIMARI_VE_UYGULAMA_PLANI):
- * - Bu tipler yalnızca sunucu tarafında (Server-Only) kimlik doğrulaması içindir.
- * - VerifiedAccessPrincipal YALNIZCA issuer, subject, assurance, exp ve isteğe bağlı
- *   bilgilendirme amaçlı email taşır.
- * - role, agency_id, permissions, is_admin, groups, arbitrary claims veya OWNER
- *   gibi yetkilendirme alanları bu nesneye KESİNLİKLE DAHİL EDİLEMEZ.
- */
-
-export type AccessAssurance = 'NORMAL' | 'SECURE';
-
-export interface VerifiedAccessPrincipal {
+/** Server-authenticated local session identity, never authorization claims. */
+export type AuthenticationAssurance = 'NORMAL' | 'SECURE';
+export interface AuthenticatedPrincipal {
   readonly issuer: string;
   readonly subject: string;
-  readonly assurance: AccessAssurance;
+  readonly assurance: AuthenticationAssurance;
   readonly expiresAt: number;
   readonly issuedAt?: number;
   readonly notBefore?: number;
-  /**
-   * Bilgilendirme amaçlı doğrulanmış e-posta adresi (varsa).
-   * ASLA kimlik/subject veya yetkilendirme yerine kullanılamaz!
-   */
+  /** Informational OWNER-provisioned email, not cryptographically verified mailbox ownership. */
   readonly email?: string;
+  /** Safe server-only session hash binding, never the opaque browser cookie secret. */
+  readonly sessionHash?: string;
 }

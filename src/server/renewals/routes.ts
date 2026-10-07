@@ -1,10 +1,10 @@
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import { API_PREFIX } from '../../shared/constants';
-import { parseAccessConfig } from '../auth/config';
-import { AccessVerificationError } from '../auth/errors';
+import { parseLocalSessionConfig } from '../auth/session';
+import { SessionVerificationError } from '../auth/errors';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
-import { createAccessVerifier } from '../auth/verifier';
+import { createLocalSessionVerifier } from '../auth/session';
 import type { AppDependencies, Env } from '../index';
 import { parseCsrfConfig } from '../config';
 import { verifyCsrfMutationGuard } from '../security/csrf';
@@ -72,20 +72,19 @@ export function registerRenewalCommandRoutes(
     if (!c.env.DB) return { error: fail(c, 503, 'SERVICE_UNAVAILABLE', 'Hizmet kullanılamıyor.') };
     let accessConfig;
     try {
-      accessConfig = parseAccessConfig(c.env);
+      accessConfig = parseLocalSessionConfig(c.env);
     } catch {
       return { error: fail(c, 503, 'SERVICE_UNAVAILABLE', 'Hizmet kullanılamıyor.') };
     }
     let principal;
     try {
-      const verifier = dependencies.createVerifier
-        ? dependencies.createVerifier(accessConfig)
-        : createAccessVerifier({ config: accessConfig });
+      const verifier = dependencies.createSessionVerifier
+        ? dependencies.createSessionVerifier(accessConfig)
+        : createLocalSessionVerifier({ config: accessConfig });
       principal = await verifier.verify(c.req.raw, expectedAssurance);
     } catch (error) {
       const unavailable =
-        error instanceof AccessVerificationError &&
-        (error.code === 'JWKS_FETCH_FAILED' || error.code === 'CONFIGURATION_ERROR');
+        error instanceof SessionVerificationError && error.code === 'CONFIGURATION_ERROR';
       return {
         error: fail(
           c,

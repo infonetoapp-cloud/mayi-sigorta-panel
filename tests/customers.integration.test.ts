@@ -3,13 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
-import { generateKeyPair, exportJWK, SignJWT, type JWK, createLocalJWKSet } from 'jose';
 import { createApp, type Env } from '../src/server/index';
-import { createAccessVerifier } from '../src/server/auth/verifier';
-import {
-  generateIdentityBoundCsrfToken,
-  verifyIdentityBoundCsrfToken,
-} from '../src/server/security/csrf';
+import { mintFixtureSession, fixtureCsrf } from './support/domain-local-session';
+import { LOCAL_AUTH_ISSUER, hashSessionToken } from '../src/server/auth/session';
+import { verifyIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import type {
   ApiResponse,
   ApiSuccessEnvelope,
@@ -23,11 +20,7 @@ import type {
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
 
-const TEST_TEAM_DOMAIN = 'mayi-test.cloudflareaccess.com';
-const TEST_ISSUER = `https://${TEST_TEAM_DOMAIN}`;
-const TEST_NORMAL_AUDIENCE = 'synthetic-normal-aud-1234567890abcdef';
-const TEST_SECURE_AUDIENCE = 'synthetic-secure-aud-9876543210fedcba';
-const PRIMARY_KID = 'key-synthetic-primary-001';
+const TEST_ISSUER = LOCAL_AUTH_ISSUER;
 const CSRF_SECRET = 'super-secret-csrf-key-for-test-32-chars-long';
 const TRUSTED_ORIGIN = 'https://panel.mayisigorta.com';
 
@@ -63,7 +56,7 @@ function queryRequest(url: string, jwt: string): Request {
   return new Request(url, {
     method: 'GET',
     headers: {
-      'Cf-Access-Jwt-Assertion': jwt,
+      Cookie: jwt,
     },
   });
 }
@@ -71,8 +64,6 @@ function queryRequest(url: string, jwt: string): Request {
 describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', () => {
   let mf: miniflare.Miniflare;
   let db: D1Database;
-  let primaryKeyPair: Awaited<ReturnType<typeof generateKeyPair>>;
-  let keyResolver: ReturnType<typeof createLocalJWKSet>;
   let testApp: ReturnType<typeof createApp>;
 
   // Agency 1
@@ -131,20 +122,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       }
     }
 
-    // RS256 Key pair
-    primaryKeyPair = await generateKeyPair('RS256', { extractable: true });
-    const exportedPrimary = await exportJWK(primaryKeyPair.publicKey);
-    const primaryJwk: JWK = {
-      ...exportedPrimary,
-      kid: PRIMARY_KID,
-      alg: 'RS256',
-      use: 'sig',
-    };
-    keyResolver = createLocalJWKSet({ keys: [primaryJwk] });
-
-    testApp = createApp({
-      createVerifier: (config) => createAccessVerifier({ config, keyResolver }),
-    });
+    testApp = createApp();
 
     // Seed Data
     async function bootstrapAgencyWithOwner(
@@ -333,31 +311,17 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   function getEnv(): Env {
     return {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: TEST_TEAM_DOMAIN,
-      CF_ACCESS_AUDIENCE: TEST_NORMAL_AUDIENCE,
-      CF_ACCESS_SECURE_AUDIENCE: TEST_SECURE_AUDIENCE,
+
       CSRF_SECRET,
     };
   }
 
-  async function createJwt(subject: string, email: string): Promise<string> {
-    const nowSec = Math.floor(Date.now() / 1000);
-    return new SignJWT({
-      iss: TEST_ISSUER,
-      aud: TEST_NORMAL_AUDIENCE,
-      sub: subject,
-      type: 'app',
-      email,
-      iat: nowSec - 60,
-      nbf: nowSec - 60,
-      exp: nowSec + 3600,
-    })
-      .setProtectedHeader({ alg: 'RS256', kid: PRIMARY_KID, typ: 'JWT' })
-      .sign(primaryKeyPair.privateKey);
+  async function createSessionCookie(subject: string, email: string): Promise<string> {
+    return mintFixtureSession(db, subject, email);
   }
 
   async function getCsrf(subject: string): Promise<string> {
-    return generateIdentityBoundCsrfToken({ subject }, CSRF_SECRET);
+    return fixtureCsrf(db, subject, CSRF_SECRET);
   }
 
   // =========================================================================
@@ -365,15 +329,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   // =========================================================================
   describe('Customer Creation & Validation', () => {
     it('creates an INDIVIDUAL customer with actor default assignee and computed display_name', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-indiv-01',
           },
@@ -405,16 +369,16 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('rejects INDIVIDUAL customer with company_title or missing names', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       // Missing firstName
       const res1 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-bad-indiv-1',
           },
@@ -430,10 +394,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Passing companyTitle on INDIVIDUAL
       const res2 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-bad-indiv-2',
           },
@@ -452,15 +416,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('creates a COMPANY customer with computed display_name as company_title', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-comp-01',
           },
@@ -487,15 +451,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('rejects COMPANY customer with firstName or missing companyTitle', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-bad-comp-1',
           },
@@ -513,15 +477,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('rejects POST /api/customers if CSRF token is missing or invalid', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
 
       // Missing CSRF
       const res1 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'Idempotency-Key': 'ik-csrf-missing',
           },
           {
@@ -539,10 +503,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Bad CSRF
       const res2 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': 'invalid.csrf.token',
             'Idempotency-Key': 'ik-csrf-invalid',
           },
@@ -563,7 +527,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   // =========================================================================
   describe('Idempotency & Replay Behavior', () => {
     it('returns exact replay on duplicate identical request without side effects', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const payload = {
@@ -575,10 +539,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const res1 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-replay-01',
           },
@@ -592,10 +556,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Duplicate identical call
       const res2 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-replay-01',
           },
@@ -618,15 +582,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('returns 409 conflict when idempotency key is reused with different payload', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-replay-01',
           },
@@ -651,15 +615,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     let customerId: string;
 
     beforeAll(async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-occ-cust-setup',
           },
@@ -677,15 +641,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('successfully updates customer fields and increments version', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${customerId}`,
+          `https://panel.mayisigorta.com/api/customers/${customerId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-update-01',
           },
@@ -708,15 +672,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('rejects update with 409 when expectedVersion is stale', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${customerId}`,
+          `https://panel.mayisigorta.com/api/customers/${customerId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-update-stale',
           },
@@ -733,15 +697,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('prohibits changing immutable customer type', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${customerId}`,
+          `https://panel.mayisigorta.com/api/customers/${customerId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-type-change-attempt',
           },
@@ -764,10 +728,13 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   // =========================================================================
   describe('Customer Listing & Query Parameters', () => {
     it('lists customers with deterministic cursor pagination and cache-control no-store', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
 
       const res = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?limit=2&sort=created_at&order=asc', jwt),
+        queryRequest(
+          'https://panel.mayisigorta.com/api/customers?limit=2&sort=created_at&order=asc',
+          jwt,
+        ),
         getEnv(),
       );
       expect(res.status).toBe(200);
@@ -781,7 +748,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Fetch next page with cursor
       const res2 = await testApp.fetch(
         queryRequest(
-          `https://crm.local/api/customers?limit=2&sort=created_at&order=asc&cursor=${encodeURIComponent(json.data.nextCursor!)}`,
+          `https://panel.mayisigorta.com/api/customers?limit=2&sort=created_at&order=asc&cursor=${encodeURIComponent(json.data.nextCursor!)}`,
           jwt,
         ),
         getEnv(),
@@ -798,11 +765,11 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('filters customers by type and search keyword', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
 
       // Filter by type=COMPANY
       const resComp = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?type=COMPANY', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers?type=COMPANY', jwt),
         getEnv(),
       );
       expect(resComp.status).toBe(200);
@@ -811,7 +778,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // Search by Turkish text 'ahmet'
       const resSearch = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?search=ahmet', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers?search=ahmet', jwt),
         getEnv(),
       );
       expect(resSearch.status).toBe(200);
@@ -821,16 +788,16 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('rejects invalid sort column or order', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
 
       const res1 = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?sort=secret_column', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers?sort=secret_column', jwt),
         getEnv(),
       );
       expect(res1.status).toBe(400);
 
       const res2 = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?order=sideways', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers?order=sideways', jwt),
         getEnv(),
       );
       expect(res2.status).toBe(400);
@@ -845,16 +812,16 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     let individualCustomerId: string;
 
     beforeAll(async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       // Setup company customer
       const resComp = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-test-comp',
           },
@@ -871,10 +838,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Setup individual customer
       const resIndiv = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-test-indiv',
           },
@@ -891,15 +858,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('strictly forbids adding a contact to an INDIVIDUAL customer', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${individualCustomerId}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${individualCustomerId}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-indiv-contact-attempt',
           },
@@ -920,15 +887,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     let contact2Id: string;
 
     it('creates first contact on COMPANY customer as primary', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-create-1',
           },
@@ -955,14 +922,14 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('replays an exact company-contact create through the API with the original 201 DTO', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
       const customerResponse = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-exact-contact-replay-customer',
           },
@@ -982,10 +949,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       const key = 'ik-company-contact-exact-replay';
       const request = () =>
         mutationRequest(
-          `https://crm.local/api/customers/${replayCustomer.id}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${replayCustomer.id}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': key,
           },
@@ -1024,16 +991,19 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('denies an exact contact-create replay after the parent leaves the actor ASSIGNED scope', async () => {
-      const ownerJwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const ownerJwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const ownerCsrf = await getCsrf(OWNER_1_SUB);
-      const memberJwt = await createJwt(MEMBER_ASSIGNED_SUB, 'member-assigned@mayisigorta.test');
+      const memberJwt = await createSessionCookie(
+        MEMBER_ASSIGNED_SUB,
+        'member-assigned@mayisigorta.test',
+      );
       const memberCsrf = await getCsrf(MEMBER_ASSIGNED_SUB);
       const customerResponse = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-contact-reassign-customer-create',
           },
@@ -1046,10 +1016,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const assignToMember = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${customer.id}/assign`,
+          `https://panel.mayisigorta.com/api/customers/${customer.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-contact-reassign-to-member',
           },
@@ -1068,10 +1038,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       const key = 'ik-company-contact-assigned-replay';
       const contactRequest = () =>
         mutationRequest(
-          `https://crm.local/api/customers/${customer.id}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${customer.id}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': memberJwt,
+            Cookie: memberJwt,
             'X-CSRF-Token': memberCsrf,
             'Idempotency-Key': key,
           },
@@ -1083,10 +1053,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const assignAway = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${customer.id}/assign`,
+          `https://panel.mayisigorta.com/api/customers/${customer.id}/assign`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-contact-reassign-away',
           },
@@ -1124,14 +1094,14 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('replays an exact contact-create request for a MEMBER with current AGENCY authority', async () => {
-      const ownerJwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const ownerJwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const ownerCsrf = await getCsrf(OWNER_1_SUB);
       const customerResponse = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': ownerJwt,
+            Cookie: ownerJwt,
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-agency-contact-replay-customer',
           },
@@ -1141,7 +1111,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       );
       expect(customerResponse.status).toBe(201);
       const replayCustomer = asSuccess<CustomerDto>(await customerResponse.json()).data;
-      const jwt = await createJwt(MEMBER_AGENCY_SUB, 'member-agency@mayisigorta.test');
+      const jwt = await createSessionCookie(MEMBER_AGENCY_SUB, 'member-agency@mayisigorta.test');
       const csrf = await getCsrf(MEMBER_AGENCY_SUB);
       const payload = {
         firstName: 'Agency',
@@ -1152,10 +1122,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       const key = 'ik-company-contact-agency-replay';
       const request = () =>
         mutationRequest(
-          `https://crm.local/api/customers/${replayCustomer.id}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${replayCustomer.id}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': key,
           },
@@ -1179,15 +1149,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('creates second contact as primary and automatically demotes first contact', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-create-2',
           },
@@ -1209,7 +1179,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // Check customer detail to verify contact 1 was demoted to isPrimary: false
       const detailRes = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${companyCustomerId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${companyCustomerId}`, jwt),
         getEnv(),
       );
       expect(detailRes.status).toBe(200);
@@ -1224,12 +1194,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('sets first contact back to primary via set-primary endpoint', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       // Contact 1 was updated during demotion, let's fetch its current version
       const detailRes = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${companyCustomerId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${companyCustomerId}`, jwt),
         getEnv(),
       );
       const detailJson = asSuccess<CustomerDetailDto>(await detailRes.json());
@@ -1239,10 +1209,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts/${contact1Id}/set-primary`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts/${contact1Id}/set-primary`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-set-primary-1',
           },
@@ -1258,7 +1228,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // Verify contact 2 is now not primary
       const verifyRes = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${companyCustomerId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${companyCustomerId}`, jwt),
         getEnv(),
       );
       const verifyJson = asSuccess<CustomerDetailDto>(await verifyRes.json());
@@ -1269,12 +1239,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('updates contact details and blocks lifecycle fields via PATCH', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       // Fetch contact 2
       const detailRes = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${companyCustomerId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${companyCustomerId}`, jwt),
         getEnv(),
       );
       const detailJson = asSuccess<CustomerDetailDto>(await detailRes.json());
@@ -1285,10 +1255,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // 1. Valid update
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts/${contact2Id}`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts/${contact2Id}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-update-2',
           },
@@ -1307,10 +1277,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // 2. Attempting status mutation via generic PATCH is blocked
       const resBlocked = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts/${contact2Id}`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts/${contact2Id}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-contact-patch-lifecycle',
           },
@@ -1327,12 +1297,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('deactivates contact and removes primary flag if was primary', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrf = await getCsrf(OWNER_1_SUB);
 
       // Contact 1 is currently primary
       const detailRes = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${companyCustomerId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${companyCustomerId}`, jwt),
         getEnv(),
       );
       const detailJson = asSuccess<CustomerDetailDto>(await detailRes.json());
@@ -1343,10 +1313,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const res = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts/${contact1Id}/deactivate`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts/${contact1Id}/deactivate`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-deactivate-1',
           },
@@ -1364,10 +1334,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Deactivating again should fail
       const resAgain = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${companyCustomerId}/contacts/${contact1Id}/deactivate`,
+          `https://panel.mayisigorta.com/api/customers/${companyCustomerId}/contacts/${contact1Id}/deactivate`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-deactivate-1-again',
           },
@@ -1392,15 +1362,18 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
     beforeAll(async () => {
       // 1. Create a customer assigned to MEMBER_ASSIGNED_MEM
-      const jwtAssigned = await createJwt(MEMBER_ASSIGNED_SUB, 'member-assigned@mayisigorta.test');
+      const jwtAssigned = await createSessionCookie(
+        MEMBER_ASSIGNED_SUB,
+        'member-assigned@mayisigorta.test',
+      );
       const csrfAssigned = await getCsrf(MEMBER_ASSIGNED_SUB);
 
       const res1 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwtAssigned,
+            Cookie: jwtAssigned,
             'X-CSRF-Token': csrfAssigned,
             'Idempotency-Key': 'ik-scope-cust-1',
           },
@@ -1417,15 +1390,15 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       expect(json1.data.assigneeMembershipId).toBe(MEMBER_ASSIGNED_MEM);
 
       // 2. Create a customer assigned to OWNER
-      const jwtOwner = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwtOwner = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrfOwner = await getCsrf(OWNER_1_SUB);
 
       const res2 = await testApp.fetch(
         mutationRequest(
-          'https://crm.local/api/customers',
+          'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwtOwner,
+            Cookie: jwtOwner,
             'X-CSRF-Token': csrfOwner,
             'Idempotency-Key': 'ik-scope-cust-2',
           },
@@ -1442,29 +1415,32 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('member with NO permissions receives 403 Forbidden', async () => {
-      const jwt = await createJwt(MEMBER_NOPREV_SUB, 'member-noprev@mayisigorta.test');
+      const jwt = await createSessionCookie(MEMBER_NOPREV_SUB, 'member-noprev@mayisigorta.test');
 
       const res = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers', jwt),
         getEnv(),
       );
       expect(res.status).toBe(403);
     });
 
     it('member with ASSIGNED scope can access own customer but receives 404 for unassigned customer', async () => {
-      const jwt = await createJwt(MEMBER_ASSIGNED_SUB, 'member-assigned@mayisigorta.test');
+      const jwt = await createSessionCookie(
+        MEMBER_ASSIGNED_SUB,
+        'member-assigned@mayisigorta.test',
+      );
       const csrf = await getCsrf(MEMBER_ASSIGNED_SUB);
 
       // 1. Can read assigned customer
       const resReadOwn = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${assignedCustId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${assignedCustId}`, jwt),
         getEnv(),
       );
       expect(resReadOwn.status).toBe(200);
 
       // 2. Cannot read other customer -> 404 non-disclosure
       const resReadOther = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${otherCustId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${otherCustId}`, jwt),
         getEnv(),
       );
       expect(resReadOther.status).toBe(404);
@@ -1472,10 +1448,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // 3. Cannot update other customer -> 404 non-disclosure
       const resUpdateOther = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${otherCustId}`,
+          `https://panel.mayisigorta.com/api/customers/${otherCustId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-unauth-patch',
           },
@@ -1490,7 +1466,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // 4. List endpoint only returns customers assigned to them
       const resList = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers', jwt),
+        queryRequest('https://panel.mayisigorta.com/api/customers', jwt),
         getEnv(),
       );
       expect(resList.status).toBe(200);
@@ -1503,28 +1479,31 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('member with AGENCY scope can read and update any customer in the agency', async () => {
-      const jwt = await createJwt(MEMBER_AGENCY_SUB, 'member-agency@mayisigorta.test');
+      const jwt = await createSessionCookie(MEMBER_AGENCY_SUB, 'member-agency@mayisigorta.test');
 
       const res1 = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${assignedCustId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${assignedCustId}`, jwt),
         getEnv(),
       );
       expect(res1.status).toBe(200);
 
       const res2 = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${otherCustId}`, jwt),
+        queryRequest(`https://panel.mayisigorta.com/api/customers/${otherCustId}`, jwt),
         getEnv(),
       );
       expect(res2.status).toBe(200);
     });
 
     it('cross-agency actor strictly receives 404 non-disclosure when accessing another agency customer', async () => {
-      const jwtOtherAgency = await createJwt(OWNER_2_SUB, 'owner2@otheragency.test');
+      const jwtOtherAgency = await createSessionCookie(OWNER_2_SUB, 'owner2@otheragency.test');
       const csrfOtherAgency = await getCsrf(OWNER_2_SUB);
 
       // Read Agency 1's customer from Agency 2 actor
       const resRead = await testApp.fetch(
-        queryRequest(`https://crm.local/api/customers/${assignedCustId}`, jwtOtherAgency),
+        queryRequest(
+          `https://panel.mayisigorta.com/api/customers/${assignedCustId}`,
+          jwtOtherAgency,
+        ),
         getEnv(),
       );
       expect(resRead.status).toBe(404);
@@ -1532,10 +1511,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Update Agency 1's customer from Agency 2 actor
       const resUpdate = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${assignedCustId}`,
+          `https://panel.mayisigorta.com/api/customers/${assignedCustId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwtOtherAgency,
+            Cookie: jwtOtherAgency,
             'X-CSRF-Token': csrfOtherAgency,
             'Idempotency-Key': 'ik-cross-agency-patch',
           },
@@ -1550,7 +1529,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // List from Agency 2 never returns Agency 1 customers
       const resList = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers', jwtOtherAgency),
+        queryRequest('https://panel.mayisigorta.com/api/customers', jwtOtherAgency),
         getEnv(),
       );
       expect(resList.status).toBe(200);
@@ -1559,7 +1538,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('non-disclosure: unassigned member attempting contact operations on other customer receives 404, never leaking type or lifecycle state', async () => {
-      const jwt = await createJwt(MEMBER_ASSIGNED_SUB, 'member-assigned@mayisigorta.test');
+      const jwt = await createSessionCookie(
+        MEMBER_ASSIGNED_SUB,
+        'member-assigned@mayisigorta.test',
+      );
       const csrf = await getCsrf(MEMBER_ASSIGNED_SUB);
 
       // otherCustId is an INDIVIDUAL customer owned by OWNER_1_MEM.
@@ -1568,10 +1550,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // With proper non-disclosure order, actor gets strict 404:
       const resAddContact = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${otherCustId}/contacts`,
+          `https://panel.mayisigorta.com/api/customers/${otherCustId}/contacts`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-nd-add-contact',
           },
@@ -1587,10 +1569,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Lifecycle probe on contact of another customer -> strict 404
       const resSetPrimary = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${otherCustId}/contacts/fake-contact-id/set-primary`,
+          `https://panel.mayisigorta.com/api/customers/${otherCustId}/contacts/fake-contact-id/set-primary`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-nd-set-primary',
           },
@@ -1604,10 +1586,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const resDeactivate = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${otherCustId}/contacts/fake-contact-id/deactivate`,
+          `https://panel.mayisigorta.com/api/customers/${otherCustId}/contacts/fake-contact-id/deactivate`,
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-nd-deact',
           },
@@ -1621,7 +1603,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('strict schema: rejects mass-assignment and unexpected parameters with 400 VALIDATION_ERROR', async () => {
-      const jwtOwner = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwtOwner = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
       const csrfOwner = await getCsrf(OWNER_1_SUB);
 
       // 1. Attempt mass-assignment with forbidden fields on create
@@ -1641,10 +1623,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       for (const forbidden of forbiddenFields) {
         const res = await testApp.fetch(
           mutationRequest(
-            'https://crm.local/api/customers',
+            'https://panel.mayisigorta.com/api/customers',
             'POST',
             {
-              'Cf-Access-Jwt-Assertion': jwtOwner,
+              Cookie: jwtOwner,
               'X-CSRF-Token': csrfOwner,
               'Idempotency-Key': `ik-mass-create-${Object.keys(forbidden)[0]}`,
             },
@@ -1665,10 +1647,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // 2. Reject 'version' alias on update; require exact 'expectedVersion'
       const resOldVersion = await testApp.fetch(
         mutationRequest(
-          `https://crm.local/api/customers/${assignedCustId}`,
+          `https://panel.mayisigorta.com/api/customers/${assignedCustId}`,
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwtOwner,
+            Cookie: jwtOwner,
             'X-CSRF-Token': csrfOwner,
             'Idempotency-Key': 'ik-strict-version-alias',
           },
@@ -1685,12 +1667,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('cursor validation: fail-closed on malformed cursor or sort/order mismatch (produces 400)', async () => {
-      const jwtOwner = await createJwt(OWNER_1_SUB, 'owner1@mayisigorta.test');
+      const jwtOwner = await createSessionCookie(OWNER_1_SUB, 'owner1@mayisigorta.test');
 
       // 1. Malformed base64 cursor -> 400 VALIDATION_ERROR
       const resMalformed = await testApp.fetch(
         queryRequest(
-          'https://crm.local/api/customers?cursor=not-a-valid-base64-json-cursor',
+          'https://panel.mayisigorta.com/api/customers?cursor=not-a-valid-base64-json-cursor',
           jwtOwner,
         ),
         getEnv(),
@@ -1701,7 +1683,10 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       // 2. Valid cursor generated for sort='createdAt' used under sort='displayName' -> 400 VALIDATION_ERROR
       const resFirstPage = await testApp.fetch(
-        queryRequest('https://crm.local/api/customers?limit=1&sort=createdAt&order=desc', jwtOwner),
+        queryRequest(
+          'https://panel.mayisigorta.com/api/customers?limit=1&sort=createdAt&order=desc',
+          jwtOwner,
+        ),
         getEnv(),
       );
       const jsonFirst = asSuccess<CustomerListResponseData>(await resFirstPage.json());
@@ -1710,7 +1695,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
       const resMismatched = await testApp.fetch(
         queryRequest(
-          `https://crm.local/api/customers?cursor=${validCursor}&sort=displayName&order=asc`,
+          `https://panel.mayisigorta.com/api/customers?cursor=${validCursor}&sort=displayName&order=asc`,
           jwtOwner,
         ),
         getEnv(),
@@ -1870,14 +1855,14 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   // =========================================================================
   describe('CSRF Issuance & Verification End-to-End', () => {
     it('CSRF issuance without CSRF_SECRET fails closed', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
       const { CSRF_SECRET: _omitted, ...envWithoutCsrfSecret } = getEnv();
       const res = await testApp.fetch(
         new Request('https://panel.mayisigorta.com/api/csrf-token', {
           method: 'GET',
           headers: {
             Origin: TRUSTED_ORIGIN,
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
           },
         }),
         envWithoutCsrfSecret,
@@ -1890,7 +1875,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     });
 
     it('protected mutation without CSRF_SECRET fails before business effect', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
       const csrf = await getCsrf(OWNER_1_SUB);
       const customerIdempotencyKey = 'ik-missing-csrf-config-no-effect';
       const { CSRF_SECRET: _omitted, ...envWithoutCsrfSecret } = getEnv();
@@ -1900,7 +1885,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
           'https://panel.mayisigorta.com/api/customers',
           'POST',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': customerIdempotencyKey,
           },
@@ -1926,12 +1911,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
     // 1. Authenticated same-origin issuance produces valid token
     it('authenticated same-origin GET /api/csrf-token issues valid token bound to subject', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
       const req = new Request('https://panel.mayisigorta.com/api/csrf-token', {
         method: 'GET',
         headers: {
           Origin: TRUSTED_ORIGIN,
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
         },
       });
 
@@ -1962,10 +1947,16 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       expect(asSuccess(body).data).not.toHaveProperty('key');
 
       // Validate with production verifier
-      const verification = await verifyIdentityBoundCsrfToken(token, OWNER_1_SUB, CSRF_SECRET);
+      const verification = await verifyIdentityBoundCsrfToken(
+        token,
+        `${OWNER_1_SUB}:${await hashSessionToken(jwt.split('=')[1]!)}`,
+        CSRF_SECRET,
+      );
       expect(verification.valid).toBe(true);
       if (verification.valid) {
-        expect(verification.subject).toBe(OWNER_1_SUB);
+        expect(verification.subject).toBe(
+          `${OWNER_1_SUB}:${await hashSessionToken(jwt.split('=')[1]!)}`,
+        );
       }
 
       // Cannot be used by another identity/subject
@@ -1993,12 +1984,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
     // 3. Hostile origin / cross-site request to /api/csrf-token is denied with 403
     it('hostile origin to GET /api/csrf-token is denied with 403 by security boundary', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
       const req = new Request('https://panel.mayisigorta.com/api/csrf-token', {
         method: 'GET',
         headers: {
           Origin: 'https://evil.attacker.com',
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
         },
       });
 
@@ -2008,14 +1999,14 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
     // 4. Client cannot select subject via query or headers
     it('client query or body params cannot override verified subject binding', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
       const req = new Request(
         'https://panel.mayisigorta.com/api/csrf-token?sub=attacker-chosen-sub',
         {
           method: 'GET',
           headers: {
             Origin: TRUSTED_ORIGIN,
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-Subject': 'attacker-chosen-sub',
           },
         },
@@ -2028,7 +2019,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       // Token must still be strictly bound to OWNER_1_SUB, NOT attacker-chosen-sub
       const verifyReal = await verifyIdentityBoundCsrfToken(
         body.data.token,
-        OWNER_1_SUB,
+        `${OWNER_1_SUB}:${await hashSessionToken(jwt.split('=')[1]!)}`,
         CSRF_SECRET,
       );
       expect(verifyReal.valid).toBe(true);
@@ -2043,14 +2034,14 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
 
     // 5. Full Real Flow: Auth -> GET /api/csrf-token -> Create Customer -> Add Contact (Both succeed with issued token)
     it('full flow: auth -> issue CSRF token -> CSRF-protected Customer create & CompanyContact mutation succeed', async () => {
-      const jwt = await createJwt(OWNER_1_SUB, 'owner1@test.com');
+      const jwt = await createSessionCookie(OWNER_1_SUB, 'owner1@test.com');
 
       // Step A: Issue CSRF token
       const tokenReq = new Request('https://panel.mayisigorta.com/api/csrf-token', {
         method: 'GET',
         headers: {
           Origin: TRUSTED_ORIGIN,
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
         },
       });
       const tokenRes = await testApp.fetch(tokenReq, getEnv());
@@ -2063,7 +2054,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
         'https://panel.mayisigorta.com/api/customers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': issuedToken,
           'Idempotency-Key': 'ik-csrf-flow-cust-create',
         },
@@ -2083,7 +2074,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
         `https://panel.mayisigorta.com/api/customers/${custData.id}/contacts`,
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': issuedToken,
           'Idempotency-Key': 'ik-csrf-flow-cnt-create',
         },
@@ -2106,7 +2097,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
         `https://panel.mayisigorta.com/api/customers/${custData.id}/contacts`,
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': 'forged.token',
           'Idempotency-Key': 'ik-csrf-flow-bad-token',
         },

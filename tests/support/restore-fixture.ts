@@ -199,7 +199,7 @@ export async function createRestoreFixture(validated = false): Promise<RestoreFi
   const manifest = {
     format: 'mayi-local-restore-v1',
     appVersion: '0.1.0',
-    schemaVersion: '0019',
+    schemaVersion: '0020',
     createdAt: new Date().toISOString(),
     bookmark: 'synthetic-paused-native-export',
     dbExportSha256: createHash('sha256').update(exportSql).digest('hex'),

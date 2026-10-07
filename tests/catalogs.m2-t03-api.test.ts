@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
-import { generateKeyPair, exportJWK, SignJWT, type JWK, createLocalJWKSet } from 'jose';
 import { createApp, type Env } from '../src/server/index';
-import { createAccessVerifier } from '../src/server/auth/verifier';
+import { mintFixtureSession } from './support/domain-local-session';
+import { LOCAL_AUTH_ISSUER } from '../src/server/auth/session';
 import { createDefaultActionRegistry } from '../src/server/auth/authorization';
 import type {
   ApiResponse,
@@ -18,11 +18,7 @@ import type {
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
 
-const TEST_TEAM_DOMAIN = 'mayi-test.cloudflareaccess.com';
-const TEST_ISSUER = `https://${TEST_TEAM_DOMAIN}`;
-const TEST_NORMAL_AUDIENCE = 'synthetic-normal-aud-1234567890abcdef';
-const TEST_SECURE_AUDIENCE = 'synthetic-secure-aud-1234567890abcdef';
-const PRIMARY_KID = 'key-synthetic-primary-002';
+const TEST_ISSUER = LOCAL_AUTH_ISSUER;
 const CSRF_SECRET = 'super-secret-csrf-key-for-test-32-chars-long';
 const TRUSTED_ORIGIN = 'https://panel.mayisigorta.com';
 
@@ -52,7 +48,7 @@ function queryRequest(url: string, jwt: string): Request {
   return new Request(url, {
     method: 'GET',
     headers: {
-      'Cf-Access-Jwt-Assertion': jwt,
+      Cookie: jwt,
     },
   });
 }
@@ -60,8 +56,6 @@ function queryRequest(url: string, jwt: string): Request {
 describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', () => {
   let mf: miniflare.Miniflare;
   let db: D1Database;
-  let primaryKeyPair: Awaited<ReturnType<typeof generateKeyPair>>;
-  let keyResolver: ReturnType<typeof createLocalJWKSet>;
   let testApp: ReturnType<typeof createApp>;
 
   const AGENCY_A = 'ag-t03-api-a';
@@ -88,16 +82,6 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
   const OTHER_OWNER_SUB = 'sub-t03-api-other-owner';
 
   beforeAll(async () => {
-    primaryKeyPair = await generateKeyPair('RS256');
-    const publicJWK = await exportJWK(primaryKeyPair.publicKey);
-    publicJWK.kid = PRIMARY_KID;
-    publicJWK.use = 'sig';
-    publicJWK.alg = 'RS256';
-
-    keyResolver = createLocalJWKSet({
-      keys: [publicJWK as JWK],
-    });
-
     mf = new Miniflare(
       convertV4MiniflareOptions({
         modules: true,
@@ -251,43 +235,24 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     // Member with NO permissions
     await addMember(MEMBER_NONE_USER, MEMBER_NONE_MEM, 'mem-none@test.com', MEMBER_NONE_SUB, []);
 
-    testApp = createApp({
-      createVerifier: (cfg) =>
-        createAccessVerifier({
-          config: cfg,
-          keyResolver,
-        }),
-    });
+    testApp = createApp();
   });
 
   afterAll(async () => {
     if (mf) await mf.dispose();
   });
 
-  async function issueJwt(subject: string, email: string): Promise<string> {
-    return new SignJWT({
-      email,
-      type: 'app',
-    })
-      .setProtectedHeader({ alg: 'RS256', kid: PRIMARY_KID })
-      .setIssuer(TEST_ISSUER)
-      .setAudience(TEST_NORMAL_AUDIENCE)
-      .setSubject(subject)
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(primaryKeyPair.privateKey);
+  async function createSessionCookie(subject: string, email: string): Promise<string> {
+    return mintFixtureSession(db, subject, email);
   }
 
   async function getCsrfToken(jwt: string): Promise<string> {
     const res = await testApp.fetch(
       new Request('https://panel.mayisigorta.com/api/csrf-token', {
-        headers: { 'Cf-Access-Jwt-Assertion': jwt },
+        headers: { Cookie: jwt },
       }),
       {
         DB: db,
-        CF_ACCESS_TEAM_DOMAIN: TEST_TEAM_DOMAIN,
-        CF_ACCESS_AUDIENCE: TEST_NORMAL_AUDIENCE,
-        CF_ACCESS_SECURE_AUDIENCE: TEST_SECURE_AUDIENCE,
         CSRF_SECRET,
         TRUSTED_ORIGIN,
       } as unknown as Env,
@@ -299,9 +264,6 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
   function env(): Env {
     return {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: TEST_TEAM_DOMAIN,
-      CF_ACCESS_AUDIENCE: TEST_NORMAL_AUDIENCE,
-      CF_ACCESS_SECURE_AUDIENCE: TEST_SECURE_AUDIENCE,
       CSRF_SECRET,
       TRUSTED_ORIGIN,
     } as unknown as Env;
@@ -309,12 +271,12 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
 
   describe('CSRF & Request Security Gate', () => {
     it('rejects mutation without CSRF token before body parse', async () => {
-      const jwt = await issueJwt(OWNER_SUB, 'owner@test.com');
+      const jwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           // Missing X-CSRF-Token!
           'Idempotency-Key': 'idemp-csrf-1',
         },
@@ -329,13 +291,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('rejects caller-selected authority fields in payload', async () => {
-      const jwt = await issueJwt(OWNER_SUB, 'owner@test.com');
+      const jwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
       const csrf = await getCsrfToken(jwt);
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-mass-assign-1',
         },
@@ -355,14 +317,14 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('rejects an invalid agency timezone before persistence', async () => {
-      const jwt = await issueJwt(OWNER_SUB, 'owner@test.com');
+      const jwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
       const csrf = await getCsrfToken(jwt);
       const response = await testApp.fetch(
         mutationRequest(
           'https://panel.mayisigorta.com/api/agency/settings',
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idemp-invalid-timezone',
           },
@@ -412,13 +374,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('OWNER has implicit normal permission and can create insurer', async () => {
-      const jwt = await issueJwt(OWNER_SUB, 'owner@test.com');
+      const jwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
       const csrf = await getCsrfToken(jwt);
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-ins-owner',
         },
@@ -432,13 +394,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('MEMBER with catalog.manage can create branch', async () => {
-      const jwt = await issueJwt(MEMBER_CAT_SUB, 'mem-cat@test.com');
+      const jwt = await createSessionCookie(MEMBER_CAT_SUB, 'mem-cat@test.com');
       const csrf = await getCsrfToken(jwt);
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/branches',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-br-cat',
         },
@@ -451,13 +413,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('MEMBER with catalog.manage CANNOT update agency settings (requires agency.settings.manage)', async () => {
-      const jwt = await issueJwt(MEMBER_CAT_SUB, 'mem-cat@test.com');
+      const jwt = await createSessionCookie(MEMBER_CAT_SUB, 'mem-cat@test.com');
       const csrf = await getCsrfToken(jwt);
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/agency/settings',
         'PATCH',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-sett-fail',
         },
@@ -468,14 +430,14 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('MEMBER with agency.settings.manage can update operational settings', async () => {
-      const jwt = await issueJwt(MEMBER_SETT_SUB, 'mem-sett@test.com');
+      const jwt = await createSessionCookie(MEMBER_SETT_SUB, 'mem-sett@test.com');
       const csrf = await getCsrfToken(jwt);
       const response = await testApp.fetch(
         mutationRequest(
           'https://panel.mayisigorta.com/api/agency/settings',
           'PATCH',
           {
-            'Cf-Access-Jwt-Assertion': jwt,
+            Cookie: jwt,
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'idemp-api-settings-allowed',
           },
@@ -487,13 +449,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('MEMBER with agency.settings.manage CANNOT mutate catalogs (requires catalog.manage)', async () => {
-      const jwt = await issueJwt(MEMBER_SETT_SUB, 'mem-sett@test.com');
+      const jwt = await createSessionCookie(MEMBER_SETT_SUB, 'mem-sett@test.com');
       const csrf = await getCsrfToken(jwt);
       const req = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-ins-sett-fail',
         },
@@ -504,13 +466,13 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
     });
 
     it('MEMBER with NO permissions is rejected for both', async () => {
-      const jwt = await issueJwt(MEMBER_NONE_SUB, 'mem-none@test.com');
+      const jwt = await createSessionCookie(MEMBER_NONE_SUB, 'mem-none@test.com');
       const csrf = await getCsrfToken(jwt);
       const req1 = mutationRequest(
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-none-cat',
         },
@@ -523,7 +485,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
         'https://panel.mayisigorta.com/api/agency/settings',
         'PATCH',
         {
-          'Cf-Access-Jwt-Assertion': jwt,
+          Cookie: jwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-none-sett',
         },
@@ -536,7 +498,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
 
   describe('Catalogs Lifecycle & Selectable vs Historical Resolution', () => {
     it('selectable lists only ACTIVE items; resolve-by-ID includes INACTIVE items', async () => {
-      const ownerJwt = await issueJwt(OWNER_SUB, 'owner@test.com');
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
       const csrf = await getCsrfToken(ownerJwt);
 
       // Create insurer in Agency A
@@ -544,7 +506,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
         'https://panel.mayisigorta.com/api/catalogs/insurers',
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': ownerJwt,
+          Cookie: ownerJwt,
           'X-CSRF-Token': csrf,
           'Idempotency-Key': 'idemp-api-ins-life',
         },
@@ -555,7 +517,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
       const createdInsurer = asSuccess<InsurerDto>(await createRes.json()).data;
       const insurerId = createdInsurer.id;
 
-      const otherOwnerJwt = await issueJwt(OTHER_OWNER_SUB, 'other-owner@test.com');
+      const otherOwnerJwt = await createSessionCookie(OTHER_OWNER_SUB, 'other-owner@test.com');
       const crossAgencyResolve = await testApp.fetch(
         queryRequest(
           `https://panel.mayisigorta.com/api/catalogs/resolve/insurer/${insurerId}`,
@@ -571,7 +533,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
         `https://panel.mayisigorta.com/api/catalogs/insurers/${insurerId}/deactivate`,
         'POST',
         {
-          'Cf-Access-Jwt-Assertion': ownerJwt,
+          Cookie: ownerJwt,
           'X-CSRF-Token': csrfDeact,
           'Idempotency-Key': 'idemp-api-ins-deact',
         },

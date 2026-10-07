@@ -45,6 +45,7 @@ export function getSecurityHeaders(options: SecurityHeadersOptions = {}): Record
     'Referrer-Policy': 'no-referrer',
     'Permissions-Policy': PERMISSIONS_POLICY_DIRECTIVE,
     'Content-Security-Policy': CSP_DIRECTIVE,
+    'X-Robots-Tag': 'noindex, nofollow, noarchive',
   };
 
   // HSTS Postürü: Yalnızca production ortamında ve HTTPS protokolüyle gelen isteklerde

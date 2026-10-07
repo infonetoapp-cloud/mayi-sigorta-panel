@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import {
   allocateRenewalPolicyLinks,
   issueRenewalPolicyLinksGrant,
@@ -27,7 +27,7 @@ const secureOwner: AuthenticatedUserContext = {
     },
   ],
 };
-const verified = { subject: 'link-subject' } as VerifiedAccessPrincipal;
+const verified = { subject: 'link-subject' } as AuthenticatedPrincipal;
 
 describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
   let mf: miniflare.Miniflare;
@@ -40,9 +40,9 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     subject: string = verified.subject,
   ) =>
     createApp({
-      createVerifier: (config) => ({
+      createSessionVerifier: (config) => ({
         config,
-        verify: async () => ({ subject }) as VerifiedAccessPrincipal,
+        verify: async () => ({ subject }) as AuthenticatedPrincipal,
       }),
       createResolver: () => ({ resolve: async () => context }) as never,
     });
@@ -200,13 +200,10 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     ]);
     env = {
       DB: db,
-      CF_ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com',
-      CF_ACCESS_AUDIENCE: 'normal-audience',
-      CF_ACCESS_SECURE_AUDIENCE: 'secure-audience',
       CSRF_SECRET: 'test-csrf-secret-that-is-long-enough',
     } satisfies Env;
     const csrfResponse = await app().request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -240,7 +237,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
         .first(),
     ).toEqual({ state: 'CONTACT_PENDING', version: 1, closed_at: null });
     const crossAgencyGrant = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -259,7 +256,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(crossAgencyGrant.status).toBe(404);
 
     const grantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -289,7 +286,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       'grantEvidenceToken',
     );
     const exactGrantRetry = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -312,7 +309,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(exactGrantEnvelope.data.grantEvidenceToken).toBe(grantEnvelope.data.grantEvidenceToken);
 
     const changedGrantPayload = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -329,7 +326,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
 
     const issueRaceGrant = () =>
       app().request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
         {
           method: 'POST',
           headers: {
@@ -367,7 +364,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     ).toEqual({ count: 1 });
 
     const crossActionKey = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -410,7 +407,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       },
     }) as D1Database;
     const allocationResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -431,7 +428,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       `D1 batch error: ${allocationBatchError}; response: ${await allocationResponse.clone().text()}`,
     ).toBe(201);
     const premiumDecrease = await app().request(
-      'https://panel.mayisigorta.test/api/policies/link-new-policy',
+      'https://panel.mayisigorta.com/api/policies/link-new-policy',
       {
         method: 'PATCH',
         headers: {
@@ -451,7 +448,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
         .first(),
     ).toEqual({ gross_premium_minor: 10000, version: 1 });
     const linkedCurrencyChange = await app().request(
-      'https://panel.mayisigorta.test/api/policies/link-new-policy',
+      'https://panel.mayisigorta.com/api/policies/link-new-policy',
       {
         method: 'PATCH',
         headers: {
@@ -498,7 +495,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
         .first(),
     ).toEqual({ count: 1 });
     const exactAllocationRetry = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -524,7 +521,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(replay.data.links[0]?.id).toBe(allocation.data.links[0]?.id);
 
     const changedAllocationPayload = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -577,7 +574,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const grantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -606,7 +603,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       )
       .run();
     const failed = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -663,7 +660,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     ).toEqual({ count: 0 });
 
     const retry = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -701,7 +698,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const grantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -772,7 +769,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     }) as D1Database;
     const retry = () =>
       app().request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
         {
           method: 'POST',
           headers: {
@@ -864,7 +861,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     };
     const memberApp = app(member, 'link-member-subject');
     const csrfResponse = await memberApp.request(
-      'https://panel.mayisigorta.test/api/csrf-token',
+      'https://panel.mayisigorta.com/api/csrf-token',
       {},
       env,
     );
@@ -883,7 +880,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const staleAndMismatchedMemberGrant = await memberApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -902,7 +899,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(staleAndMismatchedMemberGrant.status).toBe(403);
     const requestGrant = () =>
       memberApp.request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
         {
           method: 'POST',
           headers: {
@@ -944,7 +941,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     };
     const authorizedApp = app(authorizedMember, 'link-member-subject');
     const grantResponse = await authorizedApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -960,7 +957,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(grantResponse.status).toBe(201);
     const grant = (await grantResponse.json()) as { data: { grantEvidenceToken: string } };
     const allocationResponse = await authorizedApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -1327,7 +1324,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const grantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -1343,7 +1340,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(grantResponse.status).toBe(201);
     const grant = (await grantResponse.json()) as { data: { grantEvidenceToken: string } };
     const allocation = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -1455,7 +1452,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const grantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -1472,7 +1469,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     const grant = (await grantResponse.json()) as { data: { grantEvidenceToken: string } };
     const commandPayload = { ...payload, grantEvidenceToken: grant.data.grantEvidenceToken };
     const operationResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -1493,7 +1490,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     expect(initial.data.supersededLinkIds).toEqual(['a-old-link', 'z-old-link']);
     expect(initial.replayed).toBe(false);
     const replay = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -1551,7 +1548,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const baseGrantResponse = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -1571,7 +1568,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     const sameKey = 'link-cross-action-race-key';
     const grantAttempt = () =>
       app().request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
         {
           method: 'POST',
           headers: {
@@ -1586,7 +1583,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       );
     const commandAttempt = () =>
       app().request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
         {
           method: 'POST',
           headers: {
@@ -1829,7 +1826,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const denied = await app().request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -1861,7 +1858,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     };
     const authorizedApp = app(ownerHealthContext, 'link-subject');
     const grantResponse = await authorizedApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -1878,7 +1875,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     const grant = (await grantResponse.json()) as { data: { grantEvidenceToken: string } };
     const commandPayload = { ...payload, grantEvidenceToken: grant.data.grantEvidenceToken };
     const allocation = await authorizedApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
       {
         method: 'POST',
         headers: {
@@ -2170,7 +2167,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
       ],
     };
     const grantResponse = await lateRaceApp.request(
-      'https://panel.mayisigorta.test/secure/api/renewals/policy-links/grants',
+      'https://panel.mayisigorta.com/secure/api/renewals/policy-links/grants',
       {
         method: 'POST',
         headers: {
@@ -2236,7 +2233,7 @@ describe('M3 RenewalPolicyLink secure allocation command on Local D1', () => {
     }) as D1Database;
     const request = (database: D1Database) =>
       lateRaceApp.request(
-        'https://panel.mayisigorta.test/secure/api/renewals/policy-links',
+        'https://panel.mayisigorta.com/secure/api/renewals/policy-links',
         {
           method: 'POST',
           headers: {

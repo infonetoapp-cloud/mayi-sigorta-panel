@@ -1,3 +1,4 @@
+import { controlledSessionCookie } from './support/controlled-session';
 // @vitest-environment node
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -5,7 +6,7 @@ import { getPlatformProxy } from 'wrangler';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
-import type { VerifiedAccessPrincipal } from '../src/server/auth/types';
+import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import { createApp } from '../src/server';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import { createDocumentUpload, type DocumentUploadResult } from '../src/server/documents/service';
@@ -102,7 +103,7 @@ const memberContext: AuthenticatedUserContext = {
   ],
 };
 
-const principal: VerifiedAccessPrincipal = {
+const principal: AuthenticatedPrincipal = {
   issuer: `https://${teamDomain}`,
   subject: 'upload-owner-subject',
   assurance: 'NORMAL',
@@ -380,7 +381,7 @@ async function postUpload(
 ) {
   const app = authenticated
     ? createApp({
-        createVerifier: (config) => ({ config, verify: async () => principal }),
+        createSessionVerifier: (config) => ({ config, verify: async () => principal }),
         createResolver: () => ({ resolve: async () => ownerContext }),
       })
     : createApp({ createResolver: () => ({ resolve: async () => ownerContext }) });
@@ -390,7 +391,7 @@ async function postUpload(
   );
   const headers: Record<string, string> = {
     Origin: 'https://panel.mayisigorta.com',
-    'Cf-Access-Jwt-Assertion': 'synthetic-test-assertion',
+    cookie: controlledSessionCookie('synthetic-test-assertion'),
     'Idempotency-Key': idempotencyKey,
   };
   if (csrf) headers['X-CSRF-Token'] = csrfToken;
@@ -399,9 +400,6 @@ async function postUpload(
     DB: db,
     DOCS_QUARANTINE: quarantine,
     APP_ENV: 'test',
-    CF_ACCESS_TEAM_DOMAIN: teamDomain,
-    CF_ACCESS_AUDIENCE: 'synthetic-normal-audience-upload-123456',
-    CF_ACCESS_SECURE_AUDIENCE: 'synthetic-secure-audience-upload-abcdef',
     CSRF_SECRET: csrfSecret,
     ...(documentsEnabled === undefined
       ? {}

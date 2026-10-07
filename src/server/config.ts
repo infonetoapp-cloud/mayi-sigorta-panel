@@ -70,4 +70,4 @@ export function parseCsrfConfig(env: Record<string, unknown> = {}): CsrfConfig {
   return result.data;
 }
 
-export { parseAccessConfig, type AccessConfig, AccessConfigError } from './auth/config';
+// F-27: no Access configuration is part of the active Worker configuration contract.

@@ -1,3 +1,4 @@
+// DORMANT F-27 historical Access unit evidence; never a Worker runtime dependency.
 /**
  * Cloudflare Access Sunucu Yapılandırması (M1-T05).
  *

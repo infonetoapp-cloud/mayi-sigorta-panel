@@ -590,13 +590,33 @@ describe('M1-T03 gerçek yerel D1 identity/agency sözleşmesi', () => {
       'users_no_delete',
       'users_no_row_replacement',
       'users_update_guard',
+      'credential_receipt_no_update',
+      'credential_receipt_no_delete',
+      'local_credentials_identity_guard',
+      'local_credentials_login_immutable',
+      'local_sessions_insert_guard',
+      'local_sessions_no_upgrade',
+      'local_membership_session_revoke',
+      'local_user_session_revoke',
+      'local_identity_session_revoke',
+      'local_credential_session_revoke',
+      'local_credentials_no_delete',
+      'local_credentials_no_row_replacement',
+      'local_identity_binding_immutable',
+      'local_credentials_insert_owner_guard',
+      'local_credentials_update_owner_guard',
+      'local_membership_effective_owner_guard',
+      'local_membership_insert_owner_guard',
+      'local_user_effective_owner_guard',
+      'local_identity_effective_owner_guard',
+      'local_agency_effective_owner_guard',
     ];
     const rows = queryRows<{ name: string }>(`
       SELECT name FROM sqlite_master
       WHERE type = 'trigger'
       ORDER BY name
     `);
-    expect(rows.map((row) => row.name)).toEqual(expectedTriggers);
+    expect(rows.map((row) => row.name)).toEqual(expectedTriggers.sort());
   });
 
   it('tek statement içindeki iki owner demotion tamamen rollback edilir', () => {

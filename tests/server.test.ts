@@ -7,7 +7,7 @@ import type { ApiResponse, HealthCheckData } from '../src/shared/types';
 
 describe('Sunucu Kabuğu ve API Güvenlik Kapısı (Server Shell & Fallback Tests)', () => {
   it('GET /api/health başarılı durum ve JSON yanıtı döndürmelidir', async () => {
-    const res = await app.request(`${API_PREFIX}/health`);
+    const res = await app.request(`https://panel.mayisigorta.com${API_PREFIX}/health`);
     expect(res.status).toBe(200);
 
     const contentType = res.headers.get('content-type');
@@ -16,14 +16,14 @@ describe('Sunucu Kabuğu ve API Güvenlik Kapısı (Server Shell & Fallback Test
     const json = (await res.json()) as ApiResponse<HealthCheckData>;
     expect(json.success).toBe(true);
     if (json.success) {
-      expect(json.data.status).toBe('healthy');
-      expect(json.data.version).toBe('0.1.0');
-      expect(json.data.environment).toBeDefined();
+      expect(json.data).toEqual({ status: 'healthy' });
     }
   });
 
   it('Bilinmeyen /api/* istekleri asla HTML dönmemeli; JSON 404 döndürmelidir (Fail-Closed)', async () => {
-    const res = await app.request(`${API_PREFIX}/tanimsiz-bir-yol-404`);
+    const res = await app.request(
+      `https://panel.mayisigorta.com${API_PREFIX}/tanimsiz-bir-yol-404`,
+    );
     expect(res.status).toBe(404);
 
     const contentType = res.headers.get('content-type');
@@ -39,6 +39,14 @@ describe('Sunucu Kabuğu ve API Güvenlik Kapısı (Server Shell & Fallback Test
 });
 
 describe('M1-T02 Worker route / SPA / API boundary', () => {
+  it('public health başka host veya HTTP üzerinden request security sınırını aşamaz', async () => {
+    for (const origin of ['http://panel.mayisigorta.com', 'https://alternate.example.invalid']) {
+      const response = await app.request(`${origin}/api/health`);
+      expect(response.status).toBe(403);
+      expect(response.headers.get('content-type')).toContain('application/json');
+      expect(await response.text()).not.toContain('healthy');
+    }
+  });
   function createAssetsBinding(): Fetcher {
     return {
       fetch: vi.fn(async (input: RequestInfo | URL) => {

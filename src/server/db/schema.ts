@@ -39,6 +39,7 @@ export const users = sqliteTable(
   'users',
   {
     id: text('id').primaryKey(),
+    displayName: text('display_name'),
     status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
       .notNull()
       .default('INACTIVE'),
@@ -65,6 +66,9 @@ export const authIdentities = sqliteTable(
     issuer: text('issuer').notNull(),
     subject: text('subject').notNull(),
     verifiedEmail: text('verified_email').notNull(),
+    emailProvenance: text('email_provenance', { enum: ['LEGACY_EXTERNAL', 'OWNER_PROVISIONED'] })
+      .notNull()
+      .default('LEGACY_EXTERNAL'),
     status: text('status', { enum: ['ACTIVE', 'REVOKED'] })
       .notNull()
       .default('ACTIVE'),
@@ -148,6 +152,114 @@ export const agencyMemberships = sqliteTable(
     uniqueIndex('agency_memberships_agency_user_uq').on(table.agencyId, table.userId),
     index('agency_memberships_owner_lookup_idx').on(table.agencyId, table.type, table.status),
     index('agency_memberships_user_status_idx').on(table.userId, table.status),
+  ],
+);
+
+// F-27: credentials do not replace tenant membership or permission authority.
+export const localCredentials = sqliteTable(
+  'local_credentials',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    identityId: text('identity_id')
+      .notNull()
+      .references(() => authIdentities.id, { onDelete: 'restrict' }),
+    loginEmail: text('login_email').notNull(),
+    verifier: text('verifier').notNull(),
+    credentialVersion: integer('credential_version').notNull().default(1),
+    mustChangePassword: integer('must_change_password').notNull().default(1),
+    temporaryExpiresAt: integer('temporary_expires_at'),
+    loginEnabled: integer('login_enabled').notNull().default(1),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('local_credentials_email_uq').on(t.loginEmail),
+    uniqueIndex('local_credentials_identity_uq').on(t.identityId),
+    check('local_credentials_version_positive', sql`${t.credentialVersion} >= 1`),
+    check(
+      'local_credentials_flags',
+      sql`${t.mustChangePassword} IN (0,1) AND ${t.loginEnabled} IN (0,1)`,
+    ),
+    check(
+      'local_credentials_temporary_state',
+      sql`(${t.mustChangePassword}=1 AND ${t.temporaryExpiresAt} IS NOT NULL) OR (${t.mustChangePassword}=0 AND ${t.temporaryExpiresAt} IS NULL)`,
+    ),
+    check(
+      'local_credentials_email_canonical',
+      sql`${t.loginEmail}=lower(trim(${t.loginEmail})) AND length(${t.loginEmail}) BETWEEN 5 AND 254 AND instr(${t.loginEmail},'@')>1`,
+    ),
+  ],
+);
+
+export const localSessions = sqliteTable(
+  'local_sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    identityId: text('identity_id')
+      .notNull()
+      .references(() => authIdentities.id, { onDelete: 'restrict' }),
+    membershipId: text('membership_id')
+      .notNull()
+      .references(() => agencyMemberships.id, { onDelete: 'restrict' }),
+    credentialVersion: integer('credential_version').notNull(),
+    permissionVersion: integer('permission_version').notNull(),
+    kind: text('kind', { enum: ['ACTIVATION', 'NORMAL'] }).notNull(),
+    createdAt: integer('created_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    lastSeenAt: integer('last_seen_at').notNull(),
+    recentPasswordAt: integer('recent_password_at'),
+    revokedAt: integer('revoked_at'),
+  },
+  (t) => [
+    index('local_sessions_user_idx').on(t.userId),
+    check(
+      'local_sessions_hash_shape',
+      sql`length(${t.tokenHash})=64 AND ${t.tokenHash} NOT GLOB '*[^0-9a-f]*'`,
+    ),
+    check('local_sessions_kind', sql`${t.kind} IN ('ACTIVATION','NORMAL')`),
+    check('local_sessions_versions', sql`${t.credentialVersion}>0 AND ${t.permissionVersion}>0`),
+    check(
+      'local_sessions_lifetime',
+      sql`${t.expiresAt}>${t.createdAt} AND ${t.expiresAt}<=${t.createdAt}+43200000 AND ${t.lastSeenAt}>=${t.createdAt} AND ${t.lastSeenAt}<${t.expiresAt}`,
+    ),
+    check(
+      'local_sessions_restricted',
+      sql`${t.kind}='NORMAL' OR (${t.recentPasswordAt} IS NULL AND ${t.expiresAt}<=${t.createdAt}+900000)`,
+    ),
+  ],
+);
+
+export const credentialOperationReceipts = sqliteTable(
+  'credential_operation_receipts',
+  {
+    id: text('id').primaryKey(),
+    actorUserId: text('actor_user_id')
+      .notNull()
+      .references(() => users.id),
+    agencyId: text('agency_id')
+      .notNull()
+      .references(() => agencies.id),
+    operationKey: text('operation_key').notNull(),
+    fingerprint: text('fingerprint').notNull(),
+    actorMembershipId: text('actor_membership_id'),
+    safeResponseJson: text('safe_response_json'),
+    effectAuditId: text('effect_audit_id'),
+    grantId: text('grant_id'),
+    targetUserId: text('target_user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('credential_operation_receipts_key_uq').on(
+      t.actorUserId,
+      t.agencyId,
+      t.operationKey,
+    ),
   ],
 );
 

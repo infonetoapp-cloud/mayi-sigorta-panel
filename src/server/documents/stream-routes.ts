@@ -1,8 +1,8 @@
 import type { Hono } from 'hono';
 import type { AppDependencies, Env } from '../index';
-import { AccessConfigError, parseAccessConfig } from '../auth/config';
-import { AccessVerificationError } from '../auth/errors';
-import { createAccessVerifier } from '../auth/verifier';
+import { LocalSessionConfigError, parseLocalSessionConfig } from '../auth/session';
+import { SessionVerificationError } from '../auth/errors';
+import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import { parseCsrfConfig } from '../config';
 import { verifyCsrfMutationGuard } from '../security/csrf';
@@ -50,23 +50,23 @@ export function registerDocumentStreamRoutes(
       let context;
       let principal;
       try {
-        const config = parseAccessConfig(c.env);
-        const verifier = dependencies.createVerifier?.(config) ?? createAccessVerifier({ config });
+        const config = parseLocalSessionConfig(c.env);
+        const verifier =
+          dependencies.createSessionVerifier?.(config) ?? createLocalSessionVerifier({ config });
         principal = await verifier.verify(c.req.raw, secure ? 'SECURE' : 'NORMAL');
         const resolver =
           dependencies.createResolver?.(c.env.DB) ?? createApplicationIdentityResolver(c.env.DB);
         context = await resolver.resolve(principal);
         if (
-          principal.assurance !== (secure ? 'SECURE' : 'NORMAL') ||
+          (secure && principal.assurance !== 'SECURE') ||
           context.assurance !== principal.assurance
         )
           return fail(401);
       } catch (error) {
         const infrastructureError =
-          error instanceof AccessConfigError ||
+          error instanceof LocalSessionConfigError ||
           (error instanceof IdentityResolutionError && error.code === 'DATABASE_ERROR') ||
-          (error instanceof AccessVerificationError &&
-            (error.code === 'JWKS_FETCH_FAILED' || error.code === 'CONFIGURATION_ERROR'));
+          (error instanceof SessionVerificationError && error.code === 'CONFIGURATION_ERROR');
         return fail(infrastructureError ? 503 : 401);
       }
       try {
