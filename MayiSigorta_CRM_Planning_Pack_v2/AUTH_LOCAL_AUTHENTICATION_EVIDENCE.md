@@ -1,5 +1,60 @@
 # F-27 — Local authentication supersession implementation evidence
 
+## Gerçek Workers Free KDF dilimi — 7 Ekim 2026: NOT SAFE / NOT ACCEPTED (ağ kanıtı elde edilemedi)
+
+Bu ileri yönlü kayıt yerel auth kabulünü değiştirmez. Başlangıç `main`, HEAD=origin/main=`8b010421b33b61fd58dcf801bc508b5067168c32`, temiz worktree; fetch ve diff-check exit0. Production source/test/schema/config değişmedi. Kabul edilmiş 85/85 dosya ve 1522/1522 test yeniden çalıştırılmadı. **Bu sonuç PBKDF2 CPU-limit FAIL kanıtı değildir; gerçek ağda KDF uygunluğu henüz kanıtlanamadı. Deployment kapısı kapalı kalır.**
+
+### Resmî platform ve hesap kanıtı
+
+7 Ekim 2026 tarihinde güncel resmî kaynaklar okundu:
+
+- [Workers limits](https://developers.cloudflare.com/workers/platform/limits/): Free HTTP isteği başına **10 ms CPU**, isolate başına **128 MB**. Wall time CPU değildir. Runtime nadir aşım için esneklik/rollover sağlayabilir; sürekli aşım termination, Error1102 ve `exceededCpu` sonucuna yol açabilir. Tek başarılı istek safety margin kanıtı değildir.
+- [Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/): PBKDF2 `importKey`, `deriveBits`/`deriveKey` desteklenir. Algoritma desteği 600000 iteration'ın Free CPU kabulü anlamına gelmez.
+- [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) ve [metrics](https://developers.cloudflare.com/workers/observability/metrics-and-analytics/): CPU/wall invocation metadata ve quantile metrics mevcuttur; [GraphQL tutorial](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/) Workers metrics sorgusunu belgeler. Bu denemede gerçek KDF invocation olmadığı için CPU quantile uydurulmadı.
+- [workers.dev](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/): geçici Worker kendi `<worker>.<account-subdomain>.workers.dev` endpoint'inde çalışabilir; custom domain gerekmez. Preview URL ayrıca kapatıldı.
+- [Subscriptions GET](https://developers.cloudflare.com/api/resources/accounts/subresources/subscriptions/methods/get/), [account settings GET](https://developers.cloudflare.com/api/resources/workers/subresources/account_settings/methods/get/), [multipart metadata](https://developers.cloudflare.com/workers/configuration/multipart-upload-metadata/), [script upload](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/methods/update/), [settings readback](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/script_and_version_settings/methods/get/), [subdomain control](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/subdomain/methods/create/) ve [Worker DELETE](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/methods/delete/) resmî API kaynaklarıdır. Bazı extract istekleri403 verdi; aynı resmî kaynaklar doğrudan HTTPS markdown ile okundu, üçüncü taraf kopyası authoritative sayılmadı.
+
+Authenticated GET-only preflight `2026-10-07T11:25:10.487761+00:00`: subscriptions2/2, total_pages1/next_page=false; yalnız zone `free / Cloudflare Free Plan` ve account `r2_paid / R2 Paid`. İki kayıttaki `state=Paid` alanı Workers Paid anlamına gelmez; Workers ücretli/trial/enterprise aboneliği yoktur. Workers account default_usage_model=`standard`; bu alan tek başına Free kanıtı sayılmadı. Worker scripts0, custom domains0, mayisigorta.com Worker routes0. Yeni subscription/plan/billing aktivasyonu yapılmadı. Cleanup sonrası aynı2abonelik değişmeden readback edildi; mevcut R2 usage billing ayrıdır.
+
+### Exact production source ve izolasyon
+
+Geçici tek Worker: `mayisigorta-kdf-benchmark-93ba3a9d68f0`. Production `wrangler.jsonc` kullanılmadı/değişmedi; harness yalnız repo dışındaki geçici dizindeydi. Exact production `productionPasswordHasher` doğrudan import edildi: PBKDF2-HMAC-SHA256, sabit600000, random16byte salt, 32byte verifier, v1 canonical envelope, native full-byte `timingSafeEqual`. Environment work-factor override veya Paid CPU limit override yoktur.
+
+Deployment öncesi SHA-256:
+
+- `src/server/auth/password.ts`: `ae4ff758980a5e438ced6a007fa2c4ab63664232896dac080dac68de731f0d3f`.
+- `src/shared/password-input.ts`: `d968acfd1fba64661b2aa7003149362334d819780602cf134ca78a1e4f333e7d`.
+- Upload edilen bundle: `8bbca67aeae763b68e8a56e3337af14b95d89dddd9dd4678532b3eda39e79339`.
+
+esbuild0.28.1 source-map `sourcesContent` production password source ile exact text-equal; yalnız shared/password-input, auth/password ve synthetic harness girdileri. Upload sonrası authenticated exact script GET bundle text'ini byte-for-byte içerdi; bundle readback equality=true. Cleanup sonrası password source hash değişmedi. Sentetik valid verifier yalnız hazırlıkta exact production modülüyle native local workerd içinde üretildi; Node crypto KDF veya independently rewritten PBKDF2 yoktur. Verifier/salt/internal bytes HTTP benchmark response'una veya evidence'a yazılmadı. İlk hazırlık eski Miniflare constructor shape'ıyla başarısız oldu; accepted testteki workers/config/manifest şekli kullanılarak düzeltildi, remote sonuç sayılmadı.
+
+Remote settings readback: compatibility_date2026-09-01, nodejs_compat, usage_model standard, limits override yok, logpush=false, tail_consumers=[], resource/asset bindings yok; **tek binding BENCHMARK_AUTH/secret_text**. Secret CSPRNG32randombyte ile üretildi, yalnız process memory→TLS multipart Worker secret olarak gönderildi; source/arg/history/evidence/log'a yazılmadı. Endpoint30dakikalık expiry ile fail-closed; missing/wrong Authorization pahalı KDF'den önce deny, unsupported method405, diğer path/query404. Bunlar deployed source/config kontrolleridir; **uzak403/405/404 davranış kabulü TLS engeli nedeniyle yapılamadı**. Persisted observability açılmadı; live tail yalnız safe allowlist yazacak şekilde hazırlandı, hiçbir raw header/auth tutulmadı. Tail readiness veya KDF event elde edilemedi.
+
+Her operation request'i tam bir production KDF çağrısı için hazırlanmıştı: HASH tek hash/discard; VALID tek verify/matches=true; INVALID tek verify/matches=false; UNKNOWN/DUMMY routes.ts210'daki exact dummy envelope ve262'deki pahalı verify davranışının eşdeğeri. Fixture hazırlığı measurement'a eklenmez; verification result cache, çok-isteğe bölme, browser/D1/Queue offload veya work-factor azaltma yoktur. Production login pipeline/D1 entegrasyon kabulü iddia edilmez.
+
+### Gerçek ağ sonucu ve ölçüm sınırı
+
+Worker upload/config/bundle/subdomain readback başarılı; yalnız bu geçici script vardı, custom domains/routes0. İlk unauthenticated POST protection probe HTTPS handshake sırasında `SSL: WRONG_VERSION_NUMBER` ile HTTP yanıtından önce başarısız oldu. curl Schannel `SEC_E_INVALID_TOKEN` verdi; IPv4, IPv6, TLS1.2 ve resolvedIPv4 denemeleri de handshake aşamasında başarısız oldu. TLS doğrulaması kapatılmadı, secret HTTP'ye/üçüncü taraf proxy'ye gönderilmedi, endpoint başka hostname'e taşınmadı. Ağ/ISP nedenine kesin teşhis konmadı.
+
+| Operation | Warm-up / measured tamamlanan KDF invocation | HTTP/KDF sonucu | Client wall p50/p95/max | Cloudflare CPU p50/p95/max |
+|---|---:|---|---|---|
+| HASH | 0 / 0 | Çalıştırılamadı; TLS engeli | N/A | N/A |
+| VALID VERIFY | 0 / 0 | Çalıştırılamadı | N/A | N/A |
+| INVALID VERIFY | 0 / 0 | Çalıştırılamadı | N/A | N/A |
+| UNKNOWN/DUMMY | 0 / 0 | Çalıştırılamadı | N/A | N/A |
+
+Confirmed measured invocation0; client completed HTTP sample0. Transport failure süreleri KDF latency sayılmadı. Cloudflare per-request CPU veya quantile alınmadı; CPU-limit termination/error sayısı **bilinmiyor**, sıfır başarılı KDF çalışması “CPU error0 PASS” diye yorumlanmadı. Safety margin ölçülmedi. **NOT SAFE / NOT ACCEPTED: uygunluk inconclusive, deployment prerequisite açık.** Yeni HIGH PASS review gerekmedi; PASS yayımlanmadı.
+
+### Cleanup ve değişmeyen kapılar
+
+Exception-finally yalnız exact geçici script için force olmayan DELETE çalıştırdı. İlk cleanup endpoint TLS kontrolünde tekrar hata verdi; bu nedenle son cleanup kayıt akışı tamamlanmamıştı. Bağımsız GET-only readback `2026-10-07T11:29:54.364848+00:00` cleanup'ı control-plane'de doğruladı: scripts0, domains0, mayisigorta.com routes0; exact `/settings`, `/secrets`, `/subdomain` **HTTP404 / code10007**. Worker ve secret yoktur, CRM hâlâ deployed değildir. workers.dev endpoint TLS nedeniyle erişilemez; öncesinde de erişilemediği için **HTTP seviyesinde endpoint disappearance ayrıca kanıtlanmış değildir**. Control-plane deletion doğrulanmıştır; benchmark runtime slice tamamlanmış kabul edilmez.
+
+Sanitized repo-dışı artifact: `C:/Users/sinan/AppData/Local/Temp/mayi-kdf-result.json`; preflight `mayi-kdf-preflight.json`, memory-only bundle preparation `mayi-kdf-build.cjs`, scoped runner `mayi-kdf-run.py`, bağımsız readback `mayi-kdf-cleanup.py`. Bunlar credential/fixture değerlerini evidence'a yazmaz; source/bundle hash ve safe metadata içerir. Exact benchmark secret process sonlandıktan sonra elde tutulmadığından post-hoc known-value karşılaştırması iddia edilmez; changed/staged evidence için mevcut Cloudflare credentials memory-only exact-match ve credential/private-key/verifier/token pattern scan ayrıca uygulanır.
+
+Production D1/0020/OWNER bootstrap/Agency-User-AuthIdentity seed/gerçek credentials/CRM deployment/panel domain-DNS/Access/custom domain/R2/Queue mutasyonu yoktur. Production bindings, config ve accepted auth korunur. **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Sonraki tek güvenli adım: workers.dev HTTPS erişimi olan güvenilir bir ağda, ayrıca yetkilendirilmiş aynı izolasyon/protection/Free-plan/safety-margin/cleanup ölçümünü tekrar etmek. Remote migration/bootstrap/deployment başlamaz; bu ağ engeli mimari KDF değişikliği veya Paid satın alma yetkisi değildir.
+
+Doküman-only doğrulama: `npm run format:check` exit0 (planning pack mevcut formatter ignore kapsamındadır); `git diff --check` exit0, CRLF uyarıları whitespace failure değildir. İki evidence/status dosyası ve exact diff üzerinde memory-only mevcut Cloudflare credential exact-match0, credential/private-key/JWT/verifier/header/token pattern0, benchmark token-shape0; tracked actual `.env`/`.dev.vars`0. Exact eski benchmark secret'ın post-hoc known-value scan'i yapılmış diye sunulmaz. Auth/test/schema/config diff0. Lint/typecheck/full suite unchanged Markdown-only slice için tekrarlanmadı. Evidence normal scoped commit/push ve remote SHA readback ile yayımlanır; NOT SAFE sonucu üretim yetkisi vermez.
+
 ## Güncel aday / kabul ayrımı
 
 ### Güncel bounded-shard tam kabul — 7 Ekim 2026

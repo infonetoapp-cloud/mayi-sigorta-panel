@@ -2,6 +2,16 @@
 
 Son güncelleme: **7 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
+## Güncel dış KDF kapısı — 7 Ekim 2026
+
+**NOT SAFE / NOT ACCEPTED — gerçek ağ KDF uygunluğu kanıtlanamadı; CPU-limit FAIL iddiası yoktur.** Temiz accepted `main`, HEAD=origin/main=`8b010421b33b61fd58dcf801bc508b5067168c32` doğrulandı. Güncel resmî Free limit HTTP10msCPU/isolate128MB; WebCrypto PBKDF2 destekli. Account subscriptions2/2 yalnız zoneFree ve ayrıR2Paid; WorkersPaid/trial aboneliği yok, billing değişmedi.
+
+Yalnız `mayisigorta-kdf-benchmark-93ba3a9d68f0` geçici Worker'ı deployed edildi. Exact unchanged production PBKDF2-HMAC-SHA256/600000 reuse source-map eşitliği, source hash ve deployed bundle readback ile doğrulandı; tek binding geçici CSPRNG auth secret, production resource/asset/route/domain yok. İlk unauthenticated protection probe ve bağımsız curl/IPv4/IPv6/TLS1.2 denemeleri TLS handshake'de başarısız oldu. HASH/VALID/INVALID/UNKNOWN-DUMMY için measured0/warm-up0; wall/CPU p50-p95-maxN/A, CPU-limit termination bilinmiyor, safety margin yok; local preparation final proof değildir. Remote endpoint authorization davranışı HTTP'de doğrulanamadı; source/config fail-closed koruması mevcuttu.
+
+Exact temporary Worker DELETE sonrası bağımsız GET readback scripts0/domains0/routes0 ve exact settings/secrets/subdomain404/code10007; Worker/secret silindi. Endpoint TLS nedeniyle erişilemez, HTTP-disappearance ayrıca kanıtlanmadı; benchmark runtime gate tamamlanmış değildir. Ayrıntı, resmî kaynaklar, hash ve sanitized artifact [AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md](AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md) başındaki güncel kayıttadır. Önceki1522/1522 local checkpoint korunur; production source/test/schema/config değişmediği için full suite tekrarlanmaz, yalnız cheap format/diff/secret kontrolü yapılır.
+
+Remote D1/0020/bootstrap/gerçek credential/CRM/panel-DNS/Access/R2/Queue değişmedi; **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Sonraki tek güvenli adım: workers.dev HTTPS erişimi olan güvenilir ağda ayrıca yetkilendirilmiş exact KDF Free-network benchmark'ını yeniden çalıştırmak. Migration/OWNER bootstrap/deploy veya KDF/Paid mimari değişikliği başlatılmaz. Aşağıdaki eski “sonraki görev” kayıtları tarihsel checkpoint bağlamıdır; güncel kapı bu bölümdür.
+
 ## Milestone 1 kabul durumu
 
 | Kontrol noktası | Durum |
