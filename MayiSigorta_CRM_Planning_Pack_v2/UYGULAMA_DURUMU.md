@@ -2,7 +2,19 @@
 
 Son güncelleme: **7 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Güncel dar KDF retry — 7 Ekim 2026
+## Güncel Wrangler remote-development KDF kapısı — 7 Ekim 2026
+
+**INCONCLUSIVE / NOT ACCEPTED; CPU-limit FAIL değildir.** Başlangıç temiz main/HEAD=origin/main=`6b694dbfd5e2a57c80642240817239ddb993ec94`, fetch/diff-check exit0. Resmî Cloudflare remote-development ve Wrangler4.133.0 dev-help fully remote preview yöntemini doğruladı; yeni direct public workers.dev benchmark yapılmadı. Free HTTP10msCPU limit değişmedi; fresh subscriptions2/2 yalnız zoneFree+ayrıR2Paid, WorkersPaid/trial yok, cpu_ms override yok.
+
+Repo-dışı config/harness exact production PBKDF2-HMAC-SHA256/600000/128bit salt/256bit verifier/v1/full compare source-map eşitliğini korudu; resource binding/asset/domain/route yok. İlk remote dev session `mayisigorta-kdf-remotedev-6d5fee0c38ca` bounded65s readiness sonunda kapatıldı; harness içi Wrangler log/watch churn1GET+41POST/41HTTP200, benchmark request0. Log path watch ağacı dışına taşınan tek düzeltme sonrası `mayisigorta-kdf-remotedev-1aef4ae5c294`: Starting remote preview/Ready localhost ve1GET+1POST edge-preview200 kanıtlandı. **Cloudflare preview upload≠remote handler execution proof.**
+
+Yalnız localhost eksik-auth protection POST gerçek HTTP500/96.641ms aldı; expected remote403/cf-ray yok. Wrangler ProxyWorker internal error/failed after1attempt; remote tail TLS `write EPROTO / packet length too long`. Kesin proxy root cause iddia edilmez. Pahalı KDF'ye geçilmedi: dört operation'ın her biri warmup0/0, measured attempt/completed/success0/0/0; wall/CPU p50-p95-maxN/A, CPU-limit/Worker execution errors bilinmiyor, remote execution ve Free margin kanıtlanmadı. Başka remote/public benchmark açılmadan STOP.
+
+İki exact process tree sonlandırıldı. Ayrı `2026-10-07T12:22:47.290037+00:00` readback: original PID'ler yok/local HTTP portlar kapalı; scripts0/domains0/mayisigorta.com routes0; iki isim settings/secrets/subdomain404/code10007; subscriptions unchanged. Transient preview-token expiration ayrıca ölçülmedi. [AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md](AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md) başındaki remote-development kanıtı ve repo-dışı independent readback ayrıntıları içerir; önceki iki direct TLS attempt aşağıda tarihsel korunur.
+
+Production source/test/schema/config unchanged;1522suite tekrarlanmadı. Cheap format:check/diff-check exit0; iki dosya+diff known Cloudflare credential0/secret-pattern0/benchmark-token-shape0/tracked actual.env-dev.vars0, secret scanPASS; iki historical attempt body preserved=true. Synthetic auth token yalnız process memory/digest-only harness; secret memory'deyken harness/log exact-match0; final docs post-hoc exact benchmark-value scan iddiası yok. D1/R2/Queue/gerçek users-credentials/OWNER bootstrap/CRM deploy/panel-domain-DNS/Paid/Hermes mutation yok. **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Sonraki tek güvenli adım: Wrangler preview upstream/proxy ve tail TLS yolunu secretsiz ağ teşhisiyle çözmek; auth architecture/migration/bootstrap/deploy başlatılmaz.
+
+## Tarihsel direct KDF retry — 7 Ekim 2026
 
 **INCONCLUSIVE / NOT ACCEPTED — workers.dev TLS engeli yeniden doğrulandı; CPU-limit FAIL değildir.** Başlangıç temiz `main`, HEAD=origin/main=`6a262e000decf32e234127672a4479dd982ba61e`; fetch/branch/SHA/status/diff-check geçerli. Güncel resmî Free limit10msCPU/request değişmedi, WebCrypto PBKDF2 destekli; fresh subscriptions2/2 yalnız zoneFree+ayrıR2Paid, WorkersPaid/trial yoktur.
 
