@@ -1,5 +1,44 @@
 # F-27 — Local authentication supersession implementation evidence
 
+## Dar Workers Free KDF retry — 7 Ekim 2026: INCONCLUSIVE / NOT ACCEPTED
+
+Başlangıç `main`, HEAD=origin/main=`6a262e000decf32e234127672a4479dd982ba61e`; `git fetch origin`, branch/SHA/status ve `git diff --check` exit0, worktree temiz. Bu yeni retry aşağıdaki ilk TLS-blocked denemeyi değiştirmez. **PBKDF2 CPU-limit FAIL kanıtı yoktur; gerçek runtime suitability ve safety margin ölçülemedi.**
+
+### Güncel platform ve exact source kanıtı
+
+Resmî [Workers limits](https://developers.cloudflare.com/workers/platform/limits/) yeniden okundu: Free HTTP isteği başına **10 ms CPU**, isolate128MB; önceki limit değişmemiştir. [Web Crypto](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/) ve doğrudan resmî `index.md` PBKDF2 importKey/deriveBits desteğini doğruladı. [Metrics](https://developers.cloudflare.com/workers/observability/metrics-and-analytics/) resmî markdown'ı CPU quantile/reservoir sampling ve rollover açıklamasını doğruladı; wall time CPU değildir. Bazı extract403 sonuçları yalnız aynı resmî origin'e doğrulamalı HTTPS GET ile aşıldı.
+
+Fresh account preflight `2026-10-07T11:52:18.596728+00:00`: subscriptions **2/2**, total_pages1/next_page=false; yalnız zone `free` ve ayrı account `r2_paid`. **Workers Paid/trial entitlement yok; Workers Paid active=NO.** R2 aboneliğinin `Paid` state'i Workers Paid değildir. Workers account default_usage_model=`standard` tek başına Free kanıtı sayılmadı. Worker scripts0/custom domains0/mayisigorta.com routes0. Cleanup sonrası aynı abonelikler değişmeden bağımsız okundu; satın alma/plan/billing mutasyonu yoktur.
+
+Tam bir fresh Worker: `mayisigorta-kdf-retry-8d0291c72be1ff99`. Repo dışındaki harness doğrudan unchanged `src/server/auth/password.ts` içindeki `productionPasswordHasher`'ı import etti. PBKDF2-HMAC-SHA256/**600000**, random128-bit salt,256-bit verifier, v1 serialization ve native full32byte constant-time compare aynıdır. Source-map `sourcesContent` exact equality=true; yalnız password/shared-input/harness olmak üzere3 input. Valid sentetik fixture yalnız exact production modülüyle native local workerd hazırlığında üretildi; Node-only KDF/test hasher/work-factor override yoktur. Dummy expression production `routes.ts:210`'dan alındı; `routes.ts:262` eşdeğeri tek expensive verify hazırlanmıştı. Hazırlık remote benchmark invocation değildir.
+
+- Production password source SHA256: `ae4ff758980a5e438ced6a007fa2c4ab63664232896dac080dac68de731f0d3f`.
+- Shared input SHA256: `d968acfd1fba64661b2aa7003149362334d819780602cf134ca78a1e4f333e7d`.
+- Retry bundle SHA256: `7e823b278f5882ef30bfc89b219eb4d339db62fcf5364488f0fb183cdab9edda`.
+
+Authenticated deployed bundle readback exact equality=true; cleanup sonrası production source hash unchanged. Settings: compatibility_date2026-09-01/nodejs_compat, usage_model standard, limits override yok, logpush=false/tail_consumers boş/persisted observability kapalı; **tek binding BENCHMARK_AUTH/secret_text**. D1/R2/Queue/CRM assets/production secrets/data/custom domain/zone route yoktur. workers.dev enabled=true, previews_enabled=false ayrı readback edildi; production Wrangler config kullanılmadı/değişmedi.
+
+### Gerçek ağ sonucu ve ölçümler
+
+Fresh32randombyte CSPRNG authorization secret yalnız process memory→TLS Worker secret upload yolunda kullanıldı; dosya/arg/history/log/evidence'a yazılmadı. Deployed source missing/wrong auth'u KDF'den önce403, unrelated path/query404, unsupported method405 ve30dakika expiry ile korur. **Remote endpoint authorization protection verified=NO:** ilk eksik-auth POST HTTP yanıtından önce `SSLError / SSL: WRONG_VERSION_NUMBER` verdi. Bounded curl default ve IPv4/TLS1.2 kontrolleri exit35, HTTP000, Schannel `SEC_E_INVALID_TOKEN`; son eksik-auth POST aynı TLS hatasını verdi. Toplam2 Python protection attempt+2 curl diagnostic, completed HTTP0. Wrong-auth/method/path ve expensive operation probe'larına geçilmedi. TLS doğrulaması kapatılmadı; auth secret insecure HTTP'ye/üçüncü taraf proxy'ye gönderilmedi, production DNS değişmedi. Genel Internet erişimi bu belirli workers.dev TLS yolunu kanıtlamaz; ağ/ISP root cause kesinleşmiş değildir.
+
+| Operation | Warm-up attempted / HTTP completed | Measured attempted / HTTP completed / success | Sonuç | Successful measured wall p50/p95/max | Cloudflare CPU p50/p95/max |
+|---|---:|---:|---|---|---|
+| HASH | 0 / 0 | 0 / 0 / 0 | Başlatılmadı; protection TLS engeli | N/A | N/A |
+| VALID VERIFY | 0 / 0 | 0 / 0 / 0 | Başlatılmadı | N/A | N/A |
+| INVALID VERIFY | 0 / 0 | 0 / 0 / 0 | Başlatılmadı | N/A | N/A |
+| UNKNOWN/DUMMY | 0 / 0 | 0 / 0 / 0 | Başlatılmadı | N/A | N/A |
+
+Protection transport failure wall162.914ms/114.983ms yalnız diagnostic sürelerdir, KDF latency veya CPU değildir. Live tail connected=false/event0; genuine per-request CPU/analytics ölçümü elde edilmedi. CPU-limit termination ve Worker execution error sayısı **bilinmiyor/ölçülmedi**, error0 başarı iddiası yoktur. Exact production source reuse deployed bundle'da **YES**; exact KDF'nin gerçek remote request'te execution proof'u **NO**. Verdict **INCONCLUSIVE / NOT ACCEPTED**; safety margin yok, Free deployment kapısı açık kalır. PASS olmadığı için HIGH reviewer başlatılmadı.
+
+### Cleanup, secret hygiene ve kapanış
+
+Exact temporary Worker için force olmayan DELETE **HTTP200**. Aynı process control-plane readback başarılı; ardından ayrı GET-only process `2026-10-07T11:54:12.901891+00:00` bağımsız doğruladı: **scripts0/domains0/mayisigorta.com routes0**; exact `/settings`, `/secrets`, `/subdomain` **HTTP404/code10007**. Worker ve temporary secret yoktur, unexpected script yoktur, CRM deployed değildir. Endpoint disappearance HTTP'de ayrıca ölçülmedi; deletion control-plane kanıtıdır.
+
+Sanitized repo-dışı artifact'lar: `C:/Users/sinan/AppData/Local/Temp/mayi-kdf-retry-preflight.json`, `mayi-kdf-retry-result.json`, `mayi-kdf-retry-independent-readback.json`; runner `mayi-kdf-retry-run.py`, readback `mayi-kdf-retry-readback.py`. İlk attempt script/artifact'ları overwrite edilmedi. Retry result için ephemeral benchmark secret hâlâ memory'deyken exact-match scan ve mevcut Cloudflare credential exact-match scan **PASS**; secret değeri/logged header/body/verifier yoktur. Benchmark secret process sonrası tutulmadığından final documentation için post-hoc exact benchmark-value scan iddia edilmez; yalnız secret-scanned sanitized sonuçtan yeni kanıt aktarıldı. Final changed/staged diff için Cloudflare credential exact-match ve credential/private-key/verifier/header/password/session-cookie-CSRF/token pattern taraması ayrıca uygulanır.
+
+Production source/test/schema/config unchanged;1522-test suite/lint/typecheck/build tekrarlanmadı. Yalnız iki yetkili evidence/status dosyası değişti. `npm run format:check` exit0 (planning pack formatter ignore kapsamında), `git diff --check` exit0; Cloudflare credential exact-match0/secret-pattern0/fresh43character benchmark-token-shape0/tracked actual `.env` ve `.dev.vars`0, **secret scanPASS**. Tarihsel evidence ve önceki status body exact preservation=true. Production D1 migration/OWNER bootstrap/gerçek credential/CRM deployment/panel domain-DNS/Access/R2/Queue mutasyonu **NO**. Hermes skill/tooling/config authoring/self-improvement yoktur. **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Sonraki tek güvenli adım: bu workers.dev TLS engelini güvenilir ağ/istemcide secretsiz HTTPS probe ile gidermek; ayrıca runtime KDF benchmark yetkisi olmadan migration/bootstrap/deploy/auth redesign/Paid satın alma başlatılmaz.
+
 ## Gerçek Workers Free KDF dilimi — 7 Ekim 2026: NOT SAFE / NOT ACCEPTED (ağ kanıtı elde edilemedi)
 
 Bu ileri yönlü kayıt yerel auth kabulünü değiştirmez. Başlangıç `main`, HEAD=origin/main=`8b010421b33b61fd58dcf801bc508b5067168c32`, temiz worktree; fetch ve diff-check exit0. Production source/test/schema/config değişmedi. Kabul edilmiş 85/85 dosya ve 1522/1522 test yeniden çalıştırılmadı. **Bu sonuç PBKDF2 CPU-limit FAIL kanıtı değildir; gerçek ağda KDF uygunluğu henüz kanıtlanamadı. Deployment kapısı kapalı kalır.**

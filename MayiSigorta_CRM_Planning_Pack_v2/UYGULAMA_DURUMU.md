@@ -2,7 +2,17 @@
 
 Son güncelleme: **7 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Güncel dış KDF kapısı — 7 Ekim 2026
+## Güncel dar KDF retry — 7 Ekim 2026
+
+**INCONCLUSIVE / NOT ACCEPTED — workers.dev TLS engeli yeniden doğrulandı; CPU-limit FAIL değildir.** Başlangıç temiz `main`, HEAD=origin/main=`6a262e000decf32e234127672a4479dd982ba61e`; fetch/branch/SHA/status/diff-check geçerli. Güncel resmî Free limit10msCPU/request değişmedi, WebCrypto PBKDF2 destekli; fresh subscriptions2/2 yalnız zoneFree+ayrıR2Paid, WorkersPaid/trial yoktur.
+
+Yalnız fresh `mayisigorta-kdf-retry-8d0291c72be1ff99` oluşturuldu; exact unchanged production password source-map equality/source hash/deployed bundle equality kanıtlandı: PBKDF2-HMAC-SHA256/600000,128-bit random salt/256-bit verifier/full constant-time compare. Tek temporary secret binding, resource/asset/production secret/data/custom domain/zone route yok; previewURLs kapalı. Remote KDF execution proof yoktur:2 eksik-auth protection request ve2 bounded curl diagnostic HTTP öncesi TLS'de başarısız oldu (`WRONG_VERSION_NUMBER`, Schannel `SEC_E_INVALID_TOKEN`, curl exit35/HTTP000). Authorization davranışı remote HTTP'de doğrulanamadı; dört operation'ın her birinde warm-up attempted/completed0/0, measured attempted/HTTP/success0/0/0. Wall/CPU p50-p95-maxN/A; CPU-limit/Worker execution error sayısı ölçülmedi, safety margin yoktur.
+
+Exact Worker DELETE200; ayrı GET-only readback `2026-10-07T11:54:12.901891+00:00`: scripts0/domains0/mayisigorta.com routes0, exact settings/secrets/subdomain404/code10007. Worker/temporary secret yok, subscriptions değişmedi; CRM deployed değildir. [AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md](AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md) başındaki retry kaydı ölçüm sınırını ve sanitized artifact'ları içerir; aşağıdaki ilk TLS-blocked attempt tarihsel olarak korunur.
+
+Production source/test/schema/config unchanged;85-file/1522-test suite tekrarlanmadı. Cheap `npm run format:check` ve `git diff --check` exit0; iki dosya/diff Cloudflare credential exact-match0/secret-pattern0/fresh benchmark-token-shape0/tracked actual.env-dev.vars0, secret scanPASS. Temporary result memory-only benchmark-secret+Cloudflare credential exact scanPASS; final documentation'da post-hoc benchmark-value scan iddia edilmez. Tarihsel evidence/status body korunmuştur. D1/migration/OWNER bootstrap/gerçek credentials/CRM/panel-DNS/Access/R2/Queue/paid/Hermes mutation yoktur. **DOCUMENTS_ENABLED=false; M4 COMPLETE=false; M5 başlamadı.** Sonraki tek güvenli adım: workers.dev TLS yolunu güvenilir ağ/istemcide secretsiz HTTPS probe ile gidermek. Runtime KDF benchmark, migration/bootstrap/deploy/auth redesign/Paid satın alma başlatılmaz.
+
+## Tarihsel ilk dış KDF denemesi — 7 Ekim 2026
 
 **NOT SAFE / NOT ACCEPTED — gerçek ağ KDF uygunluğu kanıtlanamadı; CPU-limit FAIL iddiası yoktur.** Temiz accepted `main`, HEAD=origin/main=`8b010421b33b61fd58dcf801bc508b5067168c32` doğrulandı. Güncel resmî Free limit HTTP10msCPU/isolate128MB; WebCrypto PBKDF2 destekli. Account subscriptions2/2 yalnız zoneFree ve ayrıR2Paid; WorkersPaid/trial aboneliği yok, billing değişmedi.
 
