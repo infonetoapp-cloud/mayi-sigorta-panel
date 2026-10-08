@@ -9,6 +9,7 @@ export type Classification =
   | 'missing-bookmark'
   | 'missing-url'
   | 'transport'
+  | 'unexpected-redirect'
   | 'invalid-json'
   | 'provider-error'
   | 'local-failure';

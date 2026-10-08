@@ -44,7 +44,7 @@ async function exportRequest(
   try {
     response = await runtime.fetch(EXPORT_URL, {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       headers: {
         'Content-Type': 'application/json',
         'X-Auth-Email': env.CLOUDFLARE_EMAIL,
@@ -58,11 +58,25 @@ async function exportRequest(
   } catch {
     throw safeFailure(stage, 'transport', attempt, runtime.now() - start);
   }
+  if (response.status >= 300 && response.status <= 399)
+    throw safeFailure(
+      stage,
+      'unexpected-redirect',
+      attempt,
+      runtime.now() - start,
+      response.status,
+    );
   let data: unknown;
   try {
     data = await response.json();
   } catch {
-    throw safeFailure(stage, 'invalid-json', attempt, runtime.now() - start, response.status);
+    throw safeFailure(
+      stage,
+      response.ok ? 'invalid-json' : 'http-error',
+      attempt,
+      runtime.now() - start,
+      response.status,
+    );
   }
   return parseExportResponse(
     data,
@@ -141,10 +155,18 @@ export async function runBackup(
         // Deliberately no authentication header on download, no signed URL in durable step output/logs.
         let response: Response;
         try {
-          response = await runtime.fetch(url.href, { method: 'GET', redirect: 'error' });
+          response = await runtime.fetch(url.href, { method: 'GET', redirect: 'manual' });
         } catch {
           throw safeFailure('download', 'transport', poll, runtime.now() - downloadStart);
         }
+        if (response.status >= 300 && response.status <= 399)
+          throw safeFailure(
+            'download',
+            'unexpected-redirect',
+            poll,
+            runtime.now() - downloadStart,
+            response.status,
+          );
         if (!response.ok || !response.body)
           throw safeFailure(
             'download',

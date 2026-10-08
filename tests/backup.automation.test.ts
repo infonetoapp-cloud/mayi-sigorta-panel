@@ -55,7 +55,19 @@ function fixture(failure = '') {
   const network = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     requests.push({ url, init });
+    if (
+      (failure === 'export-redirect' && url === EXPORT_URL) ||
+      (failure === 'download-redirect' && url !== EXPORT_URL)
+    )
+      return new Response('unsafe provider body', {
+        status: 302,
+        headers: { location: 'https://redirect.invalid/?secret=synthetic-only-not-a-real-key' },
+      });
     if (url === EXPORT_URL) {
+      if (failure.startsWith('http-'))
+        return new Response('untrusted non-JSON provider body', {
+          status: Number(failure.slice(5)),
+        });
       if (failure === 'transport')
         throw new Error(
           'synthetic-only-not-a-real-key https://signed.invalid/?secret=synthetic-signed-value',
@@ -142,6 +154,42 @@ it('transport error raw secret message cannot escape', async () => {
   }
   throw new Error('expected error');
 });
+it.each(['export-redirect', 'download-redirect'])(
+  '%s fails closed without replay or URL diagnostics',
+  async (mode) => {
+    const f = fixture(mode);
+    let caught: unknown;
+    try {
+      await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);
+    } catch (e) {
+      caught = e;
+    }
+    expect(String(caught)).toContain('unexpected-redirect');
+    expect(String(caught)).toContain('302');
+    expect(String(caught)).not.toContain('redirect.invalid');
+    expect(String(caught)).not.toContain('synthetic-only');
+    expect(String(caught)).not.toContain('synthetic-signed-value');
+    expect(String(caught)).not.toContain('unsafe provider body');
+    expect(f.writes).toEqual([]);
+    expect(f.requests.every((r) => r.init?.redirect === 'manual')).toBe(true);
+    expect(f.requests.some((r) => r.url.includes('redirect.invalid'))).toBe(false);
+    if (mode === 'export-redirect') expect(f.requests).toHaveLength(1);
+  },
+);
+it.each([401, 500])('API %i non-JSON failure stays http-error, not transport', async (status) => {
+  const f = fixture('http-' + status);
+  let caught: unknown;
+  try {
+    await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);
+  } catch (e) {
+    caught = e;
+  }
+  expect(String(caught)).toContain('http-error');
+  expect(String(caught)).toContain(String(status));
+  expect(String(caught)).not.toContain('transport');
+  expect(String(caught)).not.toContain('provider body');
+  expect(f.writes).toEqual([]);
+});
 it('generation naming is immutable and exact-source scoped', () => {
   expect(generationPrefix('2026-10-08T00:00:00.000Z', 'synthetic-run')).toBe(
     'd1/mayisigorta-crm/2026/10/08/00/2026-10-08T00-00-00-000Z-synthetic-run/',
@@ -151,6 +199,7 @@ it('backup flow must produce COMPLETE after validated SQL and manifest', async (
   const f = fixture();
   const r = await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);
   expect(r.state).toBe('COMPLETE');
+  expect(f.requests.every((request) => request.init?.redirect === 'manual')).toBe(true);
   expect(f.writes.map((k) => k.split('/').pop())).toEqual([
     'database.sql',
     'manifest.json',

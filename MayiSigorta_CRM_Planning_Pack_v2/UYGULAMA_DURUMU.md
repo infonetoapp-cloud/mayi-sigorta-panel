@@ -2,7 +2,13 @@
 
 Son güncelleme: **8 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Dedicated D1 backup offline repair — ACCEPTED FOR SECOND CANARY / production NOT ACCEPTED
+## D1 backup offline transport fix — ACCEPTED FOR THIRD CANARY / production NOT ACCEPTED
+
+Başlangıç clean main `49850a11cc9286e8ea87a2b2ff816b268abb2d8f`. Yalnız iki backup fetch redirect:error→manual; 300–399 body/Location okumadan unexpected-redirect ile fail-closed; auth-bearing export asla redirect follow etmez, signed download credentialsız kalır. Ham URL/Location/credential diagnostics yok. Local native workerd proof PASS: error Response öncesi throw ve server'a ulaşmama, manual302/no-follow. Automation/provider44 + runtime1 =45PASS; typecheck/targetedlint/format/diff/6-file secret-pattern scan0 PASS; iki offline bundle byte-eşit. Fresh HIGH **BLOCKER0/IMPORTANT0/PASS**, session20261008_152947_baa406, actual gpt-6.1-sol/high verified; bağımsız45tests ve300status/stage probes PASS. Identity ve tarihsel ikinci canary [D1_BACKUP_AUTOMATION_EVIDENCE.md](D1_BACKUP_AUTOMATION_EVIDENCE.md) içinde. Kabul yalnız offline transport fix içindir.
+
+İkinci canary FAILED export-start/transport/no HTTP/no bookmark/no R2 object; exact cause hâlâ kanıtlanmadı. redirect:error incompatibility güçlü aday açıklamadır, production nedenselliği değildir. İlk canary root cause da unproven. Bu dilimde Cloudflare mutation/call/deployment/third canary/Cron/secret/auth/OWNER/KDF yok; mimari/schema/document değişmedi. Offline PASS sonrası tek adım: reviewed transport fix deployment ve **exactly ONE third controlled production canary için açık yetki**. Production backup accepted=NO, schedule disabled, RPO/RTO=OPEN, first auth write=NO-GO, DOCUMENTS_ENABLED=false, M4 COMPLETE=false, M5 başlamadı.
+
+## Historical dedicated D1 backup offline repair — ACCEPTED FOR SECOND CANARY / production NOT ACCEPTED
 
 Mevcut dirty candidate korunarak yalnız parser/diagnostics/Free Cron entrypoint onarıldı. Başlangıç main/HEAD=origin/main `2a41b0f472c8a175a572345a40a79c7a0e8ba277`. Status'süz valid progress kabul; güncellenen bookmark takip; initial complete gereksiz ikinci export başlatmaz. Numeric Cloudflare error code/HTTP status/stage/success/classification/attempt/timing içeren sanitize edilmiş hata; ham provider message/cause/key/email/signed URL yok. Worker scheduled handler yalnız deterministik 30-minute slot ID ile Workflow create/get yapar; native Workflow schedule yok, standart Cron config hâlâ etkin değil. No public fetch/workers_dev=false/preview_urls=false/routes=[]. No Workers Paid/VPS/servis/dependency/R2 key.
 
