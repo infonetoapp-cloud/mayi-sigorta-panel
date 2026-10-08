@@ -225,6 +225,8 @@ CLI exact account/D1/agency/owner/email hedefini mevcut state'den doğrular. Loc
 
 ### 5.4 Parola ve oturum sözleşmesi — F-27
 
+**8 Ekim 2026 provider-proof acceptance:** Kullanıcının ayrı ONE-disposable-REMOTE yetkisiyle unchanged accepted remote admin adapter'ın gerçek REST failed-batch rollback0, successful commit2, provisionInitialAgency/exact replay/two conflict persisted-state kanıtı ve cleanup fresh HIGH PASS aldı. Bölüm5.3 remote proof koşulu agency-only için CLOSED; FIRST_PRODUCTION_AGENCY_WRITE_TECHNICALLY_READY=YES, execution authorization değildir. Production yalnız ayrı açıklanmış SELECT-only POST/query istisnasıyla okunmuş, yazılmamıştır. OWNER login/runtime kapıları OPEN kalır; source constant/offline PROOF_OPEN tarihi korunur, yeni evidence normatif güvenlik/tenancy/KDF/credential kurallarını değiştirmez.
+
 Permanent parola NFC sonrası 15–128 Unicode codepoint; normalization/KDF öncesi ham girdi en fazla 256 UTF-16 unit. No truncation/trim/composition/periodic change; spaces/emoji/paste/managers kabul edilir. Local whole-value common/pattern/email/ürün-acente blocklist vardır; breach API yoktur. Native Worker Web Crypto PBKDF2-HMAC-SHA256 sabit 600000 iteration, random 128-bit salt, full 256-bit constant-time compare, versioned verifier kullanır. Argon2id memory-hard preferred fakat native Worker argon2 unsupported; PBKDF2 memory-hard diye sunulmaz. Weak production env knob yok; test hasher yalnız explicit test composition. Gerçek Workers Free KDF CPU/kapasite benchmark EXTERNAL deployment kapısıdır; work factor düşürülmez veya Paid alınmaz.
 
 Temporary CSPRNG uniform 32 sembol×20 karakter=100 bit, 24 saat; D1 verifier-only. Create/reset/admin başarılı yanıtında bir kez plaintext gösterilir; receipt/audit/log/file/storage'da bulunmaz. Lost response/replay `409 ONE_TIME_RESPONSE_UNAVAILABLE`; yeni key/grant ile yeni reset gerekir. Kalıcı/eski parola OWNER'a gösterilmez. İlk login restricted ACTIVATION session, yalnız minimal session/CSRF/password-change/logout; CRM DTO/API/secure erişimi yoktur.
@@ -697,6 +699,10 @@ F-28 — 8 Ekim 2026; ürün/operasyon sahibinin açık mimari kararı, accepted
 ### Remote admin composition açıklaması
 
 Remote admin composition açıklaması — 8 Ekim 2026; kullanıcı `c705fc5043babc32f4497ee9526ff3969868de96` sonrası açık SOURCE+LOCAL TEST yetkisiyle bölüm5.3'teki LOCAL-only CLI execution sınırını offline --remote agency composition desteğiyle genişletti. Accepted Global Key startup credential compatibility eklenir; domain/auth/KDF/tenancy/recovery sözleşmeleri değişmez. Provider REST batch atomicity proof OPEN, production execution/deploy/token/create yetkisi yoktur. Evidence ve fresh HIGH sonucu AUTH/status kayıtlarında tutulur.
+
+### Provider proof acceptance
+
+Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b468ef957c6a6a7b6` sonrası exactONEdisposableD1create/proof/delete ve production fixedSELECT-only readback yetkisi. Bölüm5.3'teki remote execution proof koşulu observed acceptedadapter/şema/agency-only rollback-CAS-idempotency kapsamında kapandı; genel transaction SLA/OWNERlogin/deploy/productionagency yetkisi değil. Kaynak değişmedi; kanıt ve readiness AUTH/status'ta, tarihsel offlinePROOF_OPEN korunur.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 
