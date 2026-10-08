@@ -2,7 +2,17 @@
 
 Son güncelleme: **8 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Fourth D1 backup canary — ACCEPTED / recurring and RPO-RTO NOT ACCEPTED
+## Recurring D1 backup — ACCEPTED / RPO-RTO NOT ACCEPTED
+
+Başlangıç clean main `10556db558259a6a7a4c627825614b067c300ce1`. Yalnız backup config standart Worker Cron */30 * * * * eklendi; runtime/Workflow/generation/auth/schema/document logic unchanged. Lifecycle one whole-bucket expiration40d + provider7d multipart-abort default; Bucket Lock36d unchanged. PrivateEU/Standard/publicroute0/PaidNO. Independent GET/deploy bundle reviewed source ile byte-eşit; versionce7a043a-9cc2-4869-bc5b-7e1a6da7ad6c, deployment2a1bff12-49a7-4741-aab1-77ac816493e5.
+
+İlk üç doğal slot UTC14:00/14:30/15:00: d1-backup-slot-995260/995261/995262 PASS, bindingtrigger,4steps/0retry/0poll; her SQL215322bytes ve COMPLETE-last bağımsız GET/objecttimestamp/steps ile verified. Manual instance yok, duplicate/partial yok; accepted canary untouched. Inventory12objects/8instances. Provider wall6946/6245/6787ms, runtime6928/6229/6752ms. Latest COMPLETE15:01:14.801Z, closeout15:10:39.007721Z age564.206721s,30mincadence ile tutarlı. Cron enabled bırakıldı.
+
+Observed mean generation216317.666667bytes =>40dayrolling0.41532992GB (lifecycle exact deletiondeadline değil). Nominal48starts/day192steps/day5760steps/30day, R2A4320/B11520/30day; güncel Freeallowance içinde beklenen incremental startupcost$0, sharedquota/SQLgrowth/docbackup değişirse yeniden değerlendirilecek, unlimitedfree değil. Fresh HIGH **BLOCKER0/IMPORTANT0/OPTIONAL0/PASS**, session20261008_180411_7b1239 actual gpt-6.1-sol/high verified, independent37GET-only. Focused45/format/diff/dryrun/secret-value scanPASS. Ayrıntılar [D1_BACKUP_AUTOMATION_EVIDENCE.md](D1_BACKUP_AUTOMATION_EVIDENCE.md); tarihsel failed canary'ler korunur. D1/app/mainCRM/agency/OWNER/customer/schema/auth/document/secrets/Paid/VPS değişmedi; recovery40d lifecycle tek yetkili retention değişikliği. PDF/JPEG/PNG ayrı immutable version-copy yolu; DOCUMENTS_ENABLED=false.
+
+Recurring3slot gate ACCEPTED; RPO/RTO NOT ACCEPTED, first auth write NO-GO, M4 COMPLETE=false, M5 başlamadı. Tek sonraki dar dilim: freshness monitoring/watchdog/failure alert commissioning ve RPO kabul kanıtı; production restore/RTO ayrıca açık. OWNER bootstrap otomatik başlatılmaz.
+
+## Historical fourth D1 backup canary — ACCEPTED / recurring not yet accepted at that checkpoint
 
 Task başlangıç `ac6bb1280e77916eb1fe644a68f293b2bd11669c`; reviewed receiver fix `ea10046f1bf5d32836279d5be405d82d66542174` normal push/clean sonrası yalnız backup deploy edildi. Worker version78015325-e993-4f1a-86b5-cef94fe7b61b / deploymentc989d2e6-0804-48b8-b822-333903820d82; independent live bundle reviewed hash ile eşit. Tek instance fourth-canary-20261008T131353 PASS/4steps/0retry. export-start Response YES/2xx (exact code persist edilmedi), immediatecomplete/poll0/bookmarkYES; request-context/transport yok. Recovery tam inventory3: SQL215322bytes + manifest645 + COMPLETE389 tek immutable generation; metadataJSON GET ve timestamps/step ordering COMPLETE-last'i doğruladı, extra/partial yok. Export1370ms/downloadheaders85/uploadstream300/runtime3081/providerwall3126; manifeststep361/COMPLETEstep516; CPUms exposed değil. Ayrıntılı identity/limitations [D1_BACKUP_AUTOMATION_EVIDENCE.md](D1_BACKUP_AUTOMATION_EVIDENCE.md).
 

@@ -8,6 +8,7 @@
   "preview_urls": false,
   "observability": { "enabled": false },
   "routes": [],
+  "triggers": { "crons": ["*/30 * * * *"] },
   "r2_buckets": [
     { "binding": "RECOVERY", "bucket_name": "mayisigorta-crm-recovery", "jurisdiction": "eu" }
   ],
