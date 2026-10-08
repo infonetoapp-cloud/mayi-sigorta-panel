@@ -24,10 +24,13 @@ function parse(args: string[]) {
     ),
   );
 }
-it('provisioning CLI parser accepts explicit local mode and rejects remote/OWNER/unknown fields', () => {
+it('provisioning CLI parser accepts explicit local/remote and rejects OWNER/unknown fields', () => {
   expect(parse(['--mode', 'provision-agency', '--local']).values.mode).toBe('provision-agency');
+  expect(parse(['--mode', 'provision-agency', '--remote']).values.mode).toBe('provision-agency');
   for (const args of [
-    ['--mode', 'provision-agency', '--remote'],
+    ['--mode', 'provision-agency', '--remote', '--owner', 'synthetic-owner'],
+    ['--mode', 'provision-agency', '--remote', '--email', 'synthetic@example.invalid'],
+    ['--mode', 'provision-agency', '--remote', '--name', 'Synthetic Owner'],
     ['--mode', 'provision-agency', '--local', '--owner', 'synthetic-owner'],
     ['--mode', 'provision-agency', '--local', '--email', 'synthetic@example.invalid'],
     ['--mode', 'provision-agency', '--local', '--name', 'Synthetic Owner'],
@@ -63,6 +66,56 @@ it('provisioning confirmation tuple binds account, database, agency and operatio
   expect(tuple).toBe(
     'provision-agency:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:00000000-0000-4000-8000-000000000027:synthetic-agency:synthetic-operation',
   );
+});
+
+it('OWNER bootstrap and break-glass parser retains explicit local/remote modes', () => {
+  for (const mode of ['bootstrap', 'break-glass'])
+    for (const location of ['--local', '--remote'])
+      expect(parse(['--mode', mode, location]).values.mode).toBe(mode);
+});
+
+it('real remote agency CLI uses the same domain five-statement batch with no credential output or real network', () => {
+  const cli = resolve('scripts/local-auth-admin.mjs');
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `
+    const account='a'.repeat(32), id='00000000-0000-4000-8000-000000000027';
+    Object.defineProperty(process.stdin,'isTTY',{value:true});
+    Object.defineProperty(process.stdout,'isTTY',{value:true});
+    const write=process.stdout.write.bind(process.stdout);
+    process.stdout.write=(chunk,...args)=>{const r=write(chunk,...args);if(String(chunk).includes(' yazın: '))queueMicrotask(()=>process.stdin.emit('data','provision-agency:'+account+':'+id+':synthetic-remote-cli:synthetic-remote-key\\n'));return r};
+    let posts=0;
+    globalThis.fetch=async(url,init)=>{
+      if(!url.startsWith('https://api.cloudflare.com/') || init.redirect!=='manual') throw Error('UNEXPECTED_TRANSPORT');
+      if(init.headers.Authorization || init.headers['X-Auth-Key']!=='synthetic-cli-key') throw Error('BAD_AUTH');
+      if(init.method==='GET') return Response.json({success:true,result:url.endsWith('/user')?{two_factor_authentication_enabled:true,two_factor_authentication_locked:true}:{uuid:id}});
+      posts++;const body=JSON.parse(init.body);
+      if(body.batch?.length!==5 || posts!==1 || body.batch.some(s=>/(INSERT INTO|UPDATE) (users|agency_memberships|auth_identities|local_credentials|local_sessions)/.test(s.sql)))throw Error('BAD_COMPOSITION');
+      return Response.json({success:true,result:body.batch.map((s,i)=>({success:true,results:i===4?[{agency_id:'synthetic-remote-cli',correlation_id:'synthetic-correlation'}]:[]}))});
+    };
+    process.argv=[process.execPath,${JSON.stringify(cli)},'--mode','provision-agency','--remote','--account',account,'--d1',id,'--agency','synthetic-remote-cli','--key','synthetic-remote-key'];
+    await import(${JSON.stringify(pathToFileURL(cli).href)});
+  `,
+    ],
+    {
+      encoding: 'utf8',
+      timeout: 30000,
+      env: {
+        ...process.env,
+        CLOUDFLARE_API_TOKEN: '',
+        CLOUDFLARE_EMAIL: 'synthetic-cli@example.invalid',
+        CLOUDFLARE_API_KEY: 'synthetic-cli-key',
+      },
+    },
+  );
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('Acente PROVISIONING: synthetic-remote-cli');
+  expect(result.stdout).not.toContain('Geçici şifre');
+  expect(result.stdout + result.stderr).not.toContain('synthetic-cli-key');
+  expect(result.stdout + result.stderr).not.toContain('synthetic-cli@example.invalid');
 });
 it('administrative composition is absent from the public Worker import graph', async () => {
   const bundle = await build({

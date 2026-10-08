@@ -9,7 +9,7 @@ import { createInterface } from 'node:readline/promises';
 import { build } from 'esbuild';
 import { getPlatformProxy, unstable_readConfig } from 'wrangler';
 import miniflare from 'miniflare';
-const { fetch } = globalThis;
+import { openRemoteAdminDatabase } from './remote-auth-admin.mjs';
 
 // No password/token command argument or public endpoint. Agency-only mode loads no dotenv.
 export function parseAdminArguments(args = process.argv.slice(2)) {
@@ -34,7 +34,6 @@ export function parseAdminArguments(args = process.argv.slice(2)) {
   if (Boolean(values.local) === Boolean(values.remote))
     throw new Error('EXPLICIT_LOCAL_OR_REMOTE_REQUIRED');
   if (values.mode === 'provision-agency') {
-    if (!values.local || values.remote) throw new Error('AGENCY_PROVISIONING_LOCAL_ONLY');
     if (values.owner !== undefined || values.email !== undefined || values.name !== undefined)
       throw new Error('AGENCY_PROVISIONING_NO_OWNER_INPUT');
   }
@@ -134,70 +133,7 @@ async function main() {
     }
     if (!db) throw new Error('EXACT_D1_BINDING_REQUIRED');
   } else {
-    const token = process.env.CLOUDFLARE_API_TOKEN;
-    if (!token) throw new Error('ADMINISTRATIVE_CREDENTIAL_REQUIRED');
-    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const base = `https://api.cloudflare.com/client/v4/accounts/${target.accountId}/d1/database/${target.databaseId}`;
-    const metadata = await fetch(base, { headers, redirect: 'error' });
-    const details = await metadata.json();
-    if (!metadata.ok || !details.success || details.result?.uuid !== target.databaseId)
-      throw new Error('EXACT_REMOTE_D1_REQUIRED');
-    const mfaResponse = await fetch('https://api.cloudflare.com/client/v4/user', {
-      headers,
-      redirect: 'error',
-    });
-    const mfa = await mfaResponse.json();
-    if (
-      !mfaResponse.ok ||
-      !mfa.success ||
-      mfa.result?.two_factor_authentication_enabled !== true ||
-      mfa.result?.two_factor_authentication_locked !== true
-    )
-      throw new Error('ADMINISTRATIVE_MFA_REQUIRED');
-    async function query(body) {
-      const response = await fetch(`${base}/query`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        redirect: 'error',
-      });
-      const data = await response.json();
-      if (
-        !response.ok ||
-        data.success !== true ||
-        !Array.isArray(data.result) ||
-        data.result.some((r) => r.success !== true)
-      )
-        throw new Error('REMOTE_D1_OPERATION_FAILED');
-      return data.result;
-    }
-    db = {
-      prepare(sql) {
-        let params = [];
-        return {
-          sql,
-          get params() {
-            return params;
-          },
-          bind(...bound) {
-            params = bound;
-            return this;
-          },
-          async first() {
-            return (await query({ sql, params }))[0].results?.[0] ?? null;
-          },
-          async all() {
-            return (await query({ sql, params }))[0];
-          },
-          async run() {
-            return (await query({ sql, params }))[0];
-          },
-        };
-      },
-      async batch(statements) {
-        return query({ batch: statements.map((s) => ({ sql: s.sql, params: s.params })) });
-      },
-    };
+    db = await openRemoteAdminDatabase(target, process.env);
   }
   try {
     if (agencyOnly) {
