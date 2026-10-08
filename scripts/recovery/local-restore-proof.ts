@@ -121,7 +121,7 @@ const fail = (code: string): never => {
 /** Native local export interleaves table DDL/data in alphabetical order. D1 keeps
  * FK enforcement on, so replay tables/indexes first, then data with deferred FKs,
  * then triggers. SQLite is a syntax/value decoder, not the proof DB. */
-function orderedD1Import(exportSql: string): string {
+export function orderedD1Import(exportSql: string): string {
   const staging = new DatabaseSync(':memory:', {
     enableForeignKeyConstraints: false,
     allowExtension: false,
