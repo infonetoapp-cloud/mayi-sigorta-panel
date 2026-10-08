@@ -1,4 +1,5 @@
 import { BackupFailure, parseExportResponse, safeFailure } from './provider';
+import { classifyTransport } from './diagnostic';
 export function generationPrefix(timestamp: string, id: string): string {
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
@@ -55,8 +56,11 @@ async function exportRequest(
         ...(bookmark ? { current_bookmark: bookmark } : {}),
       }),
     });
-  } catch {
-    throw safeFailure(stage, 'transport', attempt, runtime.now() - start);
+  } catch (error) {
+    throw new BackupFailure({
+      ...safeFailure(stage, 'transport', attempt, runtime.now() - start).diagnostic,
+      ...classifyTransport(error),
+    });
   }
   if (response.status >= 300 && response.status <= 399)
     throw safeFailure(
@@ -156,8 +160,11 @@ export async function runBackup(
         let response: Response;
         try {
           response = await runtime.fetch(url.href, { method: 'GET', redirect: 'manual' });
-        } catch {
-          throw safeFailure('download', 'transport', poll, runtime.now() - downloadStart);
+        } catch (error) {
+          throw new BackupFailure({
+            ...safeFailure('download', 'transport', poll, runtime.now() - downloadStart).diagnostic,
+            ...classifyTransport(error),
+          });
         }
         if (response.status >= 300 && response.status <= 399)
           throw safeFailure(

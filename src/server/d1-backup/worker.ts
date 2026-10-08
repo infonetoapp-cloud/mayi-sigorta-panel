@@ -2,8 +2,21 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloud
 import { runBackup, type BackupEnv } from './core';
 import { BackupFailure, safeFailure } from './provider';
 import { scheduledBackup } from './scheduler';
+import { runTransportDiagnostic } from './diagnostic';
 export class D1BackupWorkflow extends WorkflowEntrypoint<BackupEnv> {
   async run(event: WorkflowEvent<unknown>, step: WorkflowStep) {
+    if (
+      event.payload &&
+      typeof event.payload === 'object' &&
+      'mode' in event.payload &&
+      event.payload.mode === 'transport-diagnostic'
+    ) {
+      return step.do(
+        'transport-diagnostic-once',
+        { retries: { limit: 0, delay: '1 second' }, timeout: '1 minute' },
+        () => runTransportDiagnostic(this.env),
+      );
+    }
     return runBackup(
       this.env,
       {

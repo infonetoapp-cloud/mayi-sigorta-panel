@@ -14,6 +14,8 @@ export type Classification =
   | 'provider-error'
   | 'local-failure';
 export interface SafeDiagnostic {
+  errorName?: string;
+  transportClass?: string;
   stage: DiagnosticStage;
   httpStatus: number | null;
   success: boolean | null;

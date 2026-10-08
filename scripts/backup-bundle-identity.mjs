@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const sources = [
   'src/server/d1-backup/core.ts',
+  'src/server/d1-backup/diagnostic.ts',
   'src/server/d1-backup/provider.ts',
   'src/server/d1-backup/scheduler.ts',
   'src/server/d1-backup/worker.ts',
