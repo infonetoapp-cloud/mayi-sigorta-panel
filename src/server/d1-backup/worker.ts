@@ -29,7 +29,19 @@ export class D1BackupWorkflow extends WorkflowEntrypoint<BackupEnv> {
             },
             async () => {
               try {
-                return await callback();
+                const value = await callback();
+                if (name === 'write-verify-COMPLETE-last') {
+                  const result = value as Awaited<ReturnType<typeof runBackup>>;
+                  console.info({
+                    event: 'MAYI_D1_BACKUP_COMPLETE',
+                    generationId: result.generation,
+                    instanceId: event.instanceId,
+                    completedAt: new Date().toISOString(),
+                    sqlBytes: result.sqlSize,
+                    totalMs: result.totalMs,
+                  });
+                }
+                return value;
               } catch (error) {
                 if (error instanceof BackupFailure) throw error;
                 throw safeFailure('workflow-step', 'local-failure');

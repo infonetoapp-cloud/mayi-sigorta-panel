@@ -278,6 +278,7 @@ it('dedicated config has exact EU R2 binding, no D1/app route and schedule disab
   const entry = readFileSync('src/server/d1-backup/worker.ts', 'utf8');
   expect(entry).toContain('scheduled');
   expect(entry).not.toContain('async fetch');
-  expect(entry).not.toContain('console.');
+  expect(entry.match(/console\.info\(/g)).toHaveLength(1);
+  expect(entry).toContain('MAYI_D1_BACKUP_COMPLETE');
   expect(entry).toContain("name === 'poll-download-store-sql' ? 0 : 1");
 });
