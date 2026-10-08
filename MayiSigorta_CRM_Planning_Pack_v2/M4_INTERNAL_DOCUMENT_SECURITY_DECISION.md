@@ -42,7 +42,7 @@ Zorunlu production ClamAV/Containers/Workers Paid-for-AV, scanner binding/image 
 2. Normal/secure Access uygulamaları, ayrı audience, OTP+bağımsız TOTP MFA, session/duration, bypass/service-token yasağı, drift ve gerçek staging login; alternatif URL koruması.
 3. Yapısal validation ve safe authorized attachment akışının kontrollü gerçek runtime kanıtı; public/customer upload yok; no false CLEAN.
 4. Kalıcı D1/R2 reservation/retry/reconciliation ve Queue acceleration/retention kaybı sonrası recovery; gerçek alarm hedefi ve teslim testi.
-5. Ayrı backup hesabı/credential sınırı, runtime no-delete/restore/admin, primary+backup aynı credential ile yok edilememe, EU/35 gün lock/export retention.
+5. F-28: aynı-account dedicated private EU recovery bucket ve least-privilege export/writer/recovery-admin ayrımı; application D1 recovery bucket erişimi yok, routine writer lock/lifecycle/settings/token administration değiştiremez. >=35 gün Bucket Lock/export retention ve immutable protected generation korunur; broad object-write delete kabiliyeti lock süresince engellenir, mutlak write-only IAM iddiası değildir. Ayrı Cloudflare recovery hesabı zorunlu değildir; total-account compromise/loss residual risk'i kullanıcı tarafından açıkça kabul edilmiştir. Ayrıntı nihai plan14.1/F-28'dir; tarihsel ayrı hesap evidence'ı güncel blocker oluşturmaz.
 6. Saatlik consistent export, trustworthy manifest provenance/recovery-key saklayıcısı, D1+R2 restore/RPO 1 saat/RTO 4 saat; güncel offboarding/permissions/deletion tombstone ve kontrollü publication onayı.
 7. Gerçek veri öncesi sınıf-specific retention/legal/data-processing commissioning ve açık production release yetkisi.
 

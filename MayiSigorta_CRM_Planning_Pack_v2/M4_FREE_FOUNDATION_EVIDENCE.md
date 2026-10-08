@@ -1,5 +1,7 @@
 # M4 F-26 — Free-tier foundation ve private primary EU R2
 
+**Güncel F-28 recovery supersession — 8 Ekim 2026:** Ayrı Cloudflare backup/recovery hesabı artık zorunlu değildir; aşağıdaki tarihli keşif/checkpoint kayıtları orijinal halleriyle tarihsel kanıttır. Aynı-account dedicated private EU recovery bucket (`mayisigorta-crm-recovery` önerisi), production app erişimi yok/scoped export-writer-admin ayrımı/routine lock-lifecycle-config write yok/>=35day Bucket Lock güncel gereksinimdir; total-account compromise/loss korumasının bulunmaması explicit accepted residual-risk kararıdır. Consistent export/manifest/COMPLETE/restore/authority-session reconciliation/scheduler-alerts/RPO1h-RTO4h gate'leri OPEN kalır; ikinci-account yokluğu blocker değildir. Bucket veya token oluşturulmadı; eski gözlem tarihleri yeni readback değildir. Tek otorite nihai plan14.1/F-28; M4 COMPLETE=false, DOCUMENTS_ENABLED=false, M5 başlamadı.
+
 Gözlem: D1/Queue 5 Ekim 2026; primary R2 ve subscription/public-state bağımsız GET readback 6 Ekim 2026. Accepted Phase 1 commit: `091621591240693a831c4b814915d91f7aa77719`; fresh GPT-6.1 Sol High reviewer `20261005_215639_24831e`: PASS / BLOCKER 0 / IMPORTANT 0 / OPTIONAL 1. Bu oturumun clean/equal main tabanı `c2b46b164aa9cedaee0e0823d46975fb1306ca9c`; foundation kaynak/config sınırı doğrulandı, M4 tamamlanmadı.
 
 ## Doğrulanan hesap ve gerçek kaynaklar

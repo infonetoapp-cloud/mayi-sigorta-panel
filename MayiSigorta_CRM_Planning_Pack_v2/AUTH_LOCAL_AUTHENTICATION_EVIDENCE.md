@@ -1,5 +1,13 @@
 # F-27 — Local authentication supersession implementation evidence
 
+## Güncel recovery gate — F-28, 8 Ekim 2026
+
+Explicit accepted residual-risk kararı: aynı-account dedicated private EU recovery bucket (`mayisigorta-crm-recovery` önerisi) + least-privilege credential ayrımı + >=35day Bucket Lock. Ayrı Cloudflare recovery account artık gerekli değildir; aşağıdaki tarihli accepted checkpoints içindeki separate/off-account şartları tarihsel olarak korunur, güncel blocker sayılmaz. Same-account model total Cloudflare account compromise/loss'a karşı koruma sağlamaz; kullanıcı startup aşaması için bu riski açıkça kabul eder. Tek mimari kaynak nihai plan14.1/17/F-20/F-28'dir; yeni iş/compliance/threat-model gerekçesi olmadan ikinci-account şartı açılmaz.
+
+Production application D1 recovery bucket erişimi **YOK** (hedef gereksinim, uygulanmış IAM kanıtı değildir). Export runner minimum gerekli D1 read/export permission; API broader permission gerektirirse limitation açıkça belgelenip ayrıca onaylanır. Exact bucket writer yalnız object upload/readback; lock/lifecycle/bucket settings/token administration yetkisi yok. Recovery admin routine application/runner dışında kalır. Broad object-write delete kabiliyetinin lock retention ile sınırlandığı açıkça korunur; write-only token iddiası yok. Whole-bucket36day Age lock, COMPLETE sonrası bütün generation >=35day korunacak ölçülmüş completion marjıyla tercih; lifecycle opsiyonel eventual cleanup.
+
+**First production agency/OWNER/credential write NO-GO:** dedicated recovery bucket/private-EU/lock/scoped credentials, consistent export canary/protected COMPLETE, actual-bucket restore, scheduler/retry/watchdog/alerts ve ölçülmüş RPO<=1h/RTO<=4h kanıtları OPEN. Immutable generation/manifest ve VERIFIED_SEALED/current authority/permissions/tombstone/session-revocation/recent-assurance/grant reconciliation aynen kalır. Ayrı recovery account yokluğu bu listede değildir. LOCAL populated F-27 restore PASS ve historical HIGH failure/correction/results yeniden yazılmadı. Bu documentation slice production/Cloudflare export/write/bucket/token/agency/OWNER/deploy/KDF/Hermes mutation yapmaz. M4 COMPLETE=false; DOCUMENTS_ENABLED=false; M5 başlamadı.
+
 ## Wrangler remote-development KDF denemesi — 7 Ekim 2026: INCONCLUSIVE / NOT ACCEPTED
 
 Temiz `main`, HEAD=origin/main=`6b694dbfd5e2a57c80642240817239ddb993ec94`; fetch/branch/SHA/status/diff-check exit0. Kullanıcı yalnız repo-dışı `wrangler dev --remote` benchmark'ını yetkilendirdi. **Yeni direct public workers.dev benchmark yapılmadı.** Aşağıdaki iki direct TLS-blocked kayıt tarihsel olarak korunur. Bu sonuç CPU-limit FAIL değildir; remote KDF execution ve Free safety margin kanıtlanamadı.
