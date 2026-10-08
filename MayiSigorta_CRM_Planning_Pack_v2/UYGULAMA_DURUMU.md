@@ -2,7 +2,11 @@
 
 Son güncelleme: **8 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Transport diagnostic — no production export / production backup NOT ACCEPTED
+## Receiver-binding fix — OFFLINE ACCEPTED / production NOT ACCEPTED
+
+Başlangıç `ac6bb1280e77916eb1fe644a68f293b2bd11669c`. Raw fetch referansı invocation-safe nativeBackupFetch wrapper ile değişti; export/poll ve signed download aynı corrected default runtime'ı kullanır. Diagnostic mode disabled (network/R2 öncesi reject), probe code bundle'dan tree-shaken; offline test helper safe-wrapper default ile kalır. Native oldFAIL/newHTTP200 proof ve default-runtime her iki path regression PASS. Focused62/typecheck/targeted TS lint/format/diff/secret scan/double dryrun PASS. Offline HIGH **BLOCKER0/IMPORTANT0/PASS**, session20261008_160855_81f84f actual gpt-6.1-sol/high verified; offline checkpoint'te deployment/canary henüz yok. Identity/history [D1_BACKUP_AUTOMATION_EVIDENCE.md](D1_BACKUP_AUTOMATION_EVIDENCE.md) içinde. Commit/push+deployed readback+ONE fourth canary bu task için yetkilidir; Cron/Paid/mainCRM/auth/OWNER/schema/document değişmez. Production backup NOT ACCEPTED, RPO/RTO OPEN, DOCUMENTS_ENABLED=false, M4 COMPLETE=false, first auth write NO-GO.
+
+## Historical transport diagnostic — no production export / production backup NOT ACCEPTED
 
 Başlangıç clean main `e068e770ec73c4e22a972bd72bec10c1df2c3210`. Üçüncü canary instance/full-step GET daha derin exception göstermedi. Dar temporary transport-diagnostic payload mode yalnız backup Worker'a deploy edildi; tam bir diagnostic instance `transport-diagnostic-20261008T125221` complete. A secret/header shape valid; B auth'suz public Cloudflare GET Response öncesi TypeError/request-context/elapsed0; C/D STOP ve hiç çalışmadı. D1 auth veya export parser sorunu kanıtı değil; mevcut Workflow fetch invocation path'i izole edildi. Local native workerd object-receiver failure/direct-global200 karşılaştırması PASS: strongest hypothesis receiver binding. Historical canary nedenselliği yeniden yazılmadı; gerçek credential validity unproven.
 

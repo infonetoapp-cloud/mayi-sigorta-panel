@@ -42,9 +42,10 @@ type Probe = {
   errorName?: string;
   transportClass?: string;
 };
+// Offline-only helper: Workflow diagnostic mode is disabled and this function is tree-shaken.
 export async function runTransportDiagnostic(
   env: SecretEnv,
-  fetcher: typeof fetch = globalThis.fetch,
+  fetcher: typeof fetch = (input, init) => globalThis.fetch(input, init),
 ) {
   const shape = (value: unknown) => ({
     present: typeof value === 'string' && value.length > 0,
@@ -94,7 +95,7 @@ export async function runTransportDiagnostic(
     },
   };
   if (!shapeValid) return output;
-  // Deliberately same fetch receiver pattern as backup runtime; diagnostic must not silently fix it.
+  // Invocation-safe default; injected fetchers remain available for offline redaction tests.
   const runtime = { fetch: fetcher };
   const probe = async (url: string, init: RequestInit, parse: boolean): Promise<Probe> => {
     const start = Date.now();

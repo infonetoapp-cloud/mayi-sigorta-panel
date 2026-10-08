@@ -11,6 +11,22 @@ import {
   type BackupRuntime,
 } from '../src/server/d1-backup/core';
 const timestamp = '2026-10-08T00:00:00.000Z';
+it('default runtime invokes global fetch with correct receiver on export and signed download', async () => {
+  const f = fixture('immediate');
+  vi.stubGlobal('fetch', function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+    expect(this).toBe(globalThis);
+    return f.runtime.fetch(input, init);
+  });
+  try {
+    const result = await runBackup(f.env, f.steps, timestamp, 'synthetic-default');
+    expect(result.state).toBe('COMPLETE');
+    expect(f.requests).toHaveLength(2);
+    expect(f.requests[0]!.url).toBe(EXPORT_URL);
+    expect(f.requests[1]!.url).toContain('.r2.cloudflarestorage.com');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 function fixture(failure = '') {
   const objects = new Map<
       string,

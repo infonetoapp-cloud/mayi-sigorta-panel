@@ -19,15 +19,16 @@ it('explicit diagnostic Workflow mode cannot read R2 or run backup', async () =>
   });
   vi.stubGlobal('fetch', network);
   try {
-    const result = await workflow.run(
-      { payload: { mode: 'transport-diagnostic' } } as never,
-      {
-        do: async (_name: string, _options: unknown, callback: () => Promise<unknown>) =>
-          callback(),
-      } as never,
-    );
-    expect(result).toHaveProperty('A');
-    expect(network).toHaveBeenCalledOnce();
+    await expect(
+      workflow.run(
+        { payload: { mode: 'transport-diagnostic' } } as never,
+        {
+          do: async (_name: string, _options: unknown, callback: () => Promise<unknown>) =>
+            callback(),
+        } as never,
+      ),
+    ).rejects.toThrow('BACKUP_DIAGNOSTIC_DISABLED');
+    expect(network).not.toHaveBeenCalled();
   } finally {
     vi.unstubAllGlobals();
   }

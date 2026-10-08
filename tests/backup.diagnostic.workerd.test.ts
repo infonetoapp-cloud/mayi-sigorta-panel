@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 import { expect, it } from 'vitest';
-it('native local workerd isolates fetch receiver: object receiver fails, direct global fetch returns HTTP', async () => {
+it('native local workerd proves raw stored fetch fails and exact production wrapper succeeds', async () => {
   let hits = 0;
   const server = createServer((_req, res) => {
     hits++;
@@ -16,7 +16,7 @@ it('native local workerd isolates fetch receiver: object receiver fails, direct 
     if (!address || typeof address === 'string') throw new Error('LOCAL_SERVER');
     const b = await build({
       stdin: {
-        contents: `import {classifyTransport} from './src/server/d1-backup/diagnostic.ts';export default {async fetch(){const runtime={fetch:globalThis.fetch};let receiver;try{const r=await runtime.fetch('http://127.0.0.1:${address.port}',{redirect:'manual'});receiver={status:r.status};}catch(e){receiver=classifyTransport(e);}const direct=await fetch('http://127.0.0.1:${address.port}',{redirect:'manual'});return Response.json({receiver,directStatus:direct.status});}};`,
+        contents: `import {classifyTransport} from './src/server/d1-backup/diagnostic.ts';import {nativeBackupFetch} from './src/server/d1-backup/core.ts';export default {async fetch(){const runtime={fetch:globalThis.fetch};let receiver;try{const r=await runtime.fetch('http://127.0.0.1:${address.port}',{redirect:'manual'});receiver={status:r.status};}catch(e){receiver=classifyTransport(e);}const wrapped={fetch:nativeBackupFetch};const direct=await wrapped.fetch('http://127.0.0.1:${address.port}',{redirect:'manual'});return Response.json({receiver,directStatus:direct.status});}};`,
         resolveDir: process.cwd(),
         loader: 'ts',
       },

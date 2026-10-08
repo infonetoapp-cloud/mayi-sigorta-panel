@@ -112,13 +112,14 @@ async function checkedJson(bucket: R2Bucket, key: string, value: object, generat
       (await read.text()) === text,
   );
 }
+export const nativeBackupFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
 export async function runBackup(
   env: BackupEnv,
   steps: BackupSteps,
   timestamp: string,
   generation: string,
   runtime: BackupRuntime = {
-    fetch: globalThis.fetch,
+    fetch: nativeBackupFetch,
     now: () => Date.now(),
     sleep: () => new Promise((resolve) => setTimeout(resolve, 1000)),
   },
