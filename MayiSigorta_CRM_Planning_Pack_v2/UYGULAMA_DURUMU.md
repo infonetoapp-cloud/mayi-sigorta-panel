@@ -2,7 +2,13 @@
 
 Son güncelleme: **8 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
-## Controlled remote admin composition — ACCEPTED OFFLINE
+## FIRST PRODUCTION AGENCY WRITE — ACCEPTED / FIRST OWNER LOGIN NOT READY
+
+Starting clean main `43ad1c790b57f05fe68028747a7bf8f4c80d8d98`; strict schema21migration/hash/all44count0/adminMFA/GlobalKey-noToken/backup preflight PASS. ExactONErealTTY CLI provision-agency --remote operation created `mayi-sigorta`, PROVISIONING/version1/bootstrap_completed_at=NULL/activated_at=NULL at2026-10-08T20:12:29.903Z. Frozen key `provision-mayi-sigorta-20261008-v1`; exactSYSTEMaudit1/LOCAL_AUTH_OPERATOR/auth.admin.provision-agency/SUCCESS/OPERATOR_CONFIRMED/namespacedkey verified; correlatione0ab00a5-22b2-4d76-a6f8-593dfa94c9e8. User/member/identity/credential/session/permission/grant/receipt counts0; allother42applicationtables0; schema unchanged. NOOWNER/password/bootstrap/deployDNS/tokenPaid/source change. First Node preload-URI startup failure occurred before CLI/request0; fresh empty-state SELECT then only externalURI correction. Two process launches, ONEproductionprovisioningPOST5statementbatch, no replay/retry/compensation.
+
+Fresh GPT-6.1 Sol HIGH BLOCKER0/IMPORTANT0/PASS session20261008_231429_54ca32 actualhigh verified,10artifacts/20checks/40GET+6readonlySELECT independent. Backup/Cron*/30/alert45m10m/lock36life40 unchanged; postwriteCOMPLETE NOT observed (latest995272export20:00:42.821Z/COMPLETE20:00:50.467Z predates20:12agencywrite). No current-specific backup recovery claim/manualtrigger/wait. **FIRST_PRODUCTION_AGENCY_WRITE_ACCEPTED=YES; FIRST_OWNER_LOGIN_READY=NO**. [AUTH evidence](AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md) contains exact proof/history/safety. Next only separately authorized READ-ONLY OWNER-bootstrap readiness/input/confirmation-and-handoff plan; OWNERbootstrap NOT authorized here. ActualFreeKDF/config/deployment/originCSRF/DBlimiter/TLS/no-bypass/loginactivation-reauth-revoke gates remain later; DOCUMENTS_ENABLED=false/M4COMPLETE=false/M5notstarted.
+
+## Controlled remote admin composition — historical ACCEPTED OFFLINE
 
 ### Güncel disposable REMOTE provider proof — PASS / agency-only technically ready
 
