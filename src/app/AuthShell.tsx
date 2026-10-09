@@ -204,7 +204,8 @@ export function AuthShell() {
     [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
-    [view, setView] = useState<'crm' | 'personnel' | 'password'>('crm');
+    [view, setView] = useState<'crm' | 'personnel' | 'password'>('crm'),
+    [standaloneReauth, setStandaloneReauth] = useState(false);
   async function refresh() {
     try {
       const response = await fetch('/api/auth/session', { cache: 'no-store' });
@@ -345,12 +346,22 @@ export function AuthShell() {
             <button onClick={() => setView('personnel')}>Personel ve İzinler</button>
           )}
           <button onClick={() => setView('password')}>Şifremi değiştir</button>
+          <button onClick={() => setStandaloneReauth(true)}>Şifremi doğrula</button>
           <button onClick={() => void logout()} disabled={busy}>
             Çıkış Yap
           </button>
         </div>
       </nav>
       {error && <p role="alert">{error}</p>}
+      {standaloneReauth && (
+        <ReauthForm
+          onCancel={() => setStandaloneReauth(false)}
+          onSuccess={() => {
+            setStandaloneReauth(false);
+            void refresh();
+          }}
+        />
+      )}
       {view === 'password' ? (
         <main className="auth-page">
           <PasswordForm
