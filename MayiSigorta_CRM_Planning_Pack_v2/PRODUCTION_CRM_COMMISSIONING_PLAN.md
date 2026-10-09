@@ -1,5 +1,9 @@
 # Production CRM commissioning readiness — LOCAL source / READ-ONLY inventory
 
+## Current execution checkpoint — closed deployment accepted
+
+9 Ekim2026 separateuserauthority after0460ce12901e0ebbf3f5ea127bb977e70ca57406 executed ONLYONEclosedmayisigorta-crm+freshCSRFsecret+privateSQLiteDO/existingresourcebindings/logs. Finalversione883e617-1739-4d89-8464-7d7220a2cb43/100%deployment5654b1b7-d583-416d-8446-a39a0b327d72; exactacceptedbundlelive. Namespace0b78843d52324de686dd1449d60353d0/use_sqlitetrue/tagpassword-kdf-v2/noobjects. Worker/bindings/vars/secretNAME/closeddevpreview/routesdomainsDNScronsconsumers andpostD1auth0/backup/PaidreadbacksPASS; HIGH20261009_154739_e59ff4 BLOCKER0IMPORTANT0PASS, controlplaneonly. **CRM_WORKER_CLOSED_DEPLOYED=YES/PUBLIC_PANEL_EXPOSED=NO/FIRST_OWNER_LOGIN_READY=NO**. Originalmatrixbelow is itsdatedpredeploymentreadinessrecord; Worker/namespace/CSRFNAME/livevars/rate-bindingconfiguration nowexist, but runtime limiter/CSRF/HTTP→DO/TLS/noBypass/heap/burst guarantees are STILL OPEN. Secretvalue never readback; correctnessofapplicationCSRFinteraction requireslaterexposurecommissioning. Actualdomain/DNS andOWNER mutationsNOTauthorized/performed. Nextstopgate exactpanelcustomdomain/managedDNS+boundedOWNER-lessHTTPtests separateauthority. Sourceimmutable0460 deployment; docs-onlyevidenceclosure, no plan-createdexecutionscopebeyondusergrant.
+
 Bu belge deployment yetkisi veya ikinci mimari otorite değildir. Mimari kaynak NIHAI_MIMARI_VE_UYGULAMA_PLANI.md/F-29; kullanıcı orchestrator yetkisi yalnız LOCAL değişiklikler, read-only inventory/SELECT, review ve normal commit/push kapsar. STOP: actual CRM deploy, Cloudflare secret/DNS/domain değişikliği, production D1 write, OWNER, token, Paid veya backup/Cron/alert mutation yapılmaz.
 
 ## Accepted base / evidence
