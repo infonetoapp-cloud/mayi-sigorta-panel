@@ -400,13 +400,15 @@ async function seed(db: D1Database) {
     .bind('d'.repeat(64), n)
     .run();
 }
-export async function createSyntheticAuthBackup() {
+/** Optional explicit test-only seed remains confined to the freshly created local source. */
+export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => Promise<void>) {
   const directory = directoryFor('source');
   let platform: Awaited<ReturnType<typeof openLocal>> | undefined;
   try {
     localCommand(directory, ['d1', 'migrations', 'apply', 'DB']);
     platform = await openLocal(directory);
-    await seed(platform.db);
+    if (seedLocal) await seedLocal(platform.db);
+    else await seed(platform.db);
     // Source is offline/quiescent. Native export is the consistent snapshot boundary, not row-by-row live reads.
     await platform.dispose();
     platform = undefined;

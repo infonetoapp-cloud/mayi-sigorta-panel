@@ -4,20 +4,20 @@ import {
   generateTemporaryPassword,
   normalizeLoginEmail,
   normalizePassword,
-  PASSWORD_KDF_ITERATIONS,
   PASSWORD_KDF_VERSION,
   PASSWORD_SALT_BYTES,
   PASSWORD_VERIFIER_BYTES,
-  productionPasswordHasher,
   validatePermanentPassword,
 } from '../src/server/auth/password';
+import { PASSWORD_SCRYPT_N } from '../src/server/auth/password-envelope';
+import { fixturePasswordHasher as productionPasswordHasher } from './support/scrypt-fixture-hasher';
 
 const syntheticPassword = 'synthetic fixture passphrase 🧪';
 
 describe('local password policy primitives (not an active authentication composition)', () => {
   it('pins production KDF and output constants without an environment knob', () => {
-    expect(PASSWORD_KDF_VERSION).toBe(1);
-    expect(PASSWORD_KDF_ITERATIONS).toBe(600_000);
+    expect(PASSWORD_KDF_VERSION).toBe(2);
+    expect(PASSWORD_SCRYPT_N).toBe(32768);
     expect(PASSWORD_SALT_BYTES).toBe(16);
     expect(PASSWORD_VERIFIER_BYTES).toBe(32);
     expect(Object.isFrozen(productionPasswordHasher)).toBe(true);
@@ -87,15 +87,15 @@ describe('local password policy primitives (not an active authentication composi
   });
 });
 
-describe('real production PBKDF2 hasher', () => {
+describe('current v2 envelope and policy with an explicit cheap test derivation seam', () => {
   it('serializes version/work factor/salt/full verifier and creates unique salts', async () => {
     const first = await productionPasswordHasher.hash(syntheticPassword);
     const second = await productionPasswordHasher.hash(syntheticPassword);
-    expect(/^mayi-pbkdf2-sha256\$v=1\$i=600000\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(first)).toBe(
+    expect(/^mayi-scrypt\$v=2\$n=32768\$r=8\$p=3\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(first)).toBe(
       true,
     );
     expect(first === second).toBe(false);
-    expect(first.split('$')[3] === second.split('$')[3]).toBe(false);
+    expect(first.split('$')[5] === second.split('$')[5]).toBe(false);
     expect(await productionPasswordHasher.verify(syntheticPassword, first)).toEqual({
       matches: true,
       needsRehash: false,

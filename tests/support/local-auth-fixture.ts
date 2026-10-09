@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import type { PasswordHasher } from '../../src/server/auth/password';
+import { serializePasswordEnvelope } from '../../src/server/auth/password-envelope';
 import { createApp, type Env } from '../../src/server/index';
 import {
   LOCAL_AUTH_ISSUER,
@@ -19,7 +20,10 @@ export function createTestPasswordHasher(): PasswordHasher & { calls: number } {
     supports: (verifier: string) => passwords.has(verifier),
     async hash(password: string) {
       hasher.calls++;
-      const verifier = `synthetic-verifier-${crypto.randomUUID()}`;
+      const verifier = serializePasswordEnvelope(
+        crypto.getRandomValues(new Uint8Array(16)),
+        crypto.getRandomValues(new Uint8Array(32)),
+      );
       passwords.set(verifier, password.normalize('NFC'));
       return verifier;
     },

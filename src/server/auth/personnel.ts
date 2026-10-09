@@ -20,11 +20,8 @@ import {
   readBoundedJson,
   requireAuthCsrf,
 } from './routes';
-import {
-  generateTemporaryPassword,
-  normalizeLoginEmail,
-  productionPasswordHasher,
-} from './password';
+import { generateTemporaryPassword, normalizeLoginEmail } from './password';
+import { createDurableObjectPasswordHasher } from './password-do-adapter';
 import { computePayloadHash } from '../mutations/canonical';
 import { canonicalizeTargetIds, computeEvidenceHash } from '../mutations/grants';
 import { getPermissionDefinition } from '../../shared/permissions';
@@ -644,7 +641,6 @@ export function registerPersonnelRoutes(
   app: Hono<{ Bindings: Env }>,
   dependencies: AppDependencies,
 ): void {
-  const hasher = dependencies.passwordHasher ?? productionPasswordHasher;
   app.get('/api/personnel', async (c) => {
     try {
       const principal = await createLocalSessionVerifier({
@@ -848,7 +844,11 @@ export function registerPersonnelRoutes(
       const temporary = ['create', 'reset', 'reactivate'].includes(command.kind)
         ? generateTemporaryPassword()
         : null;
-      const verifier = temporary ? await hasher.hash(temporary) : null;
+      const verifier = temporary
+        ? await (
+            dependencies.passwordHasher ?? createDurableObjectPasswordHasher(c.env.PASSWORD_KDF)
+          ).hash(temporary)
+        : null;
       const now = Date.now(),
         iso = new Date(now).toISOString();
       const userId = targetRow?.user_id ?? crypto.randomUUID();

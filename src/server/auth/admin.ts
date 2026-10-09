@@ -1,10 +1,6 @@
 import { z } from 'zod';
-import {
-  generateTemporaryPassword,
-  normalizeLoginEmail,
-  productionPasswordHasher,
-  type PasswordHasher,
-} from './password';
+import { generateTemporaryPassword, normalizeLoginEmail, type PasswordHasher } from './password';
+import { localAdminPasswordHasher } from './password-admin';
 import { LOCAL_AUTH_ISSUER, assertSessionChange } from './session';
 
 export const adminTargetSchema = z
@@ -160,7 +156,7 @@ export async function provisionInitialAgency(
 export async function administerLocalOwner(
   db: D1Database,
   input: AdminTarget,
-  hasher: PasswordHasher = productionPasswordHasher,
+  hasher: PasswordHasher = localAdminPasswordHasher,
 ): Promise<{ temporaryPassword: string; expiresAt: string }> {
   const target = adminTargetSchema.parse(input);
   const email = normalizeLoginEmail(target.email);

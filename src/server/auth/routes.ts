@@ -7,10 +7,12 @@ import { generateIdentityBoundCsrfToken, verifyCsrfMutationGuard } from '../secu
 import {
   normalizeLoginEmail,
   normalizePassword,
-  productionPasswordHasher,
   isSupportedPasswordVerifier,
   validatePermanentPassword,
 } from './password';
+import { createDurableObjectPasswordHasher } from './password-do-adapter';
+import { DUMMY_PASSWORD_VERIFIER } from './password-envelope';
+import { PasswordKdfUnavailableError } from './password-kdf-error';
 import {
   ACTIVATION_LIFETIME_MS,
   NORMAL_ABSOLUTE_MS,
@@ -78,6 +80,15 @@ export function authResponse(
   return c.json({ success: true, data, timestamp: new Date().toISOString() }, status);
 }
 export function authErrorResponse(c: Context<{ Bindings: Env }>, error: unknown): Response {
+  if (error instanceof PasswordKdfUnavailableError)
+    return c.json(
+      {
+        success: false,
+        error: { code: 'PASSWORD_KDF_UNAVAILABLE', message: 'Şifre hizmeti kullanılamıyor.' },
+        timestamp: new Date().toISOString(),
+      },
+      503,
+    );
   if (error instanceof AuthHttpError)
     return c.json(
       {
@@ -207,7 +218,7 @@ const changeSchema = z
   })
   .strict();
 const reauthSchema = z.object({ password: z.string().max(256) }).strict();
-const DUMMY_VERIFIER = `mayi-pbkdf2-sha256$v=1$i=600000$${'0'.repeat(32)}$${'0'.repeat(64)}`;
+const DUMMY_VERIFIER = DUMMY_PASSWORD_VERIFIER;
 interface LoginRow extends SessionRow {
   verifier: string;
   login_enabled: number;
@@ -222,7 +233,6 @@ export function registerLocalAuthRoutes(
   app: Hono<{ Bindings: Env }>,
   dependencies: AppDependencies,
 ): void {
-  const hasher = dependencies.passwordHasher ?? productionPasswordHasher;
   app.post('/api/auth/login', async (c) => {
     try {
       const parsed = loginSchema.safeParse(await readBoundedJson(c.req.raw));
@@ -236,6 +246,8 @@ export function registerLocalAuthRoutes(
         throw new AuthHttpError(401, 'LOGIN_FAILED', 'E-posta veya şifre hatalı.');
       }
       await limitPasswordAttempt(c.env, c.req.raw, email);
+      const hasher =
+        dependencies.passwordHasher ?? createDurableObjectPasswordHasher(c.env.PASSWORD_KDF);
       const rows = await c.env.DB.prepare(
         `SELECT c.*, i.subject, i.status identity_status, u.status user_status, m.id membership_id,m.permission_version,m.agency_id,m.type,m.status membership_status,a.status agency_status
         FROM local_credentials c JOIN auth_identities i ON i.id=c.identity_id AND i.user_id=c.user_id
@@ -364,6 +376,8 @@ export function registerLocalAuthRoutes(
         .bind(row.user_id, row.credential_version)
         .first<{ verifier: string }>();
       if (!credential) throw new AuthHttpError(401, 'UNAUTHORIZED', 'Oturum geçersiz.');
+      const hasher =
+        dependencies.passwordHasher ?? createDurableObjectPasswordHasher(c.env.PASSWORD_KDF);
       if (
         row.kind === 'NORMAL' &&
         (!parsed.data.currentPassword ||
@@ -425,6 +439,8 @@ export function registerLocalAuthRoutes(
       const parsed = reauthSchema.safeParse(await readBoundedJson(c.req.raw));
       if (!parsed.success) throw new AuthHttpError(400, 'INVALID_INPUT', 'Girdi geçersiz.');
       await limitPasswordAttempt(c.env, c.req.raw, row.login_email);
+      const hasher =
+        dependencies.passwordHasher ?? createDurableObjectPasswordHasher(c.env.PASSWORD_KDF);
       const credential = await c.env.DB.prepare(
         'SELECT verifier FROM local_credentials WHERE user_id=? AND credential_version=? AND must_change_password=0',
       )

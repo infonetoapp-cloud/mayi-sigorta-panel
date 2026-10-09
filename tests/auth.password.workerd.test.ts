@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
 
-/** Exercises the exact production module inside native local workerd, not Node WebCrypto. */
-describe('native local Workers password primitive', () => {
+/** Historical PBKDF2 checkpoint only; superseded by real runtime NO_GO and v2 DO tests. */
+describe.skip('historical native local PBKDF2 checkpoint (not current runtime support)', () => {
   it('supports fixed 600000-iteration PBKDF2 and native full-byte comparison without returning secrets', async () => {
     const bundle = await build({
       stdin: {

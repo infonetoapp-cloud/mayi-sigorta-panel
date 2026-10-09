@@ -1,7 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  "durable_objects": {
+    "bindings": [{ "name": "PASSWORD_KDF", "class_name": "PasswordKdfDurableObject" }],
+  },
+  "migrations": [{ "tag": "password-kdf-v2", "new_sqlite_classes": ["PasswordKdfDurableObject"] }],
   "name": "mayisigorta-crm",
-  "main": "src/server/index.ts",
+  "main": "src/server/worker.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
@@ -68,10 +72,14 @@
     // Read-proven foundation only. No Worker deployment or remote migrations yet.
     "foundation": {
       "name": "mayisigorta-crm-foundation",
+      "durable_objects": {
+        "bindings": [{ "name": "PASSWORD_KDF", "class_name": "PasswordKdfDurableObject" }],
+      },
       "account_id": "af9fc98cb8d5f5508d58057bc794d863",
       "workers_dev": false,
       "preview_urls": false,
       "vars": {
+        // PASSWORD_KDF is explicit for this environment because bindings do not inherit.
         "DOCUMENTS_ENABLED": "false",
       },
       "triggers": {

@@ -22,6 +22,7 @@ import { SessionVerificationError } from './auth/errors';
 import { sessionBoundDatabase } from './auth/session-database';
 import { registerPersonnelRoutes } from './auth/personnel';
 import type { PasswordHasher } from './auth/password';
+import type { PasswordKdfDurableObject } from './auth/password-do';
 import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './security';
 import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
@@ -37,6 +38,7 @@ import type { DocumentBackupAdapter } from './documents/backup-storage';
 import type { DocumentReconcileStorage } from './documents/reconcile-storage';
 
 export interface Env {
+  PASSWORD_KDF?: DurableObjectNamespace<PasswordKdfDurableObject>;
   ASSETS?: Fetcher;
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;

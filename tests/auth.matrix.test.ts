@@ -2,7 +2,7 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
 import { createApp } from '../src/server/index';
-import { productionPasswordHasher } from '../src/server/auth/password';
+import { fixturePasswordHasher as productionPasswordHasher } from './support/scrypt-fixture-hasher';
 import { randomSessionToken, hashSessionToken, sessionInsert } from '../src/server/auth/session';
 import { sessionBoundDatabase } from '../src/server/auth/session-database';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
@@ -126,10 +126,14 @@ describe('F-27 adversarial session/login matrix', () => {
       f.env.AUTH_ACCOUNT_RATE_LIMITER = original;
     }
   });
-  it('native production dummy path executes the same KDF for unknown and malformed stored verifiers', async () => {
+  it('default DO adapter preserves one verification for unknown and unusable stored verifiers with a test seam', async () => {
     const member = await f.seed('matrix-real-dummy');
     const app = createApp();
-    const derive = vi.spyOn(crypto.subtle, 'deriveBits');
+    const derive = vi.fn(productionPasswordHasher.verify);
+    const originalKdf = f.env.PASSWORD_KDF;
+    f.env.PASSWORD_KDF = {
+      getByName: () => ({ hash: productionPasswordHasher.hash, verify: derive }),
+    } as never;
     try {
       const request = (email: string) =>
         app.fetch(
@@ -155,6 +159,7 @@ describe('F-27 adversarial session/login matrix', () => {
       expect((await request(member.email)).status).toBe(200);
     } finally {
       derive.mockRestore();
+      f.env.PASSWORD_KDF = originalKdf;
     }
   });
   it('cannot upgrade a restricted session or un-revoke a session in place', async () => {

@@ -1,14 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
 import { normalizeBoundedPassword } from '../../shared/password-input';
 export { PASSWORD_MIN_CODEPOINTS, PASSWORD_MAX_CODEPOINTS } from '../../shared/password-input';
-
-/** Server-only credential primitive. No runtime-configurable work factor. */
-export const PASSWORD_KDF_VERSION = 1;
-export const PASSWORD_KDF_ITERATIONS = 600_000;
-export const PASSWORD_SALT_BYTES = 16;
-export const PASSWORD_VERIFIER_BYTES = 32;
-
-const encoder = new TextEncoder();
+export {
+  PASSWORD_KDF_VERSION,
+  PASSWORD_SALT_BYTES,
+  PASSWORD_VERIFIER_BYTES,
+  isSupportedPasswordVerifier,
+} from './password-envelope';
 
 export interface PasswordVerification {
   readonly matches: boolean;
@@ -98,82 +95,6 @@ export function validatePermanentPassword(password: unknown, loginEmail: string)
   }
   return normalized;
 }
-
-function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function unhex(value: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(value.match(/../g)!, (pair) => Number.parseInt(pair, 16));
-}
-
-interface CredentialEnvelope {
-  readonly iterations: number;
-  readonly salt: Uint8Array<ArrayBuffer>;
-  readonly verifier: Uint8Array<ArrayBuffer>;
-}
-
-/** Exact, canonical and bounded parser. No legacy raw-SHA or arbitrary KDF fallback. */
-function parseEnvelope(serialized: unknown): CredentialEnvelope | null {
-  if (typeof serialized !== 'string' || serialized.length > 160) return null;
-  const match = /^mayi-pbkdf2-sha256\$v=1\$i=600000\$([a-f0-9]{32})\$([a-f0-9]{64})$/.exec(
-    serialized,
-  );
-  if (!match) return null;
-  return {
-    iterations: PASSWORD_KDF_ITERATIONS,
-    salt: unhex(match[1]!),
-    verifier: unhex(match[2]!),
-  };
-}
-
-export function isSupportedPasswordVerifier(serialized: unknown): boolean {
-  return parseEnvelope(serialized) !== null;
-}
-
-async function derive(
-  normalized: string,
-  salt: Uint8Array<ArrayBuffer>,
-  iterations: number,
-): Promise<Uint8Array<ArrayBuffer>> {
-  const key = await crypto.subtle.importKey('raw', encoder.encode(normalized), 'PBKDF2', false, [
-    'deriveBits',
-  ]);
-  const result = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
-    key,
-    PASSWORD_VERIFIER_BYTES * 8,
-  );
-  return new Uint8Array(result);
-}
-
-export const productionPasswordHasher: PasswordHasher = Object.freeze({
-  supports: isSupportedPasswordVerifier,
-  async hash(password: string): Promise<string> {
-    const normalized = normalizePassword(password);
-    const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
-    const verifier = await derive(normalized, salt, PASSWORD_KDF_ITERATIONS);
-    return `mayi-pbkdf2-sha256$v=${PASSWORD_KDF_VERSION}$i=${PASSWORD_KDF_ITERATIONS}$${hex(salt)}$${hex(verifier)}`;
-  },
-  async verify(password: string, serialized: string): Promise<PasswordVerification> {
-    const envelope = parseEnvelope(serialized);
-    if (!envelope) return { matches: false, needsRehash: false };
-    let normalized: string;
-    try {
-      normalized = normalizePassword(password);
-    } catch {
-      return { matches: false, needsRehash: false };
-    }
-    const candidate = await derive(normalized, envelope.salt, envelope.iterations);
-    // Native constant-time comparison of all 32 bytes, never string/prefix comparison.
-    const matches = timingSafeEqual(candidate, envelope.verifier);
-    return {
-      matches,
-      // A future fixed work-factor increase must explicitly add the old supported envelope.
-      needsRehash: matches && envelope.iterations < PASSWORD_KDF_ITERATIONS,
-    };
-  },
-});
 
 /** 32 uniformly selected symbols × 20 characters = 100 bits; separators add no entropy. */
 const TEMPORARY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

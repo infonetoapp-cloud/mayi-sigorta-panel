@@ -2,7 +2,7 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
 import { LOCAL_AUTH_ISSUER } from '../src/server/auth/session';
-import { productionPasswordHasher } from '../src/server/auth/password';
+import { fixturePasswordHasher as productionPasswordHasher } from './support/scrypt-fixture-hasher';
 import { createApp } from '../src/server/index';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 let nativeVerifier: string;
@@ -99,6 +99,7 @@ describe('effective LOCAL owner guards on native D1 with preserved historical id
       [new Date().toISOString(), user.identityId],
     );
     expect(await enabled(user.id)).toBe(1);
+    f.env.PASSWORD_KDF = { getByName: () => productionPasswordHasher } as never;
     const app = createApp();
     const login = await app.fetch(
       new Request('https://panel.mayisigorta.com/api/auth/login', {
