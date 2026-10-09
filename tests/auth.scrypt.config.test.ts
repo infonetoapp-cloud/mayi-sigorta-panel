@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 function config(text: string) {
-  return JSON.parse(text.replace(/\/\/[^\n]*/g, '').replace(/,\s*([}\]])/g, '$1'));
+  return JSON.parse(text.replace(/^\s*\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1'));
 }
 it('preserves existing bindings and declares only a private Free SQLite KDF class in source', () => {
   const current = config(readFileSync('wrangler.jsonc', 'utf8'));

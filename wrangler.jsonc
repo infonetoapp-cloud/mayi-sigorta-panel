@@ -69,6 +69,75 @@
     },
   ],
   "env": {
+    // SOURCE ONLY: closed first production commissioning; no route/secret creation or deployment here.
+    "production": {
+      "name": "mayisigorta-crm",
+      "account_id": "af9fc98cb8d5f5508d58057bc794d863",
+      "compatibility_date": "2026-09-01",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [],
+      "vars": {
+        "APP_ENV": "production",
+        "PANEL_ORIGIN": "https://panel.mayisigorta.com",
+        "DOCUMENTS_ENABLED": "false",
+      },
+      // Names only. Required-secret metadata is not provisioning or a live existence assertion.
+      "secrets": { "required": ["CSRF_SECRET"] },
+      // Invocation metrics only; never add body/password/verifier/header logging.
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+        "logs": { "enabled": true, "invocation_logs": true, "head_sampling_rate": 1 },
+        "traces": { "enabled": false },
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "PASSWORD_KDF", "class_name": "PasswordKdfDurableObject" }],
+      },
+      "migrations": [
+        { "tag": "password-kdf-v2", "new_sqlite_classes": ["PasswordKdfDurableObject"] },
+      ],
+      "ratelimits": [
+        {
+          "name": "AUTH_ACCOUNT_RATE_LIMITER",
+          "namespace_id": "2701",
+          "simple": { "limit": 10, "period": 60 },
+        },
+        {
+          "name": "AUTH_SOURCE_RATE_LIMITER",
+          "namespace_id": "2702",
+          "simple": { "limit": 1000, "period": 60 },
+        },
+      ],
+      "assets": {
+        "directory": "./dist/client",
+        "binding": "ASSETS",
+        "run_worker_first": true,
+        "html_handling": "none",
+        "not_found_handling": "none",
+      },
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mayisigorta-crm",
+          "database_id": "1dd3b04e-14b8-459c-86d0-5c3c3ed8127d",
+          "migrations_dir": "db/migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "DOCS_QUARANTINE",
+          "bucket_name": "mayisigorta-documents-quarantine",
+          "jurisdiction": "eu",
+        },
+      ],
+      "queues": {
+        "producers": [{ "binding": "DOCUMENT_JOB_QUEUE", "queue": "mayisigorta-document-jobs" }],
+        "consumers": [],
+      },
+    },
     // Read-proven foundation only. No Worker deployment or remote migrations yet.
     "foundation": {
       "name": "mayisigorta-crm-foundation",
