@@ -40,10 +40,12 @@ export function parseAdminArguments(args = process.argv.slice(2)) {
   return values;
 }
 
-export function adminConfirmationTuple(target) {
-  return target.mode === 'provision-agency'
-    ? `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.operationKey}`
-    : `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.ownerUserId}`;
+export function adminConfirmationTuple(target, prepareOwnerConfirmation) {
+  if (target.mode === 'provision-agency')
+    return `${target.mode}:${target.accountId}:${target.databaseId}:${target.agencyId}:${target.operationKey}`;
+  if (typeof prepareOwnerConfirmation !== 'function')
+    throw new Error('OWNER_CONFIRMATION_CANONICALIZER_REQUIRED');
+  return prepareOwnerConfirmation(target).token;
 }
 
 // Agency-only D1 composition uses the accepted native local test/runtime pattern.
@@ -85,6 +87,7 @@ async function main() {
     provisionInitialAgency,
     administerLocalOwner,
     assertLocalAdminBinding,
+    prepareOwnerConfirmation,
   } = await import(
     `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`
   );
@@ -96,7 +99,7 @@ async function main() {
     agencyId: values.agency,
     operationKey: values.key,
   };
-  const target = agencyOnly
+  const inputTarget = agencyOnly
     ? initialAgencyTargetSchema.parse(common)
     : adminTargetSchema.parse({
         ...common,
@@ -104,13 +107,15 @@ async function main() {
         email: values.email,
         name: values.name,
       });
+  const target = agencyOnly ? inputTarget : prepareOwnerConfirmation(inputTarget).target;
+  const expectedConfirmation = adminConfirmationTuple(target, prepareOwnerConfirmation);
+  const ownerReview = agencyOnly ? '' : `Owner display name: ${JSON.stringify(target.name)}\n`;
   const prompt = createInterface({ input: process.stdin, output: process.stdout });
   try {
     const answer = await prompt.question(
-      `Tam hedefi ve Cloudflare administrative MFA kontrolünü doğrulayın. ${adminConfirmationTuple(target)} yazın: `,
+      `${ownerReview}Tam hedefi ve Cloudflare administrative MFA kontrolünü doğrulayın. ${expectedConfirmation} yazın: `,
     );
-    if (answer !== adminConfirmationTuple(target))
-      throw new Error('OPERATOR_CONFIRMATION_REQUIRED');
+    if (answer !== expectedConfirmation) throw new Error('OPERATOR_CONFIRMATION_REQUIRED');
   } finally {
     prompt.close();
   }

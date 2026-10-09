@@ -20,6 +20,24 @@ export const adminTargetSchema = z
   })
   .strict();
 export type AdminTarget = z.infer<typeof adminTargetSchema>;
+/** Operator review only: validated immutable target, using the auth domain normalizer. */
+export function prepareOwnerConfirmation(input: unknown): {
+  target: Readonly<AdminTarget>;
+  token: string;
+} {
+  const parsed = adminTargetSchema.parse(input);
+  const target = Object.freeze({ ...parsed, email: normalizeLoginEmail(parsed.email) });
+  const token = JSON.stringify({
+    mode: target.mode,
+    accountId: target.accountId,
+    databaseId: target.databaseId,
+    agencyId: target.agencyId,
+    ownerUserId: target.ownerUserId,
+    email: target.email,
+    operationKey: target.operationKey,
+  });
+  return { target, token };
+}
 export const initialAgencyTargetSchema = adminTargetSchema
   .pick({ accountId: true, databaseId: true, agencyId: true, operationKey: true })
   .extend({
