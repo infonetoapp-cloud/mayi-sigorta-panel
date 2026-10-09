@@ -3,7 +3,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { DatabaseSync, constants, type SQLInputValue } from 'node:sqlite';
+
+import { orderedD1Import, OrderedImportFailure } from './ordered-d1-import';
 import { getPlatformProxy } from 'wrangler';
 import { z } from 'zod';
 import { canonicalizePayload } from '../../src/server/mutations/canonical';
@@ -118,74 +119,7 @@ const fail = (code: string): never => {
   throw new RestoreFailure(code);
 };
 
-/** Native local export interleaves table DDL/data in alphabetical order. D1 keeps
- * FK enforcement on, so replay tables/indexes first, then data with deferred FKs,
- * then triggers. SQLite is a syntax/value decoder, not the proof DB. */
-export function orderedD1Import(exportSql: string): string {
-  const staging = new DatabaseSync(':memory:', {
-    enableForeignKeyConstraints: false,
-    allowExtension: false,
-  });
-  try {
-    staging.setAuthorizer((action, arg1, arg2) => {
-      if (
-        [constants.SQLITE_ATTACH, constants.SQLITE_DETACH, constants.SQLITE_SELECT].includes(action)
-      )
-        return constants.SQLITE_DENY;
-      if (
-        action === constants.SQLITE_PRAGMA &&
-        !['foreign_keys', 'defer_foreign_keys'].includes(arg1 ?? '')
-      )
-        return constants.SQLITE_DENY;
-      if (
-        action === constants.SQLITE_FUNCTION &&
-        ['load_extension', 'readfile', 'writefile'].includes(arg2 ?? '')
-      )
-        return constants.SQLITE_DENY;
-      return constants.SQLITE_OK;
-    });
-    staging.exec(exportSql);
-    staging.setAuthorizer(null);
-    const integrity = staging.prepare('PRAGMA integrity_check').all();
-    if (integrity.length !== 1 || Object.values(integrity[0]!)[0] !== 'ok')
-      return fail('DB_CONSTRAINT_FAILED');
-    const definitions = staging
-      .prepare(
-        "SELECT type,name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name",
-      )
-      .all() as Array<{ type: string; name: string; sql: string }>;
-    const sql = ['PRAGMA defer_foreign_keys=ON;'];
-    for (const row of definitions.filter((r) => r.type === 'table')) sql.push(`${row.sql};`);
-    for (const row of definitions.filter((r) => r.type === 'index')) sql.push(`${row.sql};`);
-    let count = 0;
-    for (const table of definitions.filter((r) => r.type === 'table')) {
-      if (!/^[a-z][a-z0-9_]*$/u.test(table.name)) return fail('SCHEMA_INVALID');
-      const n = Number(staging.prepare(`SELECT count(*) AS n FROM "${table.name}"`).get()!.n);
-      count += n;
-      if (count > RESTORE_LIMITS.rows) return fail('RESOURCE_LIMIT');
-      const values = staging.prepare(`SELECT * FROM "${table.name}"`);
-      values.setReadBigInts(true);
-      for (const row of values.iterate()) {
-        const literal = (value: SQLInputValue): string => {
-          if (value === null) return 'NULL';
-          if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`;
-          if (typeof value === 'bigint' || typeof value === 'number') return String(value);
-          return `X'${Buffer.from(value as Uint8Array).toString('hex')}'`;
-        };
-        sql.push(
-          `INSERT INTO "${table.name}" VALUES(${Object.values(row).map(literal).join(',')});`,
-        );
-      }
-    }
-    for (const row of definitions.filter((r) => r.type !== 'table' && r.type !== 'index'))
-      sql.push(`${row.sql};`);
-    const result = sql.join('\n');
-    if (Buffer.byteLength(result) > RESTORE_LIMITS.exportBytes) return fail('RESOURCE_LIMIT');
-    return result;
-  } finally {
-    staging.close();
-  }
-}
+export { orderedD1Import } from './ordered-d1-import';
 
 export function parseRestoreManifest(json: string): RestoreManifest {
   try {
@@ -858,7 +792,7 @@ export async function runLocalRestoreProof(input: LocalRestoreInput): Promise<Re
     try {
       writeFileSync(dump, orderedD1Import(exportSql));
     } catch (error) {
-      if (error instanceof RestoreFailure) throw error;
+      if (error instanceof RestoreFailure || error instanceof OrderedImportFailure) throw error;
       return fail('DB_IMPORT_FAILED');
     }
     const imported = spawnSync(
@@ -993,7 +927,7 @@ export async function runLocalRestoreProof(input: LocalRestoreInput): Promise<Re
   } catch (error) {
     report.code = signal.aborted
       ? 'RESTORE_TIMEOUT'
-      : error instanceof RestoreFailure
+      : error instanceof RestoreFailure || error instanceof OrderedImportFailure
         ? error.message
         : 'RESTORE_IO_FAILED';
   } finally {

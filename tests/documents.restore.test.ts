@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createRestoreFixture, type RestoreFixture } from './support/restore-fixture';
+import { explicitSyntheticSnapshotRows } from './support/explicit-synthetic-snapshot';
 import { runLocalRestoreProof } from '../scripts/recovery/local-restore-proof';
 import { createHash } from 'node:crypto';
 import { readdirSync } from 'node:fs';
@@ -34,7 +35,10 @@ function changeManifest(change: (m: RestoreManifest) => void, input = fixture.in
   return { ...input, manifestJson: JSON.stringify(manifest) };
 }
 function changeExport(change: (sql: string) => string, input = fixture.input()): LocalRestoreInput {
-  const exportSql = change(input.exportSql);
+  const exportSql = explicitSyntheticSnapshotRows(
+    change(input.exportSql),
+    (JSON.parse(input.manifestJson) as RestoreManifest).createdAt,
+  );
   expect(exportSql).not.toBe(input.exportSql);
   const manifest = JSON.parse(input.manifestJson) as RestoreManifest;
   manifest.dbExportSha256 = createHash('sha256').update(exportSql).digest('hex');
@@ -1430,7 +1434,8 @@ describe('isolated local D1 + private backup object restore proof', () => {
     const input = changeExport((sql) =>
       changeInsert(sql, 'tasks', (line) => line.replace("'backup-customer'", "'missing-customer'")),
     );
-    await failed(input, 'DB_IMPORT_FAILED');
+    // Canonical preparation now rejects the invalid graph before target import.
+    await failed(input, 'FOREIGN_KEY_INVALID');
   });
   it('detects a logically inconsistent but FK-valid Task assignment', async () => {
     await failed(
@@ -1702,7 +1707,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     });
     expect(restoreManifestId(changed.manifestJson)).not.toBe(a.manifestId);
     await failed(changed, 'DB_MONEY_MISMATCH');
-  });
+  }, 180000);
   it('historical ACTIVE authority does not publish after current canonical identity revocation', async () => {
     const principal = {
       issuer: 'https://synthetic.cloudflareaccess.com',

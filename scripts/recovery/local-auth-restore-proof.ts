@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process';
 import miniflare from 'miniflare';
 import { z } from 'zod';
 import { canonicalizePayload } from '../../src/server/mutations/canonical';
-import { orderedD1Import, RESTORE_LIMITS } from './local-restore-proof';
+import { RESTORE_LIMITS } from './local-restore-proof';
+import { orderedD1Import, OrderedImportFailure } from './ordered-d1-import';
 
 // Offline SYNTHETIC proof only: no caller-supplied target, account, remote binding or credentials.
 export const AUTH_RESTORE_SCHEMA_HASH =
@@ -442,6 +443,8 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
     const source = platform;
     return {
       backup,
+      // SYNTHETIC bytes only, retained for same-source native transport regression.
+      nativeExportSql: native,
       db: source.db,
       exportElapsedMs,
       async dispose() {
@@ -514,7 +517,16 @@ export async function restoreSyntheticAuthBackup(input: SyntheticAuthBackup) {
       canonicalizePayload(actual.fingerprints) === canonicalizePayload(manifest.fingerprints),
     'DATA_FINGERPRINT_MISMATCH',
   );
-  const sql = orderedD1Import(sqlFor(artifact));
+  let sql: string;
+  try {
+    sql = orderedD1Import(sqlFor(artifact));
+  } catch (error) {
+    // Preserve this accepted synthetic harness's error contract while the shared
+    // decoder now detects FK violations earlier, before any target is created.
+    if (error instanceof OrderedImportFailure && error.message === 'FOREIGN_KEY_INVALID')
+      throw new Error('DB_FK_FAILED', { cause: error });
+    throw error;
+  }
   const pre = new DatabaseSync(':memory:', { enableForeignKeyConstraints: false });
   try {
     pre.exec(sql);
