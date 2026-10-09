@@ -69,7 +69,7 @@
     },
   ],
   "env": {
-    // SOURCE ONLY: closed first production commissioning; no route/secret creation or deployment here.
+    // Preserve only the accepted panel custom domain; local configuration is not deployment authority.
     "production": {
       "name": "mayisigorta-crm",
       "account_id": "af9fc98cb8d5f5508d58057bc794d863",
@@ -77,7 +77,7 @@
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": false,
       "preview_urls": false,
-      "routes": [],
+      "routes": [{ "pattern": "panel.mayisigorta.com", "custom_domain": true }],
       "vars": {
         "APP_ENV": "production",
         "PANEL_ORIGIN": "https://panel.mayisigorta.com",

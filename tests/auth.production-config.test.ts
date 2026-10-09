@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 function configuration(text: string) {
   return JSON.parse(text.replace(/^\s*\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1'));
 }
-it('has an explicit isolated production commissioning manifest without enabling exposure or jobs', () => {
+it('preserves only the accepted panel custom domain without enabling alternate exposure or jobs', () => {
   const current = configuration(readFileSync('wrangler.jsonc', 'utf8'));
   const p = current.env.production;
   expect(Boolean(p)).toBe(true);
@@ -22,7 +22,7 @@ it('has an explicit isolated production commissioning manifest without enabling 
   expect(Object.hasOwn(p.vars, 'CSRF_SECRET')).toBe(false);
   expect(p.workers_dev).toBe(false);
   expect(p.preview_urls).toBe(false);
-  expect(p.routes).toEqual([]);
+  expect(p.routes).toEqual([{ pattern: 'panel.mayisigorta.com', custom_domain: true }]);
   expect(p.triggers.crons).toEqual([]);
   expect(p.queues.consumers).toEqual([]);
   expect(p.ratelimits).toEqual(current.ratelimits);
