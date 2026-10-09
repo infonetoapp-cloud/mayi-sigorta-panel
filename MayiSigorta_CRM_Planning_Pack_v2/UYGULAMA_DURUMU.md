@@ -1,8 +1,14 @@
 # Uygulama durumu
 
-Son güncelleme: **8 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
+Son güncelleme: **9 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
 ## FIRST PRODUCTION AGENCY WRITE — ACCEPTED / FIRST OWNER LOGIN NOT READY
+
+### Real Free Cron KDF core proof — definitive KDF_CORE_FREE_RUNTIME_NO_GO
+
+9 Ekim2026 cleanstart `0d53e8b506c20eb0aa8228b3640b9a58ce30e90a`; exactONEtemporaryscheduled-only `mayisigorta-kdf-cron-proof-20261009`, version24336c16-c178-4cdb-a928-f34f7d8962d2, nofetch/workersdev/previews/routes/bindings. Direct unchanged productionPasswordHasher/source-map/deployedbundle match/v1-600000-16-32 assertion. Three distinctCron1/2/3sequentialworkload; actualKDF3firstverify andKDF1 bothcompletedfalse/iteration-limit/providerexception, twoindependentlycorrelatedscheduledinvocations. KDF1observed1/success0 CPU0ms/wall1ms; KDF2observed0; KDF3observed1/success0 CPU1ms/wall2ms. NOT completedworkloadtimings orCPUlimittermination; safe nativeiteration rejection class only, numericcapnotcaptured. FreeHTTP/CronCPU10ms official current; no iterationreduction orPaid.
+
+Two consistent failures→stop; proofCron cleared+GETempty→WorkerDELETE200→settings/schedules404; persistentinventoryonlybackup. Productionreadonlyschemas/counts/agencyPROVISIONINGversion1/auth0 andbackup/Cron/alert/R2 unchanged. Fresh GPT-6.1 Sol HIGH BLOCKER0/IMPORTANT0/PASS evidencequality session20261009_095234_eb166c/actualhighverified; independent26GET6SELECT1drytelemetry reproduced2invocations/8logs. Details [AUTH evidence](AUTH_LOCAL_AUTHENTICATION_EVIDENCE.md). **KDF_CORE_FREE_RUNTIME_NO_GO; FIRST_OWNER_LOGIN_READY=NO**. No sourcechange/OWNERpassword/productionD1write; source600000 preserved. Next separateauthorizedREADONLY providerPBKDF2compatibility/iteration-limit diagnosis/options; noautoweaken/Paid/bootstrap. PriorinboundTLSINCONCLUSIVE/OWNERconfirmationPASS/agencyacceptance history preserved, DOCUMENTS_ENABLED=false/M4COMPLETE=false/M5notstarted.
 
 ### OWNER confirmation hardening — ACCEPTED LOCAL-ONLY
 
