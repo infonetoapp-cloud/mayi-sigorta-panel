@@ -36,6 +36,7 @@ import { consumeDurableDocumentJobs } from './documents/jobs';
 import { runDocumentHealthMonitoring } from './documents/health';
 import { composePrivateDocumentCapabilities } from './documents/private-capabilities';
 import { trackedDocumentBucket } from './documents/resource-admission';
+import { isClosedCanaryPermit } from './documents/closed-canary';
 import type { DocumentBackupCapability } from './documents/backup-capability-contract';
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
@@ -290,8 +291,17 @@ export function createWorker(
   documentReconcile?: DocumentReconcileStorage,
 ) {
   return {
-    queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
-      const enabled = env.DOCUMENTS_ENABLED === 'true';
+    queue(
+      batch: MessageBatch<DocumentJobQueueMessage>,
+      env: Env,
+      _ctx?: ExecutionContext,
+      closedCanary?: unknown,
+    ): Promise<void> {
+      // The platform invokes only three args. A fourth opaque, env+message-bound
+      // capability exists only in the separate private synthetic commissioner;
+      // flags, Queue bodies and HTTP inputs cannot manufacture it.
+      const enabled =
+        env.DOCUMENTS_ENABLED === 'true' || isClosedCanaryPermit(closedCanary, env, batch);
       const privatePeer = enabled ? env.DOCUMENT_BACKUP_CAPABILITY : undefined;
       const primary =
         enabled && env.DOCS_QUARANTINE

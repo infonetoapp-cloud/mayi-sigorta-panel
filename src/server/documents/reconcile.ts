@@ -55,31 +55,38 @@ export async function enqueueDocumentReconcile(
   agencyId: string,
   input: DocumentReconcileTarget,
   operationId: string,
+  maxAttempts = 5,
 ): Promise<DocumentJobQueueMessage> {
   const agency = id.parse(agencyId);
   const target = targetSchema.parse(input);
   const operation = id.parse(operationId);
+  const budget = z.number().int().min(1).max(5).parse(maxAttempts);
   const metadata = JSON.stringify(target);
   const jobId = `reconcile-${digest(JSON.stringify([agency, target, operation]))}`;
   await db.batch([
     db
       .prepare(
-        `INSERT INTO background_jobs(id,agency_id,job_type) VALUES(?,?,'DOCUMENT_RECONCILE') ON CONFLICT(id) DO NOTHING`,
+        `INSERT INTO background_jobs(id,agency_id,job_type,max_attempts) VALUES(?,?,'DOCUMENT_RECONCILE',?) ON CONFLICT(id) DO NOTHING`,
       )
-      .bind(jobId, agency),
+      .bind(jobId, agency, budget),
     requestAudit(db, agency, jobId, metadata),
   ]);
   const bound = await db
     .prepare(
-      `SELECT job.agency_id,event.metadata_json FROM background_jobs job JOIN system_audit_events event
+      `SELECT job.agency_id,job.max_attempts,event.metadata_json FROM background_jobs job JOIN system_audit_events event
     ON event.agency_id=job.agency_id AND event.target_id=job.id AND event.idempotency_key=job.id
     AND event.system_actor_code='document-reconcile' AND event.action='document.reconcile.requested'
     AND event.target_type='background_jobs' AND event.outcome='SUCCESS' AND event.reason_code='TARGET_BOUND'
     WHERE job.id=? AND job.job_type='DOCUMENT_RECONCILE' AND job.generation=1`,
     )
     .bind(jobId)
-    .first<{ agency_id: string; metadata_json: string }>();
-  if (!bound || bound.agency_id !== agency || bound.metadata_json !== metadata)
+    .first<{ agency_id: string; metadata_json: string; max_attempts: number }>();
+  if (
+    !bound ||
+    bound.agency_id !== agency ||
+    bound.metadata_json !== metadata ||
+    bound.max_attempts !== budget
+  )
     throw new Error('RECONCILE_TARGET_CONFLICT');
   return {
     jobId,
