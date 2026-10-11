@@ -1,0 +1,10 @@
+PRAGMA defer_foreign_keys=ON;
+CREATE TABLE entries(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL,label TEXT CHECK(length(label)<=80),FOREIGN KEY(parent_id) REFERENCES parents(id) ON DELETE RESTRICT);
+INSERT INTO entries VALUES(1,1,'İ雪 O''Brien');
+CREATE TABLE parents(id INTEGER PRIMARY KEY,label TEXT NOT NULL CHECK(length(label)>0));
+INSERT INTO parents VALUES(1,'synthetic-only');
+CREATE UNIQUE INDEX parents_key ON parents(id);
+CREATE INDEX entries_parent ON entries(parent_id);
+CREATE TRIGGER entry_guard BEFORE INSERT ON entries WHEN NEW.label IS NULL BEGIN SELECT RAISE(ABORT,'label required'); END;
+CREATE VIEW entry_view AS SELECT e.id,p.label FROM entries e JOIN parents p ON p.id=e.parent_id;
+PRAGMA defer_foreign_keys=OFF;

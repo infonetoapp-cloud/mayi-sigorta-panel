@@ -432,7 +432,9 @@ function decodeOrderedD1Import(exportSql: string): string {
     }
     for (const row of definitions.filter((r) => r.type === 'trigger' || r.type === 'view'))
       append(`${row.sql};`);
-    // Explicit final enforcement: D1 transaction commit must also validate deferred FKs.
+    // Compatibility reset, NOT a validation gate: SQLite OFF can clear pending
+    // deferred violations. Verified decoding and mandatory final FK readback
+    // protect integrity; import success/OFF alone never proves a safe restore.
     append('PRAGMA defer_foreign_keys=OFF;');
     return sql.join('\n');
   } catch (error) {
