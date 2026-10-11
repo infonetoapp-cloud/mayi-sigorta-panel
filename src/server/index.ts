@@ -33,6 +33,7 @@ import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
 import { consumeDurableDocumentJobs } from './documents/jobs';
+import { runDocumentHealthMonitoring } from './documents/health';
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
 import type { DocumentReconcileStorage } from './documents/reconcile-storage';
@@ -298,6 +299,8 @@ export function createWorker(
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       if (!controller.cron || controller.cron === '0 0 * * *')
         ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
+      if (controller.cron === '*/5 * * * *' && env.DOCUMENTS_ENABLED === 'true')
+        ctx.waitUntil(runDocumentHealthMonitoring(env.DB));
       if (
         controller.cron === '*/5 * * * *' &&
         env.DOCUMENT_JOB_QUEUE &&

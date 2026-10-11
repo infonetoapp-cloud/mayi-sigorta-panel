@@ -57,6 +57,17 @@ beforeAll(async () => {
   db = platform.env.DB;
   localQueue = platform.env.DOCUMENT_JOB_QUEUE;
   disposePlatform = platform.dispose;
+  // Active scheduled composition also evaluates READ-ONLY document health.
+  // This deliberately narrow historical queue fixture needs its read surfaces,
+  // not a relaxed runtime fallback for a missing production migration.
+  await db
+    .prepare('CREATE TABLE document_versions(id TEXT PRIMARY KEY,status TEXT,updated_at TEXT)')
+    .run();
+  await db
+    .prepare(
+      'CREATE TABLE background_job_runs(id TEXT PRIMARY KEY,agency_id TEXT,job_id TEXT,attempt_number INTEGER,lease_token_hash TEXT,status TEXT,reason_code TEXT,completed_at TEXT)',
+    )
+    .run();
   await db
     .prepare(
       `
