@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { documentByteStream } from './copy-resources';
+import type { DocumentPermit } from './resource-admission';
 import {
   backupAbortable,
   DocumentBackupIntegrityError,
@@ -22,11 +24,13 @@ async function rpc<T>(
   invoke: () => Promise<unknown>,
   schema: z.ZodType<T>,
   signal: AbortSignal,
+  permit?: DocumentPermit,
 ): Promise<T> {
   signal.throwIfAborted();
   let response: unknown;
   try {
-    response = await backupAbortable(invoke(), signal);
+    const pending = permit ? permit.run(invoke) : invoke();
+    response = await backupAbortable(pending, signal);
   } catch {
     throw new Error('DOCUMENT_BACKUP_CAPABILITY_IO');
   }
@@ -52,6 +56,7 @@ async function rpc<T>(
 export function composePrivateDocumentCapabilities(
   primary: Pick<R2Bucket, 'get'> | undefined,
   peer: DocumentBackupCapability | undefined,
+  permit?: DocumentPermit,
 ):
   | {
       readonly source: Pick<R2Bucket, 'get'>;
@@ -92,7 +97,12 @@ export function composePrivateDocumentCapabilities(
         throw new DocumentBackupIntegrityError('BACKUP_INPUT_MISMATCH');
       const identity = Object.freeze(parsed.data);
       const copy = new Uint8Array(bytes);
-      const proof = await rpc(() => create(identity, copy), backupProofSchema, signal);
+      const proof = await rpc(
+        () => create(identity, documentByteStream(copy, signal)),
+        backupProofSchema,
+        signal,
+        permit,
+      );
       if (
         proof.objectKey !== documentBackupObjectKey(identity) ||
         Object.entries(identity).some(
@@ -112,14 +122,19 @@ export function composePrivateDocumentCapabilities(
         !/^backup\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(key)
       )
         throw new DocumentBackupIntegrityError('RECONCILE_OBJECT_KEY_INVALID');
-      return rpc(() => observe(key), backupObservationSchema.nullable(), signal);
+      return rpc(() => observe(key), backupObservationSchema.nullable(), signal, permit);
     },
     async verifyBackup(input: DocumentBackupIdentity, key: string, signal: AbortSignal) {
       const parsed = backupIdentitySchema.safeParse(input);
       if (!parsed.success || key !== documentBackupObjectKey(parsed.data))
         throw new DocumentBackupIntegrityError('RECONCILE_BACKUP_IDENTITY_MISMATCH');
       const identity = Object.freeze(parsed.data);
-      const object = await rpc(() => observe(key), backupObservationSchema.nullable(), signal);
+      const object = await rpc(
+        () => observe(key),
+        backupObservationSchema.nullable(),
+        signal,
+        permit,
+      );
       return verifyDocumentBackupObservation(identity, key, object);
     },
   });

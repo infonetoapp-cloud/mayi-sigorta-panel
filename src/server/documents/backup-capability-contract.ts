@@ -35,7 +35,7 @@ export type BackupRpcResult<T> =
 export interface DocumentBackupCapability {
   createAndVerify(
     identity: DocumentBackupIdentity,
-    bytes: Uint8Array<ArrayBuffer>,
+    body: ReadableStream<Uint8Array>,
   ): Promise<BackupRpcResult<DocumentBackupProof>>;
   observeBackup(key: string): Promise<BackupRpcResult<ReconcileObjectObservation | null>>;
 }

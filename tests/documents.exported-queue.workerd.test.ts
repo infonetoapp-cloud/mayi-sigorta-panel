@@ -1,12 +1,21 @@
 // @vitest-environment node
-import { beforeAll, afterAll, it, expect } from 'vitest';
+import { beforeAll, afterAll, it, expect, vi } from 'vitest';
+// Only the unused Node DO-base re-export is stubbed. Native bundles below are
+// built from disk by esbuild, never from this Vite mock graph.
+vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
+import exportedWorker from '../src/server/worker';
 import { build } from 'esbuild';
 import miniflare from 'miniflare';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createSyntheticPdf } from './fixtures/documents';
 import { documentBackupObjectKey } from '../src/server/documents/backup-storage';
+import { documentByteStream } from '../src/server/documents/copy-resources';
+const wire = (value: Uint8Array<ArrayBuffer>) =>
+  documentByteStream(value, new AbortController().signal);
 import type { DocumentBackupCapability } from '../src/server/documents/backup-capability-contract';
 import { enqueueDocumentReconcile } from '../src/server/documents/reconcile';
 import type { DocumentJobQueueMessage } from '../src/server/documents/queue';
@@ -104,6 +113,12 @@ beforeAll(async () => {
           bindings: bindings('false'),
           serviceBindings: capability('document-recovery'),
         },
+        {
+          name: 'native-deadline-producer',
+          ...common,
+          serviceBindings: capability('document-recovery'),
+          script: `export default {async fetch(request,env){const identity=await request.json();let cancelled=0,finishPull,owner;const body=new ReadableStream({start(c){owner=c},pull(){return new Promise(r=>{finishPull=r})},cancel(){cancelled++;finishPull?.()}});const start=Date.now();const first=await env.DOCUMENT_BACKUP_CAPABILITY.createAndVerify(identity,body);let producerClosed=false;try{owner.error(new Error('SYNTHETIC_PRODUCER_CLOSED'));producerClosed=true}catch{}finishPull?.();await new Promise(r=>setTimeout(r,20));const resumed=await env.DOCUMENT_BACKUP_CAPABILITY.createAndVerify({...identity,documentVersionId:identity.documentVersionId+'-resumed'},new ReadableStream({start(c){c.enqueue(new Uint8Array([7]));c.close()}}));return Response.json({firstOK:first.ok,resumedOK:resumed.ok,cancelled,producerClosed,wallMs:Date.now()-start})}}`,
+        },
         { name: 'crm-unbound', ...main, bindings: bindings('true') },
         {
           name: 'crm-ambiguous',
@@ -180,7 +195,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await runtime?.dispose();
 });
-async function fixture(maxAttempts = 5) {
+async function fixture(maxAttempts = 5, content: Uint8Array<ArrayBuffer> = bytes) {
+  const checksum = createHash('sha256').update(content).digest('hex');
   const document = crypto.randomUUID(),
     version = crypto.randomUUID(),
     job = crypto.randomUUID(),
@@ -195,14 +211,14 @@ async function fixture(maxAttempts = 5) {
     .prepare(
       "INSERT INTO document_versions(id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,detected_content_type,created_by_user_id,created_by_membership_id) VALUES(?,'private-agency',?,1,?,?,?,'synthetic.pdf','application/pdf','private-user','private-member')",
     )
-    .bind(version, document, key, sha, bytes.byteLength)
+    .bind(version, document, key, checksum, content.byteLength)
     .run();
-  await primary.put(key, bytes, { customMetadata: { sha256: sha } });
+  await primary.put(key, content, { customMetadata: { sha256: checksum } });
   await db
     .prepare(
       "INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256,max_attempts) VALUES(?,'private-agency','DOCUMENT_BACKUP',?,?,?)",
     )
-    .bind(job, version, sha, maxAttempts)
+    .bind(job, version, checksum, maxAttempts)
     .run();
   await db
     .prepare(
@@ -214,8 +230,8 @@ async function fixture(maxAttempts = 5) {
     agencyId: 'private-agency',
     documentVersionId: version,
     generation: 1,
-    sha256: sha,
-    sizeBytes: bytes.byteLength,
+    sha256: checksum,
+    sizeBytes: content.byteLength,
   };
   return {
     document,
@@ -229,7 +245,7 @@ async function fixture(maxAttempts = 5) {
       jobType: 'DOCUMENT_BACKUP',
       generation: 1,
       documentVersionId: version,
-      inputSha256: sha,
+      inputSha256: checksum,
     } as DocumentJobQueueMessage,
   };
 }
@@ -293,12 +309,272 @@ async function reconcile(f: Awaited<ReturnType<typeof fixture>>, operation = cry
   await deliver(m);
   return m;
 }
+const measurements: unknown[] = [];
+it.each([1, 4096, 1048576, 20971519, 20971520])(
+  'actual queue/stream-RPC copy admission at %s bytes',
+  async (size) => {
+    // Admission-layer deterministic bytes, NOT a format/parser or AV performance claim.
+    const data = new Uint8Array(size);
+    data.fill(23);
+    const f = await fixture(5, data);
+    const start = performance.now();
+    let peak = process.memoryUsage();
+    const sample = setInterval(() => {
+      const m = process.memoryUsage();
+      peak = {
+        ...m,
+        heapUsed: Math.max(peak.heapUsed, m.heapUsed),
+        external: Math.max(peak.external, m.external),
+        arrayBuffers: Math.max(peak.arrayBuffers, m.arrayBuffers),
+      };
+    }, 5);
+    try {
+      await deliver(f.message);
+      expect((await state(f.job))?.status).toBe('COMPLETED');
+      expect(await evidence(f)).toEqual([1, 1, 1]);
+      const object = await backup.get(f.backupKey);
+      expect(object !== null && object.size === size).toBe(true);
+      const reader = object!.body.getReader(),
+        hash = createHash('sha256');
+      let read = 0;
+      try {
+        while (true) {
+          const r = await reader.read();
+          if (r.done) break;
+          read += r.value.byteLength;
+          hash.update(r.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      expect(read === size && hash.digest('hex') === f.identity.sha256).toBe(true);
+      measurements.push({
+        size,
+        wallMs: Math.round(performance.now() - start),
+        verifiedBytes: read,
+        nodeDriverHeapUsedPeak: peak.heapUsed,
+        nodeDriverExternalPeak: peak.external,
+        nodeDriverArrayBuffersPeak: peak.arrayBuffers,
+        scope: 'NODE TEST DRIVER ONLY; NOT WORKER ISOLATE OR PRODUCTION',
+        explicitBuffersFromSourceTrace: 3,
+        RPCFullBodySerialization: false,
+      });
+      writeFileSync(
+        join(tmpdir(), 'mayi-document-copy-local-metrics.json'),
+        JSON.stringify(measurements, null, 2),
+      );
+    } finally {
+      clearInterval(sample);
+    }
+  },
+  120000,
+);
+it('actual RPC rejects20MiB+1 before object write and rejects whole-buffer wire bodies', async () => {
+  const p = await peer(),
+    data = new Uint8Array(1),
+    identity = {
+      agencyId: 'private-agency',
+      documentVersionId: crypto.randomUUID(),
+      generation: 1,
+      sizeBytes: 20971521,
+      sha256: createHash('sha256').update(data).digest('hex'),
+    };
+  expect((await p.createAndVerify(identity, wire(data))).ok).toBe(false);
+  const valid = { ...identity, sizeBytes: 1 };
+  expect(
+    (
+      await (p.createAndVerify as unknown as (i: unknown, b: unknown) => Promise<{ ok: boolean }>)(
+        valid,
+        data,
+      )
+    ).ok,
+  ).toBe(false);
+  expect(await backup.head(documentBackupObjectKey(valid))).toBeNull();
+});
+it.each(['same', 'different'] as const)(
+  'concurrent %s document events use one nonwaiting admission; no duplicate effects',
+  async (kind) => {
+    const first = await fixture(),
+      second = kind === 'same' ? first : await fixture();
+    const results = await Promise.all([deliver(first.message), deliver(second.message)]);
+    // Native queue transport may serialize events before isolate execution.
+    // Forced overlap and exact busy semantics are independently tested below.
+    expect(results.reduce((n, r) => n + r.retryMessages.length, 0) <= 1).toBe(true);
+    await deliver(first.message);
+    await deliver(second.message);
+    expect(await evidence(first)).toEqual([1, 1, 1]);
+    expect(await evidence(second)).toEqual([1, 1, 1]);
+  },
+);
+it('backup/reconcile race and health coexistence do not fabricate completion or corrupt state', async () => {
+  const f = await fixture();
+  const message = await enqueueDocumentReconcile(
+    db,
+    'private-agency',
+    { versionId: f.version },
+    crypto.randomUUID(),
+  );
+  const results = await Promise.all([
+    deliver(f.message),
+    deliver(message),
+    worker.scheduled({ cron: '*/5 * * * *' }),
+  ]);
+  expect(results[2]!.outcome).toBe('ok');
+  await deliver(f.message);
+  await deliver(message);
+  expect((await state(f.job))?.status).toBe('COMPLETED');
+  expect((await state(message.jobId))?.status).toBe('COMPLETED');
+  expect(await evidence(f)).toEqual([1, 1, 1]);
+});
+it('forced source barrier proves exported Queue admission across duplicate/different/reconcile events with native D1/RPC', async () => {
+  const f = await fixture(),
+    other = await fixture();
+  let release!: () => void, entered!: () => void;
+  const ready = new Promise<void>((r) => {
+      entered = r;
+    }),
+    blocked = new Promise<void>((r) => {
+      release = r;
+    });
+  let gets = 0;
+  const source = {
+    get: async (key: string) => {
+      gets++;
+      entered();
+      await blocked;
+      return primary.get(key);
+    },
+  } as unknown as R2Bucket;
+  const env = {
+    DB: db,
+    DOCS_QUARANTINE: source,
+    DOCUMENT_BACKUP_CAPABILITY: await peer(),
+    DOCUMENTS_ENABLED: 'true',
+  };
+  const invoke = (body: DocumentJobQueueMessage) => {
+    let ack = 0,
+      retry = 0;
+    const task = exportedWorker.queue(
+      {
+        messages: [
+          {
+            body,
+            ack() {
+              ack++;
+            },
+            retry() {
+              retry++;
+            },
+          },
+        ],
+      } as unknown as MessageBatch<DocumentJobQueueMessage>,
+      env,
+    );
+    return { task, ack: () => ack, retry: () => retry };
+  };
+  const first = invoke(f.message);
+  await ready;
+  const duplicate = invoke(f.message),
+    second = invoke(other.message),
+    reconcileMessage = await enqueueDocumentReconcile(
+      db,
+      'private-agency',
+      { versionId: f.version },
+      crypto.randomUUID(),
+    ),
+    race = invoke(reconcileMessage);
+  await Promise.all([duplicate.task, second.task, race.task]);
+  expect(duplicate.retry() + second.retry() + race.retry()).toBe(3);
+  expect(gets).toBe(1);
+  expect((await state(f.job))?.attempt_count).toBe(1);
+  expect((await state(other.job))?.attempt_count).toBe(0);
+  expect((await state(reconcileMessage.jobId))?.attempt_count).toBe(0);
+  const health: Promise<unknown>[] = [];
+  exportedWorker.scheduled({ cron: '*/5 * * * *' } as ScheduledController, env, {
+    waitUntil: (p: Promise<unknown>) => health.push(p),
+  } as unknown as ExecutionContext);
+  await Promise.all(health);
+  release();
+  await first.task;
+  expect(first.ack()).toBe(1);
+  expect(await evidence(f)).toEqual([1, 1, 1]);
+  await deliver(other.message);
+  await deliver(reconcileMessage);
+  expect(await evidence(other)).toEqual([1, 1, 1]);
+  expect((await state(reconcileMessage.jobId))?.status).toBe('COMPLETED');
+});
+it('actual private admission rejects another incoming body while a stream is stalled, then recovers', async () => {
+  const p = await peer(),
+    body = new Uint8Array([7]),
+    identity = {
+      agencyId: 'private-agency',
+      documentVersionId: crypto.randomUUID(),
+      generation: 1,
+      sizeBytes: 1,
+      sha256: createHash('sha256').update(body).digest('hex'),
+    };
+  let send!: () => void, entered!: () => void;
+  const ready = new Promise<void>((r) => {
+    entered = r;
+  });
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) {
+      entered();
+      return new Promise<void>((r) => {
+        send = () => {
+          c.enqueue(body);
+          c.close();
+          r();
+        };
+      });
+    },
+  });
+  const first = p.createAndVerify(identity, stream);
+  await ready;
+  const second = { ...identity, documentVersionId: crypto.randomUUID() };
+  expect((await p.createAndVerify(second, wire(body))).ok).toBe(false);
+  send();
+  expect((await first).ok).toBe(true);
+  expect((await p.createAndVerify(second, wire(body))).ok).toBe(true);
+});
+it('native Worker-to-Worker RPC120s deadline fails closed; producer-owned shutdown resumes bounded admission', async () => {
+  const data = new Uint8Array([7]),
+    identity = {
+      agencyId: 'private-agency',
+      documentVersionId: crypto.randomUUID(),
+      generation: 1,
+      sizeBytes: 1,
+      sha256: createHash('sha256').update(data).digest('hex'),
+    };
+  const producer = await runtime.getWorker('native-deadline-producer');
+  const response = await producer.fetch('https://local-deadline.test', {
+    method: 'POST',
+    body: JSON.stringify(identity),
+  });
+  const result = (await response.json()) as {
+    firstOK: boolean;
+    resumedOK: boolean;
+    cancelled: number;
+    producerClosed: boolean;
+    wallMs: number;
+  };
+  expect(result.firstOK).toBe(false);
+  expect(result.wallMs >= 119000).toBe(true);
+  expect(result.producerClosed).toBe(true);
+  expect(result.resumedOK).toBe(true);
+  measurements.push({ ...result, scope: 'LOCAL NATIVE WORKER-TO-WORKER RPC; NOT PRODUCTION' });
+  writeFileSync(
+    join(tmpdir(), 'mayi-document-copy-local-metrics.json'),
+    JSON.stringify(measurements, null, 2),
+  );
+  expect(await backup.head(documentBackupObjectKey(identity))).toBeNull();
+}, 145000);
 it('real private service RPC creates verified immutable backup and denies HTTP/destructive authority', async () => {
   const f = await fixture();
   const capability = await peer();
-  expect((await capability.createAndVerify(f.identity, bytes)).ok).toBe(true);
+  expect((await capability.createAndVerify(f.identity, wire(bytes))).ok).toBe(true);
   const first = await backup.head(f.backupKey);
-  expect((await capability.createAndVerify(f.identity, bytes)).ok).toBe(true);
+  expect((await capability.createAndVerify(f.identity, wire(bytes))).ok).toBe(true);
   expect((await backup.head(f.backupKey))?.etag === first?.etag).toBe(true);
   const backupObject = await backup.get(f.backupKey);
   expect(
@@ -330,7 +606,7 @@ it('private RPC rejects extra/path-selecting identity and oversized/hash-mismatc
     [f.identity, bad],
     [{ ...f.identity, sizeBytes: bytes.byteLength + 1 }, bytes],
   ] as Array<[typeof f.identity, Uint8Array<ArrayBuffer>]>)
-    expect((await capability.createAndVerify(identity, value)).ok).toBe(false);
+    expect((await capability.createAndVerify(identity, wire(value))).ok).toBe(false);
   expect(await backup.head(f.backupKey)).toBeNull();
   expect(await evidence(f)).toEqual([0, 0, 0]);
   for (const method of ['delete', 'list', 'get', 'put', 'overwrite']) {
@@ -341,6 +617,38 @@ it('private RPC rejects extra/path-selecting identity and oversized/hash-mismatc
     await expect(async () => await forbidden[method]!(f.backupKey)).rejects.toThrow();
   }
 });
+it('D1 finalize failure after object verification never completes; immutable object is reused by due retry', async () => {
+  const f = await fixture();
+  expect(/^[a-f0-9-]{36}$/.test(f.version)).toBe(true);
+  await db
+    .prepare(
+      `CREATE TRIGGER synthetic_copy_finalize_stop BEFORE INSERT ON document_backup_copies WHEN NEW.document_version_id='${f.version}' BEGIN SELECT RAISE(ABORT,'SYNTHETIC_FINALIZE_FAILURE'); END`,
+    )
+    .run();
+  try {
+    await deliver(f.message);
+    expect((await state(f.job))?.status).toBe('RETRY_WAIT');
+    expect(await evidence(f)).toEqual([1, 0, 0]);
+    expect((await backup.head(f.backupKey)) !== null).toBe(true);
+  } finally {
+    await db.prepare('DROP TRIGGER synthetic_copy_finalize_stop').run();
+  }
+  const before = await backup.head(f.backupKey);
+  const failed = await state(f.job);
+  await new Promise((r) =>
+    setTimeout(r, Math.max(0, Date.parse(failed!.available_at) - Date.now()) + 25),
+  );
+  await deliver(f.message);
+  expect((await state(f.job))?.status).toBe('COMPLETED');
+  expect(await evidence(f)).toEqual([2, 1, 1]);
+  const after = await backup.head(f.backupKey);
+  expect(
+    before !== null &&
+      after !== null &&
+      before.etag === after.etag &&
+      before.uploaded.getTime() === after.uploaded.getTime(),
+  ).toBe(true);
+}, 90000);
 it('real exported workerd queue composes private RPC into verified backup and AVAILABLE', async () => {
   const f = await fixture();
   const result = await deliver(f.message);
@@ -521,7 +829,7 @@ it('reconcile absent backup detects investigation while original backup work sta
 });
 it('verified object without D1 evidence is finalized only through authoritative nested backup lease/CAS', async () => {
   const f = await fixture();
-  expect((await (await peer()).createAndVerify(f.identity, bytes)).ok).toBe(true);
+  expect((await (await peer()).createAndVerify(f.identity, wire(bytes))).ok).toBe(true);
   expect(await evidence(f)).toEqual([0, 0, 0]);
   expect((await versionState(f))?.status).toBe('BACKUP_PENDING');
   const m = await reconcile(f);

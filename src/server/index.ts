@@ -35,6 +35,7 @@ import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documen
 import { consumeDurableDocumentJobs } from './documents/jobs';
 import { runDocumentHealthMonitoring } from './documents/health';
 import { composePrivateDocumentCapabilities } from './documents/private-capabilities';
+import { trackedDocumentBucket } from './documents/resource-admission';
 import type { DocumentBackupCapability } from './documents/backup-capability-contract';
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
@@ -291,9 +292,7 @@ export function createWorker(
   return {
     queue(batch: MessageBatch<DocumentJobQueueMessage>, env: Env): Promise<void> {
       const enabled = env.DOCUMENTS_ENABLED === 'true';
-      const capabilities = enabled
-        ? composePrivateDocumentCapabilities(env.DOCS_QUARANTINE, env.DOCUMENT_BACKUP_CAPABILITY)
-        : undefined;
+      const privatePeer = enabled ? env.DOCUMENT_BACKUP_CAPABILITY : undefined;
       const primary =
         enabled && env.DOCS_QUARANTINE
           ? Object.freeze({ get: env.DOCS_QUARANTINE.get.bind(env.DOCS_QUARANTINE) })
@@ -301,10 +300,16 @@ export function createWorker(
       return consumeDurableDocumentJobs(
         batch,
         env.DB,
-        capabilities?.source ?? primary,
+        primary,
         enabled,
-        documentBackup ?? capabilities?.backup,
-        documentReconcile ?? capabilities?.reconcile,
+        documentBackup,
+        documentReconcile,
+        (permit) =>
+          composePrivateDocumentCapabilities(
+            primary ? trackedDocumentBucket(primary, permit) : undefined,
+            privatePeer,
+            permit,
+          ),
       );
     },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {

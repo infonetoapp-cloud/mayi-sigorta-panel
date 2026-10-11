@@ -1,4 +1,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
+import { readBoundedDocumentStream } from './copy-resources';
+import { createDocumentAdmission, trackedDocumentBucket } from './resource-admission';
+const admission = createDocumentAdmission();
 import {
   createR2DocumentBackupAdapter,
   DocumentBackupIntegrityError,
@@ -21,28 +24,48 @@ export interface PrivateDocumentBackupEnv {
 export class DocumentBackupCapability extends WorkerEntrypoint<PrivateDocumentBackupEnv> {
   async createAndVerify(
     input: DocumentBackupIdentity,
-    bytes: Uint8Array<ArrayBuffer>,
+    body: ReadableStream<Uint8Array>,
   ): Promise<BackupRpcResult<DocumentBackupProof>> {
     try {
       const parsed = backupIdentitySchema.safeParse(input);
-      if (
-        !parsed.success ||
-        !(bytes instanceof Uint8Array) ||
-        bytes.byteLength !== parsed.data.sizeBytes
-      )
+      if (!parsed.success || !(body instanceof ReadableStream))
         throw new DocumentBackupIntegrityError('BACKUP_INPUT_MISMATCH');
-      if (!this.env.DOCUMENT_BACKUP_STORAGE) return { ok: false, kind: 'IO' };
+      if (!this.env.DOCUMENT_BACKUP_STORAGE) {
+        void body.cancel().catch(() => undefined);
+        return { ok: false, kind: 'IO' };
+      }
+      const permit = admission.acquire();
+      if (!permit) {
+        void body.cancel().catch(() => undefined);
+        return { ok: false, kind: 'IO' };
+      }
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 120000);
       try {
-        const proof = await createR2DocumentBackupAdapter(
-          this.env.DOCUMENT_BACKUP_STORAGE,
-        ).createAndVerify(Object.freeze(parsed.data), bytes, controller.signal);
+        const bytes = await readBoundedDocumentStream(
+          body,
+          parsed.data.sizeBytes,
+          parsed.data.sha256,
+          controller.signal,
+          (p) => permit.track(p),
+        );
+        const storage = this.env.DOCUMENT_BACKUP_STORAGE;
+        const tracked = trackedDocumentBucket(storage, permit);
+        const proof = await createR2DocumentBackupAdapter({
+          get: tracked.get,
+          put: (...args: Parameters<R2Bucket['put']>) => permit.run(() => storage.put(...args)),
+        } as Pick<R2Bucket, 'get' | 'put'>).createAndVerify(
+          Object.freeze(parsed.data),
+          bytes,
+          controller.signal,
+        );
         return { ok: true, value: backupProofSchema.parse(proof) };
       } finally {
         clearTimeout(timer);
+        permit.release();
       }
     } catch (error) {
+      if (body instanceof ReadableStream && !body.locked) void body.cancel().catch(() => undefined);
       return {
         ok: false,
         kind: error instanceof DocumentBackupIntegrityError ? 'INTEGRITY' : 'IO',
@@ -57,19 +80,22 @@ export class DocumentBackupCapability extends WorkerEntrypoint<PrivateDocumentBa
       )
         return { ok: false, kind: 'INTEGRITY' };
       if (!this.env.DOCUMENT_BACKUP_STORAGE) return { ok: false, kind: 'IO' };
+      const permit = admission.acquire();
+      if (!permit) return { ok: false, kind: 'IO' };
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 120000);
       try {
         const object = await observeR2DocumentObject(
           'BACKUP',
           key,
-          this.env.DOCUMENT_BACKUP_STORAGE.get.bind(this.env.DOCUMENT_BACKUP_STORAGE),
+          trackedDocumentBucket(this.env.DOCUMENT_BACKUP_STORAGE, permit).get,
           controller.signal,
         );
         const parsed = backupObservationSchema.nullable().safeParse(object);
         return parsed.success ? { ok: true, value: parsed.data } : { ok: false, kind: 'INTEGRITY' };
       } finally {
         clearTimeout(timer);
+        permit.release();
       }
     } catch (error) {
       return {

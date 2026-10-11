@@ -70,7 +70,7 @@ it('does not bind RPC references, and captures methods/identity/bytes before awa
   expect((captured[0] as typeof identity).generation).toBe(1);
   expect(
     createHash('sha256')
-      .update(captured[1] as Uint8Array)
+      .update(new Uint8Array(await new Response(captured[1] as ReadableStream).arrayBuffer()))
       .digest('hex') === identity.sha256,
   ).toBe(true);
 });
