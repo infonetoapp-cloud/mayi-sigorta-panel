@@ -1,0 +1,54 @@
+# M4 private capability composition — LOCAL evidence
+
+Starting main/HEAD/origin/main/remote main exact `9c0fb032375a14611d6f945d2ce4fc6ca29ecd50`, clean. User explicitly authorized LOCAL source/runtime composition and actual exported queue()/scheduled()/fetch() acceptance. One writer + two parallel read-only source specialists. No remote resources or production change authorized/performed. Recovery remains OPEN/provider support deferred; M4 COMPLETE=false.
+
+## Actual runtime gap / resolved composition
+
+`src/server/worker.ts` default → `index.ts` createWorker(app). Before this slice queue() passed undefined optional backup/reconcile adapters; valid jobs retried delivery without starting D1 attempt. fetch() already enforced employee/session/permission + documents flag; scheduled() already composed renewal, durable dispatch/reclaim and health. DOCS_QUARANTINE was the only raw CRM R2 binding; producer present, production consumer/crons absent. No RPC existed and no existing backup Worker service was pretended to exist.
+
+New explicit typed `DOCUMENT_BACKUP_CAPABILITY` is an OPTIONAL provider-native named Service RPC. Production/root/foundation Wrangler configs remain byte-equivalent: no service binding, no raw backup bucket, production documentsfalse/consumer[]/cron[]. Default queue creates immutable minimal façades from this private binding; missing binding still retry60 without D1 attempt/no primary-as-backup fallback. Existing injected adapters retained for historical tests only; acceptance calls unmodified default export in actual workerd with real service-binding serialization, not createWorker injection.
+
+`private-backup-worker.ts` is an authority-isolated storage leaf implementing the plan535 document create/readback boundary, NOT a second CRM/domain/job ledger and NOT the existing D1 backup runner. It is neither re-exported by CRM nor configured/deployed as a new service in this slice. Only its own synthetic document-backup bucket is bound locally. No D1, primary bucket, credentials, public routes or backup admin/delete/list/download RPC. Default AND named fetch deny404; only createAndVerify(identity,bytes) and observeBackup(key) are RPC public methods. Framework base methods do not grant raw Env/bucket authority; native forbidden-method tests reject get/put/delete/list/overwrite.
+
+CRM domain paths receive:
+
+- primary only get under quarantine/UUID key shape;
+- backup only createAndVerify; caller key/options/bucket selection absent;
+- reconcile only primary.get, metadata/hash observation and verifyBackup; no create/write/delete/HTTP access.
+
+Existing `createR2DocumentBackupAdapter` remains the single conditional-create/full-readback algorithm. Existing reconcile observation/hash/proof logic extracted into shared helpers; no second checksum/domain state implementation. RPC does not transfer AbortSignal or Error subclass identity: leaf-local120s abort window, bounded20MiB bytes, fixed typed IO/INTEGRITY envelope, strict proof/observation schemas; client safely maps integrity to existing local error class without retaining remote message/cause/stack. Service RPC callables are captured directly, not `.bind` (a remote method path); primary.get is bound locally. Identity/bytes detached before awaits. Source object reads and copy/evidence finalization remain causally bound to current authoritative D1 job/version/generation/checksum/lease/CAS.
+
+Abort/deadline is NOT provider cancellation or synchronous preemption. Late conditional object writes may survive as immutable orphans; no false AVAILABLE because existing final D1 CAS/verification gates remain. API narrowing is NOT provider IAM denial, Bucket Lock/35day retention, EU readback, cross-account/account-compromise protection or Free CPU/heap/billing proof. Leaf namespace can still be abused by a compromised trusted caller; production storage/IAM/lock/runtime/admission commissioning stays open.
+
+## Actual exported acceptance
+
+`tests/documents.exported-queue.workerd.test.ts`: esbuild write:false of actual src/server/worker.ts and actual private leaf; Miniflare installed pinned5/workerd nodejs_compat/cf:false; native local D1 with all0000–0020 migrations, FK/triggers intact, separate primary/backup R2. Synthetic bounded PDF only. No cloudflare:workers stub or auth/resolver/adapter injection.
+
+- Native getWorker().queue events: valid completion → SUCCEEDED run/COMPLETED job/AVAILABLE publication/one copy+completion SYSTEM audit; copy source/hash/key exact.
+- Duplicate/COMPLETED delivery → one attempt/run/copy/audit, no object replacement. Stale generation/wrong version/missing job → no trusted job/object creation. Live lease conflict ACK/no second attempt. Malformed/unsupported message safely ACK/no business effect. Queue ACK is NOT completion.
+- Unbound capability → delivery retry60, no D1 attempt or primary backup fallback. True remote RPC exception → durable RETRY_WAIT/sanitized BACKUP_IO_OR_FINALIZE_FAILED. IO exhaustion at maxAttempts1 → DEAD; later delivery cannot resurrect.
+- Deterministic identity-derived immutable key; conditional create and full size/hash/metadata readback. Invalid key/prefix/extra identity/oversize/hash mismatch rejected; conflicting immutable object left unchanged/no evidence/pointer. Direct storage proof alone leaves job QUEUED and evidence0.
+- Test-only RPC lost-result fault: real conditional copy+verification executes, response is replaced by typed IO FAILURE (never fake success). First delivery RETRY_WAIT, object remains, copies/audit/publication0; actual due retry uses real lease/condition/readback, converges one copy/audit without replacing object. No production fault flag.
+- Reconcile through actual default queue: absent backup → COMPLETED/PERMANENT_ERROR investigation RECONCILE_BACKUP_MISSING; original backup job stays recoverable QUEUED/BACKUP_PENDING. Existing verified object with missing D1 evidence → only nested existing backup executor/lease/CAS may finalize; no new R2 write capability. Evidence+object missing or metadata/checksum mismatch → discrepancy audit/unpublication, immutable evidence retained. Coherent state SAFE_NOOP; exact scheduling/duplicate delivery/stale generation idempotent.
+- Actual exported scheduled uses native producer + existing health/dispatch. Test-only Queue sink holds/ACKs delivery without executing domain; separate manual event matrix verifies consumers. Dispatcher timestamp updated, job remains authoritative QUEUED until real consumer event.
+- Separate docsfalse Worker has local Queue producer + private RPC but ACKs/retains jobs/does not touch objects; scheduled document work remains off. Actual exported fetch sees five canonical POST upload/download/secure endpoints →404/NOT_FOUND, no auth/app injection. Canonical Request constructed INSIDE workerd via test-only RPC probe because initial Node Fetcher transport yielded403/no expected routeJSON; that failure is preserved, never relabelled404 or used as feature proof. Probe imports and calls actual exported handler, no production HTTP/operator endpoint added. Neither Queue binding nor code existence enables public features.
+
+## Permanent narrow/config coverage
+
+`documents.private-capabilities.test.ts`: frozen minimal surfaces; no RPC .bind; capture and argument alias isolation; exact/strict proof; sanitized exception/no cause; typed integrity mapping; no reconcile create call; wrong prefix/key before RPC; already aborted invokes no peer.
+
+`documents.private-config.test.ts`: root/production/foundation docsfalse, only raw DOCS_QUARANTINE, no services; production consumers/crons empty/devpreviewfalse; CRM/D1 backup configs unchanged; leaf public-method AST exact and not reachable/imported by CRM entry/composition. Existing auth production configuration regression retained.
+
+Production dry-run of actual CRM entry is required separately below; no private leaf config or remote service target default is created. Actual future enablement requires explicit private leaf service target/bucket authority/IAM/lock/EU/resources + CRM named binding + consumer/Cron/docs activation under separate authorization. Missing prerequisites fail closed.
+
+## Verification history / gates
+
+Initial actual queue RED: QUEUED instead of COMPLETED (missing composition). First implementation RETRY_WAIT due unsupported RPC `.bind` semantics; direct real service RPC succeeded, method capture fixed; first2native cases PASS. Initial matrix17PASS1FAIL at feature gate; corrected method/header input still403, safe diagnostic captured no routeJSON. Actual in-workerd canonical input probe1PASS17SKIP. Later18PASS1FAIL was test harness expecting async rejection but forbidden RPC property lookup threw synchronously; async guard corrected2PASS18SKIP, forbidden calls remain denied. These failures/skips are historical, not a clean aggregate. Initial type errors corrected without weakening service/domain constraints.
+
+Focused private/config/auth9PASS, typecheck/changed-filelint/fullformat/boundaries/clientbuild/productiondryrunPASS. Dry-run docsfalse and unchanged production bindings; no deployment. Final relevant acceptance: **13 files /239 of239PASS /824.33s /exit0**, including new20native-exported-entry cases,6private-unit,2private-config, existing productionconfig, backup/reconcile/job-lifecycle/health/authorization/stream/upload/validation suites. Historical failed attempts remain separate; corrected focused2PASS18SKIP is not relabelled20PASS. Typecheck/changed-filelint/fullformat/boundaries/clientbuild/productiondryrunPASS; dry-run documentsfalse/unchanged bindings. No full-suite PASS claim or historical full-lint baseline supersession.
+
+ONE fresh independent GPT-6.1Sol/openai-codex/HIGH session `20261011_174447_128fca`: **BLOCKER0/IMPORTANT0/OPTIONAL0/PASS**, SOURCE+LOCAL scope only. Independent8private-unit/config PASS; native-selected9PASS11SKIP, RAM18probePASS and native-leaf21probePASS (invalid writes0); quality/bundle graphs PASS. Reviewer read parent239receipt, did not rerun whole scope. Initial extra native-probe timeout/assertionFAIL retained, harness correction21PASS without candidate edits. Parent candidate11file SHA inventory unchanged after review. Source/tests/docs accepted normalcommit/push; no deployment.
+
+## Remaining gates
+
+**M4_PRIVATE_COMPOSITION_ACCEPTED=YES (SOURCE+LOCAL only)**; full M4 COMPLETE remains false. Even after LOCAL acceptance: DOCUMENTS_ENABLED=false, public document routes/production Queue consumer/CRM Cron off, production mutations/deployments0; recoveryOPEN. Next LOCAL gap is deployment-boundary/readiness contracts and document-copy runtime resource/admission evidence without real content. Production service/bucket provisioning, private EU/lock/IAM proof, Free capacity/parser/copy RPC resource measurements, scoped restore and actual email delivery remain explicit commissioning gates; not silently enabled here.

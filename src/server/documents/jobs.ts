@@ -8,7 +8,7 @@ import type { DocumentJobQueueMessage } from './queue';
 export async function consumeDurableDocumentJobs(
   batch: MessageBatch<DocumentJobQueueMessage>,
   db: D1Database,
-  source: R2Bucket | undefined,
+  source: Pick<R2Bucket, 'get'> | undefined,
   enabled: boolean,
   backup?: DocumentBackupAdapter,
   reconcile?: DocumentReconcileStorage,
