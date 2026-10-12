@@ -17,22 +17,28 @@ import {
 import type { DocumentBackupCapability } from '../../src/server/documents/backup-capability-contract';
 import type { DocumentJobQueueMessage } from '../../src/server/documents/queue';
 import { metrics, countBucket, countDatabase, countedStream, type CanaryMetrics } from './metrics';
+import { emitCanaryMarker } from './attribution';
 interface Leaf {
   measuredCopy(
     id: DocumentBackupIdentity,
     b: ReadableStream<Uint8Array>,
+    correlation?: { runId: string; size: number; jobId: string },
   ): Promise<{
     reply: Awaited<ReturnType<DocumentBackupCapability['createAndVerify']>>;
     metrics: CanaryMetrics;
     wallMs: number;
   }>;
-  measuredObservation(k: string): Promise<{
+  measuredObservation(
+    k: string,
+    correlation?: { runId: string; size: number; jobId: string },
+  ): Promise<{
     reply: Awaited<ReturnType<DocumentBackupCapability['observeBackup']>>;
     metrics: CanaryMetrics;
     wallMs: number;
   }>;
 }
 interface CanaryEnv extends ClosedCanaryEnv {
+  CANARY_LOGS_ENABLED?: string;
   DOCS_QUARANTINE: R2Bucket;
   CANARY_LEAF: Leaf;
   DOCUMENT_JOB_QUEUE: Queue<DocumentJobQueueMessage>;
@@ -328,12 +334,16 @@ export default {
     const raw = batch.messages[0]?.body as unknown;
     if (raw && typeof raw === 'object' && 'kind' in raw) {
       const start = parseCanaryStart(raw, env.CANARY_RUN_ID!);
+      emitCanaryMarker(env, 'queue_start', null, 'start');
+      emitCanaryMarker(env, 'producer_start', null, 'start');
       await new DocumentCanaryControl(ctx, env).prepare(start.sizeBytes);
       batch.messages[0]!.ack();
+      emitCanaryMarker(env, 'queue_complete', null, 'ok');
       return;
     }
     const message = parseDocumentQueueControl(batch.messages[0]?.body);
     if (!message) throw new Error('CANARY_MESSAGE_DENIED');
+    emitCanaryMarker(env, 'queue_start', message.jobId, 'start');
     const m = metrics(),
       start = Date.now();
     let acks = 0,
@@ -341,6 +351,7 @@ export default {
     const leafMetrics: unknown[] = [];
     const measuredPeer: DocumentBackupCapability = {
       async createAndVerify(id, b) {
+        emitCanaryMarker(env, 'rpc_client_start', message.jobId, 'start');
         const s = Date.now();
         const reply = await env.CANARY_LEAF.measuredCopy(
           id,
@@ -348,14 +359,24 @@ export default {
             m.rpcChunks++;
             m.rpcBytes += n;
           }),
+          {
+            runId: env.CANARY_RUN_ID!,
+            size: Number(env.CANARY_EXPECTED_SIZE),
+            jobId: message.jobId,
+          },
         );
         m.stageMs.rpc = Date.now() - s;
         leafMetrics.push(reply.metrics);
         return reply.reply;
       },
       async observeBackup(k) {
+        emitCanaryMarker(env, 'rpc_client_start', message.jobId, 'start');
         const s = Date.now(),
-          r = await env.CANARY_LEAF.measuredObservation(k);
+          r = await env.CANARY_LEAF.measuredObservation(k, {
+            runId: env.CANARY_RUN_ID!,
+            size: Number(env.CANARY_EXPECTED_SIZE),
+            jobId: message.jobId,
+          });
         m.stageMs.rpc = (m.stageMs.rpc ?? 0) + Date.now() - s;
         leafMetrics.push(r.metrics);
         return r.reply;
@@ -409,6 +430,12 @@ export default {
     const finalStatus = await env.DB.prepare('SELECT status FROM background_jobs WHERE id=?')
       .bind(message.jobId)
       .first<string>('status');
+    emitCanaryMarker(
+      env,
+      message.jobType === 'DOCUMENT_BACKUP' ? 'd1_finalization' : 'reconcile_complete',
+      message.jobId,
+      finalStatus === 'COMPLETED' && acks === 1 && retries === 0 ? 'ok' : 'fail',
+    );
     if (finalStatus !== 'COMPLETED' || acks !== 1 || retries !== 0)
       await env.DB.prepare(
         "UPDATE p0_document_canary_scope SET failure_code='CANARY_JOB_NOT_COMPLETED' WHERE run_id=?",
@@ -459,5 +486,11 @@ export default {
         await env.DOCUMENT_JOB_QUEUE.send(next);
       }
     }
+    emitCanaryMarker(
+      env,
+      'queue_complete',
+      message.jobId,
+      acks === 1 && retries === 0 ? 'ok' : 'fail',
+    );
   },
 };

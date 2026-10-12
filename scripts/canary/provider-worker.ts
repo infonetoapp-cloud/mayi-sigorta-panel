@@ -5,8 +5,11 @@ import {
   type ClosedCanaryEnv,
 } from '../../src/server/documents/closed-canary';
 import { readProviderInventory, type ProviderInventory } from './provider-inventory';
+import { emitCanaryMarker } from './attribution';
 export { DocumentCanaryControl } from './document-worker';
 interface InventoryEnv extends ClosedCanaryEnv {
+  CANARY_LOGS_ENABLED?: string;
+  CANARY_NEGATIVE_RUN_ID?: string;
   DOCS_QUARANTINE: R2Bucket;
   CANARY_LEAF: { inventory(): Promise<ProviderInventory> };
 }
@@ -23,6 +26,33 @@ export default {
   },
   async queue(batch: MessageBatch<unknown>, env: InventoryEnv, ctx: ExecutionContext) {
     const input = batch.messages[0]?.body;
+    if (
+      input &&
+      typeof input === 'object' &&
+      'kind' in input &&
+      input.kind === 'P4_NEGATIVE_CONTROL'
+    ) {
+      assertClosedCanaryEnvironment(env);
+      const control = z
+        .strictObject({ kind: z.literal('P4_NEGATIVE_CONTROL'), runId: z.string().uuid() })
+        .parse(input);
+      if (
+        control.runId !== env.CANARY_NEGATIVE_RUN_ID ||
+        control.runId === env.CANARY_RUN_ID ||
+        batch.messages.length !== 1 ||
+        batch.messages[0]?.attempts !== 1
+      )
+        throw new Error('CANARY_NEGATIVE_SCOPE');
+      const logging = { ...env, CANARY_RUN_ID: control.runId };
+      emitCanaryMarker(logging, 'queue_start', null, 'start');
+      try {
+        await canonical.queue(batch as never, env as never, ctx);
+      } catch {
+        emitCanaryMarker(logging, 'queue_complete', null, 'fail');
+        throw new Error('CANARY_NEGATIVE_REJECTED');
+      }
+      throw new Error('CANARY_NEGATIVE_UNEXPECTED_ACCEPTANCE');
+    }
     if (
       input &&
       typeof input === 'object' &&

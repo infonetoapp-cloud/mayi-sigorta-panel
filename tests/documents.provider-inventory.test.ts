@@ -73,6 +73,8 @@ it('native inventory delegates P0 copy at all sizes without changing the copy ga
               CANARY_RECOVERY_BUCKET: 'mayisigorta-m4-canary-local-recovery',
               CANARY_RUN_ID: '44444444-1111-4000-8000-000000000001',
               CANARY_EXPECTED_SIZE: String(size),
+              CANARY_LOGS_ENABLED: 'true',
+              CANARY_NEGATIVE_RUN_ID: '44444444-1111-4000-8000-000000000099',
             },
             d1Databases: { DB: '00000000-0000-4000-8000-000000000084' },
             r2Buckets: { DOCS_QUARANTINE: 'mayisigorta-m4-canary-local-primary' },
@@ -86,7 +88,12 @@ it('native inventory delegates P0 copy at all sizes without changing the copy ga
             name: 'provider-leaf',
             ...common,
             script: leaf.outputFiles![0]!.text,
-            bindings: { CANARY_RECOVERY_BUCKET: 'mayisigorta-m4-canary-local-recovery' },
+            bindings: {
+              CANARY_RECOVERY_BUCKET: 'mayisigorta-m4-canary-local-recovery',
+              CANARY_LOGS_ENABLED: 'true',
+              CANARY_RUN_ID: '44444444-1111-4000-8000-000000000001',
+              CANARY_EXPECTED_SIZE: String(size),
+            },
             r2Buckets: { DOCUMENT_BACKUP_STORAGE: 'mayisigorta-m4-canary-local-recovery' },
           },
           {
@@ -158,17 +165,51 @@ it('native inventory delegates P0 copy at all sizes without changing the copy ga
         runId: '44444444-1111-4000-8000-000000000001',
         sizeBytes: size,
       });
-      let snapshot = { finished: false, pass: false };
+      let completedReceipts = 0;
       for (let i = 0; i < 200; i++) {
         try {
-          snapshot = JSON.parse(JSON.stringify(await control.snapshot()));
+          completedReceipts =
+            (await db
+              .prepare(
+                'SELECT count(*) n FROM p0_document_canary_metrics WHERE ack_count=1 AND retry_count=0',
+              )
+              .first<number>('n')) ?? 0;
         } catch {
           /* startup */
         }
-        if (snapshot.finished) break;
+        if (completedReceipts === 2) break;
         await new Promise((r) => setTimeout(r, 100));
       }
-      expect(snapshot.pass).toBe(true);
+      // Correlated provider mode deliberately denies the uncorrelated LOCAL snapshot
+      // RPC. Verify authoritative completion and stored health independently instead.
+      expect(completedReceipts).toBe(2);
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) n FROM background_jobs WHERE status='COMPLETED' AND attempt_count=1 AND max_attempts=1 AND last_error_code IS NULL",
+          )
+          .first('n'),
+      ).toBe(2);
+      expect(
+        await db
+          .prepare("SELECT count(*) n FROM document_versions WHERE status='AVAILABLE'")
+          .first('n'),
+      ).toBe(1);
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) n FROM background_job_runs WHERE status='SUCCEEDED' AND reason_code='SAFE_NOOP'",
+          )
+          .first('n'),
+      ).toBe(1);
+      expect(await db.prepare('SELECT count(*) n FROM document_backup_copies').first('n')).toBe(1);
+      expect(
+        await db
+          .prepare(
+            'SELECT count(*) n FROM p0_document_canary_metrics WHERE ack_count=1 AND retry_count=0',
+          )
+          .first('n'),
+      ).toBe(2);
       const after = await inventory();
       expect(after.primary.complete && after.recovery.complete).toBe(true);
       expect(after.primary.objects).toHaveLength(1);
@@ -201,6 +242,18 @@ it('native inventory delegates P0 copy at all sizes without changing the copy ga
           .bind(nonce)
           .first('result_json'),
       ).toBe('{}');
+      expect(await db.prepare('SELECT count(*) n FROM background_jobs').first('n')).toBe(2);
+      const negative = await (
+        await runtime.getWorker('provider')
+      ).queue('provider-jobs', [
+        {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          attempts: 1,
+          body: { kind: 'P4_NEGATIVE_CONTROL', runId: '44444444-1111-4000-8000-000000000099' },
+        },
+      ]);
+      expect(negative.outcome).toBe('exception');
       expect(await db.prepare('SELECT count(*) n FROM background_jobs').first('n')).toBe(2);
     } finally {
       await runtime.dispose();
