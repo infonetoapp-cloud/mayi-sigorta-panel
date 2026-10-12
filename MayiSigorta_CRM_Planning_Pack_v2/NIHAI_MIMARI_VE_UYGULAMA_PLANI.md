@@ -452,6 +452,12 @@ R2 public domain ve r2.dev kapalı. Kullanıcı Document ID ile Worker endpoint'
 
 Kimlik/sağlık belge indirmesi secure kapı ve açıklayıcı onay gerektirir. Dosyanın fiziksel silinmesi ayrı retention sürecidir. Belge sürümü değiştirilirken eski key'in üzerine yazılmaz. D1 ve R2 ortak transaction değildir: yarım upload, kayıp nesne, sahipsiz nesne ve yarım backup uzlaştırma işiyle bulunur. Rastgele “orphan” gördüğü nesne anında silinmez; en az 24 saat karantina ve job durumu denetimi vardır.
 
+### 10.4 Bağımsız kapalı runtime kapıları — F-30
+
+`DOCUMENTS_ENABLED` yalnız public upload/download ürün yüzeyini; `DOCUMENT_JOBS_ENABLED` normal Queue belge tüketimini; `DOCUMENT_CRON_ENABLED` belge scheduled/dispatcher/reconcile/health yolunu kontrol eder. Yalnız exact string `true` açar; eksik/yanlış değer false kabul edilir. Bir kapının açılması diğerini, provider Queue consumer'ını veya Cron kaydını oluşturmaz/açmaz. Authentication, business runtime ve ayrı D1 backup Cron'u bu kapılardan bağımsızdır. Yalnız kapalı, izole sentetik commissioner'da mevcut opaque tek-kullanımlık in-process capability normal jobs kapısına kontrollü istisnadır; production/public HTTP/header/Queue JSON issuer değildir, üç normal kapı kapalı kalır.
+
+Private document leaf `mayisigorta-document-backup` yalnız `DocumentBackupCapability` named RPC ve ayrı EU `mayisigorta-documents-recovery` storage yetkisine sahiptir; D1 recovery bucket'ı reuse edilmez. Closed infrastructure provisioning, document feature veya Cloudflare Free resource capacity kabulü değildir. CRM üç kapı false, consumer yok/Queue paused ve document Cron yok koşulunda service binding ile deploy edilebilir; her açılma ayrı açık yetki ve kabul kapısı gerektirir. Teknik Bucket Lock saklama politikasının veya ayrı-hesap/WORM garantisinin yerine geçmez; business retention kesinleşmeden automatic document-object expiry eklenmez.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -707,6 +713,10 @@ Remote admin composition açıklaması — 8 Ekim 2026; kullanıcı `c705fc5043b
 9 Ekim 2026; kullanıcı e1c93f6cbb4552961d042da250fb8cf371f38c62 sonrası LOCAL implementation ve sonraki orchestrator acceptance yetkisiyle exact B profilini seçti: N32768/r8/p3/maxmem64MiB/v2. Güncel OWASP-listed/realFreeSQLiteDO proof kapsamı, yaklaşık32MiB core bellek ve N16'ya göre daha fazla isolate headroom gerekçesidir; pepper başlangıç blocker değildir. Bölüm5.3 canlı verifier/execution composition bu modele geçer; legacy PBKDF2 evidence immutable history, production PBKDF2 credential hiç oluşturulmadı. Existing verifier TEXT yeterli, D1 migration yok; Wrangler SQLite DO class migration SOURCEONLY. Session/authz/rate/last-owner/audit/recovery invariant'ları değişmez. Birleştirilmiş CRM+DO isolate heap/residency ve burst/admission commissioning'de ölçülmeli; serial core proof daha geniş guarantee sayılmaz. Local implementation kabulü/status ve fresh HIGH ayrı kanıtlanır; production deploy/DNS/secret/write/OWNER/token/Paid/backup mutation bu dilimde yasaktır. FIRST_OWNER_LOGIN_READY=NO, DOCUMENTS_ENABLED=false/M4COMPLETE=false/M5notstarted.
 
 Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b468ef957c6a6a7b6` sonrası exactONEdisposableD1create/proof/delete ve production fixedSELECT-only readback yetkisi. Bölüm5.3'teki remote execution proof koşulu observed acceptedadapter/şema/agency-only rollback-CAS-idempotency kapsamında kapandı; genel transaction SLA/OWNERlogin/deploy/productionagency yetkisi değil. Kaynak değişmedi; kanıt ve readiness AUTH/status'ta, tarihsel offlinePROOF_OPEN korunur.
+
+### F-30 — bağımsız belge runtime kapıları ve closed private composition
+
+12 Ekim 2026; kullanıcının `e2ebff2dcd2f4a54a0e8db022b27185547f3c965` sonrası açık source implementation ve dar CLOSED production infrastructure commissioning yetkisi. Bölüm10.4 shared gate kısıtını kaldırır; employee-only/PDF-JPEG-PNG/20MiB/private-R2/durable-D1/Queue-accelerator/authz/CAS/audit/retention/recovery invariant'ları değişmez. Yetki yalnız ayrı document recovery bucket + doğrulanmış teknik36daylock, private leaf, narrow named service binding, üç kapı false CRM deploy ve fail-closed semantiği kanıtlanabilirse tek existing backup freshness alert policy tuning içindir. Business/D1-row/OWNER/session/DNS/secrets/backup pipeline/paid/consumer/unpause/document Cron/feature activation/provider resource canary yetkisi yoktur. SOURCE acceptance, gerçek CLOSED infrastructure readback ve FEATURE enablement ayrı kanıttır; gerçek sonuçlar status/evidence'a yazılır. M4 COMPLETE=false, provider resource canary OPEN, populated remote recovery OPEN korunur.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 

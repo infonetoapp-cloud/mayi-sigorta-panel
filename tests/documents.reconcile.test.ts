@@ -1111,6 +1111,7 @@ describe('local synthetic DOCUMENT_RECONCILE', () => {
       DB: db,
       DOCS_QUARANTINE: source,
       DOCUMENTS_ENABLED: 'true',
+      DOCUMENT_JOBS_ENABLED: 'true',
     });
     expect(delivery.acks()).toBe(1);
     expect(
@@ -1133,6 +1134,7 @@ describe('local synthetic DOCUMENT_RECONCILE', () => {
       DB: db,
       DOCS_QUARANTINE: source,
       DOCUMENTS_ENABLED: 'true',
+      DOCUMENT_JOBS_ENABLED: 'true',
     });
     expect(delivery.acks()).toBe(0);
     expect(delivery.retries()).toBe(1);

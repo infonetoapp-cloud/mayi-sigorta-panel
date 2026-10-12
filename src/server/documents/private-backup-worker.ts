@@ -20,7 +20,7 @@ export interface PrivateDocumentBackupEnv {
 }
 /** Separate storage authority, not a business Worker or D1 backup runner.
  * No DB/primary bucket/admin credential, no delete/list/overwrite/download RPC.
- * Not bound/deployed by production CRM config in this LOCAL-only slice. */
+ * Provisioning does not activate CRM document execution or public availability. */
 export class DocumentBackupCapability extends WorkerEntrypoint<PrivateDocumentBackupEnv> {
   async createAndVerify(
     input: DocumentBackupIdentity,

@@ -1074,7 +1074,7 @@ describe('local synthetic DOCUMENT_BACKUP', () => {
     const delivery = queueBatch(f.message);
     await createWorker(undefined, createR2DocumentBackupAdapter(destination)).queue(
       delivery.batch,
-      { DB: db, DOCS_QUARANTINE: source, DOCUMENTS_ENABLED: 'true' },
+      { DB: db, DOCS_QUARANTINE: source, DOCUMENT_JOBS_ENABLED: 'true' },
     );
     expect(delivery.acks()).toBe(1);
     expect(delivery.retries()).toBe(0);
@@ -1092,6 +1092,7 @@ describe('local synthetic DOCUMENT_BACKUP', () => {
       DB: db,
       DOCS_QUARANTINE: source,
       DOCUMENTS_ENABLED: 'true',
+      DOCUMENT_JOBS_ENABLED: 'true',
     });
     expect(delivery.acks()).toBe(0);
     expect(delivery.retries()).toBe(1);

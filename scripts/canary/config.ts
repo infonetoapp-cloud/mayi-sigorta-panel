@@ -35,6 +35,8 @@ export function buildCanaryConfig(input: unknown, commissionQueue = false) {
         APP_ENV: 'test',
         PANEL_ORIGIN: 'https://panel.mayisigorta.com',
         DOCUMENTS_ENABLED: 'false',
+        DOCUMENT_JOBS_ENABLED: 'false',
+        DOCUMENT_CRON_ENABLED: 'false',
         CANARY_QUEUE_COMMISSIONED: commissionQueue ? 'true' : 'false',
         CANARY_DATABASE_ID: r.databaseId,
         CANARY_PRIMARY_BUCKET: r.primaryBucket,

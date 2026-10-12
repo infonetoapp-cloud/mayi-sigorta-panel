@@ -15,6 +15,8 @@ it('preserves only the accepted panel custom domain without enabling alternate e
     APP_ENV: 'production',
     PANEL_ORIGIN: 'https://panel.mayisigorta.com',
     DOCUMENTS_ENABLED: 'false',
+    DOCUMENT_JOBS_ENABLED: 'false',
+    DOCUMENT_CRON_ENABLED: 'false',
   });
   expect(p.secrets.required).toEqual(['CSRF_SECRET']);
   expect(p.observability.logs.invocation_logs).toBe(true);

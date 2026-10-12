@@ -265,7 +265,12 @@ describe('document background job dispatcher', () => {
     const worker = createWorker();
     worker.scheduled(
       { cron: '*/5 * * * *' } as ScheduledController,
-      { DB: db, DOCUMENT_JOB_QUEUE: localQueue, DOCUMENTS_ENABLED: 'true' } as Env,
+      {
+        DB: db,
+        DOCUMENT_JOB_QUEUE: localQueue,
+        DOCUMENTS_ENABLED: 'true',
+        DOCUMENT_CRON_ENABLED: 'true',
+      } as Env,
       {
         waitUntil: (promise: Promise<unknown>) => {
           pendingWork.push(promise);

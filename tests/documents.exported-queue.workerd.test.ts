@@ -16,6 +16,17 @@ import { documentBackupObjectKey } from '../src/server/documents/backup-storage'
 import { documentByteStream } from '../src/server/documents/copy-resources';
 const wire = (value: Uint8Array<ArrayBuffer>) =>
   documentByteStream(value, new AbortController().signal);
+const gateMatrix = [
+  [false, false, false],
+  [true, false, false],
+  [false, true, false],
+  [false, false, true],
+  [false, true, true],
+  [true, false, true],
+  [true, true, false],
+  [true, true, true],
+] as const;
+const matrixName = (i: number) => 'closed-gate-matrix-' + i;
 import type { DocumentBackupCapability } from '../src/server/documents/backup-capability-contract';
 import { enqueueDocumentReconcile } from '../src/server/documents/reconcile';
 import type { DocumentJobQueueMessage } from '../src/server/documents/queue';
@@ -50,7 +61,7 @@ beforeAll(async () => {
   const gateProbe = await build({
     ...options,
     stdin: {
-      contents: `import {WorkerEntrypoint} from 'cloudflare:workers';import worker from './src/server/worker';export class DocumentGateProbe extends WorkerEntrypoint {async check(path){const r=await worker.fetch(new Request('https://panel.mayisigorta.com'+path,{method:'POST',headers:{Origin:'https://panel.mayisigorta.com',Host:'panel.mayisigorta.com','content-type':'application/json'},body:'{}'}),this.env,this.ctx);const b=await r.json();return {status:r.status,code:b.error?.code}}}export default {fetch(){return new Response(null,{status:404})}}`,
+      contents: `import {WorkerEntrypoint} from 'cloudflare:workers';import worker from './src/server/worker';export class DocumentGateProbe extends WorkerEntrypoint {async check(path){const r=await worker.fetch(new Request('https://panel.mayisigorta.com'+path,{method:'POST',headers:{Origin:'https://panel.mayisigorta.com',Host:'panel.mayisigorta.com','content-type':'application/json'},body:'{}'}),this.env,this.ctx);const b=await r.json();return {status:r.status,code:b.error?.code}}}export default {...worker,fetch(){return new Response(null,{status:404})}}`,
       resolveDir: process.cwd(),
       loader: 'ts',
     },
@@ -77,10 +88,12 @@ beforeAll(async () => {
     d1Databases: { DB: '00000000-0000-4000-8000-000000000030' },
     r2Buckets: { DOCS_QUARANTINE: 'synthetic-private-primary' },
   };
-  const bindings = (enabled: string) => ({
+  const bindings = (pub: string, jobs: string, cron: string) => ({
     APP_ENV: 'test',
     PANEL_ORIGIN: 'https://panel.mayisigorta.com',
-    DOCUMENTS_ENABLED: enabled,
+    DOCUMENTS_ENABLED: pub,
+    DOCUMENT_JOBS_ENABLED: jobs,
+    DOCUMENT_CRON_ENABLED: cron,
   });
   const capability = (name: string) => ({
     DOCUMENT_BACKUP_CAPABILITY: { name, entrypoint: 'DocumentBackupCapability' },
@@ -89,20 +102,34 @@ beforeAll(async () => {
     convertV4MiniflareOptions({
       cf: false,
       workers: [
+        ...gateMatrix.map(([pub, jobs, cron], i) => ({
+          name: matrixName(i),
+          ...main,
+          script: gateProbe.outputFiles![0]!.text,
+          bindings: bindings(String(pub), String(jobs), String(cron)),
+          serviceBindings: capability('document-recovery'),
+          queueProducers: { DOCUMENT_JOB_QUEUE: 'synthetic-document-jobs' },
+        })),
         {
           name: 'crm',
           ...main,
-          bindings: bindings('true'),
+          bindings: bindings('true', 'true', 'true'),
           serviceBindings: capability('document-recovery'),
           queueProducers: { DOCUMENT_JOB_QUEUE: 'synthetic-document-jobs' },
         },
         {
           name: 'crm-disabled',
           ...main,
-          bindings: bindings('false'),
+          bindings: bindings('false', 'false', 'false'),
           serviceBindings: {
             ...capability('document-recovery'),
             LOCAL_GATE_PROBE: { name: 'document-gate-probe', entrypoint: 'DocumentGateProbe' },
+            ...Object.fromEntries(
+              gateMatrix.map((_, i) => [
+                matrixName(i),
+                { name: matrixName(i), entrypoint: 'DocumentGateProbe' },
+              ]),
+            ),
           },
           queueProducers: { DOCUMENT_JOB_QUEUE: 'synthetic-document-jobs' },
         },
@@ -110,7 +137,7 @@ beforeAll(async () => {
           name: 'document-gate-probe',
           ...main,
           script: gateProbe.outputFiles![0]!.text,
-          bindings: bindings('false'),
+          bindings: bindings('false', 'false', 'false'),
           serviceBindings: capability('document-recovery'),
         },
         {
@@ -119,23 +146,23 @@ beforeAll(async () => {
           serviceBindings: capability('document-recovery'),
           script: `export default {async fetch(request,env){const identity=await request.json();let cancelled=0,finishPull,owner;const body=new ReadableStream({start(c){owner=c},pull(){return new Promise(r=>{finishPull=r})},cancel(){cancelled++;finishPull?.()}});const start=Date.now();const first=await env.DOCUMENT_BACKUP_CAPABILITY.createAndVerify(identity,body);let producerClosed=false;try{owner.error(new Error('SYNTHETIC_PRODUCER_CLOSED'));producerClosed=true}catch{}finishPull?.();await new Promise(r=>setTimeout(r,20));const resumed=await env.DOCUMENT_BACKUP_CAPABILITY.createAndVerify({...identity,documentVersionId:identity.documentVersionId+'-resumed'},new ReadableStream({start(c){c.enqueue(new Uint8Array([7]));c.close()}}));return Response.json({firstOK:first.ok,resumedOK:resumed.ok,cancelled,producerClosed,wallMs:Date.now()-start})}}`,
         },
-        { name: 'crm-unbound', ...main, bindings: bindings('true') },
+        { name: 'crm-unbound', ...main, bindings: bindings('true', 'true', 'true') },
         {
           name: 'crm-ambiguous',
           ...main,
-          bindings: bindings('true'),
+          bindings: bindings('true', 'true', 'true'),
           serviceBindings: capability('ambiguous-recovery'),
         },
         {
           name: 'crm-io',
           ...main,
-          bindings: bindings('true'),
+          bindings: bindings('true', 'true', 'true'),
           serviceBindings: capability('unavailable-recovery'),
         },
         {
           name: 'crm-exception',
           ...main,
-          bindings: bindings('true'),
+          bindings: bindings('true', 'true', 'true'),
           serviceBindings: capability('exception-recovery'),
         },
         { name: 'exception-recovery', ...common, script: exceptionPeer.outputFiles![0]!.text },
@@ -450,6 +477,7 @@ it('forced source barrier proves exported Queue admission across duplicate/diffe
     DOCS_QUARANTINE: source,
     DOCUMENT_BACKUP_CAPABILITY: await peer(),
     DOCUMENTS_ENABLED: 'true',
+    DOCUMENT_JOBS_ENABLED: 'true',
   };
   const invoke = (body: DocumentJobQueueMessage) => {
     let ack = 0,
@@ -923,3 +951,36 @@ it('actual exported scheduled handler composes native producer and health withou
   expect((await state(f.job))?.status).toBe('QUEUED');
   expect(await evidence(f)).toEqual([0, 0, 0]);
 });
+it.each(gateMatrix.map((flags, i) => [i, ...flags] as const))(
+  'native gate matrix%s public%s/jobs%s/cron%s',
+  async (i, pub, jobs, cron) => {
+    const name = matrixName(i),
+      target = await runtime.getWorker(name),
+      caller =
+        await runtime.getBindings<
+          Record<string, { check(path: string): Promise<{ status: number; code: string }> }>
+        >('crm-disabled'),
+      probe = caller[name]!;
+    for (const path of [
+      '/api/documents',
+      '/api/documents/synthetic-missing/download',
+      '/secure/api/documents/synthetic-missing/download',
+      '/secure/api/documents/synthetic-missing/download-grants',
+      '/secure/api/documents/synthetic-missing/download-confirmation',
+    ]) {
+      const r = await probe.check(path);
+      expect(r.status).toBe(pub ? 401 : 404);
+      expect(r.code).toBe(pub ? 'UNAUTHORIZED' : 'NOT_FOUND');
+    }
+    const f = await fixture();
+    const delivery = await deliver(f.message, target);
+    expect(delivery.outcome).toBe('ok');
+    expect((await state(f.job))?.status).toBe(jobs ? 'COMPLETED' : 'QUEUED');
+    expect(await evidence(f)).toEqual(jobs ? [1, 1, 1] : [0, 0, 0]);
+    const scheduled = await fixture();
+    expect((await target.scheduled({ cron: '*/5 * * * *' })).outcome).toBe('ok');
+    expect((await state(scheduled.job))?.queue_dispatched_at !== null).toBe(cron);
+    expect((await state(scheduled.job))?.status).toBe('QUEUED');
+    expect(await evidence(scheduled)).toEqual([0, 0, 0]);
+  },
+);

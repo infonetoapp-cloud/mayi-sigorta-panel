@@ -29,6 +29,7 @@ describe('internal document runtime retirement', () => {
     await createWorker().queue(batch, {
       DB: { prepare },
       DOCUMENTS_ENABLED: 'true',
+      DOCUMENT_JOBS_ENABLED: 'true',
     } as unknown as Env);
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();

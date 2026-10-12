@@ -1,6 +1,8 @@
 import type { DocumentJobQueueMessage } from './queue';
 export interface ClosedCanaryEnv {
   DOCUMENTS_ENABLED?: string;
+  DOCUMENT_JOBS_ENABLED?: string;
+  DOCUMENT_CRON_ENABLED?: string;
   APP_ENV?: string;
   CANARY_QUEUE_COMMISSIONED?: string;
   CANARY_DATABASE_ID?: string;
@@ -24,6 +26,8 @@ const issued = new WeakMap<
 export function assertClosedCanaryEnvironment(env: ClosedCanaryEnv): void {
   if (
     env.DOCUMENTS_ENABLED !== 'false' ||
+    (env.DOCUMENT_JOBS_ENABLED ?? 'false') !== 'false' ||
+    (env.DOCUMENT_CRON_ENABLED ?? 'false') !== 'false' ||
     env.APP_ENV !== 'test' ||
     env.CANARY_QUEUE_COMMISSIONED !== 'true' ||
     !['1048576', '10485760', '20971520'].includes(env.CANARY_EXPECTED_SIZE ?? '') ||

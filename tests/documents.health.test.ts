@@ -193,7 +193,7 @@ it('default five-minute scheduled handler alerts without Queue and cannot write 
   try {
     worker.scheduled(
       { cron: '*/5 * * * *', scheduledTime: now } as ScheduledController,
-      { DB: readonly, DOCUMENTS_ENABLED: 'true' } as never,
+      { DB: readonly, DOCUMENT_CRON_ENABLED: 'true' } as never,
       { waitUntil: (p: Promise<unknown>) => work.push(p) } as unknown as ExecutionContext,
     );
     expect(work.length).toBe(1);
@@ -231,7 +231,7 @@ it.each([
   try {
     worker.scheduled(
       { cron } as ScheduledController,
-      { DB: db, DOCUMENTS_ENABLED: enabled } as never,
+      { DB: db, DOCUMENT_CRON_ENABLED: enabled } as never,
       { waitUntil: (p: Promise<unknown>) => work.push(p) } as unknown as ExecutionContext,
     );
     expect(work.length).toBe(0);
@@ -342,7 +342,7 @@ it('sanitizes D1 failure in scheduled log and rejection, without swallowing fail
   try {
     worker.scheduled(
       { cron: '*/5 * * * *' } as ScheduledController,
-      { DB: db, DOCUMENTS_ENABLED: 'true' } as never,
+      { DB: db, DOCUMENT_CRON_ENABLED: 'true' } as never,
       { waitUntil: (p: Promise<unknown>) => work.push(p) } as unknown as ExecutionContext,
     );
     const error = await Promise.all(work).then(

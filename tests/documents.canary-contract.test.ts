@@ -110,7 +110,7 @@ it('preparation CLI emits only closed/proposed files and denies remote flags', (
   }
 });
 it('opaque permits are bound to exact env/message and cannot be serialized into a bypass', async () => {
-  const { issueClosedCanaryPermit, isClosedCanaryPermit } =
+  const { issueClosedCanaryPermit, isClosedCanaryPermit, assertClosedCanaryEnvironment } =
     await import('../src/server/documents/closed-canary');
   const id = '00000000-0000-4000-8000-000000000082',
     sha = 'a'.repeat(64),
@@ -145,6 +145,10 @@ it('opaque permits are bound to exact env/message and cannot be serialized into 
     } as unknown as D1Database,
   };
   const batch = { messages: [{ body: message }] } as unknown as MessageBatch<typeof message>;
+  for (const key of ['DOCUMENT_JOBS_ENABLED', 'DOCUMENT_CRON_ENABLED'])
+    expect(() => assertClosedCanaryEnvironment({ ...env, [key]: 'true' })).toThrow(
+      'CANARY_SCOPE_DENIED',
+    );
   const permit = await issueClosedCanaryPermit(env, message);
   expect(isClosedCanaryPermit(JSON.parse(JSON.stringify(permit)), env, batch)).toBe(false);
   expect(isClosedCanaryPermit(permit, { ...env }, batch)).toBe(false);
@@ -168,6 +172,8 @@ it('future isolated config is closed by default and rejects production resource 
   };
   const cfg = buildCanaryConfig(resources);
   expect(cfg.crm.vars.DOCUMENTS_ENABLED).toBe('false');
+  expect(cfg.crm.vars.DOCUMENT_JOBS_ENABLED).toBe('false');
+  expect(cfg.crm.vars.DOCUMENT_CRON_ENABLED).toBe('false');
   expect(cfg.crm.queues.consumers).toEqual([]);
   expect(cfg.crm.triggers.crons).toEqual([]);
   expect(cfg.crm.workers_dev || cfg.crm.preview_urls).toBe(false);

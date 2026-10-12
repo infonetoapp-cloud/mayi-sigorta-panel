@@ -82,7 +82,16 @@
         "APP_ENV": "production",
         "PANEL_ORIGIN": "https://panel.mayisigorta.com",
         "DOCUMENTS_ENABLED": "false",
+        "DOCUMENT_JOBS_ENABLED": "false",
+        "DOCUMENT_CRON_ENABLED": "false",
       },
+      "services": [
+        {
+          "binding": "DOCUMENT_BACKUP_CAPABILITY",
+          "service": "mayisigorta-document-backup",
+          "entrypoint": "DocumentBackupCapability",
+        },
+      ],
       // Names only. Required-secret metadata is not provisioning or a live existence assertion.
       "secrets": { "required": ["CSRF_SECRET"] },
       // Invocation metrics only; never add body/password/verifier/header logging.

@@ -49,6 +49,8 @@ export interface Env {
   DOCS_QUARANTINE?: R2Bucket;
   DOCUMENT_JOB_QUEUE?: Queue<DocumentJobQueueMessage>;
   DOCUMENTS_ENABLED?: string;
+  DOCUMENT_JOBS_ENABLED?: string;
+  DOCUMENT_CRON_ENABLED?: string;
   DOCUMENT_BACKUP_CAPABILITY?: DocumentBackupCapability;
   AUTH_ACCOUNT_RATE_LIMITER?: RateLimit;
   AUTH_SOURCE_RATE_LIMITER?: RateLimit;
@@ -301,7 +303,7 @@ export function createWorker(
       // capability exists only in the separate private synthetic commissioner;
       // flags, Queue bodies and HTTP inputs cannot manufacture it.
       const enabled =
-        env.DOCUMENTS_ENABLED === 'true' || isClosedCanaryPermit(closedCanary, env, batch);
+        env.DOCUMENT_JOBS_ENABLED === 'true' || isClosedCanaryPermit(closedCanary, env, batch);
       const privatePeer = enabled ? env.DOCUMENT_BACKUP_CAPABILITY : undefined;
       const primary =
         enabled && env.DOCS_QUARANTINE
@@ -325,12 +327,12 @@ export function createWorker(
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       if (!controller.cron || controller.cron === '0 0 * * *')
         ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
-      if (controller.cron === '*/5 * * * *' && env.DOCUMENTS_ENABLED === 'true')
+      if (controller.cron === '*/5 * * * *' && env.DOCUMENT_CRON_ENABLED === 'true')
         ctx.waitUntil(runDocumentHealthMonitoring(env.DB));
       if (
         controller.cron === '*/5 * * * *' &&
         env.DOCUMENT_JOB_QUEUE &&
-        env.DOCUMENTS_ENABLED === 'true'
+        env.DOCUMENT_CRON_ENABLED === 'true'
       )
         ctx.waitUntil(
           dispatchDueDocumentJobs(env.DB, env.DOCUMENT_JOB_QUEUE, [
