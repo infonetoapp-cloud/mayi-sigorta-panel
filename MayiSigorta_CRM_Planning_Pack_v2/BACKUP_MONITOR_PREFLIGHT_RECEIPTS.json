@@ -1,0 +1,253 @@
+{
+  "baseline": "30c05f3c65d1ce9b7285cec8ef32f887c31a3793",
+  "capabilities": {
+    "observedAt": "2026-10-13T15:53:46.569053+00:00",
+    "zonePlan": "Free Website",
+    "zoneStatus": "active",
+    "reads": {
+      "healthChecks": {
+        "http": 200,
+        "success": true,
+        "codes": [],
+        "count": 0,
+        "pagination": {
+          "page": 1,
+          "per_page": 25,
+          "count": 0,
+          "total_count": 0,
+          "total_pages": 0
+        }
+      },
+      "emailRouting": {
+        "http": 200,
+        "success": true,
+        "codes": [],
+        "enabled": false,
+        "status": "unconfigured",
+        "skip_wizard": false
+      },
+      "emailDestinations": {
+        "http": 200,
+        "success": true,
+        "codes": [],
+        "count": 0,
+        "verifiedCount": 0,
+        "pagination": {
+          "page": 1,
+          "per_page": 20,
+          "count": 0,
+          "total_count": 0
+        }
+      },
+      "emailServiceDomains": {
+        "http": 400,
+        "success": false,
+        "codes": [
+          7003,
+          7000
+        ],
+        "resultType": "NoneType",
+        "fieldNames": null,
+        "count": null
+      },
+      "availableAlerts": {
+        "http": 200,
+        "success": true,
+        "codes": [],
+        "categories": [
+          "Abuse",
+          "Access",
+          "Billing",
+          "Brand Protection",
+          "CASB",
+          "Cloudflare Status",
+          "Cloudforce One",
+          "Custom Analytics",
+          "DoS Protection",
+          "Health Checks",
+          "Images",
+          "Load Balancing",
+          "Log Explorer",
+          "Logpush",
+          "Magic Transit",
+          "NSC Maintenance Notifications",
+          "Pages",
+          "Radar Notification",
+          "Route Leak Detection",
+          "SSL/TLS",
+          "Script Monitor",
+          "Security Insights",
+          "Stream",
+          "Traffic Monitoring",
+          "Trust and Safety Blocks",
+          "Tunnel",
+          "Web Analytics",
+          "Workers Observability"
+        ]
+      }
+    }
+  },
+  "metadataReplay": {
+    "decision": {
+      "status": "HEALTHY",
+      "checkedAt": 1791907848162,
+      "reason": "COHERENT_RECENT_COMPLETE",
+      "generation": "d1-backup-slot-995504",
+      "exportAt": 1791907208221,
+      "completeAt": 1791907215266,
+      "ageMs": 639941
+    },
+    "scope": "REAL_PROVIDER_METADATA_REPLAY;NOT_DEPLOYED_OBSERVER_OR_IAM_DELIVERY_PROOF",
+    "authority": "AUTHENTICATED_R2_LIST_METADATA_AND_SMALL_JSON_GET; NO_SQL_BODY; NO_WRITE"
+  },
+  "backupBefore": {
+    "generation": "d1-backup-slot-995503",
+    "export": "2026-10-13T15:30:07.199Z",
+    "COMPLETE": "2026-10-13T15:30:16.339Z",
+    "bytes": 227547,
+    "checks": {
+      "source": true,
+      "generation": true,
+      "state": true,
+      "key": true,
+      "sizeEtag": true,
+      "ordered": true,
+      "integrity": true
+    },
+    "ageSeconds": 1265.278,
+    "healthy": true
+  },
+  "backupFinal": {
+    "generation": "d1-backup-slot-995505",
+    "export": "2026-10-13T16:30:07.206Z",
+    "COMPLETE": "2026-10-13T16:30:18.299Z",
+    "bytes": 227547,
+    "checks": {
+      "source": true,
+      "generation": true,
+      "state": true,
+      "key": true,
+      "sizeEtag": true,
+      "ordered": true,
+      "integrity": true
+    },
+    "ageSeconds": 327.016,
+    "healthy": true
+  },
+  "protectedFieldsEqual": [
+    "workers",
+    "queue",
+    "buckets",
+    "domains",
+    "routes",
+    "backupAlert",
+    "subscriptions"
+  ],
+  "backupPolicyBefore": {
+    "id": "cfde2403fa5449a8a9c720211ced2001",
+    "name": "Mayi D1 Backup Freshness",
+    "enabled": true,
+    "alert_type": "custom_analytics",
+    "filters": {
+      "alert_trigger_preferences": [
+        "threshold"
+      ],
+      "alert_trigger_preferences_operator": [
+        "=="
+      ],
+      "alert_trigger_preferences_short_window": [
+        "45m"
+      ],
+      "alert_trigger_preferences_value": [
+        "0"
+      ],
+      "execution_interval": [
+        "10m"
+      ],
+      "selectors": [
+        "SELECT COUNT(*) AS value\nFROM logs.workersLogs\nWHERE accountTag = 'af9fc98cb8d5f5508d58057bc794d863'\n  AND scriptName = 'mayisigorta-d1-backup'\n  AND attributes['event'] = 'MAYI_D1_BACKUP_COMPLETE'"
+      ],
+      "source": [
+        "sql_api"
+      ]
+    },
+    "alert_interval": "1h",
+    "modified": "2026-10-08T18:29:26.538578Z",
+    "destinationFingerprint": "75c70acb439537dedaf1b0dfec42466cff8d6213efbd145fd08884c834a071f8",
+    "wholePolicyFingerprint": "8313c2ec49d85c14098afea0370daf22e1d06cd95578b5ff8eef72b06db95a30"
+  },
+  "backupPolicyFinal": {
+    "id": "cfde2403fa5449a8a9c720211ced2001",
+    "name": "Mayi D1 Backup Freshness",
+    "enabled": true,
+    "alert_type": "custom_analytics",
+    "filters": {
+      "alert_trigger_preferences": [
+        "threshold"
+      ],
+      "alert_trigger_preferences_operator": [
+        "=="
+      ],
+      "alert_trigger_preferences_short_window": [
+        "45m"
+      ],
+      "alert_trigger_preferences_value": [
+        "0"
+      ],
+      "execution_interval": [
+        "10m"
+      ],
+      "selectors": [
+        "SELECT COUNT(*) AS value\nFROM logs.workersLogs\nWHERE accountTag = 'af9fc98cb8d5f5508d58057bc794d863'\n  AND scriptName = 'mayisigorta-d1-backup'\n  AND attributes['event'] = 'MAYI_D1_BACKUP_COMPLETE'"
+      ],
+      "source": [
+        "sql_api"
+      ]
+    },
+    "alert_interval": "1h",
+    "modified": "2026-10-08T18:29:26.538578Z",
+    "destinationFingerprint": "75c70acb439537dedaf1b0dfec42466cff8d6213efbd145fd08884c834a071f8",
+    "wholePolicyFingerprint": "8313c2ec49d85c14098afea0370daf22e1d06cd95578b5ff8eef72b06db95a30"
+  },
+  "newProviderResources": [],
+  "providerMutations": 0,
+  "notificationEmailsSent": 0,
+  "tests": {
+    "focusedFiles": 6,
+    "focusedTests": 58,
+    "durationSeconds": 1.04,
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "boundaries": "PASS",
+    "format": "PASS",
+    "repeatedBackupDryBuildEqual": true
+  },
+  "BACKUP_FRESHNESS_OBSERVER_ACCEPTED": "NO",
+  "BACKUP_OBSERVER_HEARTBEAT_ACCEPTED": "NO",
+  "BACKUP_NOTIFICATION_DELIVERY_ACCEPTED": "NO",
+  "BACKUP_FRESHNESS_ALERT_HEALTHY": "NOT_PROVEN",
+  "limits": [
+    "no external account access; UI timeout is not refusal",
+    "browser unavailable; no tooling install",
+    "no deployed reader/statewriter/observer/notification integration",
+    "facade is not IAM proof",
+    "metadata replay is not live observer proof",
+    "no notification test or human receipt proof",
+    "old flaky policy left enabled until accepted replacement"
+  ],
+  "review": {
+    "session": "20261013_192402_98c50d",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "effort": "high",
+    "actualIndependentCliCloseVerified": true,
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "scope": "LOCAL_COMPONENT_AND_HONEST_NO_GO_ONLY",
+    "LIVE_OBSERVER_GO": "NO",
+    "independentFocusedTests": 58,
+    "independentAssertions": 8981,
+    "reportSHA256": "1e70a078783659baf8f7c259ce532138af895ad567b84d97ece2a40cf82f4ca9"
+  }
+}

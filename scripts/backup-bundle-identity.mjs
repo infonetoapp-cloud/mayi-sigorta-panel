@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import process from 'node:process';
+import console from 'node:console';
 const sources = [
   'src/server/d1-backup/core.ts',
   'src/server/d1-backup/diagnostic.ts',
@@ -18,7 +20,7 @@ if (!first || !second) throw new Error('Provide two dry-run output directories')
 const bundleSha256 = sha(readFileSync(join(first, 'worker.js')));
 const repeatedBundleSha256 = sha(readFileSync(join(second, 'worker.js')));
 if (bundleSha256 !== repeatedBundleSha256) throw new Error('NONDETERMINISTIC_BUNDLE');
-console.log(
+console.info(
   JSON.stringify(
     {
       version: 'mayi-backup-build-identity-v1',

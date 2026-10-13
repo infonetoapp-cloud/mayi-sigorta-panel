@@ -466,6 +466,12 @@ Normal production consumer, ACK-capable canonical job handler'dan önce bounded 
 
 Accepted P4 full canonical COPY1/10/exact20MiB provider evidence source identity korunarak reuse edilir. Production internal commissioning, auth/customer/OWNER fixture oluşturmayan canonical absent-backup-key RECONCILE job/run/SYSTEM audit ve private observe RPC ile transport/D1-CAS/private-read/health/Cron kompozisyonunu ayrıca kanıtlar. Bu ikinci full production COPY veya production primary/createAndVerify/AVAILABLE kabulü değildir; PRODUCTION_FULL_COPY=NOT_PROVEN açık kalır. Background acceptance yalnız kanıtlanan internal reconcile plumbing kapsamını taşır. Queue kabulü önce, document-only `*/5` Cron sonra; midnight renewal yolu ve ayrı D1 backup Cron değiştirilmez. Rollback delivery pause/config gatesfalse/consumer-Cron disable-first; D1/R2 evidence silinmez.
 
+### 10.6 Bağımsız backup observer — F-32, commissioning kapısı açık
+
+Backup freshness istatistiksel COUNT/resampling değil coherent doğal generation/manifest/COMPLETE-last/SQL metadata (size/ETag/source/bookmark) ile değerlendirilir; SQL body her kontrolde indirilmez. Export timestamp90m inclusive freshness objective, RPO≤1h snapshot watermark/restore kabulü değildir. Ayrı observation freshness15m; read/query error HEALTHY'ye dönüştürülmez. Pencere/cursor/request/JSON/time bütçeleri fail-closed olmalıdır. Mevcut backup writer/Workflow/Cron/artifact/retention/lock ve product/auth/business state değişmez.
+
+Tercih edilen future deployment: bağımsız scheduled observer + exact bucket read-only credential + ayrı monotonic monitoring state/outbox + başka failure domain'de ücretsiz external dead-man/human email delivery. Healthchecks.io free proje erişimi/verified destination henüz sağlanmamıştır; sağlayıcı/hesap uydurulmaz. Native standalone Health Checks Free entitlement0; mevcut Email Routing unconfigured/verifiedrecipient0; Paid/DNS sınırları korunur. Aynı CF Cron'da ikinci Worker bağımsız global-scheduler watchdog kabulü değildir. Yalnız yerel metadata/heartbeat decision kütüphanesi uygulanmıştır; backend reader/IAM/statewriter/Worker/Cron/delivery/rollback acceptance OPEN. Replacement gerçek pre/postHIGH+bounded notification/deadman testinden geçmeden mevcut flaky policy disable edilmez. F-32 plan kaydı canlı kaynak oluşturma veya public activation değildir.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -701,6 +707,8 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-25 | Kaynakların çelişmesi | KESİN: yalnız bu nihai dosya; eski paket arşiv ve normatif değil |
 
 Yeni değişiklik kaydı aynı bölümde tarih, kullanıcı yetkisi/gerekçe, etkilenen bölüm/test ve sonuçla eklenir. Çelişkili ikinci bir FINAL dosyası üretilmez. Bu planı geliştirmek mümkündür; “nihai” kontrolsüz tasarım drift'ini önler, gerçek hatayı düzeltmeyi yasaklamaz.
+
+F-32 — 13 Ekim 2026; kullanıcı30c05f3 sonrası explicit free-first bağımsız backup monitoring yetkisiyle10.6 eklenir. Yerel evidence motoru uygulanır; native Free/DNS ve harici hesap erişimi kapıları açık olduğundan canlı observer/human notification/heartbeat kabulü verilmez. Backup production/public/auth/Queues/Cron değişmez; mevcut flaky alert replacement kabulüne kadar korunur.
 
 F-31 — 13 Ekim 2026; kullanıcı `a5592ec5648ee61f7f2de1513e29bd1ef4af4338` sonrası açık structural Queue/custody/internal commissioning yetkisiyle bölüm10.5 eklenir. Tarihsel unknown Queue paused tutulur; yeni canonical JSON hattında ACK öncesi private durable custody, single consumer ve ayrı DLQ önerilir. Runtime/source test ve production activation/post-HIGH kabulü ayrı kanıtlanır; plan kaydı canlı enablement değildir. P4 COPY evidence reuse yalnız implementation/provider workload sınırında, production absent-object reconcile ayrı plumbing kanıtıdır; ikinci production fullCOPY veya feature acceptance sayılmaz. OWNER/auth/customer fixture/publicDOCUMENTS/Paid/DNS/backupWorker-Cron/retention/restore yasakları değişmez; M4_COMPLETE=false. Backup alert evaluator no-data/query-error fail-closed kanıtı yoksa policy untuned/NOT_PROVEN bırakılır. Source/custody/config/provenance tests ve exact provider sonucu evidence/status'ta; historical FAIL/NO-GO receipts değiştirilmez.
 
