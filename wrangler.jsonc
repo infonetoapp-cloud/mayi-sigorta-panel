@@ -82,8 +82,8 @@
         "APP_ENV": "production",
         "PANEL_ORIGIN": "https://panel.mayisigorta.com",
         "DOCUMENTS_ENABLED": "false",
-        "DOCUMENT_JOBS_ENABLED": "false",
-        "DOCUMENT_CRON_ENABLED": "false",
+        "DOCUMENT_JOBS_ENABLED": "true",
+        "DOCUMENT_CRON_ENABLED": "true",
       },
       "services": [
         {
@@ -126,7 +126,7 @@
         "html_handling": "none",
         "not_found_handling": "none",
       },
-      "triggers": { "crons": [] },
+      "triggers": { "crons": ["*/5 * * * *"] },
       "d1_databases": [
         {
           "binding": "DB",
@@ -141,10 +141,24 @@
           "bucket_name": "mayisigorta-documents-quarantine",
           "jurisdiction": "eu",
         },
+        {
+          "binding": "DOCUMENT_QUEUE_CUSTODY",
+          "bucket_name": "mayisigorta-document-queue-custody",
+          "jurisdiction": "eu",
+        },
       ],
       "queues": {
-        "producers": [{ "binding": "DOCUMENT_JOB_QUEUE", "queue": "mayisigorta-document-jobs" }],
-        "consumers": [],
+        "producers": [{ "binding": "DOCUMENT_JOB_QUEUE", "queue": "mayisigorta-document-jobs-v2" }],
+        "consumers": [
+          {
+            "queue": "mayisigorta-document-jobs-v2",
+            "max_batch_size": 1,
+            "max_batch_timeout": 1,
+            "max_concurrency": 1,
+            "max_retries": 5,
+            "dead_letter_queue": "mayisigorta-document-jobs-v2-dlq",
+          },
+        ],
       },
     },
     // Read-proven foundation only. No Worker deployment or remote migrations yet.

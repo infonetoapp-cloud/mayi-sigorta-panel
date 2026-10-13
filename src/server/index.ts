@@ -33,6 +33,7 @@ import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
 import { consumeDurableDocumentJobs } from './documents/jobs';
+import { consumeWithDocumentCustody } from './documents/queue-custody';
 import { runDocumentHealthMonitoring } from './documents/health';
 import { composePrivateDocumentCapabilities } from './documents/private-capabilities';
 import { trackedDocumentBucket } from './documents/resource-admission';
@@ -47,6 +48,7 @@ export interface Env {
   ASSETS?: Fetcher;
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;
+  DOCUMENT_QUEUE_CUSTODY?: R2Bucket;
   DOCUMENT_JOB_QUEUE?: Queue<DocumentJobQueueMessage>;
   DOCUMENTS_ENABLED?: string;
   DOCUMENT_JOBS_ENABLED?: string;
@@ -309,20 +311,24 @@ export function createWorker(
         enabled && env.DOCS_QUARANTINE
           ? Object.freeze({ get: env.DOCS_QUARANTINE.get.bind(env.DOCS_QUARANTINE) })
           : undefined;
-      return consumeDurableDocumentJobs(
-        batch,
-        env.DB,
-        primary,
-        enabled,
-        documentBackup,
-        documentReconcile,
-        (permit) =>
-          composePrivateDocumentCapabilities(
-            primary ? trackedDocumentBucket(primary, permit) : undefined,
-            privatePeer,
-            permit,
-          ),
-      );
+      const consume = (delivery: MessageBatch<DocumentJobQueueMessage>) =>
+        consumeDurableDocumentJobs(
+          delivery,
+          env.DB,
+          primary,
+          enabled,
+          documentBackup,
+          documentReconcile,
+          (permit) =>
+            composePrivateDocumentCapabilities(
+              primary ? trackedDocumentBucket(primary, permit) : undefined,
+              privatePeer,
+              permit,
+            ),
+        );
+      return env.APP_ENV === 'production'
+        ? consumeWithDocumentCustody(batch, env.DOCUMENT_QUEUE_CUSTODY, consume)
+        : consume(batch);
     },
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       if (!controller.cron || controller.cron === '0 0 * * *')

@@ -21,11 +21,15 @@ function config(text = readFileSync('wrangler.jsonc', 'utf8')) {
     env: { production: Scope; foundation: Scope };
   };
 }
-it('closed production changes only narrow service plus false runtime vars; no raw recovery R2 fallback', () => {
+it('production internal commissioning keeps public closure, private recovery and legacy environments unchanged', () => {
   const c = config();
   for (const env of [c, c.env.production, c.env.foundation]) {
     expect(env.vars.DOCUMENTS_ENABLED).toBe('false');
-    expect(env.r2_buckets.map((b: { binding: string }) => b.binding)).toEqual(['DOCS_QUARANTINE']);
+    expect(env.r2_buckets.map((b: { binding: string }) => b.binding)).toEqual(
+      env === c.env.production
+        ? ['DOCS_QUARANTINE', 'DOCUMENT_QUEUE_CUSTODY']
+        : ['DOCS_QUARANTINE'],
+    );
     expect(env.services ?? []).toEqual(
       env === c.env.production
         ? [
@@ -37,22 +41,37 @@ it('closed production changes only narrow service plus false runtime vars; no ra
           ]
         : [],
     );
-    expect(env.vars.DOCUMENT_JOBS_ENABLED ?? 'false').toBe('false');
-    expect(env.vars.DOCUMENT_CRON_ENABLED ?? 'false').toBe('false');
+    expect(env.vars.DOCUMENT_JOBS_ENABLED ?? 'false').toBe(
+      env === c.env.production ? 'true' : 'false',
+    );
+    expect(env.vars.DOCUMENT_CRON_ENABLED ?? 'false').toBe(
+      env === c.env.production ? 'true' : 'false',
+    );
   }
-  expect(c.env.production.queues.consumers).toEqual([]);
-  expect(c.env.production.triggers.crons).toEqual([]);
+  expect(c.env.production.queues.consumers).toEqual([
+    {
+      queue: 'mayisigorta-document-jobs-v2',
+      max_batch_size: 1,
+      max_batch_timeout: 1,
+      max_concurrency: 1,
+      max_retries: 5,
+      dead_letter_queue: 'mayisigorta-document-jobs-v2-dlq',
+    },
+  ]);
+  expect(c.env.production.triggers.crons).toEqual(['*/5 * * * *']);
   expect(c.env.production.workers_dev).toBe(false);
   expect(c.env.production.preview_urls).toBe(false);
   const prior = config(
-    execFileSync('git', ['show', 'e2ebff2dcd2f4a54a0e8db022b27185547f3c965:wrangler.jsonc'], {
+    execFileSync('git', ['show', 'a5592ec5648ee61f7f2de1513e29bd1ef4af4338:wrangler.jsonc'], {
       encoding: 'utf8',
     }),
   );
   const unchanged = structuredClone(c);
-  delete unchanged.env.production.services;
-  delete unchanged.env.production.vars.DOCUMENT_JOBS_ENABLED;
-  delete unchanged.env.production.vars.DOCUMENT_CRON_ENABLED;
+  unchanged.env.production.vars.DOCUMENT_JOBS_ENABLED = 'false';
+  unchanged.env.production.vars.DOCUMENT_CRON_ENABLED = 'false';
+  unchanged.env.production.triggers.crons = [];
+  unchanged.env.production.queues = prior.env.production.queues;
+  unchanged.env.production.r2_buckets = prior.env.production.r2_buckets;
   expect(unchanged).toEqual(prior);
   expect(
     readFileSync('wrangler.backup.json', 'utf8').replace(/\r\n/gu, '\n') ===

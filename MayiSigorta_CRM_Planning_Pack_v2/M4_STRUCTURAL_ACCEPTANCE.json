@@ -1,0 +1,160 @@
+{
+  "postReview": {
+    "session": "20261013_180002_4e5739",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "effort": "high",
+    "independent": true,
+    "actualCliCloseVerified": true,
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "reportSHA256": "5e76a5796b8d9d9983247d38ce304d497f9d27a2d03cbdc38bce0aab2e2d38d1",
+    "firstPendingReportSHA256": "ade804ea9ac8de45a639d66039120bfb268d64cb3e715703c80d132a89b2016c"
+  },
+  "scope": "NORMAL_PRODUCTION_INTERNAL_RECONCILE_READ_PLUMBING_ONLY",
+  "M4_BACKGROUND_COMMISSIONING_ACCEPTED": "YES",
+  "M4_QUEUE_COMMISSIONING_ACCEPTED": "YES",
+  "M4_CRON_COMMISSIONING_ACCEPTED": "YES",
+  "PRODUCTION_FULL_COPY": "NOT_PROVEN",
+  "BACKUP_FRESHNESS_ALERT_HEALTHY": "NOT_PROVEN",
+  "FEATURE_ENABLED": "NO",
+  "M4_COMPLETE": false,
+  "POPULATED_REMOTE_RECOVERY_STATUS": "OPEN",
+  "WorkersPaid": false,
+  "latestNaturalBackup": {
+    "generation": "d1-backup-slot-995502",
+    "export": "2026-10-13T15:00:09.587Z",
+    "COMPLETE": "2026-10-13T15:00:18.046Z",
+    "bytes": 227547,
+    "checks": {
+      "source": true,
+      "generation": true,
+      "state": true,
+      "key": true,
+      "sizeEtag": true,
+      "ordered": true,
+      "integrity": true
+    },
+    "ageSeconds": 1305.437,
+    "healthy": true
+  },
+  "backupAlertBefore": {
+    "id": "cfde2403fa5449a8a9c720211ced2001",
+    "name": "Mayi D1 Backup Freshness",
+    "enabled": true,
+    "alert_type": "custom_analytics",
+    "filters": {
+      "alert_trigger_preferences": [
+        "threshold"
+      ],
+      "alert_trigger_preferences_operator": [
+        "=="
+      ],
+      "alert_trigger_preferences_short_window": [
+        "45m"
+      ],
+      "alert_trigger_preferences_value": [
+        "0"
+      ],
+      "execution_interval": [
+        "10m"
+      ],
+      "selectors": [
+        "SELECT COUNT(*) AS value\nFROM logs.workersLogs\nWHERE accountTag = 'af9fc98cb8d5f5508d58057bc794d863'\n  AND scriptName = 'mayisigorta-d1-backup'\n  AND attributes['event'] = 'MAYI_D1_BACKUP_COMPLETE'"
+      ],
+      "source": [
+        "sql_api"
+      ]
+    },
+    "alert_interval": "1h",
+    "modified": "2026-10-08T18:29:26.538578Z",
+    "destinationFingerprint": "75c70acb439537dedaf1b0dfec42466cff8d6213efbd145fd08884c834a071f8",
+    "wholePolicyFingerprint": "8313c2ec49d85c14098afea0370daf22e1d06cd95578b5ff8eef72b06db95a30"
+  },
+  "backupAlertAfter": {
+    "id": "cfde2403fa5449a8a9c720211ced2001",
+    "name": "Mayi D1 Backup Freshness",
+    "enabled": true,
+    "alert_type": "custom_analytics",
+    "filters": {
+      "alert_trigger_preferences": [
+        "threshold"
+      ],
+      "alert_trigger_preferences_operator": [
+        "=="
+      ],
+      "alert_trigger_preferences_short_window": [
+        "45m"
+      ],
+      "alert_trigger_preferences_value": [
+        "0"
+      ],
+      "execution_interval": [
+        "10m"
+      ],
+      "selectors": [
+        "SELECT COUNT(*) AS value\nFROM logs.workersLogs\nWHERE accountTag = 'af9fc98cb8d5f5508d58057bc794d863'\n  AND scriptName = 'mayisigorta-d1-backup'\n  AND attributes['event'] = 'MAYI_D1_BACKUP_COMPLETE'"
+      ],
+      "source": [
+        "sql_api"
+      ]
+    },
+    "alert_interval": "1h",
+    "modified": "2026-10-08T18:29:26.538578Z",
+    "destinationFingerprint": "75c70acb439537dedaf1b0dfec42466cff8d6213efbd145fd08884c834a071f8",
+    "wholePolicyFingerprint": "8313c2ec49d85c14098afea0370daf22e1d06cd95578b5ff8eef72b06db95a30"
+  },
+  "protectedAlertEqual": true,
+  "privateLeafAndBackupWorkersEqual": true,
+  "domainAndRoutesEqual": true,
+  "subscriptionsEqual": true,
+  "historicalOldQueueFinal": {
+    "queue_id": "3c2b94a3ca204da28a9f9b884b0a1778",
+    "queue_name": "mayisigorta-document-jobs",
+    "settings": {
+      "delivery_delay": 0,
+      "delivery_paused": true,
+      "message_retention_period": 86400
+    },
+    "consumers": [],
+    "producers": []
+  },
+  "mutations": [
+    "create v2 Queue",
+    "create DLQ",
+    "explicit new Queue/DLQ settings",
+    "create private EU custody bucket",
+    "five CRM composition/gate/rollback deployments",
+    "v2 producer transition",
+    "consumer create/remove/restore",
+    "v2 pause/unpause rehearsals",
+    "two canonical internal reconcile job/requested-audit inserts and two canonical run/finalization writes",
+    "one explicit main Queue publish; second natural Cron dispatch",
+    "two private JSON custody archives",
+    "document-only Cron addition"
+  ],
+  "nonMutations": [
+    "old Queue message operations",
+    "customer/document/version/OWNER/auth/session writes",
+    "production recovery object copy/delete",
+    "backup Worker/Cron/artifact/alert policy edits",
+    "DNS",
+    "Workers Paid",
+    "public documents enable",
+    "R2 lock/retention weakening",
+    "populated restore"
+  ],
+  "verification": {
+    "focusedFiles": 9,
+    "focusedTests": 46,
+    "focusedDurationSeconds": 4.77,
+    "independentFocusedFiles": 6,
+    "independentFocusedTests": 20,
+    "independentMemoryChecks": 21,
+    "typecheck": "PASS",
+    "touchedLint": "PASS",
+    "boundaries": "PASS",
+    "repoWideLint": "FAIL_PREEXISTING_UNCHANGED_THREE_NO_UNDEF_ERRORS_ONE_WARNING"
+  }
+}

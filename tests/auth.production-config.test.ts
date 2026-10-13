@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 function configuration(text: string) {
   return JSON.parse(text.replace(/^\s*\/\/.*$/gm, '').replace(/,\s*([}\]])/g, '$1'));
 }
-it('preserves only the accepted panel custom domain without enabling alternate exposure or jobs', () => {
+it('preserves public closure while constraining the internal custody-backed Queue and document Cron', () => {
   const current = configuration(readFileSync('wrangler.jsonc', 'utf8'));
   const p = current.env.production;
   expect(Boolean(p)).toBe(true);
@@ -15,8 +15,8 @@ it('preserves only the accepted panel custom domain without enabling alternate e
     APP_ENV: 'production',
     PANEL_ORIGIN: 'https://panel.mayisigorta.com',
     DOCUMENTS_ENABLED: 'false',
-    DOCUMENT_JOBS_ENABLED: 'false',
-    DOCUMENT_CRON_ENABLED: 'false',
+    DOCUMENT_JOBS_ENABLED: 'true',
+    DOCUMENT_CRON_ENABLED: 'true',
   });
   expect(p.secrets.required).toEqual(['CSRF_SECRET']);
   expect(p.observability.logs.invocation_logs).toBe(true);
@@ -25,15 +25,33 @@ it('preserves only the accepted panel custom domain without enabling alternate e
   expect(p.workers_dev).toBe(false);
   expect(p.preview_urls).toBe(false);
   expect(p.routes).toEqual([{ pattern: 'panel.mayisigorta.com', custom_domain: true }]);
-  expect(p.triggers.crons).toEqual([]);
-  expect(p.queues.consumers).toEqual([]);
+  expect(p.triggers.crons).toEqual(['*/5 * * * *']);
+  expect(p.queues.consumers).toEqual([
+    {
+      queue: 'mayisigorta-document-jobs-v2',
+      max_batch_size: 1,
+      max_batch_timeout: 1,
+      max_concurrency: 1,
+      max_retries: 5,
+      dead_letter_queue: 'mayisigorta-document-jobs-v2-dlq',
+    },
+  ]);
   expect(p.ratelimits).toEqual(current.ratelimits);
   expect(p.durable_objects).toEqual(current.durable_objects);
   expect(p.migrations).toEqual(current.migrations);
   expect(p.assets).toEqual(current.assets);
   expect(p.d1_databases).toEqual(current.env.foundation.d1_databases);
-  expect(p.r2_buckets).toEqual(current.env.foundation.r2_buckets);
-  expect(p.queues.producers).toEqual(current.env.foundation.queues.producers);
+  expect(p.r2_buckets).toEqual([
+    ...current.env.foundation.r2_buckets,
+    {
+      binding: 'DOCUMENT_QUEUE_CUSTODY',
+      bucket_name: 'mayisigorta-document-queue-custody',
+      jurisdiction: 'eu',
+    },
+  ]);
+  expect(p.queues.producers).toEqual([
+    { binding: 'DOCUMENT_JOB_QUEUE', queue: 'mayisigorta-document-jobs-v2' },
+  ]);
   const base = configuration(
     execFileSync('git', ['show', 'fdf367393a90810d8c8aaa1ed45aaa3ed37d5e00:wrangler.jsonc'], {
       encoding: 'utf8',
