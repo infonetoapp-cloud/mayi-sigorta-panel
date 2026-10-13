@@ -1,0 +1,248 @@
+{
+  "baseline": "cb3fef546e558697d14955e34ff8f0ed0287ca32",
+  "publicActivation": "NO-GO",
+  "M4_SECURITY_ACCEPTED": "NO",
+  "M4_DOCUMENT_USER_FLOW_ACCEPTED": "NO",
+  "sourceFixCheckpoint": {
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "session": "20261013_210602_ed8cb1",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "effort": "high",
+    "independentCliCloseVerified": true,
+    "reportSHA256": "6efbb95ed521e098578dc3b78cc6dc73ec8b96436e0df36e41f859e4dd6c9346",
+    "priorFailReportSHA256": "1235eb7addb5eaa7e355c667e458c2bcb23266a5bd5c67e3be88a6c640af1a0f"
+  },
+  "currentRouteInventoryAndProductionProbes": {
+    "observedAt": "2026-10-13T17:44:00.658234+00:00",
+    "actualRouteInventory": [
+      {
+        "path": "/api/documents",
+        "secure": false,
+        "operation": "UPLOAD"
+      },
+      {
+        "path": "/api/documents/:id/download",
+        "secure": false,
+        "operation": "DOWNLOAD"
+      },
+      {
+        "path": "/secure/api/documents/:id/download",
+        "secure": true,
+        "operation": "DOWNLOAD"
+      },
+      {
+        "path": "/secure/api/documents/:id/download-grants",
+        "secure": true,
+        "operation": "GRANT"
+      },
+      {
+        "path": "/secure/api/documents/:id/download-confirmation",
+        "secure": true,
+        "operation": "CONFIRMATION"
+      }
+    ],
+    "probes": [
+      {
+        "method": "POST",
+        "path": "/api/documents",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/api/documents",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/api/documents",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/documents",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/synthetic-missing/download",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/synthetic-missing/download-grants",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/synthetic-missing/download-grants",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/synthetic-missing/download-grants",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/synthetic-missing/download-grants",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/synthetic-missing/download-confirmation",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/synthetic-missing/download-confirmation",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/synthetic-missing/download-confirmation",
+        "http": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/synthetic-missing/download-confirmation",
+        "http": 404,
+        "setCookie": false
+      }
+    ],
+    "allDisabled": true,
+    "productionMutation": false
+  },
+  "protectedProviderEqual": [
+    "workers",
+    "queue",
+    "buckets",
+    "domains",
+    "routes",
+    "backupAlert",
+    "subscriptions"
+  ],
+  "backupBefore": {
+    "generation": "d1-backup-slot-995505",
+    "export": "2026-10-13T16:30:07.206Z",
+    "COMPLETE": "2026-10-13T16:30:18.299Z",
+    "bytes": 227547,
+    "checks": {
+      "source": true,
+      "generation": true,
+      "state": true,
+      "key": true,
+      "sizeEtag": true,
+      "ordered": true,
+      "integrity": true
+    },
+    "ageSeconds": 1269.211,
+    "healthy": true
+  },
+  "backupFinal": {
+    "generation": "d1-backup-slot-995508",
+    "export": "2026-10-13T18:00:08.106Z",
+    "COMPLETE": "2026-10-13T18:00:16.778Z",
+    "bytes": 227547,
+    "checks": {
+      "source": true,
+      "generation": true,
+      "state": true,
+      "key": true,
+      "sizeEtag": true,
+      "ordered": true,
+      "integrity": true
+    },
+    "ageSeconds": 1287.063,
+    "healthy": true
+  },
+  "productionMutations": 0,
+  "sourceFixesDeployed": false,
+  "DOCUMENTS_ENABLED": false,
+  "FEATURE_ENABLED": "NO",
+  "WorkersPaid": false,
+  "realBusinessCustomerDataUsed": false,
+  "tests": {
+    "initialBaselineFiles": 4,
+    "initialBaselinePASS": 46,
+    "parentFocusedFiles": 7,
+    "parentFocusedPASS": 39,
+    "parentCorrectedNativePASS": 7,
+    "independentFinalFocusedFiles": 7,
+    "independentFinalFocusedPASS": 42,
+    "independentAdversarialPASS": 18,
+    "independentSiblingPASS": 13,
+    "independentSiblingSKIP": 82,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "boundaries": "PASS",
+    "build": "PASS",
+    "workerProductionDryRun": "PASS_NOT_DEPLOYMENT",
+    "broadDomainChain": "TIMEOUT300_NO_SUMMARY_NOT_PROVEN"
+  },
+  "blockers": [
+    "authorized parent list/status and React document flow",
+    "Free HTTP parser/multipart/crypto/memory/concurrency runtime capacity",
+    "live monitoring deadman and verified human delivery",
+    "populated remote recovery RPO/RTO and authority/tombstones acceptance",
+    "custody privacy/volume/retention incident operations before Queue TTL",
+    "closed candidate deployment bindings/source readback after authorized engineering acceptance"
+  ],
+  "nextAuthorizedMissionCouldBeFlagFlip": false
+}

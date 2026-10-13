@@ -6,6 +6,8 @@ import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import { parseCsrfConfig } from '../config';
 import { verifyCsrfMutationGuard } from '../security/csrf';
+import { documentRateDecision } from './admission';
+import { DOCUMENT_ROUTE_CONTRACT } from './route-contract';
 import {
   downloadDocument,
   DocumentStreamError,
@@ -17,12 +19,9 @@ export function registerDocumentStreamRoutes(
   app: Hono<{ Bindings: Env }>,
   dependencies: AppDependencies,
 ): void {
-  for (const [path, secure, issue] of [
-    ['/api/documents/:id/download', false, false],
-    ['/secure/api/documents/:id/download', true, false],
-    ['/secure/api/documents/:id/download-grants', true, true],
-    ['/secure/api/documents/:id/download-confirmation', true, false],
-  ] as const)
+  for (const { path, secure, operation } of DOCUMENT_ROUTE_CONTRACT.filter(
+    (route) => route.operation !== 'UPLOAD',
+  ))
     app.post(path, async (c) => {
       c.header('Cache-Control', 'private, no-store');
       const fail = (status: 401 | 403 | 404 | 503) =>
@@ -75,6 +74,22 @@ export function registerDocumentStreamRoutes(
           secret: parseCsrfConfig(c.env).CSRF_SECRET,
         });
         if (!guard.allowed) return fail(403);
+        const admission = await documentRateDecision(c.env, context, 'DOWNLOAD');
+        if (admission !== 'ALLOW') {
+          if (admission === 'UNAVAILABLE') return fail(503);
+          c.header('Retry-After', '60');
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: 'RATE_LIMITED',
+                message:
+                  'Kısa sürede çok sayıda belge isteği gönderildi. Bir dakika sonra tekrar deneyin.',
+              },
+            },
+            429,
+          );
+        }
         const raw = await boundedJson(c.req.raw);
         if (path.endsWith('/download-confirmation')) {
           if (
@@ -93,7 +108,7 @@ export function registerDocumentStreamRoutes(
             200,
           );
         }
-        if (issue) {
+        if (operation === 'GRANT') {
           const data = await issueDocumentDownloadGrant(
             c.env.DB,
             context,

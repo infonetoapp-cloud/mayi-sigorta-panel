@@ -21,6 +21,7 @@ function fakeDb() {
                 expiredLeases: 0,
                 completedInvestigations: 0,
                 overdueBackups: 0,
+                overdueUploads: 0,
               }
             : null;
         },

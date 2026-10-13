@@ -118,6 +118,16 @@
           "namespace_id": "2702",
           "simple": { "limit": 1000, "period": 60 },
         },
+        {
+          "name": "DOCUMENT_UPLOAD_RATE_LIMITER",
+          "namespace_id": "2703",
+          "simple": { "limit": 10, "period": 60 },
+        },
+        {
+          "name": "DOCUMENT_DOWNLOAD_RATE_LIMITER",
+          "namespace_id": "2704",
+          "simple": { "limit": 30, "period": 60 },
+        },
       ],
       "assets": {
         "directory": "./dist/client",

@@ -472,6 +472,12 @@ Backup freshness istatistiksel COUNT/resampling değil coherent doğal generatio
 
 Tercih edilen future deployment: bağımsız scheduled observer + exact bucket read-only credential + ayrı monotonic monitoring state/outbox + başka failure domain'de ücretsiz external dead-man/human email delivery. Healthchecks.io free proje erişimi/verified destination henüz sağlanmamıştır; sağlayıcı/hesap uydurulmaz. Native standalone Health Checks Free entitlement0; mevcut Email Routing unconfigured/verifiedrecipient0; Paid/DNS sınırları korunur. Aynı CF Cron'da ikinci Worker bağımsız global-scheduler watchdog kabulü değildir. Yalnız yerel metadata/heartbeat decision kütüphanesi uygulanmıştır; backend reader/IAM/statewriter/Worker/Cron/delivery/rollback acceptance OPEN. Replacement gerçek pre/postHIGH+bounded notification/deadman testinden geçmeden mevcut flaky policy disable edilmez. F-32 plan kaydı canlı kaynak oluşturma veya public activation değildir.
 
+### 10.7 Public activation preflight — F-33, NO-GO
+
+Public DOCUMENTS=false production'da korunur; source-only security/readiness checkpoint ürün açılışı değildir. Completed upload receipt replay ve download/confirmation/grant response final disclosure aynı session-bound D1 atomic authority boundary'den geçer; session/credential/permission_version/recent-password liveness eski başarılıreceipt ile bypass edilmez. OWNER modeli korunur. Kullanıcıbaşına upload10/min/download30/min production bindings; eksik veya hatalı admission fail-closed503, limit429/Retry-After60. Multipart byte+chunk-work+idle5s/total30s bütçeleri vardır; async timer synchronous parser preemption veyaFreeCPU/memory proof değildir. InterruptedPENDING_UPLOAD>15m operational metric ayrı izlenir; otomatikfinalize/delete yok.
+
+Canonical routecontract exact5POST upload/download/securedownload/grant/confirmation'dır; product-facing upload PROCESSING, internalBACKUP_PENDING/version/hash/key/job employee label değildir. Authorized parent-scopedlist/status+React document-only upload/retry/reauth/confirmation/view/status/download verticalslice henüz eksikhardgate'dir; gelecekmajorCRM redesign ile karıştırılmaz. Free HTTP multipart/parser/cryptoresource+abuse/concurrency proof, livebackup observer/deadman+human delivery/documentincident operation, mevcutnormativepopulatedrestoreRPO/RTO ve closedcandidate deploymentreadback kapıları publicöncesi kapanır. P4COPY/internalreconcile kabulü bunları otomatikaçmaz. Public rollback firstDOCUMENTSfalse; gerektiğindev2pause/JOBSfalse/consumerdisable, CRONfalse/documentCronremove ayrı; D1/R2authoritativeevidence silinmez. Bu görevremote restore/Paid/DNS/retention/authprovisioning yetkisi kullanmaz.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -707,6 +713,8 @@ Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dış�
 | F-25 | Kaynakların çelişmesi | KESİN: yalnız bu nihai dosya; eski paket arşiv ve normatif değil |
 
 Yeni değişiklik kaydı aynı bölümde tarih, kullanıcı yetkisi/gerekçe, etkilenen bölüm/test ve sonuçla eklenir. Çelişkili ikinci bir FINAL dosyası üretilmez. Bu planı geliştirmek mümkündür; “nihai” kontrolsüz tasarım drift'ini önler, gerçek hatayı düzeltmeyi yasaklamaz.
+
+F-33 — 13 Ekim 2026; kullanıcıcb3fef5 sonrası finalM4publicactivationpreflight yetkisiyle10.7 eklenir. Native session-revocation disclosurekusuru ve upload/downloadabuse/bodybounds/interruptedhealth sourcefixleri; publicfalse/no proddeploy. Employee list/status/UI ve HTTPFreecapacity/monitoring/recoveryoperational kapıları gerçekNO-GO olarak korunur; yeni genericread/delete authority uydurulmaz, sonraki mission finalflip olamaz. Source/securitycorrectedgate+overalllaunchgate bağımsız SolHIGH ayrı scopes; historicalFAIL/STOP retained.
 
 F-32 — 13 Ekim 2026; kullanıcı30c05f3 sonrası explicit free-first bağımsız backup monitoring yetkisiyle10.6 eklenir. Yerel evidence motoru uygulanır; native Free/DNS ve harici hesap erişimi kapıları açık olduğundan canlı observer/human notification/heartbeat kabulü verilmez. Backup production/public/auth/Queues/Cron değişmez; mevcut flaky alert replacement kabulüne kadar korunur.
 

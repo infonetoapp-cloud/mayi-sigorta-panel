@@ -182,6 +182,7 @@ export async function documentDownloadConfirmation(
   try {
     const actor = actorSnapshot(context);
     if (actor.assurance !== 'SECURE') throw new DocumentStreamError();
+    requireRecentPassword(db);
     const s = await loadSnapshot(db, actor, id.parse(documentId));
     await authorize(db, actor, s.data);
     sensitiveAction(s.data);
@@ -506,6 +507,7 @@ async function authorize(db: D1Database, actor: Actor, s: Snapshot) {
 async function unchanged(db: D1Database, actor: Actor, s: { json: string; data: Snapshot }) {
   if ((await loadSnapshot(db, actor, s.data.documentId)).json !== s.json)
     throw new DocumentStreamError();
+  await db.batch([authorityAssertion(db, actor, s)]);
 }
 function authorityAssertion(db: D1Database, actor: Actor, s: { json: string; data: Snapshot }) {
   return db

@@ -16,7 +16,8 @@ export async function evaluateDocumentHealth(db: D1Database, now = Date.now()) {
  (SELECT count(*) FROM (SELECT 1 FROM background_jobs WHERE job_type IN ('DOCUMENT_BACKUP','DOCUMENT_RECONCILE') AND status='RUNNING' AND lease_expires_at<=(SELECT now FROM clock) LIMIT 1001)) AS expiredLeases,
  (SELECT count(*) FROM (SELECT 1 FROM background_jobs job WHERE job_type='DOCUMENT_RECONCILE' AND status='COMPLETED' AND last_error_code IS NOT NULL
  AND EXISTS(SELECT 1 FROM background_job_runs run WHERE run.agency_id=job.agency_id AND run.job_id=job.id AND run.attempt_number=job.attempt_count AND run.status='PERMANENT_ERROR') LIMIT 1001)) AS completedInvestigations,
- (SELECT count(*) FROM (SELECT 1 FROM document_versions WHERE status='BACKUP_PENDING' AND updated_at<(SELECT cutoff FROM clock) LIMIT 1001)) AS overdueBackups
+ (SELECT count(*) FROM (SELECT 1 FROM document_versions WHERE status='BACKUP_PENDING' AND updated_at<(SELECT cutoff FROM clock) LIMIT 1001)) AS overdueBackups,
+ (SELECT count(*) FROM (SELECT 1 FROM document_versions WHERE status='PENDING_UPLOAD' AND updated_at<(SELECT cutoff FROM clock) LIMIT 1001)) AS overdueUploads
  `,
       )
       .bind(checkedAt, cutoff)
@@ -41,6 +42,7 @@ export async function evaluateDocumentHealth(db: D1Database, now = Date.now()) {
     'expiredLeases',
     'completedInvestigations',
     'overdueBackups',
+    'overdueUploads',
   ] as const;
   if (
     !row ||
@@ -56,6 +58,7 @@ export async function evaluateDocumentHealth(db: D1Database, now = Date.now()) {
     expiredLeases: Math.min(row.expiredLeases!, COUNT_LIMIT),
     completedInvestigations: Math.min(row.completedInvestigations!, COUNT_LIMIT),
     overdueBackups: Math.min(row.overdueBackups!, COUNT_LIMIT),
+    overdueUploads: Math.min(row.overdueUploads!, COUNT_LIMIT),
   });
   return Object.freeze({
     checkedAt,
@@ -94,6 +97,7 @@ export async function runDocumentHealthMonitoring(db: D1Database, now = Date.now
     c.expiredLeases === 0 &&
     c.completedInvestigations === 0 &&
     c.overdueBackups === 0 &&
+    c.overdueUploads === 0 &&
     !snapshot.truncated
   )
     return;

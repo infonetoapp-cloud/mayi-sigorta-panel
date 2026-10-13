@@ -140,6 +140,16 @@ async function pendingVersion(at: number, finalize = true) {
   }
   return version;
 }
+it('makes stale unfinalized upload reservations visible separately from backups', async () => {
+  const { evaluateDocumentHealth } = await import('../src/server/documents/health');
+  const before = await evaluateDocumentHealth(fixture.db, now);
+  await pendingVersion(now - 1800000, false);
+  const after = await evaluateDocumentHealth(fixture.db, now);
+  expect(
+    (after.counts as unknown as Record<string, number>).overdueUploads! -
+      (before.counts as unknown as Record<string, number>).overdueUploads!,
+  ).toBe(1);
+});
 it('counts only BACKUP_PENDING older than fifteen minutes, not reservation age', async () => {
   const { evaluateDocumentHealth } = await import('../src/server/documents/health');
   const before = await evaluateDocumentHealth(fixture.db, now);
@@ -247,6 +257,7 @@ const healthyRow = {
   expiredLeases: 0,
   completedInvestigations: 0,
   overdueBackups: 0,
+  overdueUploads: 0,
 };
 const resultDb = (row: unknown) =>
   ({ prepare: () => ({ bind: () => ({ first: async () => row }) }) }) as unknown as D1Database;

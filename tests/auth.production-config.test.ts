@@ -36,7 +36,19 @@ it('preserves public closure while constraining the internal custody-backed Queu
       dead_letter_queue: 'mayisigorta-document-jobs-v2-dlq',
     },
   ]);
-  expect(p.ratelimits).toEqual(current.ratelimits);
+  expect(p.ratelimits).toEqual([
+    ...current.ratelimits,
+    {
+      name: 'DOCUMENT_UPLOAD_RATE_LIMITER',
+      namespace_id: '2703',
+      simple: { limit: 10, period: 60 },
+    },
+    {
+      name: 'DOCUMENT_DOWNLOAD_RATE_LIMITER',
+      namespace_id: '2704',
+      simple: { limit: 30, period: 60 },
+    },
+  ]);
   expect(p.durable_objects).toEqual(current.durable_objects);
   expect(p.migrations).toEqual(current.migrations);
   expect(p.assets).toEqual(current.assets);

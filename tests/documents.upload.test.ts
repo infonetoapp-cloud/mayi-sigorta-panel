@@ -9,7 +9,7 @@ import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 import { createApp } from '../src/server';
 import { generateIdentityBoundCsrfToken } from '../src/server/security/csrf';
-import { createDocumentUpload, type DocumentUploadResult } from '../src/server/documents/service';
+import { createDocumentUpload } from '../src/server/documents/service';
 import {
   REQUIRED_CONTENT_INSPECTION_VERSION,
   type DocumentContentInspectionResult,
@@ -1304,13 +1304,13 @@ describe('document upload transaction', () => {
     expect(response.headers.get('cache-control')).toContain('no-store');
     const body = (await response.json()) as {
       success: boolean;
-      data: DocumentUploadResult['body'];
+      data: { documentId: string; classification: string; status: 'PROCESSING' };
       replayed: boolean;
     };
     expect(body).toMatchObject({
       success: true,
       replayed: false,
-      data: { state: 'BACKUP_PENDING' },
+      data: { status: 'PROCESSING' },
     });
     expect(JSON.stringify(body)).not.toContain('objectKey');
     expect(JSON.stringify(body)).not.toContain('quarantine/');

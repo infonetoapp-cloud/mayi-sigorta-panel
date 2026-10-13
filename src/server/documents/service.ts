@@ -616,20 +616,49 @@ async function assertCurrentUploadAuthority(
   parent: DocumentParentSnapshot,
   documentScope: 'ASSIGNED' | 'AGENCY',
   classification: DocumentUploadInput['classification'],
+  disclosure?: StoredUploadRow,
 ): Promise<void> {
   try {
-    await buildUploadAuthorityAssertion(
-      db,
-      context,
-      membership,
-      parent,
-      documentScope,
-      classification,
-    ).run();
+    const assertions = [
+      buildUploadAuthorityAssertion(db, context, membership, parent, documentScope, classification),
+    ];
+    if (disclosure)
+      assertions.push(
+        db
+          .prepare(
+            `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+      SELECT ?,1,count(*),'DOCUMENT_UPLOAD_AUTHORIZATION_RACE' FROM documents d JOIN document_versions v ON v.agency_id=d.agency_id AND v.document_id=d.id
+      WHERE d.agency_id=? AND d.id=? AND v.id=? AND d.owner_type=? AND d.customer_id IS ? AND d.policy_id IS ? AND d.quote_id IS ?
+      AND d.classification=? AND d.status='ACTIVE' AND d.created_by_user_id=? AND d.created_by_membership_id=?
+      AND v.version_number=1 AND v.object_key=? AND v.sha256=? AND v.size_bytes=? AND v.file_name=? AND v.declared_content_type=? AND v.detected_content_type=?
+      AND v.status IN ('QUARANTINED','SCANNING','BACKUP_PENDING','AVAILABLE','REJECTED','SCAN_FAILED','RETIRED')`,
+          )
+          .bind(
+            crypto.randomUUID(),
+            disclosure.agency_id,
+            disclosure.document_id,
+            disclosure.version_id,
+            disclosure.owner_type,
+            disclosure.customer_id,
+            disclosure.policy_id,
+            disclosure.quote_id,
+            classification,
+            context.userId,
+            membership.id,
+            disclosure.object_key,
+            disclosure.sha256,
+            disclosure.size_bytes,
+            disclosure.file_name,
+            disclosure.declared_content_type,
+            disclosure.detected_content_type,
+          ),
+      );
+    await db.batch(assertions);
   } catch (error) {
     const message = String(error);
     if (
       message.includes('DOCUMENT_UPLOAD_AUTHORIZATION_RACE') ||
+      message.includes('LOCAL_SESSION_REVOKED') ||
       message.includes('OPTIMISTIC_CONCURRENCY_CONFLICT')
     ) {
       throw new DocumentUploadError('FORBIDDEN', 403);
@@ -1049,7 +1078,11 @@ export async function createDocumentUpload(
       throw new IdempotencyConflictError('IDEMPOTENCY_PAYLOAD_MISMATCH');
     }
     if (existingReceipt.status === 'COMPLETED') {
-      if (!existingResponse || existingReceipt.response_status !== 202) {
+      if (
+        !existingResponse ||
+        existingReceipt.response_status !== 202 ||
+        existingResponse.classification !== input.classification
+      ) {
         throw new DocumentUploadError('SERVICE_UNAVAILABLE', 503);
       }
       const completedReservation: UploadReservation = {
@@ -1076,6 +1109,7 @@ export async function createDocumentUpload(
         parent,
         documentScope,
         input.classification,
+        stored,
       );
       return { status: 202, body: existingResponse, replayed: true };
     }

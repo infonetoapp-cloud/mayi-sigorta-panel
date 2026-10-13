@@ -55,6 +55,8 @@ export interface Env {
   DOCUMENT_CRON_ENABLED?: string;
   DOCUMENT_BACKUP_CAPABILITY?: DocumentBackupCapability;
   AUTH_ACCOUNT_RATE_LIMITER?: RateLimit;
+  DOCUMENT_UPLOAD_RATE_LIMITER?: RateLimit;
+  DOCUMENT_DOWNLOAD_RATE_LIMITER?: RateLimit;
   AUTH_SOURCE_RATE_LIMITER?: RateLimit;
   [key: string]: unknown;
 }
