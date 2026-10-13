@@ -72,6 +72,14 @@ it('uses provider invocation groups with exact safe marker, never optional reque
     { ...cpu, source: undefined as unknown as ReturnType<typeof custom>['source'] },
   ];
   expect(assess({ opaqueProviderGroup: group }, contract).verdict).toBe('PASS');
+  const enriched = structuredClone(group);
+  for (const event of enriched.slice(0, 2))
+    (event.source as Record<string, unknown>).level = 'info';
+  expect(assess({ providerGroup: enriched }, contract).verdict).toBe('PASS');
+  const sentinel = structuredClone(enriched);
+  for (const event of sentinel.slice(0, 2))
+    (event.source as Record<string, unknown>).synthetic_job_id = 'no-job';
+  expect(assess({ providerGroup: sentinel }, contract).verdict).toBe('PASS');
   const changed = (fn: (g: typeof group) => void) => {
     const g = structuredClone(group);
     fn(g);

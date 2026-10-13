@@ -21,6 +21,13 @@ export const markerSchema = z.strictObject({
     .nullable(),
   outcome: z.enum(['start', 'ok', 'fail']),
 });
+// Stored logs may enrich the envelope. Keep emitted identity fields strict.
+const storedMarkerSchema = markerSchema.extend({
+  synthetic_job_id: markerSchema.shape.synthetic_job_id.transform((id) =>
+    id === 'no-job' ? null : id,
+  ),
+  level: z.enum(['debug', 'info', 'log', 'warn', 'error']).optional(),
+});
 export interface InvocationContract {
   runId: string;
   size: number;
@@ -115,7 +122,7 @@ export function assessInvocationGroups(
           'kind' in source &&
           source.kind === 'mayi_m4_provider_canary'
         ) {
-          const parsed = markerSchema.safeParse(source);
+          const parsed = storedMarkerSchema.safeParse(source);
           if (!parsed.success) return reject('UNSAFE_MARKER');
           const m = parsed.data;
           if (m.canary_run_id !== c.runId) continue;
@@ -163,7 +170,7 @@ export function assessInvocationGroups(
         'kind' in source &&
         source.kind === 'mayi_m4_provider_canary'
       ) {
-        const m = markerSchema.safeParse(source);
+        const m = storedMarkerSchema.safeParse(source);
         if (
           !m.success ||
           m.data.canary_run_id !== c.runId ||
@@ -228,7 +235,7 @@ export function assessInvocationGroups(
         'kind' in source &&
         source.kind === 'mayi_m4_provider_canary'
       ) {
-        const marker = markerSchema.safeParse(source);
+        const marker = storedMarkerSchema.safeParse(source);
         if (!marker.success) return reject('UNSAFE_MARKER');
         if (marker.data.canary_run_id === c.runId && !used.has(key))
           return reject('UNEXPECTED_MARKED_INVOCATION');
@@ -256,5 +263,7 @@ export function emitCanaryMarker(
     synthetic_job_id: jobId,
     outcome,
   });
-  console.info(safe);
+  // An explicit sentinel survives stored-log null elision; missing is never inferred.
+  if (jobId === 'no-job') throw new Error('RESERVED_CANARY_JOB_ID');
+  console.info({ ...safe, synthetic_job_id: safe.synthetic_job_id ?? 'no-job' });
 }

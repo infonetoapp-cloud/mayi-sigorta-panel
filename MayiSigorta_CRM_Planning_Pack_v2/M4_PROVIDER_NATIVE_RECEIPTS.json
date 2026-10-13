@@ -1,0 +1,3378 @@
+{
+  "baseCommit": "8f0a29c55960711e97b9395512c1d146b63cb635",
+  "association": "DOCUMENTED_PROVIDER_INVOCATION_GROUPS_NOT_TIMESTAMP_OR_OPTIONAL_PAYLOAD_IDS",
+  "peakMemory": "NOT_OBSERVABLE",
+  "scope": "Single-job-at-a-time PREVALIDATED_COPY_ONLY synthetic 1/10/exact20MiB; no concurrency/scale/upload-parser claim",
+  "probe": {
+    "receipt": {
+      "contract": {
+        "runId": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+        "size": 1048576,
+        "from": 1791871153702,
+        "to": 1791871202972,
+        "invocations": [
+          {
+            "role": "prepare",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventTypes": [
+              "queue"
+            ],
+            "jobId": null,
+            "stages": [
+              "queue_start",
+              "producer_start",
+              "queue_complete"
+            ]
+          },
+          {
+            "role": "probe-backup",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventTypes": [
+              "queue"
+            ],
+            "jobId": "probe-backup",
+            "stages": [
+              "queue_start",
+              "rpc_client_start",
+              "d1_finalization",
+              "queue_complete"
+            ]
+          },
+          {
+            "role": "leaf-probe-backup",
+            "script": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+            "version": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e",
+            "eventTypes": [
+              "rpc",
+              "jsrpc"
+            ],
+            "jobId": "probe-backup",
+            "stages": [
+              "rpc_leaf_start",
+              "rpc_leaf_complete"
+            ]
+          },
+          {
+            "role": "probe-reconcile",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventTypes": [
+              "queue"
+            ],
+            "jobId": "probe-reconcile",
+            "stages": [
+              "queue_start",
+              "rpc_client_start",
+              "reconcile_complete",
+              "queue_complete"
+            ]
+          },
+          {
+            "role": "leaf-probe-reconcile",
+            "script": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+            "version": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e",
+            "eventTypes": [
+              "rpc",
+              "jsrpc"
+            ],
+            "jobId": "probe-reconcile",
+            "stages": [
+              "rpc_leaf_start",
+              "rpc_leaf_complete"
+            ]
+          }
+        ]
+      },
+      "groups": {
+        "0f9da99b1cb442072224c9d068210a0e61405f56ad909db6ab6b72d80a1f28b2": [
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000001",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_start",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "632c14932a4b6c816923e853147d822795b7e9a1260e99056edb7a69710724a7"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000002",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_client_start",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "7d0ef7625c0d43b9091b019adeb806da3de392432e2bbc73a5df7876b43c3614"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000005",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "reconcile_complete",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "12844871d41d6f14e1715a0a4fdafd56fc27a72df69d73cf69ea444af66fbb82"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000006",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_complete",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "3b3d0485f5038442eda0da86697bf599df3dd46a7166a832a449a804934b4a09"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB000000000000000B",
+              "type": "cf-worker-event"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false,
+              "outcome": "ok",
+              "cpuTimeMs": 1,
+              "wallTimeMs": 3
+            },
+            "source": null,
+            "originalEventSHA256": "5953b63aab50a575468ab4cff65e7679908614be1644ee0a64869cbba1d78aa4"
+          }
+        ],
+        "e4a0e2fb1ee666be57d07e21bab8df20e4a6e6cfd05f93c5f1d57c72a6418925": [
+          {
+            "timestamp": 1791871167281,
+            "$metadata": {
+              "id": "01M4SXGASH0000000000000001",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_start",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "b8b22647bbdf2fc3414e8f9d34441b7e26e117f359e79c4deaf577a496775b93"
+          },
+          {
+            "timestamp": 1791871167281,
+            "$metadata": {
+              "id": "01M4SXGASH0000000000000002",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_client_start",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "e512916ecce3ef9d206ac7874d7ea6fa49a23da199f82216aa911bd1c644742a"
+          },
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW60000000000000005",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "d1_finalization",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "7d0594b82e87e9e13003491ee5b6395af21e203f99cf49811c7b5b8ca98cadc2"
+          },
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW60000000000000006",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_complete",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "63dcb313f5be0f413d5203a21e75e51575581f2d8e525eb52115f6463221e450"
+          },
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW6000000000000000B",
+              "type": "cf-worker-event"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false,
+              "outcome": "ok",
+              "cpuTimeMs": 1,
+              "wallTimeMs": 90
+            },
+            "source": null,
+            "originalEventSHA256": "980cf79a919d0f6936d5309d4952301b66777e0a00369cb8ac555f447a08fed7"
+          }
+        ],
+        "27ee7dbac9eac629e0bb60dc28bbafa265ac8b575aeba0e4be0a7b632e95baa1": [
+          {
+            "timestamp": 1791871161898,
+            "$metadata": {
+              "id": "01M4SXG5HA0000000000000001",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_start",
+              "synthetic_job_id": "no-job",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "9ebd7c781127109fdbecdefc7729958e52c77e5e2345d7d57e3d83622dfede31"
+          },
+          {
+            "timestamp": 1791871161898,
+            "$metadata": {
+              "id": "01M4SXG5HA0000000000000002",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "producer_start",
+              "synthetic_job_id": "no-job",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "13638c31498ead4ff6ae8fd414ea2380c72a828bc031f6325773a3e326e68619"
+          },
+          {
+            "timestamp": 1791871162147,
+            "$metadata": {
+              "id": "01M4SXG5S30000000000000007",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "queue_complete",
+              "synthetic_job_id": "no-job",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "9463307669232f476956df4db1120f37b5836eda7dbfc46fb243e6a262ffee53"
+          },
+          {
+            "timestamp": 1791871162147,
+            "$metadata": {
+              "id": "01M4SXG5S30000000000000009",
+              "type": "cf-worker-event"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe",
+              "scriptVersion": {
+                "id": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d"
+              },
+              "eventType": "queue",
+              "truncated": false,
+              "outcome": "ok",
+              "cpuTimeMs": 4,
+              "wallTimeMs": 253
+            },
+            "source": null,
+            "originalEventSHA256": "64916eb329d04d1302bafa41ca0d452ad9765ce775b71eee643084b92144f552"
+          }
+        ],
+        "8c3af3f3b2752f28dba50e5214343db05900ee7eac5a4717a34bd048d41307f8": [
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000003",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_leaf_start",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "4c3fd0e1649d87e4a043d5eb60bfbf1497529c0ef6d075045d86565a250c2d41"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000004",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_leaf_complete",
+              "synthetic_job_id": "probe-reconcile",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "36615ade351d6e8ca94f3f8df343c91a78a34ff4a7effb42a3fc9416c719599b"
+          },
+          {
+            "timestamp": 1791871167467,
+            "$metadata": {
+              "id": "01M4SXGAZB0000000000000008",
+              "type": "cf-worker-event"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false,
+              "outcome": "ok",
+              "cpuTimeMs": 0,
+              "wallTimeMs": 1
+            },
+            "source": null,
+            "originalEventSHA256": "72f29d29b9c891768b602e3c9f76f4a049d2116cfcad52986b8ef137595d66ff"
+          }
+        ],
+        "84696bbed0303be22320f373227c00b34fb97f365b17b9dab44c5183a002e32c": [
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW60000000000000003",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_leaf_start",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "start",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "f8b70982d165600615035cf26e0cba27ba1d2cf80dd943090cac87d7047300a7"
+          },
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW60000000000000004",
+              "type": "cf-worker"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false
+            },
+            "source": {
+              "level": "info",
+              "kind": "mayi_m4_provider_canary",
+              "canary_run_id": "3dfdf6b9-008c-46a5-981b-e0488ccac7bc",
+              "stage": "rpc_leaf_complete",
+              "synthetic_job_id": "probe-backup",
+              "outcome": "ok",
+              "synthetic_size_bytes": 1048576
+            },
+            "originalEventSHA256": "a4d09782eae7806a7164db2de50f43dc8b5ea704ff03b461f8bf7ff26ef6fbf0"
+          },
+          {
+            "timestamp": 1791871167366,
+            "$metadata": {
+              "id": "01M4SXGAW60000000000000008",
+              "type": "cf-worker-event"
+            },
+            "$workers": {
+              "scriptName": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+              "scriptVersion": {
+                "id": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e"
+              },
+              "eventType": "jsrpc",
+              "truncated": false,
+              "outcome": "ok",
+              "cpuTimeMs": 3,
+              "wallTimeMs": 4
+            },
+            "source": null,
+            "originalEventSHA256": "f921b5de06a9a9b4b4ebc8bf54c2ed47c4ff09e335031ee9315e5c209cb84aeb"
+          }
+        ]
+      },
+      "assessment": {
+        "verdict": "PASS",
+        "reason": "EXACT_STRUCTURED_MARKERS_IN_DOCUMENTED_PROVIDER_INVOCATION_GROUPS",
+        "receipts": [
+          {
+            "role": "prepare",
+            "eventId": "01M4SXG5S30000000000000009",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventType": "queue",
+            "cpuMs": 4,
+            "wallMs": 253,
+            "outcome": "ok"
+          },
+          {
+            "role": "probe-backup",
+            "eventId": "01M4SXGAW6000000000000000B",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventType": "queue",
+            "cpuMs": 1,
+            "wallMs": 90,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf-probe-backup",
+            "eventId": "01M4SXGAW60000000000000008",
+            "script": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+            "version": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e",
+            "eventType": "jsrpc",
+            "cpuMs": 3,
+            "wallMs": 4,
+            "outcome": "ok"
+          },
+          {
+            "role": "probe-reconcile",
+            "eventId": "01M4SXGAZB000000000000000B",
+            "script": "mayisigorta-m4-canary-native-20261013-probe",
+            "version": "fa6ee9c8-9e0f-4de5-ade6-18956eee711d",
+            "eventType": "queue",
+            "cpuMs": 1,
+            "wallMs": 3,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf-probe-reconcile",
+            "eventId": "01M4SXGAZB0000000000000008",
+            "script": "mayisigorta-m4-canary-native-20261013-probe-leaf",
+            "version": "c1dd7f27-862a-464d-9d29-2f8278bd6f3e",
+            "eventType": "jsrpc",
+            "cpuMs": 0,
+            "wallMs": 1,
+            "outcome": "ok"
+          }
+        ]
+      },
+      "zeroBusiness": true,
+      "zeroDocument": true,
+      "singlePublish": true
+    },
+    "originalReceiptSHA256": "4787881c5145b80d958d3cfde36f136483e906656328d6ad3bab1f5919939c8e"
+  },
+  "sizes": [
+    {
+      "functional": {
+        "size": 1048576,
+        "pass": true,
+        "scope": {
+          "run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+          "backup_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+          "reconcile_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+          "version_id": "19516544-98f0-4576-84ff-897c08fc46f1",
+          "document_id": "5ed23bcc-bc7c-47eb-8764-777b639aedae",
+          "checksum": "c0978704744126c3999901381b5bbd1bb2a0ab5b20be30ed82816118643de894",
+          "size_bytes": 1048576,
+          "start_ms": 1791873615557,
+          "destination_key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+          "failure_code": null
+        },
+        "executionAttestation": true,
+        "objectSetAttestation": true,
+        "versions": {
+          "mayisigorta-m4-canary-native-20261013-crm": "24791dab-3908-41fe-9ef7-27868127bd3b",
+          "mayisigorta-m4-canary-native-20261013-leaf": "598a21cb-db93-45da-961c-e03d2bc76514"
+        },
+        "jobs": [
+          {
+            "id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+            "job_type": "DOCUMENT_BACKUP",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          },
+          {
+            "id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+            "job_type": "DOCUMENT_RECONCILE",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          }
+        ],
+        "runs": [
+          {
+            "job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+            "status": "SUCCEEDED",
+            "reason_code": null
+          },
+          {
+            "job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+            "status": "SUCCEEDED",
+            "reason_code": "SAFE_NOOP"
+          }
+        ],
+        "version": {
+          "status": "AVAILABLE",
+          "current_version_id": "19516544-98f0-4576-84ff-897c08fc46f1"
+        },
+        "copies": [
+          {
+            "object_key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+            "source_sha256": "c0978704744126c3999901381b5bbd1bb2a0ab5b20be30ed82816118643de894",
+            "backup_sha256": "c0978704744126c3999901381b5bbd1bb2a0ab5b20be30ed82816118643de894"
+          }
+        ],
+        "audit": [
+          {
+            "action": "document.backup.completed",
+            "outcome": "SUCCESS",
+            "reason_code": "BACKUP_VERIFIED",
+            "target_id": "19516544-98f0-4576-84ff-897c08fc46f1"
+          },
+          {
+            "action": "document.reconcile.requested",
+            "outcome": "SUCCESS",
+            "reason_code": "TARGET_BOUND",
+            "target_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d"
+          }
+        ],
+        "objectsBefore": {
+          "primary": [],
+          "recovery": []
+        },
+        "objectsAfter": {
+          "primary": [
+            {
+              "key": "quarantine/b17602cd-d9ee-40b9-b6a5-c6283fbc845e",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:17.836Z"
+            }
+          ],
+          "recovery": [
+            {
+              "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:26.027Z"
+            }
+          ]
+        },
+        "destinationMetadata": [
+          {
+            "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+            "size": 1048576,
+            "etag": "58c50e2572c87d11235a71792dfafe87",
+            "last_modified": "2026-10-13T06:40:26.027Z"
+          }
+        ],
+        "verifiedSHA256": "c0978704744126c3999901381b5bbd1bb2a0ab5b20be30ed82816118643de894",
+        "expectedSHA256": "c0978704744126c3999901381b5bbd1bb2a0ab5b20be30ed82816118643de894",
+        "verifiedBytes": 1048576,
+        "authCounts": {
+          "credential_operation_receipts": 0,
+          "local_credentials": 0,
+          "local_sessions": 0
+        },
+        "memory": "PEAK_MEMORY_NOT_OBSERVABLE",
+        "metrics": [
+          {
+            "job_type": "DOCUMENT_BACKUP",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 3382,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 1048576,
+              "writtenBytes": 0,
+              "d1Calls": 5,
+              "d1Statements": 16,
+              "rpcChunks": 16,
+              "rpcBytes": 1048576,
+              "stageMs": {
+                "d1": 902,
+                "r2Get": 499,
+                "rpc": 1454
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 1,
+                  "readBytes": 1048576,
+                  "writtenBytes": 1048576,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Put": 944,
+                    "r2Get": 413
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          },
+          {
+            "job_type": "DOCUMENT_RECONCILE",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 2213,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 1048576,
+              "writtenBytes": 0,
+              "d1Calls": 6,
+              "d1Statements": 11,
+              "rpcChunks": 0,
+              "rpcBytes": 0,
+              "stageMs": {
+                "d1": 1075,
+                "r2Get": 295,
+                "rpc": 297,
+                "health": 179
+              },
+              "health": {
+                "checkedAt": "2026-10-13T06:40:30.361Z",
+                "counts": {
+                  "dead": 0,
+                  "due": 0,
+                  "stalledDue": 0,
+                  "expiredLeases": 0,
+                  "completedInvestigations": 0,
+                  "overdueBackups": 0
+                },
+                "truncated": false
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 0,
+                  "readBytes": 1048576,
+                  "writtenBytes": 0,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Get": 240
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          }
+        ],
+        "startedMs": 1791873606202,
+        "finishedMs": 1791873633826
+      },
+      "functionalOriginalSHA256": "f360e43496873079ec93a71305e5a38db6013f27d782495e3c2ccd1eaa2f07c7",
+      "attribution": {
+        "verdict": "PASS",
+        "contract": {
+          "runId": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+          "size": 1048576,
+          "from": 1791873592832,
+          "to": 1791873659488,
+          "invocations": [
+            {
+              "role": "prepare",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": null,
+              "stages": [
+                "queue_start",
+                "producer_start",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "backup",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "1479a230-4f1a-4d80-8325-08ca008d4919",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "d1_finalization",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_backup",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "598a21cb-db93-45da-961c-e03d2bc76514",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "1479a230-4f1a-4d80-8325-08ca008d4919",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            },
+            {
+              "role": "reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "reconcile_complete",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "598a21cb-db93-45da-961c-e03d2bc76514",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            }
+          ]
+        },
+        "groups": {
+          "6226255456b7836206f148a8683f7f689604e36be23270a0924ac4bd896e58aa": [
+            {
+              "timestamp": 1791873628327,
+              "$metadata": {
+                "id": "01M4SZVE570000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_start",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "f4f9b924919dcfcfb0af6b52007650710e3a7d1224a7cfacfd2806ae59df5b76"
+            },
+            {
+              "timestamp": 1791873629681,
+              "$metadata": {
+                "id": "01M4SZVFFH0000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "f283b83ebb8fbd3660c0c9dbe1de8eff28a4775d6678a0c18f8c05a168c1dc25"
+            },
+            {
+              "timestamp": 1791873630361,
+              "$metadata": {
+                "id": "01M4SZVG4S000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "reconcile_complete",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "2ba0ddc4de47d76ba7686e558a46f3f7da4b7186a23040714dc7b554fd6fa534"
+            },
+            {
+              "timestamp": 1791873630732,
+              "$metadata": {
+                "id": "01M4SZVGGC0000000000000028",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_complete",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "05920a0d64d8074dac4bc6f6b25475a8a02f2cc6d4f3bae5152fc656822398af"
+            },
+            {
+              "timestamp": 1791873630732,
+              "$metadata": {
+                "id": "01M4SZVGGC000000000000002A",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 40,
+                "wallTimeMs": 2433
+              },
+              "source": null,
+              "originalEventSHA256": "a1bb9c9a2580a3c87b08db88117462185902a9895aab36859ed714c3505f2d75"
+            }
+          ],
+          "110652592a00dd5a609ac12e0471baa25dbf206a18ccef3d736a7f48ebaeb86c": [
+            {
+              "timestamp": 1791873623620,
+              "$metadata": {
+                "id": "01M4SZV9J40000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_start",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "c5fa9afc07b434d226ff8b21df57bc9df4f4b7360f53aad2fb9572fe67ebcc48"
+            },
+            {
+              "timestamp": 1791873625181,
+              "$metadata": {
+                "id": "01M4SZVB2X0000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "089c8c400f0453e333dcb6cc52787246352afa7060589d76d9454d25aa75e344"
+            },
+            {
+              "timestamp": 1791873627002,
+              "$metadata": {
+                "id": "01M4SZVCVT000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "d1_finalization",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "32c1f3e7cca4a91f743dd983720d987dbb6ef3a78257b6cea2c509c5868c1b76"
+            },
+            {
+              "timestamp": 1791873628152,
+              "$metadata": {
+                "id": "01M4SZVDZR000000000000002W",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_complete",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "c6de1f613eef208a3cc18b4425410e162c07daa1c5642eac55e820210bd966fc"
+            },
+            {
+              "timestamp": 1791873628152,
+              "$metadata": {
+                "id": "01M4SZVDZR000000000000002Y",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 59,
+                "wallTimeMs": 4547
+              },
+              "source": null,
+              "originalEventSHA256": "c476ec185e4ef456b7bd42e5b868e94ee144635a41546fb9374bb9efb095b86b"
+            }
+          ],
+          "f74316704d0d931f87af90e3b93088459125b9aed57730c7698d6331c40acfe3": [
+            {
+              "timestamp": 1791873614179,
+              "$metadata": {
+                "id": "01M4SZV0B30000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "619c3e93bbeca714cb430f42cb731f60636d4be5571e357e3c88b0862aa395ef"
+            },
+            {
+              "timestamp": 1791873614179,
+              "$metadata": {
+                "id": "01M4SZV0B30000000000000002",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "producer_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "c5b5bde3a7f106924a03e0181b0e98ede18428bff0160cecb6128a335527d3d1"
+            },
+            {
+              "timestamp": 1791873618572,
+              "$metadata": {
+                "id": "01M4SZV4MC000000000000003E",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "queue_complete",
+                "synthetic_job_id": "no-job",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "62fb2295d477fd72118ec138a79a289d5321924c46668c574dabe8530249ba30"
+            },
+            {
+              "timestamp": 1791873618572,
+              "$metadata": {
+                "id": "01M4SZV4MC000000000000003G",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 21,
+                "wallTimeMs": 4401
+              },
+              "source": null,
+              "originalEventSHA256": "94b7720a4100e0dbe744198bab80b553f8c6d5865d5ca089436ce9987d994c95"
+            }
+          ],
+          "ff1ddbee90404787714abd2508f76173825acdba4576c99c4f828b26d17b4675": [
+            {
+              "timestamp": 1791873604571,
+              "$metadata": {
+                "id": "01M4SZTPYV000000000000000W",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "24791dab-3908-41fe-9ef7-27868127bd3b"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 5,
+                "wallTimeMs": 1131
+              },
+              "source": null,
+              "originalEventSHA256": "e69a00a0fab0137204741b8b75284a63aa10e9f148165459b60f3c7a133e640a"
+            }
+          ],
+          "409c379e678bd91be2346d323c6a5e97f33651f9ccbc13191e1bfbf78387d80c": [
+            {
+              "timestamp": 1791873629725,
+              "$metadata": {
+                "id": "01M4SZVFGX0000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "48e1e022b84414dde8137d5c8db8442fe9a699415884a8b2582c64f39bdf7ed8"
+            },
+            {
+              "timestamp": 1791873629965,
+              "$metadata": {
+                "id": "01M4SZVFRD0000000000000007",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "reconcile-c5c6b2501d83f17af113d35bf97530ce784145e3ea84601ee1ffd2d6a200c01d",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "2c85bab4d0192de5daa23e066b6b2c480934480db66befc502c454a4ab15c696"
+            },
+            {
+              "timestamp": 1791873629965,
+              "$metadata": {
+                "id": "01M4SZVFRD000000000000000B",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 32,
+                "wallTimeMs": 286
+              },
+              "source": null,
+              "originalEventSHA256": "2af2670619544de51491c6155610e6ccc0d5b4aa57b96c9bef67b8ef85ac0a6b"
+            }
+          ],
+          "4070f3b42dde576dec4b9fa89df11236e2c5bbd1fe2d55e0fe78f3b12055afc0": [
+            {
+              "timestamp": 1791873625223,
+              "$metadata": {
+                "id": "01M4SZVB470000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "start",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "dcb45592f0c8aa14591692be4a5be93c36771f7f3c145f3baf1f68ef2becd0ed"
+            },
+            {
+              "timestamp": 1791873626607,
+              "$metadata": {
+                "id": "01M4SZVCFF000000000000000A",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "9e007f2c-6463-47dd-a396-c4d7829e2ccc",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "1479a230-4f1a-4d80-8325-08ca008d4919",
+                "outcome": "ok",
+                "synthetic_size_bytes": 1048576
+              },
+              "originalEventSHA256": "c56c2660d06d88d474686c371c0ce2a24f0a06663f5acbb6eac322356c9d6f40"
+            },
+            {
+              "timestamp": 1791873626607,
+              "$metadata": {
+                "id": "01M4SZVCFF000000000000000E",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 57,
+                "wallTimeMs": 1427
+              },
+              "source": null,
+              "originalEventSHA256": "56b6096614ebaae2144265974a0982940443e7f8085aa7308e093c51b236c018"
+            }
+          ],
+          "1f5b9a5e0e82f688661dea5abfc7ab596540f011b20079eb6aba72970437a595": [
+            {
+              "timestamp": 1791873604392,
+              "$metadata": {
+                "id": "01M4SZTPS80000000000000009",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "598a21cb-db93-45da-961c-e03d2bc76514"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 1,
+                "wallTimeMs": 237
+              },
+              "source": null,
+              "originalEventSHA256": "76bc2be0547169e9ecb320b508a9a4d6c9dab0c38ad7fe174fb4a28dc88581b0"
+            }
+          ]
+        },
+        "receipts": [
+          {
+            "role": "prepare",
+            "eventId": "01M4SZV4MC000000000000003G",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+            "eventType": "queue",
+            "cpuMs": 21,
+            "wallMs": 4401,
+            "outcome": "ok"
+          },
+          {
+            "role": "backup",
+            "eventId": "01M4SZVDZR000000000000002Y",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+            "eventType": "queue",
+            "cpuMs": 59,
+            "wallMs": 4547,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_backup",
+            "eventId": "01M4SZVCFF000000000000000E",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "598a21cb-db93-45da-961c-e03d2bc76514",
+            "eventType": "jsrpc",
+            "cpuMs": 57,
+            "wallMs": 1427,
+            "outcome": "ok"
+          },
+          {
+            "role": "reconcile",
+            "eventId": "01M4SZVGGC000000000000002A",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "24791dab-3908-41fe-9ef7-27868127bd3b",
+            "eventType": "queue",
+            "cpuMs": 40,
+            "wallMs": 2433,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_reconcile",
+            "eventId": "01M4SZVFRD000000000000000B",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "598a21cb-db93-45da-961c-e03d2bc76514",
+            "eventType": "jsrpc",
+            "cpuMs": 32,
+            "wallMs": 286,
+            "outcome": "ok"
+          }
+        ],
+        "association": "DOCUMENTED_PROVIDER_GROUPS_SERVICE_QUERY_BOUNDED_POLLING",
+        "requestIdRequired": false,
+        "traceIdRequired": false
+      },
+      "attributionOriginalSHA256": "c61b1689892895b2526bf2d445def7204fc15607742ccf3431285a9de8b65f22"
+    },
+    {
+      "functional": {
+        "size": 10485760,
+        "pass": true,
+        "scope": {
+          "run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+          "backup_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+          "reconcile_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+          "version_id": "a4880e41-82ce-40d1-9cbd-e8ee70471567",
+          "document_id": "dcc42641-936a-488b-9175-938c5f31109e",
+          "checksum": "4d876f288399d1a82e1005f4400c03cac445f3cfd178e5b7391b394a6aa60c06",
+          "size_bytes": 10485760,
+          "start_ms": 1791875265970,
+          "destination_key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+          "failure_code": null
+        },
+        "executionAttestation": true,
+        "objectSetAttestation": true,
+        "versions": {
+          "mayisigorta-m4-canary-native-20261013-crm": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+          "mayisigorta-m4-canary-native-20261013-leaf": "812541e4-7200-4793-834b-bd26bc8235d3"
+        },
+        "jobs": [
+          {
+            "id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+            "job_type": "DOCUMENT_BACKUP",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          },
+          {
+            "id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+            "job_type": "DOCUMENT_RECONCILE",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          }
+        ],
+        "runs": [
+          {
+            "job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+            "status": "SUCCEEDED",
+            "reason_code": null
+          },
+          {
+            "job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+            "status": "SUCCEEDED",
+            "reason_code": "SAFE_NOOP"
+          }
+        ],
+        "version": {
+          "status": "AVAILABLE",
+          "current_version_id": "a4880e41-82ce-40d1-9cbd-e8ee70471567"
+        },
+        "copies": [
+          {
+            "object_key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+            "source_sha256": "4d876f288399d1a82e1005f4400c03cac445f3cfd178e5b7391b394a6aa60c06",
+            "backup_sha256": "4d876f288399d1a82e1005f4400c03cac445f3cfd178e5b7391b394a6aa60c06"
+          }
+        ],
+        "audit": [
+          {
+            "action": "document.backup.completed",
+            "outcome": "SUCCESS",
+            "reason_code": "BACKUP_VERIFIED",
+            "target_id": "a4880e41-82ce-40d1-9cbd-e8ee70471567"
+          },
+          {
+            "action": "document.reconcile.requested",
+            "outcome": "SUCCESS",
+            "reason_code": "TARGET_BOUND",
+            "target_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5"
+          }
+        ],
+        "objectsBefore": {
+          "primary": [
+            {
+              "key": "quarantine/b17602cd-d9ee-40b9-b6a5-c6283fbc845e",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:17.836Z"
+            }
+          ],
+          "recovery": [
+            {
+              "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:26.027Z"
+            }
+          ]
+        },
+        "objectsAfter": {
+          "primary": [
+            {
+              "key": "quarantine/b17602cd-d9ee-40b9-b6a5-c6283fbc845e",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:17.836Z"
+            },
+            {
+              "key": "quarantine/ba3b89ad-1da3-480a-8168-dc66f33d5fd9",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:48.581Z"
+            }
+          ],
+          "recovery": [
+            {
+              "key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:59.823Z"
+            },
+            {
+              "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:26.027Z"
+            }
+          ]
+        },
+        "destinationMetadata": [
+          {
+            "key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+            "size": 10485760,
+            "etag": "f15a105c3b07883771c8f97a429d4712",
+            "last_modified": "2026-10-13T07:07:59.823Z"
+          }
+        ],
+        "verifiedSHA256": "4d876f288399d1a82e1005f4400c03cac445f3cfd178e5b7391b394a6aa60c06",
+        "expectedSHA256": "4d876f288399d1a82e1005f4400c03cac445f3cfd178e5b7391b394a6aa60c06",
+        "verifiedBytes": 10485760,
+        "authCounts": {
+          "credential_operation_receipts": 0,
+          "local_credentials": 0,
+          "local_sessions": 0
+        },
+        "memory": "PEAK_MEMORY_NOT_OBSERVABLE",
+        "metrics": [
+          {
+            "job_type": "DOCUMENT_BACKUP",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 4661,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 10485760,
+              "writtenBytes": 0,
+              "d1Calls": 5,
+              "d1Statements": 16,
+              "rpcChunks": 160,
+              "rpcBytes": 10485760,
+              "stageMs": {
+                "d1": 1005,
+                "r2Get": 431,
+                "rpc": 2456
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 1,
+                  "readBytes": 10485760,
+                  "writtenBytes": 10485760,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Put": 1176,
+                    "r2Get": 493
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          },
+          {
+            "job_type": "DOCUMENT_RECONCILE",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 2853,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 10485760,
+              "writtenBytes": 0,
+              "d1Calls": 6,
+              "d1Statements": 11,
+              "rpcChunks": 0,
+              "rpcBytes": 0,
+              "stageMs": {
+                "d1": 1123,
+                "r2Get": 275,
+                "rpc": 759,
+                "health": 175
+              },
+              "health": {
+                "checkedAt": "2026-10-13T07:08:04.955Z",
+                "counts": {
+                  "dead": 0,
+                  "due": 0,
+                  "stalledDue": 0,
+                  "expiredLeases": 0,
+                  "completedInvestigations": 0,
+                  "overdueBackups": 0
+                },
+                "truncated": false
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 0,
+                  "readBytes": 10485760,
+                  "writtenBytes": 0,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Get": 287
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          }
+        ],
+        "startedMs": 1791875256981,
+        "finishedMs": 1791875284379
+      },
+      "functionalOriginalSHA256": "766a37f2c2550f0a5fa268e45a2e0a886372c553907428c0dd7c388b2fa4d2c5",
+      "attribution": {
+        "verdict": "PASS",
+        "contract": {
+          "runId": "a83bee82-40e8-4936-a64e-ef819c779fec",
+          "size": 10485760,
+          "from": 1791875249509,
+          "to": 1791875309919,
+          "invocations": [
+            {
+              "role": "prepare",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": null,
+              "stages": [
+                "queue_start",
+                "producer_start",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "backup",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "d1_finalization",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_backup",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "812541e4-7200-4793-834b-bd26bc8235d3",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            },
+            {
+              "role": "reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "reconcile_complete",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "812541e4-7200-4793-834b-bd26bc8235d3",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            }
+          ]
+        },
+        "groups": {
+          "f401cea03d3f241d813123e6033987e405e931deca2a30179ce211c19cc5e983": [
+            {
+              "timestamp": 1791875282277,
+              "$metadata": {
+                "id": "01M4T1DXB50000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_start",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "d033fbbafd9a423b8593718ab0ffc8a1b755cc0d9e2217088fe40204cfd79740"
+            },
+            {
+              "timestamp": 1791875283775,
+              "$metadata": {
+                "id": "01M4T1DYSZ0000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "0a253f7a83dc8c2554bb42892c592d7db644fa6ce10ec77224eaa336531df1dd"
+            },
+            {
+              "timestamp": 1791875284955,
+              "$metadata": {
+                "id": "01M4T1DZYV000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "reconcile_complete",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "e239f06f44124c1962ff8531dd9db585eebc137a1b4d21048bb6102488bcae10"
+            },
+            {
+              "timestamp": 1791875285320,
+              "$metadata": {
+                "id": "01M4T1E0A80000000000000028",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_complete",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "6881d73a65bf67a1b709c5e4f82d4170375b6bfac8b5a6c0a46c67c34e4a9fd1"
+            },
+            {
+              "timestamp": 1791875285320,
+              "$metadata": {
+                "id": "01M4T1E0A8000000000000002A",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 258,
+                "wallTimeMs": 3115
+              },
+              "source": null,
+              "originalEventSHA256": "d773e5a9eee9d670faaa55a7206d76b92a7b15d986ce7108b1d01259b2beb6a4"
+            }
+          ],
+          "2310e8f5d22a6bd85f5fb8473965222fe4b16dac1537c466ea4b3cec2725a46f": [
+            {
+              "timestamp": 1791875276479,
+              "$metadata": {
+                "id": "01M4T1DQNZ0000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_start",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "52564e205f8a93af4df39d34919e86480133b671e5518b6e982ffeab990da8c5"
+            },
+            {
+              "timestamp": 1791875278278,
+              "$metadata": {
+                "id": "01M4T1DSE60000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "ff736c5fbb3ede4d47f35ad1344425be386a69462a1f25231fa4f7829f13fa5f"
+            },
+            {
+              "timestamp": 1791875281140,
+              "$metadata": {
+                "id": "01M4T1DW7M000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "d1_finalization",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "5b24a7bc8450080e8e571a3048d17f59835d0d083e0ecd1b8a3cf40cc6d6e262"
+            },
+            {
+              "timestamp": 1791875282133,
+              "$metadata": {
+                "id": "01M4T1DX6N000000000000002W",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_complete",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "ac44f705d39e06729d5588763975fbd0f7552aead5b0d39cf34827442a62ee83"
+            },
+            {
+              "timestamp": 1791875282133,
+              "$metadata": {
+                "id": "01M4T1DX6N000000000000002Y",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 336,
+                "wallTimeMs": 5674
+              },
+              "source": null,
+              "originalEventSHA256": "379239c7ad7c759e1483cd9aee955028aaf3368e9c8ed5c26b7e35152cbc44e1"
+            }
+          ],
+          "1986db17d06c0cc4d2201513fb63494a8aa6f8b35392f06b6d86a1f8a114c949": [
+            {
+              "timestamp": 1791875264610,
+              "$metadata": {
+                "id": "01M4T1DC320000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "a4698771e075b74c6cfced5bc8df192085991da524e9592538f5348ea629b90a"
+            },
+            {
+              "timestamp": 1791875264610,
+              "$metadata": {
+                "id": "01M4T1DC320000000000000002",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "producer_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "d5e94d3f1523c388afe88887b3ae55419aad09d648ba0fad9c5e7714e9c44985"
+            },
+            {
+              "timestamp": 1791875269175,
+              "$metadata": {
+                "id": "01M4T1DGHQ000000000000003E",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "queue_complete",
+                "synthetic_job_id": "no-job",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "758f1fa9b144c1ab48ff270b484ae3fed43bd93d2ac09d78c84268029e6d1c6a"
+            },
+            {
+              "timestamp": 1791875269175,
+              "$metadata": {
+                "id": "01M4T1DGHQ000000000000003G",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 39,
+                "wallTimeMs": 4574
+              },
+              "source": null,
+              "originalEventSHA256": "41e56f5c40846848318950551a2112040d2d94dead0484d25de3984de22b32dd"
+            }
+          ],
+          "dcfaeb24313c856823ba6809dd31cf0457f018bf7fde347c12a5c4366ab7c359": [
+            {
+              "timestamp": 1791875255374,
+              "$metadata": {
+                "id": "01M4T1D32E000000000000000W",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 6,
+                "wallTimeMs": 1123
+              },
+              "source": null,
+              "originalEventSHA256": "eeeb9048dc7852fa36b1cdcf894fd4c6a2e47831f6b871ec101c981ac70e1b9b"
+            }
+          ],
+          "9abfae224745bdbb18bbe90ffa01e363514b8333a22f0528c84c72e6095c7e49": [
+            {
+              "timestamp": 1791875284043,
+              "$metadata": {
+                "id": "01M4T1DZ2B0000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "cdc2231cb33c8ba1450e741c2703c81cb583d2a5a5a03bdc61050fb640a61ef5"
+            },
+            {
+              "timestamp": 1791875284428,
+              "$metadata": {
+                "id": "01M4T1DZEC0000000000000007",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "reconcile-0075d04e69d92e429c2aa9c60311a1e0b2d76090252a5da9f829af57a52efdc5",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "270587327c30bd7aacf9661e469eb5909f3296d9cca68b88fa6cb3ff0f758785"
+            },
+            {
+              "timestamp": 1791875284428,
+              "$metadata": {
+                "id": "01M4T1DZEC000000000000000B",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 229,
+                "wallTimeMs": 623
+              },
+              "source": null,
+              "originalEventSHA256": "257dbd9666c2ed3150f13faae7f824d7bfcaa3611bf86bec8e5eec04389c34d0"
+            }
+          ],
+          "17982c26faef64aa40f1bb6519b49063e607dc7c8d3725d9f7ac35e6f15ea4b3": [
+            {
+              "timestamp": 1791875278486,
+              "$metadata": {
+                "id": "01M4T1DSMP0000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "start",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "335d7dd6ce69ba9f815effbadb2ac8a19090bf382545c8ba561e654a5e094e12"
+            },
+            {
+              "timestamp": 1791875280499,
+              "$metadata": {
+                "id": "01M4T1DVKK000000000000000A",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "a83bee82-40e8-4936-a64e-ef819c779fec",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "2d045d30-d2d8-40ed-88f6-d8709c0fe3e2",
+                "outcome": "ok",
+                "synthetic_size_bytes": 10485760
+              },
+              "originalEventSHA256": "f81e6c60a01fc147509aad42c05569a9797bb90b5a4916fc14d3add95388a4a1"
+            },
+            {
+              "timestamp": 1791875280499,
+              "$metadata": {
+                "id": "01M4T1DVKK000000000000000E",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 411,
+                "wallTimeMs": 2281
+              },
+              "source": null,
+              "originalEventSHA256": "5cee8b618c76022fe30a41a6d9a9d6da33f40d6338f64e75af9e1d5a530b89e1"
+            }
+          ],
+          "3c4465625acf89350c944303ee629ac92b4136e421e8c705ea8ce53777cbe366": [
+            {
+              "timestamp": 1791875255178,
+              "$metadata": {
+                "id": "01M4T1D2WA0000000000000009",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "812541e4-7200-4793-834b-bd26bc8235d3"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 1,
+                "wallTimeMs": 225
+              },
+              "source": null,
+              "originalEventSHA256": "96854e88278581172c6fdf1b5e584b7f9f1d0f2260dee9edc43c53c8b42434fd"
+            }
+          ]
+        },
+        "receipts": [
+          {
+            "role": "prepare",
+            "eventId": "01M4T1DGHQ000000000000003G",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+            "eventType": "queue",
+            "cpuMs": 39,
+            "wallMs": 4574,
+            "outcome": "ok"
+          },
+          {
+            "role": "backup",
+            "eventId": "01M4T1DX6N000000000000002Y",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+            "eventType": "queue",
+            "cpuMs": 336,
+            "wallMs": 5674,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_backup",
+            "eventId": "01M4T1DVKK000000000000000E",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "812541e4-7200-4793-834b-bd26bc8235d3",
+            "eventType": "jsrpc",
+            "cpuMs": 411,
+            "wallMs": 2281,
+            "outcome": "ok"
+          },
+          {
+            "role": "reconcile",
+            "eventId": "01M4T1E0A8000000000000002A",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "0c74cf2b-e817-4fc2-ac2b-dba4d0ae5fe9",
+            "eventType": "queue",
+            "cpuMs": 258,
+            "wallMs": 3115,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_reconcile",
+            "eventId": "01M4T1DZEC000000000000000B",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "812541e4-7200-4793-834b-bd26bc8235d3",
+            "eventType": "jsrpc",
+            "cpuMs": 229,
+            "wallMs": 623,
+            "outcome": "ok"
+          }
+        ],
+        "association": "DOCUMENTED_PROVIDER_GROUPS_SERVICE_QUERY_BOUNDED_POLLING",
+        "requestIdRequired": false,
+        "traceIdRequired": false
+      },
+      "attributionOriginalSHA256": "d76b7701966ac850630100e1abbc8bae10b8495b145c1565cc04211fd7450d07"
+    },
+    {
+      "functional": {
+        "size": 20971520,
+        "pass": true,
+        "scope": {
+          "run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+          "backup_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+          "reconcile_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+          "version_id": "7d0a5808-6fa9-4cc9-a56c-492bb87a530d",
+          "document_id": "afe2b34a-05a1-4c87-89dd-01b303e468ef",
+          "checksum": "a2013e48e31000ed9a1b7ffcfaf7c11f235733b26b45c0f044912cc6491f6cea",
+          "size_bytes": 20971520,
+          "start_ms": 1791875395688,
+          "destination_key": "backup/d855bf2c-ff26-9e4e-b18f-2d4a2b99542f",
+          "failure_code": null
+        },
+        "executionAttestation": true,
+        "objectSetAttestation": true,
+        "versions": {
+          "mayisigorta-m4-canary-native-20261013-crm": "5a09c356-2907-4b90-b539-d204bc6e4751",
+          "mayisigorta-m4-canary-native-20261013-leaf": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+        },
+        "jobs": [
+          {
+            "id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+            "job_type": "DOCUMENT_BACKUP",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          },
+          {
+            "id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+            "job_type": "DOCUMENT_RECONCILE",
+            "status": "COMPLETED",
+            "attempt_count": 1,
+            "max_attempts": 1,
+            "last_error_code": null
+          }
+        ],
+        "runs": [
+          {
+            "job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+            "status": "SUCCEEDED",
+            "reason_code": null
+          },
+          {
+            "job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+            "status": "SUCCEEDED",
+            "reason_code": "SAFE_NOOP"
+          }
+        ],
+        "version": {
+          "status": "AVAILABLE",
+          "current_version_id": "7d0a5808-6fa9-4cc9-a56c-492bb87a530d"
+        },
+        "copies": [
+          {
+            "object_key": "backup/d855bf2c-ff26-9e4e-b18f-2d4a2b99542f",
+            "source_sha256": "a2013e48e31000ed9a1b7ffcfaf7c11f235733b26b45c0f044912cc6491f6cea",
+            "backup_sha256": "a2013e48e31000ed9a1b7ffcfaf7c11f235733b26b45c0f044912cc6491f6cea"
+          }
+        ],
+        "audit": [
+          {
+            "action": "document.backup.completed",
+            "outcome": "SUCCESS",
+            "reason_code": "BACKUP_VERIFIED",
+            "target_id": "7d0a5808-6fa9-4cc9-a56c-492bb87a530d"
+          },
+          {
+            "action": "document.reconcile.requested",
+            "outcome": "SUCCESS",
+            "reason_code": "TARGET_BOUND",
+            "target_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1"
+          }
+        ],
+        "objectsBefore": {
+          "primary": [
+            {
+              "key": "quarantine/b17602cd-d9ee-40b9-b6a5-c6283fbc845e",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:17.836Z"
+            },
+            {
+              "key": "quarantine/ba3b89ad-1da3-480a-8168-dc66f33d5fd9",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:48.581Z"
+            }
+          ],
+          "recovery": [
+            {
+              "key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:59.823Z"
+            },
+            {
+              "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:26.027Z"
+            }
+          ]
+        },
+        "objectsAfter": {
+          "primary": [
+            {
+              "key": "quarantine/848a79e4-2f7e-4949-b280-062f7b9011eb",
+              "size": 20971520,
+              "etag": "0c202a38662c8cf422c58f2607d5fb73",
+              "last_modified": "2026-10-13T07:09:59.416Z"
+            },
+            {
+              "key": "quarantine/b17602cd-d9ee-40b9-b6a5-c6283fbc845e",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:17.836Z"
+            },
+            {
+              "key": "quarantine/ba3b89ad-1da3-480a-8168-dc66f33d5fd9",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:48.581Z"
+            }
+          ],
+          "recovery": [
+            {
+              "key": "backup/10eeb3a9-2beb-e029-1fec-a6a14b40012f",
+              "size": 10485760,
+              "etag": "f15a105c3b07883771c8f97a429d4712",
+              "last_modified": "2026-10-13T07:07:59.823Z"
+            },
+            {
+              "key": "backup/23e63bbe-3cb6-8447-34ea-f4055769f2f1",
+              "size": 1048576,
+              "etag": "58c50e2572c87d11235a71792dfafe87",
+              "last_modified": "2026-10-13T06:40:26.027Z"
+            },
+            {
+              "key": "backup/d855bf2c-ff26-9e4e-b18f-2d4a2b99542f",
+              "size": 20971520,
+              "etag": "0c202a38662c8cf422c58f2607d5fb73",
+              "last_modified": "2026-10-13T07:10:09.834Z"
+            }
+          ]
+        },
+        "destinationMetadata": [
+          {
+            "key": "backup/d855bf2c-ff26-9e4e-b18f-2d4a2b99542f",
+            "size": 20971520,
+            "etag": "0c202a38662c8cf422c58f2607d5fb73",
+            "last_modified": "2026-10-13T07:10:09.834Z"
+          }
+        ],
+        "verifiedSHA256": "a2013e48e31000ed9a1b7ffcfaf7c11f235733b26b45c0f044912cc6491f6cea",
+        "expectedSHA256": "a2013e48e31000ed9a1b7ffcfaf7c11f235733b26b45c0f044912cc6491f6cea",
+        "verifiedBytes": 20971520,
+        "authCounts": {
+          "credential_operation_receipts": 0,
+          "local_credentials": 0,
+          "local_sessions": 0
+        },
+        "memory": "PEAK_MEMORY_NOT_OBSERVABLE",
+        "metrics": [
+          {
+            "job_type": "DOCUMENT_BACKUP",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 6937,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 20971520,
+              "writtenBytes": 0,
+              "d1Calls": 5,
+              "d1Statements": 16,
+              "rpcChunks": 320,
+              "rpcBytes": 20971520,
+              "stageMs": {
+                "d1": 1022,
+                "r2Get": 459,
+                "rpc": 4607
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 1,
+                  "readBytes": 20971520,
+                  "writtenBytes": 20971520,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Put": 1668,
+                    "r2Get": 523
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          },
+          {
+            "job_type": "DOCUMENT_RECONCILE",
+            "ack_count": 1,
+            "retry_count": 0,
+            "wall_ms": 3939,
+            "metrics_json": {
+              "r2Get": 1,
+              "r2Put": 0,
+              "readBytes": 20971520,
+              "writtenBytes": 0,
+              "d1Calls": 6,
+              "d1Statements": 11,
+              "rpcChunks": 0,
+              "rpcBytes": 0,
+              "stageMs": {
+                "d1": 1144,
+                "r2Get": 452,
+                "rpc": 1478,
+                "health": 191
+              },
+              "health": {
+                "checkedAt": "2026-10-13T07:10:17.385Z",
+                "counts": {
+                  "dead": 0,
+                  "due": 0,
+                  "stalledDue": 0,
+                  "expiredLeases": 0,
+                  "completedInvestigations": 0,
+                  "overdueBackups": 0
+                },
+                "truncated": false
+              },
+              "leaf": [
+                {
+                  "r2Get": 1,
+                  "r2Put": 0,
+                  "readBytes": 20971520,
+                  "writtenBytes": 0,
+                  "d1Calls": 0,
+                  "d1Statements": 0,
+                  "rpcChunks": 0,
+                  "rpcBytes": 0,
+                  "stageMs": {
+                    "r2Get": 255
+                  }
+                }
+              ],
+              "queueAttempts": 1
+            }
+          }
+        ],
+        "startedMs": 1791875390711,
+        "finishedMs": 1791875419858
+      },
+      "functionalOriginalSHA256": "8386ac92c7ea39b6b2fb79e12ad3cfb121fe54cee2812068619aeb125a5d0f91",
+      "attribution": {
+        "verdict": "PASS",
+        "contract": {
+          "runId": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+          "size": 20971520,
+          "from": 1791875383267,
+          "to": 1791875445038,
+          "invocations": [
+            {
+              "role": "prepare",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": null,
+              "stages": [
+                "queue_start",
+                "producer_start",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "backup",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "d1_finalization",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_backup",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "319f0109-b6fb-4f55-9224-8e789d26aa21",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            },
+            {
+              "role": "reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-crm",
+              "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+              "eventTypes": [
+                "queue"
+              ],
+              "jobId": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+              "stages": [
+                "queue_start",
+                "rpc_client_start",
+                "reconcile_complete",
+                "queue_complete"
+              ]
+            },
+            {
+              "role": "leaf_reconcile",
+              "script": "mayisigorta-m4-canary-native-20261013-leaf",
+              "version": "319f0109-b6fb-4f55-9224-8e789d26aa21",
+              "eventTypes": [
+                "rpc",
+                "jsrpc"
+              ],
+              "jobId": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+              "stages": [
+                "rpc_leaf_start",
+                "rpc_leaf_complete"
+              ]
+            }
+          ]
+        },
+        "groups": {
+          "be6ec7dcd711c831ab3fc693d148ac461814d58a681df57b64b106ff233223b3": [
+            {
+              "timestamp": 1791875413637,
+              "$metadata": {
+                "id": "01M4T1HXM50000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_start",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "046c0a45c500751b0f43dcf990a4f589f20986072ebc9541cb39523e7b7e3bce"
+            },
+            {
+              "timestamp": 1791875415478,
+              "$metadata": {
+                "id": "01M4T1HZDP0000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "34b2c361118b3161a4cdb24888fbca1f0d794ec66969c1219ff3811c8f8b1b7a"
+            },
+            {
+              "timestamp": 1791875417385,
+              "$metadata": {
+                "id": "01M4T1J199000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "reconcile_complete",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "eab299790d9e86ed49fe97474559fc2446d1d6df1963d55292af86e5f7ac9540"
+            },
+            {
+              "timestamp": 1791875417786,
+              "$metadata": {
+                "id": "01M4T1J1NT0000000000000028",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_complete",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "b7a118e650d9155f9b4150888be1a0cbe0e984400bc471cd9c7327179f24ca7d"
+            },
+            {
+              "timestamp": 1791875417786,
+              "$metadata": {
+                "id": "01M4T1J1NT000000000000002A",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 711,
+                "wallTimeMs": 4271
+              },
+              "source": null,
+              "originalEventSHA256": "e2414f0991e2ca357eae0e56f44092e29b8fdc586841f021b26d2bf7741dbc55"
+            }
+          ],
+          "cc36a71d5790aca53461b23a3867af1bc3ec6ca2eeb8216fb99760e4465be2d4": [
+            {
+              "timestamp": 1791875405518,
+              "$metadata": {
+                "id": "01M4T1HNPE0000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_start",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "785b40b729a656c2bb77332080b7d91316b6bde79528b21f9cd664821a4e2e06"
+            },
+            {
+              "timestamp": 1791875407492,
+              "$metadata": {
+                "id": "01M4T1HQM40000000000000019",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_client_start",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "417bd83ecf36608f0e6ba762f9c52e91e151a5fe8ff32396e691c32859c2f688"
+            },
+            {
+              "timestamp": 1791875412455,
+              "$metadata": {
+                "id": "01M4T1HWF7000000000000001V",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "d1_finalization",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "a1719ec22c6a867f447568c30ebbbd48fcf4c744fe30c2b4f51914e24c93ee31"
+            },
+            {
+              "timestamp": 1791875413471,
+              "$metadata": {
+                "id": "01M4T1HXEZ000000000000002W",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_complete",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "87eca6cbde0de9d6c0f95eb21a7c7d75b1eb4f0284db2c7a7aff17bd39813972"
+            },
+            {
+              "timestamp": 1791875413471,
+              "$metadata": {
+                "id": "01M4T1HXEZ000000000000002Y",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 766,
+                "wallTimeMs": 7975
+              },
+              "source": null,
+              "originalEventSHA256": "55c71f73cce537afb76c447f0857fe79a1fc1838ccf90b4dc4636b18f7d09ca9"
+            }
+          ],
+          "f21d3cebe347d2a827173a6943c9a72723ee7753cac94978ef70c5cba56d7ca5": [
+            {
+              "timestamp": 1791875394316,
+              "$metadata": {
+                "id": "01M4T1HARC0000000000000001",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "7653a7a573894cb6ff4f4f59cccc223e67f65c9702b7e66a3c6aa1d9d22bbc5d"
+            },
+            {
+              "timestamp": 1791875394316,
+              "$metadata": {
+                "id": "01M4T1HARC0000000000000002",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "producer_start",
+                "synthetic_job_id": "no-job",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "9a97e09e266e5bd6177bb362d54cfd201b20267593b525f9817b4a6e39ad908e"
+            },
+            {
+              "timestamp": 1791875401670,
+              "$metadata": {
+                "id": "01M4T1HHY6000000000000003E",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "queue_complete",
+                "synthetic_job_id": "no-job",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "6d7d878e2d8b11ea5b88f94594cc885ac325c7ecc2d204872a38c42bc1ada1c8"
+            },
+            {
+              "timestamp": 1791875401670,
+              "$metadata": {
+                "id": "01M4T1HHY6000000000000003G",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 77,
+                "wallTimeMs": 7355
+              },
+              "source": null,
+              "originalEventSHA256": "f218d6c2b55dff8562132174fba4825da732088bd7922fd389f8d895bd68cb22"
+            }
+          ],
+          "8bc27f6f6ff3cff3b105ef3c7909e8b33c69f767b73971c07c19410437daef58": [
+            {
+              "timestamp": 1791875391386,
+              "$metadata": {
+                "id": "01M4T1H7WT000000000000000W",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-crm",
+                "scriptVersion": {
+                  "id": "5a09c356-2907-4b90-b539-d204bc6e4751"
+                },
+                "eventType": "queue",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 8,
+                "wallTimeMs": 1149
+              },
+              "source": null,
+              "originalEventSHA256": "20b847ae5e6a38156ffa181c1bb55e17cc86dbda41756ec087385555293777d0"
+            }
+          ],
+          "4251cd0c7a8c370cb56c1d9849411e7ec74285698ca2c4403a53bb340f376a66": [
+            {
+              "timestamp": 1791875416211,
+              "$metadata": {
+                "id": "01M4T1J04K0000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "163f9ff3da4dc93d5bdeb0ac2605fdd50dc135b38a621c26dbe7241d85a01ada"
+            },
+            {
+              "timestamp": 1791875416716,
+              "$metadata": {
+                "id": "01M4T1J0MC0000000000000007",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "reconcile-f54c4b54c65e2ec9efa778c4d18e91dda9bf90b2c62263bfd379defc7b2414e1",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "9d7a6d2b5acabed9a78d235b61e2238d2ffaa80d371651f4b4aeb6c01f52fc69"
+            },
+            {
+              "timestamp": 1791875416716,
+              "$metadata": {
+                "id": "01M4T1J0MC000000000000000B",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 523,
+                "wallTimeMs": 973
+              },
+              "source": null,
+              "originalEventSHA256": "091b47a11396241d6117adca1903c88b008fcffbe8f81935e3f16da1789fb931"
+            }
+          ],
+          "4184e7f77533d50750d4fe00bf265036e3a10175f3c3a9567ae9532640fc8242": [
+            {
+              "timestamp": 1791875407967,
+              "$metadata": {
+                "id": "01M4T1HR2Z0000000000000003",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_leaf_start",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "start",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "895e68f3e2f22cb866b9f915968a7fc262053d550c494c89e74cf65ad69d6545"
+            },
+            {
+              "timestamp": 1791875411722,
+              "$metadata": {
+                "id": "01M4T1HVRA000000000000000A",
+                "type": "cf-worker"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false
+              },
+              "source": {
+                "level": "info",
+                "kind": "mayi_m4_provider_canary",
+                "canary_run_id": "3ef3cf9c-275c-482b-9452-2d1162d64d64",
+                "stage": "rpc_leaf_complete",
+                "synthetic_job_id": "8a7e2cd2-3ee9-49de-a5f5-01c2d04c43a7",
+                "outcome": "ok",
+                "synthetic_size_bytes": 20971520
+              },
+              "originalEventSHA256": "a08d0420ce2d4b889d7cf33074785432d096b00f681d73f968f2b59f4aa4b083"
+            },
+            {
+              "timestamp": 1791875411722,
+              "$metadata": {
+                "id": "01M4T1HVRA000000000000000E",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 852,
+                "wallTimeMs": 4148
+              },
+              "source": null,
+              "originalEventSHA256": "77be339ce286389bb115ad82854f2511ed090cc765a0d63a4b2c9bb546b2af92"
+            }
+          ],
+          "352ec271fb14f3416c0bc0f97b9ac84bb22d9b185d624dc8ee8a06bde3bb8841": [
+            {
+              "timestamp": 1791875391209,
+              "$metadata": {
+                "id": "01M4T1H7Q90000000000000009",
+                "type": "cf-worker-event"
+              },
+              "$workers": {
+                "scriptName": "mayisigorta-m4-canary-native-20261013-leaf",
+                "scriptVersion": {
+                  "id": "319f0109-b6fb-4f55-9224-8e789d26aa21"
+                },
+                "eventType": "jsrpc",
+                "truncated": false,
+                "outcome": "ok",
+                "cpuTimeMs": 2,
+                "wallTimeMs": 220
+              },
+              "source": null,
+              "originalEventSHA256": "3e4fc2a93b53ad8f239974ede6c292e886778e5c61238f4a5da35ea8984b1dd7"
+            }
+          ]
+        },
+        "receipts": [
+          {
+            "role": "prepare",
+            "eventId": "01M4T1HHY6000000000000003G",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+            "eventType": "queue",
+            "cpuMs": 77,
+            "wallMs": 7355,
+            "outcome": "ok"
+          },
+          {
+            "role": "backup",
+            "eventId": "01M4T1HXEZ000000000000002Y",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+            "eventType": "queue",
+            "cpuMs": 766,
+            "wallMs": 7975,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_backup",
+            "eventId": "01M4T1HVRA000000000000000E",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "319f0109-b6fb-4f55-9224-8e789d26aa21",
+            "eventType": "jsrpc",
+            "cpuMs": 852,
+            "wallMs": 4148,
+            "outcome": "ok"
+          },
+          {
+            "role": "reconcile",
+            "eventId": "01M4T1J1NT000000000000002A",
+            "script": "mayisigorta-m4-canary-native-20261013-crm",
+            "version": "5a09c356-2907-4b90-b539-d204bc6e4751",
+            "eventType": "queue",
+            "cpuMs": 711,
+            "wallMs": 4271,
+            "outcome": "ok"
+          },
+          {
+            "role": "leaf_reconcile",
+            "eventId": "01M4T1J0MC000000000000000B",
+            "script": "mayisigorta-m4-canary-native-20261013-leaf",
+            "version": "319f0109-b6fb-4f55-9224-8e789d26aa21",
+            "eventType": "jsrpc",
+            "cpuMs": 523,
+            "wallMs": 973,
+            "outcome": "ok"
+          }
+        ],
+        "association": "DOCUMENTED_PROVIDER_GROUPS_SERVICE_QUERY_BOUNDED_POLLING",
+        "requestIdRequired": false,
+        "traceIdRequired": false
+      },
+      "attributionOriginalSHA256": "e5041ab7f65faa4e466f9aa0876cb63266db0964e9d3f644f4dc66e7263be316"
+    }
+  ],
+  "cleanup": {
+    "readOnlyCompletion": {
+      "pass": true,
+      "exactTargets404": 6,
+      "inventories": {
+        "workers/services": 3,
+        "d1/database": 1,
+        "queues": 1
+      },
+      "euBucketCount": 3,
+      "leftovers": 0,
+      "newDeletes": 0,
+      "priorDeleteSuccessJournals": 13
+    },
+    "receiptSHA256": "c8b5e5e000d2e738c5962a9c6f1ef00db0256369bdb1b6039009a8f06e6052b1",
+    "probeCleanup": {
+      "pass": true,
+      "leftovers": 0
+    }
+  }
+}
