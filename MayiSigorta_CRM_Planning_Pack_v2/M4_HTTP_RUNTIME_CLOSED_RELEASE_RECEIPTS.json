@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "startingCommit": "b0b458198d2e08ec9873644ba39822966ea1ae91",
+  "scope": "MEASURED_SINGLE_REQUEST_SYNTHETIC_CANONICAL_MULTIPART_PARSER_CRYPTO_20MIB_ON_CURRENT_FREE_ONLY",
+  "retainedTenMiB": {
+    "events": {
+      "count": 5,
+      "ownedMarkers": 2,
+      "nativeLogs": 1,
+      "exceptionsOrFailures": 0
+    },
+    "invocations": {
+      "matchedGroups": 1,
+      "ownedMarkers": [
+        {
+          "level": "info",
+          "kind": "mayi_http_upload_canary_v1",
+          "run": "bc61c40d-13b5-4fc5-9254-5cd2ea413bb0",
+          "stage": "png-10485760",
+          "lifecycle": "start",
+          "size": 10485760
+        },
+        {
+          "level": "info",
+          "kind": "mayi_http_upload_canary_v1",
+          "run": "bc61c40d-13b5-4fc5-9254-5cd2ea413bb0",
+          "stage": "png-10485760",
+          "lifecycle": "complete",
+          "size": 10485760,
+          "status": 202
+        }
+      ],
+      "nativeLifecycle": []
+    },
+    "production": {
+      "flags": [
+        {
+          "name": "DOCUMENT_CRON_ENABLED",
+          "text": "true",
+          "type": "plain_text"
+        },
+        {
+          "name": "DOCUMENT_JOBS_ENABLED",
+          "text": "true",
+          "type": "plain_text"
+        },
+        {
+          "name": "DOCUMENTS_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        }
+      ]
+    },
+    "baselineArtifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-closed-infra-20261012\\m4-http-closure-before.json"
+  },
+  "tenMiBClassification": "OBSERVABILITY_GAP_WITH_SUCCESSFUL_FUNCTIONAL_PATH",
+  "twentyMiB": {
+    "exactBytes": 20971520,
+    "HTTP": 202,
+    "POSTcount": 1,
+    "uploadRetries": 0,
+    "functionalIntegrity": {
+      "PASS": true,
+      "bytes": 20971520,
+      "canonicalParserCrypto": true,
+      "binarySHAAndSizeEqual": true,
+      "exactOneDocumentVersionJobAuditReceipt": true,
+      "actorAgencyParentOperationBound": true,
+      "uploadRetries": 0,
+      "clientElapsedMs": 18156.000000191852
+    },
+    "sameInvocationMarkersAndVersion": true,
+    "markerInventoryEqual": true,
+    "scannedOwnedRows": 6,
+    "availableOwnedErrors": 0,
+    "unattributedInventoryRows": 1,
+    "resource": {
+      "nativeOutcome": "ok",
+      "CPUms": 615,
+      "wallMs": 2995,
+      "truncated": false
+    },
+    "peakMemory": "NOT_OBSERVABLE",
+    "initialObservationSTOPPreserved": true,
+    "completion": "READ_ONLY_NO_REPEAT_POST"
+  },
+  "sustainedFreeCapacityProven": false,
+  "officialFreeCPUlimitMs": 10,
+  "publicSteadyStateCapacityGate": "OPEN",
+  "preReview": {
+    "scope": "REVISED_HTTP_EVIDENCE_AND_CLOSED_DEPLOY_PRECONDITIONS",
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "session": "20261014_170830_b79953",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "reasoning": "high",
+    "allowOneExact20MiBProbe": true,
+    "allowClosedProductionDeploy": true,
+    "tenMiBConclusion": "DIAGNOSIS=OBSERVABILITY_GAP_WITH_SUCCESSFUL_FUNCTIONAL_PATH. Exact 10485760-byte PNG için canonical HTTP202/parser/crypto/integrity kanıtı ve retained aynı invocation start/complete202 markerları mevcut; nativeOutcome/CPU/wall NOT_OBSERVABLE. İncelenen sınırlı kayıtlarda explicit failure yok; kapasite arızası veya global exceptions yokluğu kanıtlanmış değildir.",
+    "httpAcceptanceScope": "MEASURED_SINGLE_REQUEST_SYNTHETIC_CANONICAL_MULTIPART_PARSER_CRYPTO_20MIB_ON_CURRENT_FREE_ONLY: yalnız yeni exact 20971520-byte PNG tek POST'unun detay raporundaki bütün functional/integrity/identity/error-scan koşulları sağlandıktan sonra YES_WITH_SCOPE savunulabilir. Şimdi 20MiB NOT_EXECUTED ve runtime kabulü verilmedi. Eksik native metrikler NOT_OBSERVABLE; mevcut explicit failure her durumda FAIL. CLOSED deploy bu probe sonucundan bağımsızdır, fakat frozen b0 artifact, fresh allowlisted settings diff ve zorunlu readback/rollback kapılarına bağlıdır. Bu PASS yalnız koşullu PRE plan güvenliğidir; gerçekleşmiş probe/deploy/POST-review PASS değildir.",
+    "sustainedFreeCapacityProven": false,
+    "publicActivation": false
+  },
+  "executorInitialReview": {
+    "scope": "ONE_EXACT20_REVISED_EVIDENCE_EXECUTION",
+    "verdict": "FAIL",
+    "BLOCKER": 0,
+    "IMPORTANT": 4,
+    "session": "20261014_170830_b79953",
+    "run": "a93d88d0-6aa1-4157-95e1-47f663b5a61b",
+    "operatorSHA256": "0e57856f5bc7963d8c80d241115785c50fa7f4672e2c6bd653906f05b4b55a74",
+    "manifestSHA256": "b20ae87eb02b0b47c15c8a9e7981318efb5e81fbede1e455d0f5342a60b4f449"
+  },
+  "executorCorrectedReview": {
+    "scope": "ONE_EXACT20_REVISED_EVIDENCE_EXECUTION",
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "session": "20261014_170830_b79953",
+    "run": "a93d88d0-6aa1-4157-95e1-47f663b5a61b",
+    "operatorSHA256": "3da900742d61d37649aeb5a4bdef418b523c31b31ff250ff1df7674af61054f8",
+    "manifestSHA256": "5bd84d8f1d5e59167feb6e4641f42e55b5e94edc6fc71d049e81e66eb8639295"
+  },
+  "closedDeployment": {
+    "deployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+    "version": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "DOCUMENTS_ENABLED": false,
+    "DOCUMENT_JOBS_ENABLED": true,
+    "DOCUMENT_CRON_ENABLED": true,
+    "unchangedExistingBindingsExceptAssets": true,
+    "addedLimiterNames": [
+      "DOCUMENT_DOWNLOAD_RATE_LIMITER",
+      "DOCUMENT_UPLOAD_RATE_LIMITER"
+    ],
+    "queuesExact": true,
+    "cronExact": true,
+    "domainsRoutesExact": true,
+    "backupAndLeafExact": true,
+    "backup": {
+      "generation": "d1-backup-slot-995548",
+      "export": "2026-10-14T14:00:33.030Z",
+      "COMPLETE": "2026-10-14T14:00:42.322Z",
+      "bytes": 227547,
+      "checks": {
+        "source": true,
+        "generation": true,
+        "state": true,
+        "key": true,
+        "sizeEtag": true,
+        "ordered": true,
+        "integrity": true
+      },
+      "ageSeconds": 1430.404,
+      "healthy": true
+    },
+    "negativeProbes": [
+      {
+        "method": "GET",
+        "path": "/api/documents",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/api/documents",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/api/documents",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/documents",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/probe/download",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/probe/download-grants",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/probe/download-grants",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/probe/download-grants",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/probe/download-grants",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "GET",
+        "path": "/secure/api/documents/probe/download-confirmation",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "POST",
+        "path": "/secure/api/documents/probe/download-confirmation",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "PUT",
+        "path": "/secure/api/documents/probe/download-confirmation",
+        "status": 404,
+        "setCookie": false
+      },
+      {
+        "method": "DELETE",
+        "path": "/secure/api/documents/probe/download-confirmation",
+        "status": 404,
+        "setCookie": false
+      }
+    ],
+    "beforeArtifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-closed-infra-20261012\\m4-closed-deploy-fresh-before.json",
+    "afterArtifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-closed-infra-20261012\\m4-closed-deploy-after.json"
+  },
+  "deployedCode": {
+    "GETstatus": 200,
+    "moduleNames": [
+      "worker.js"
+    ],
+    "exactDryBundleMatches": [
+      "worker.js"
+    ],
+    "dryBundleSHA256": "652e22a094054bb5e5a6d1a348b87b39c9405b99381e95d7ce3dd76f4a9cb314",
+    "moduleSHA256": {
+      "worker.js": "652e22a094054bb5e5a6d1a348b87b39c9405b99381e95d7ce3dd76f4a9cb314"
+    },
+    "providerWrites": 0
+  },
+  "deployedAssets": {
+    "assets": [
+      {
+        "path": "/assets/index-BvR1Yc9h.css",
+        "HTTP": 200,
+        "bytes": 3203,
+        "SHA256": "10afe6937d932a4d25b8d80d969ed84a3baa6ad8bf78463e5d920ca14f2ee07e",
+        "exactLocalBytes": true
+      },
+      {
+        "path": "/assets/index-CxwyTiFR.js",
+        "HTTP": 200,
+        "bytes": 476034,
+        "SHA256": "0d012519c52540de8c4711b383135f2051d2e2f0253c8e434fc4b33d8193918a",
+        "exactLocalBytes": true
+      }
+    ],
+    "allExact": true,
+    "providerWrites": 0
+  },
+  "naturalBackground": {
+    "eventCount": 5,
+    "countEqual": true,
+    "version": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "naturalScheduledRecords": 3,
+    "observedFailures": 0,
+    "scheduledOutcomes": [
+      {
+        "eventType": "scheduled",
+        "outcome": "ok",
+        "cpuTimeMs": 3,
+        "wallTimeMs": 516,
+        "truncated": false
+      },
+      {
+        "eventType": "scheduled",
+        "outcome": "ok",
+        "cpuTimeMs": 2,
+        "wallTimeMs": 468,
+        "truncated": false
+      },
+      {
+        "eventType": "scheduled",
+        "outcome": "ok",
+        "cpuTimeMs": 2,
+        "wallTimeMs": 514,
+        "truncated": false
+      }
+    ],
+    "providerWrites": 0
+  },
+  "temporaryCleanup": {
+    "run": "a93d88d0-6aa1-4157-95e1-47f663b5a61b",
+    "ownedTargetsAbsent": true,
+    "permanentEqual": true
+  },
+  "postReview": {
+    "scope": "NARROW_HTTP20_AND_CLOSED_PRODUCTION_RELEASE_ONLY",
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "session": "20261014_181208_171fb3",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "reasoning": "high",
+    "closedFinalMessageVerified": true,
+    "manifestSHA256": "5db8e0727a7f60562603d965237e593a2a0fe82addd76f9d11ee291f424829f7",
+    "reviewedFiles": 244,
+    "sourceDrift": 0,
+    "HTTP_RUNTIME_ACCEPTED": "YES",
+    "VERTICAL_SLICE_ACCEPTED": "YES",
+    "USER_FLOW_ACCEPTED": "YES",
+    "SECURITY_ACCEPTED": "YES",
+    "CLOSED_DEPLOYMENT_ACCEPTED": "YES",
+    "sustainedFreeCapacityProven": false,
+    "publicActivation": false,
+    "providerWrites": 0,
+    "independentGET": 62,
+    "independentTelemetryDryPOST": 2,
+    "independentNative20": {
+      "outcome": "ok",
+      "CPUms": 615,
+      "wallMs": 2995,
+      "truncated": false,
+      "matchedInvocationRows": 3,
+      "fixedWindowEvents": 4,
+      "unattributedInventoryRows": 1,
+      "availableOwnedErrors": 0
+    },
+    "latestNaturalBackup": {
+      "generation": "d1-backup-slot-995551",
+      "export": "2026-10-14T15:30:31.000Z",
+      "complete": "2026-10-14T15:30:39.733Z",
+      "bytes": 227547,
+      "metadataHealthy": true
+    }
+  },
+  "publicActivation": false,
+  "realCustomerDataUsed": false,
+  "productionAuthFixtureCreated": false,
+  "WorkersPaidEnabled": false,
+  "DNSMutation": false,
+  "productionSchemaMigration": false
+}
