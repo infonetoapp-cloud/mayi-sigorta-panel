@@ -8,4 +8,5 @@ export const DOCUMENT_ROUTE_CONTRACT = Object.freeze([
     secure: true,
     operation: 'CONFIRMATION',
   },
+  { path: '/api/documents', secure: false, operation: 'LIST' },
 ] as const);

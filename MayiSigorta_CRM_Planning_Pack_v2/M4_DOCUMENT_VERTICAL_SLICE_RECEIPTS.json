@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 1,
+  "scope": "LOCAL_VERTICAL_SLICE_AND_HONEST_HTTP_ATTRIBUTION_STOP",
+  "finalCheckpointReview": {
+    "scope": "SAFE_LOCAL_CANDIDATE_AND_HONEST_NO_GO_CHECKPOINT_ONLY",
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "session": "20261014_133219_f1e58d",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "reasoning": "high",
+    "closedFinalMessageVerified": true,
+    "reviewedManifestSHA256": "1591e61e2fbff5be9c7b0a5b763c85851afaecbe9edbc2a21e4c6856bae92ac2",
+    "reviewedFiles": 366,
+    "newReactTestsPassed": 7,
+    "newNativeTestsPassed": 3,
+    "newNativeTestsSkipped": 6,
+    "providerGET": 52,
+    "ownedDatabaseBucketWorkerAbsent": true,
+    "protectedSevenCategoriesEqual": true,
+    "DOCUMENTS_ENABLED": false,
+    "DOCUMENT_JOBS_ENABLED": true,
+    "DOCUMENT_CRON_ENABLED": true,
+    "naturalBackup": {
+      "generation": "d1-backup-slot-995541",
+      "export": "2026-10-14T10:30:36.577Z",
+      "complete": "2026-10-14T10:30:42.369Z",
+      "bytes": 227547,
+      "metadataHealthy": true
+    },
+    "providerWrites": 0,
+    "runtimeAccepted": false,
+    "productionDeploymentPerformed": false,
+    "publicActivation": false
+  },
+  "startingCommit": "ba818a2d1394a729c9aaae92d60513720c397a1f",
+  "run": "bc61c40d-13b5-4fc5-9254-5cd2ea413bb0",
+  "temporaryWorker": "mayi-http-bc61c40d13",
+  "schema": {
+    "PASS": true,
+    "objects": 350,
+    "triggers": 176,
+    "canonicalSQLUnchanged": true
+  },
+  "acceptedHTTPRequests": [
+    {
+      "stage": "tiny-png",
+      "bytes": 81,
+      "http": 202,
+      "canonicalInspection": {
+        "valid": true,
+        "format": "PNG",
+        "width": 16,
+        "height": 16,
+        "pixelCount": 256,
+        "decompressedBytes": 1040
+      },
+      "integrity": true,
+      "resource": {
+        "PASS": true,
+        "invocationId": "01M4WYPQBW000000000000002Q",
+        "cpuMs": 28,
+        "wallMs": 654,
+        "outcome": "ok",
+        "truncated": false,
+        "version": "61551d56-b4f1-4e7a-a0b9-67b7720e5580",
+        "markerInventoryEqual": true
+      },
+      "scope": "SINGLE_HTTP_REQUEST_CANONICAL_MULTIPART_PARSER_CRYPTO_UPLOAD_ONLY;NO_LOGIN_KDF_OR_COPY_OR_CONCURRENCY_PROOF"
+    },
+    {
+      "stage": "tiny-pdf",
+      "bytes": 369,
+      "http": 202,
+      "canonicalInspection": {
+        "valid": true,
+        "format": "PDF",
+        "pageCount": 1
+      },
+      "integrity": true,
+      "resource": {
+        "PASS": true,
+        "invocationId": "01M4WY3Q2K000000000000002Q",
+        "cpuMs": 31,
+        "wallMs": 468,
+        "outcome": "ok",
+        "truncated": false,
+        "version": "61551d56-b4f1-4e7a-a0b9-67b7720e5580",
+        "markerInventoryEqual": true
+      },
+      "scope": "SINGLE_HTTP_REQUEST_CANONICAL_MULTIPART_PARSER_CRYPTO_UPLOAD_ONLY;NO_LOGIN_KDF_OR_COPY_OR_CONCURRENCY_PROOF"
+    },
+    {
+      "stage": "tiny-jpeg",
+      "bytes": 723,
+      "http": 202,
+      "canonicalInspection": {
+        "valid": true,
+        "format": "JPEG",
+        "width": 64,
+        "height": 64,
+        "pixelCount": 4096
+      },
+      "integrity": true,
+      "resource": {
+        "PASS": true,
+        "invocationId": "01M4WYNVGS000000000000002Q",
+        "cpuMs": 32,
+        "wallMs": 421,
+        "outcome": "ok",
+        "truncated": false,
+        "version": "61551d56-b4f1-4e7a-a0b9-67b7720e5580",
+        "markerInventoryEqual": true
+      },
+      "scope": "SINGLE_HTTP_REQUEST_CANONICAL_MULTIPART_PARSER_CRYPTO_UPLOAD_ONLY;NO_LOGIN_KDF_OR_COPY_OR_CONCURRENCY_PROOF"
+    },
+    {
+      "stage": "png-1048576",
+      "bytes": 1048576,
+      "http": 202,
+      "canonicalInspection": {
+        "valid": true,
+        "format": "PNG",
+        "width": 192,
+        "height": 1817,
+        "pixelCount": 348864,
+        "decompressedBytes": 1048409
+      },
+      "integrity": true,
+      "resource": {
+        "PASS": true,
+        "invocationId": "01M4WYQG1R000000000000002Q",
+        "cpuMs": 51,
+        "wallMs": 646,
+        "outcome": "ok",
+        "truncated": false,
+        "version": "61551d56-b4f1-4e7a-a0b9-67b7720e5580",
+        "markerInventoryEqual": true
+      },
+      "scope": "SINGLE_HTTP_REQUEST_CANONICAL_MULTIPART_PARSER_CRYPTO_UPLOAD_ONLY;NO_LOGIN_KDF_OR_COPY_OR_CONCURRENCY_PROOF"
+    }
+  ],
+  "tenMiB": {
+    "bytes": 10485760,
+    "http": 202,
+    "integrity": true,
+    "canonicalInspection": true,
+    "attribution": "NOT_PROVEN",
+    "reason": "OWNED_START_COMPLETE_MARKERS_WITHOUT_SAME_INVOCATION_NATIVE_LIFECYCLE_CPU_WALL_OUTCOME",
+    "diagnostic": {
+      "groups": [
+        {
+          "markerLifecycles": [
+            "start",
+            "complete"
+          ],
+          "statuses": [
+            null,
+            202
+          ],
+          "markerSizes": [
+            10485760,
+            10485760
+          ],
+          "lifecycleCount": 0,
+          "native": [],
+          "rowCount": 2
+        }
+      ],
+      "queryTopKeys": [
+        "invocations",
+        "run",
+        "statistics"
+      ],
+      "boundedInvocationsCount": 2,
+      "providerWrites": 0
+    },
+    "eventInventory": {
+      "allEventCount": 5,
+      "inventoryCountEqual": true,
+      "tenMiBOwnedMarkerCount": 2,
+      "eventTypes": [
+        "cf-worker",
+        "cf-worker-event"
+      ],
+      "nativeLifecycleCount": 1,
+      "nativeOutcomes": [
+        {
+          "cpuTimeMs": 22,
+          "wallTimeMs": 72,
+          "outcome": "ok",
+          "truncated": false
+        }
+      ],
+      "providerWrites": 0
+    },
+    "uploadRetries": 0
+  },
+  "twentyMiB": {
+    "bytes": 20971520,
+    "executed": false,
+    "reason": "STOP_AT_TEN_MIB_ATTRIBUTION"
+  },
+  "cleanup": {
+    "run": "bc61c40d-13b5-4fc5-9254-5cd2ea413bb0",
+    "ownedTargetsAbsent": true,
+    "permanentEqual": true
+  },
+  "historicalReviews": [
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-vertical-pre-high-final.txt",
+      "verdict": "FAIL",
+      "BLOCKER": 2,
+      "IMPORTANT": 2,
+      "SHA256": "431e0b8310d47580ea6bdddd14647d77354bfb4fb4d0633b5fb1725ee0ee2a3d"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-vertical-pre-high-v3.json",
+      "scope": "SOURCE_AND_ISOLATED_HTTP_PREPROVISION_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 2,
+      "IMPORTANT": 1,
+      "session": "20261014_110917_9bec7f",
+      "SHA256": "4c8d54b5fdf7d4c61ec596404b149fd1634c2493538fb16f2ca0a8977c2da0db"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-vertical-pre-high-v4.json",
+      "scope": "SOURCE_AND_ISOLATED_HTTP_PREPROVISION_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 2,
+      "session": "20261014_113002_e4c3e8",
+      "SHA256": "d7fcc6b36bbec5f32cf1864556f70ff5184c9d3cb6db8ce7e4968d1ad3c2b8b9"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-vertical-pre-high-v5.json",
+      "scope": "SOURCE_AND_ISOLATED_HTTP_PREPROVISION_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261014_113002_e4c3e8",
+      "SHA256": "a96ad65645c248fc0c9811f0816360fb68ba63f5ff3311561d68974ee5807fcb"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-empty-cleanup-high.json",
+      "scope": "OWNED_EU_BUCKET_ATOMIC_EMPTY_DELETE_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 1,
+      "session": "20261014_120231_c18822",
+      "SHA256": "48180de2412292da4c695567689fb4ab53335e9ed854acfbe79b45e5aced4de2"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-empty-cleanup-high-v2.json",
+      "scope": "OWNED_EU_BUCKET_ATOMIC_EMPTY_DELETE_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261014_120231_c18822",
+      "SHA256": "97dd310742499ba4456325ceff0af83284f890b343e15ec05245023deb0a99a8"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-import-pre-high.json",
+      "scope": "HTTP_IMPORT_CANARY_AND_OWNED_CLEANUP_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 1,
+      "session": "20261014_124451_acbbcf",
+      "SHA256": "7abf7d7adff0837f99989b9fbf5ebe5e454d28701a731c00b4aa2007f7bb3f51"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-import-pre-high-v2.json",
+      "scope": "HTTP_IMPORT_CANARY_AND_OWNED_CLEANUP_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261014_124451_acbbcf",
+      "SHA256": "bb2d792522dc5ea3e9cbf098e3f3f7effb7aa6d134a7f46c122687d5b8353e31"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-import-pre-high-v3.json",
+      "scope": "HTTP_IMPORT_CANARY_AND_OWNED_CLEANUP_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261014_124451_acbbcf",
+      "SHA256": "b1e9b0141723bcb961b745215b5d897131bc5afc5e1877931d31a5affcccc5b3"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-http-import-pre-high-v4.json",
+      "scope": "HTTP_IMPORT_CANARY_AND_OWNED_CLEANUP_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261014_124451_acbbcf",
+      "SHA256": "f03195cb4f5bfa319ba6822c02054bce63261c3dd61ec27d7b6eb8613ad9bfe3"
+    }
+  ],
+  "verification": {
+    "focusedFinal": {
+      "files": 4,
+      "testsPassed": 17,
+      "seconds": 70.77
+    },
+    "reusedUnchangedStream": {
+      "testsPassed": 46,
+      "seconds": 193.35
+    },
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "buildClientAndClosedWorkerDryRunAndBoundaries": "PASS",
+    "fullRepositorySuite": "NOT_RUN_NO_CLOSED_DEPLOY_GATE"
+  },
+  "production": {
+    "deploymentPerformed": false,
+    "DOCUMENTS_ENABLED": false,
+    "DOCUMENT_JOBS_ENABLED": true,
+    "DOCUMENT_CRON_ENABLED": true,
+    "permanentComparison": "PASS",
+    "realCustomerDataUsed": false,
+    "WorkersPaidEnabled": false
+  },
+  "limitations": [
+    "No native same-invocation lifecycle for 10MiB: not a proven resource-capacity failure",
+    "No 20MiB HTTP acceptance",
+    "Peak memory NOT_OBSERVABLE",
+    "No HTTP concurrency/headroom/KDF/COPY inference",
+    "No production deployment",
+    "Live independent backup observer/deadman/human receipt open",
+    "Signed privacy/retention/operating responsibility open",
+    "Populated recovery OPEN"
+  ]
+}

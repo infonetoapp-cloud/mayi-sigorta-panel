@@ -13,6 +13,7 @@ import type { AppDependencies, Env } from '../index';
 import { registerDocumentStreamRoutes } from './stream-routes';
 import { documentRateDecision } from './admission';
 import { readDocumentMultipartBody } from './upload-body';
+import { registerDocumentQueryRoutes } from './query-routes';
 
 type DocumentRouteEnv = { Bindings: Env };
 
@@ -44,6 +45,7 @@ export function registerDocumentRoutes(
   dependencies: AppDependencies = {},
 ): void {
   registerDocumentStreamRoutes(app, dependencies);
+  registerDocumentQueryRoutes(app, dependencies);
   app.post(DOCUMENT_ROUTE_CONTRACT[0].path, async (c) => {
     c.header('Cache-Control', 'private, no-store');
     if (c.env.DOCUMENTS_ENABLED !== 'true') {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { APP_NAME } from '../shared/constants';
 import type {
   CustomerDto,
@@ -17,6 +17,7 @@ import { AgencySettingsPanel } from './components/AgencySettingsPanel';
 import { PolicyPanel } from './components/PolicyPanel';
 import { CustomerArchiveSection } from './components/CustomerArchiveSection';
 import { TodayWorkPanel } from './components/TodayWorkPanel';
+import { DocumentSection } from './components/DocumentSection';
 
 type TabType =
   'today-work' | 'overview' | 'customers' | 'policies' | 'catalogs' | 'agency-settings';
@@ -464,8 +465,11 @@ export const App: React.FC = () => {
   }, [activeTab, fetchCustomers]);
 
   // Müşteri Detayı Yükleme
+  const customerDetailGeneration = useRef(0);
   const loadCustomerDetail = async (id: string) => {
+    const generation = ++customerDetailGeneration.current;
     setSelectedCustomerId(id);
+    setSelectedCustomer(null);
     setDetailLoading(true);
     setDetailError(null);
     setContactActionError(null);
@@ -478,10 +482,12 @@ export const App: React.FC = () => {
         } catch {
           // ignore
         }
+        if (generation !== customerDetailGeneration.current) return;
         setDetailError(parseAppError(res.status, errPayload?.error));
         return;
       }
       const json = (await res.json()) as ApiResponse<CustomerDetailDto>;
+      if (generation !== customerDetailGeneration.current) return;
       if (json.success) {
         setSelectedCustomer(json.data);
         setDetailError(null);
@@ -489,9 +495,10 @@ export const App: React.FC = () => {
         setDetailError(parseAppError(res.status, json.error));
       }
     } catch (err) {
-      setDetailError(parseAppError(undefined, undefined, err));
+      if (generation === customerDetailGeneration.current)
+        setDetailError(parseAppError(undefined, undefined, err));
     } finally {
-      setDetailLoading(false);
+      if (generation === customerDetailGeneration.current) setDetailLoading(false);
     }
   };
 
@@ -1503,6 +1510,13 @@ export const App: React.FC = () => {
 
                 {selectedCustomer.archivedAt == null && (
                   <>
+                    {selectedCustomerId === selectedCustomer.id && (
+                      <DocumentSection
+                        key={'CUSTOMER:' + selectedCustomer.id}
+                        ownerType="CUSTOMER"
+                        ownerId={selectedCustomer.id}
+                      />
+                    )}
                     <CustomerIdentitySection
                       customer={selectedCustomer}
                       onCustomerReload={() => loadCustomerDetail(selectedCustomer.id)}

@@ -14,6 +14,7 @@ import type {
   SelectableCatalogsDto,
 } from '../../shared/types';
 import { getCsrfToken, invalidateCsrfToken, parseAppError, type AppErrorInfo } from '../App';
+import { DocumentSection } from './DocumentSection';
 
 interface PolicyPanelProps {
   readonly initialCustomer?: { readonly id: string; readonly displayName: string } | null;
@@ -1103,6 +1104,13 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
                     Sağlık sınıfı poliçe. Görüntüleme ve işlemler sunucudaki hassas sağlık
                     yetkisiyle korunur.
                   </div>
+                )}
+                {!isArchived && (
+                  <DocumentSection
+                    key={'POLICY:' + selected.id}
+                    ownerType="POLICY"
+                    ownerId={selected.id}
+                  />
                 )}
                 {!isArchived && (
                   <div style={row}>

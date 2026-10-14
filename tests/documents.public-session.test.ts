@@ -12,6 +12,7 @@ import { documentDownloadConfirmation, downloadDocument } from '../src/server/do
 import { sessionBoundDatabase } from '../src/server/auth/session-database';
 import { loadLocalSession } from '../src/server/auth/session';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
+import { listEmployeeDocuments } from '../src/server/documents/query';
 let f: Awaited<ReturnType<typeof localAuthFixture>>,
   storage: Miniflare,
   primary: R2Bucket,
@@ -98,6 +99,23 @@ it('default exported HTTP upload accepts a real opaque session and creates a can
   const response = (await r.json()) as { data: Record<string, unknown> };
   expect(Object.keys(response.data).sort()).toEqual(['classification', 'documentId', 'status']);
   expect(response.data.status).toBe('PROCESSING');
+  const listing = await worker.fetch(
+    new Request(
+      'https://panel.mayisigorta.com/api/documents?ownerType=CUSTOMER&ownerId=launch-customer',
+      { headers: { cookie: s.cookie } },
+    ),
+    f.env,
+    {} as ExecutionContext,
+  );
+  expect(listing.status).toBe(200);
+  expect(await listing.json()).toMatchObject({
+    success: true,
+    data: {
+      documents: [
+        { documentId: response.data.documentId, status: 'PROCESSING', fileName: 'synthetic.pdf' },
+      ],
+    },
+  });
   const documentId = String(response.data.documentId);
   const job = await f.db
     .prepare(
@@ -143,6 +161,18 @@ it('default exported HTTP upload accepts a real opaque session and creates a can
     {} as ExecutionContext,
   );
   expect(download.status).toBe(200);
+  const ready = await worker.fetch(
+    new Request(
+      'https://panel.mayisigorta.com/api/documents?ownerType=CUSTOMER&ownerId=launch-customer',
+      { headers: { cookie: s.cookie } },
+    ),
+    f.env,
+    {} as ExecutionContext,
+  );
+  expect(await ready.json()).toMatchObject({
+    success: true,
+    data: { documents: [{ documentId, status: 'READY' }] },
+  });
   expect(download.headers.get('content-disposition')).toContain('attachment');
   expect(new Uint8Array(await download.arrayBuffer())).toEqual(createSyntheticPdf());
   const stranger = await f.seed('document-other-owner', 'OWNER', false, 'document-other-agency'),
@@ -244,6 +274,96 @@ it('completed replay rejects a corrupted receipt classification', async () => {
     .run();
   await expect(
     createDocumentUpload(f.db, primary, ctx, payload, { idempotencyKey: key, correlationId: key }),
+  ).rejects.toThrow();
+});
+it('even an empty metadata page rejects final-session revocation', async () => {
+  const ctx = await context(),
+    s = await f.session(actor.id),
+    row = await loadLocalSession(
+      f.db,
+      new Request('https://panel.mayisigorta.com/api/documents', { headers: { cookie: s.cookie } }),
+    );
+  const input = {
+    ownerType: 'CUSTOMER',
+    ownerId: 'launch-customer',
+    cursor: encodeURIComponent(
+      JSON.stringify({ ownerType: 'CUSTOMER', ownerId: 'launch-customer', after: 'zzzzzz' }),
+    ),
+  };
+  expect(
+    (await listEmployeeDocuments(sessionBoundDatabase(f.db, row), ctx, input)).documents,
+  ).toEqual([]);
+  let reached = false;
+  const base = {
+    prepare: f.db.prepare.bind(f.db),
+    async batch(statements: D1PreparedStatement[]) {
+      reached = true;
+      await f.db
+        .prepare('UPDATE local_sessions SET revoked_at=? WHERE token_hash=?')
+        .bind(Date.now(), s.hash)
+        .run();
+      return f.db.batch(statements);
+    },
+  } as D1Database;
+  await expect(
+    listEmployeeDocuments(sessionBoundDatabase(base, row), ctx, input),
+  ).rejects.toThrow();
+  expect(reached).toBe(true);
+});
+it('parent-scoped metadata pages fail closed at session and classification disclosure races', async () => {
+  const ctx = await context(),
+    s = await f.session(actor.id),
+    row = await loadLocalSession(
+      f.db,
+      new Request('https://panel.mayisigorta.com/api/documents', { headers: { cookie: s.cookie } }),
+    );
+  const before = await listEmployeeDocuments(sessionBoundDatabase(f.db, row), ctx, {
+    ownerType: 'CUSTOMER',
+    ownerId: 'launch-customer',
+  });
+  expect(before.documents.length).toBeGreaterThan(0);
+  expect(JSON.stringify(before)).not.toMatch(/objectKey|checksum|jobId|versionId/);
+  const base = {
+    prepare: f.db.prepare.bind(f.db),
+    async batch(statements: D1PreparedStatement[]) {
+      await f.db
+        .prepare('UPDATE local_sessions SET revoked_at=? WHERE token_hash=?')
+        .bind(Date.now(), s.hash)
+        .run();
+      return f.db.batch(statements);
+    },
+  } as D1Database;
+  await expect(
+    listEmployeeDocuments(sessionBoundDatabase(base, row), ctx, {
+      ownerType: 'CUSTOMER',
+      ownerId: 'launch-customer',
+    }),
+  ).rejects.toThrow();
+  await expect(
+    listEmployeeDocuments(f.db, ctx, { ownerType: 'CUSTOMER', ownerId: 'other-parent' }),
+  ).rejects.toThrow();
+  const second = await f.session(actor.id),
+    row2 = await loadLocalSession(
+      f.db,
+      new Request('https://panel.mayisigorta.com/api/documents', {
+        headers: { cookie: second.cookie },
+      }),
+    );
+  const base2 = {
+    prepare: f.db.prepare.bind(f.db),
+    async batch(statements: D1PreparedStatement[]) {
+      await f.db
+        .prepare("UPDATE documents SET classification='IDENTITY',version=version+1 WHERE id=?")
+        .bind(before.documents[0]!.documentId)
+        .run();
+      return f.db.batch(statements);
+    },
+  } as D1Database;
+  await expect(
+    listEmployeeDocuments(sessionBoundDatabase(base2, row2), ctx, {
+      ownerType: 'CUSTOMER',
+      ownerId: 'launch-customer',
+    }),
   ).rejects.toThrow();
 });
 it.each(['confirmation', 'download'] as const)(

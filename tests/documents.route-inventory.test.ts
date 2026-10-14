@@ -9,10 +9,11 @@ it('authoritative registry matches every actual document route, all unavailable 
   const registered = app.routes
     .filter((r) => r.path.includes('/documents'))
     .map((r) => ({ path: r.path, method: r.method }));
-  expect(registered.sort((a, b) => a.path.localeCompare(b.path))).toEqual(
-    DOCUMENT_ROUTE_CONTRACT.map((r) => ({ path: r.path, method: 'POST' })).sort((a, b) =>
-      a.path.localeCompare(b.path),
-    ),
+  expect(registered.sort((a, b) => (a.path + a.method).localeCompare(b.path + b.method))).toEqual(
+    DOCUMENT_ROUTE_CONTRACT.map((r) => ({
+      path: r.path,
+      method: r.operation === 'LIST' ? 'GET' : 'POST',
+    })).sort((a, b) => (a.path + a.method).localeCompare(b.path + b.method)),
   );
   for (const r of DOCUMENT_ROUTE_CONTRACT) {
     for (const method of ['POST', 'GET', 'PUT', 'DELETE']) {

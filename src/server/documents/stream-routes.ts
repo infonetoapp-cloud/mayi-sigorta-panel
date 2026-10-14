@@ -20,7 +20,7 @@ export function registerDocumentStreamRoutes(
   dependencies: AppDependencies,
 ): void {
   for (const { path, secure, operation } of DOCUMENT_ROUTE_CONTRACT.filter(
-    (route) => route.operation !== 'UPLOAD',
+    (route) => route.operation !== 'UPLOAD' && route.operation !== 'LIST',
   ))
     app.post(path, async (c) => {
       c.header('Cache-Control', 'private, no-store');

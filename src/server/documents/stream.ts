@@ -405,6 +405,15 @@ function values(actor: Actor, documentId: string) {
     m.agencyId,
   ];
 }
+/** Server-owned evidence predicate for an authorized metadata page, not a
+ * caller-selected SQL/action or a substitute for byte verification on download. */
+export function documentPageReadiness(context: AuthenticatedUserContext) {
+  const actor = actorSnapshot(context);
+  return {
+    sql: `EXISTS(${SNAPSHOT_SQL.replace('WHERE d.id=? AND d.agency_id=?', 'WHERE d.id=listed.id AND d.agency_id=?')})`,
+    params: values(actor, 'unused').filter((_, index) => index !== 6),
+  };
+}
 async function loadSnapshot(db: D1Database, actor: Actor, documentId: string) {
   const rows = await db
     .prepare(SNAPSHOT_SQL)

@@ -19,6 +19,7 @@ import {
 } from '../src/server/documents/stream';
 import { listRenewalQuotes } from '../src/server/renewals/engagement';
 import { createDocumentUpload } from '../src/server/documents/service';
+import { listEmployeeDocuments } from '../src/server/documents/query';
 import {
   enqueueDocumentReconcile,
   processDocumentReconcileMessage,
@@ -557,6 +558,162 @@ async function corruptTable(table: string, statement: D1PreparedStatement) {
   }
 }
 describe('authorized validated primary document stream (including historical scans)', () => {
+  it('lists real PENDING_UPLOAD with NULL current version as PROCESSING', async () => {
+    const id = crypto.randomUUID(),
+      version = crypto.randomUUID();
+    await db
+      .prepare(
+        "INSERT INTO documents(id,agency_id,owner_type,customer_id,created_by_user_id,created_by_membership_id) VALUES(?,?,'CUSTOMER',?,?,?)",
+      )
+      .bind(id, agencyId, customerId, userId, membershipId)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO document_versions(id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,detected_content_type,created_by_user_id,created_by_membership_id) VALUES(?,?,?,1,?,?,?,'pending.pdf','application/pdf',?,?)",
+      )
+      .bind(
+        version,
+        agencyId,
+        id,
+        'quarantine/' + crypto.randomUUID(),
+        checksum,
+        bytes.byteLength,
+        userId,
+        membershipId,
+      )
+      .run();
+    expect(
+      await db.prepare('SELECT current_version_id FROM documents WHERE id=?').bind(id).first(),
+    ).toEqual({ current_version_id: null });
+    expect(
+      await db.prepare('SELECT status FROM document_versions WHERE id=?').bind(version).first(),
+    ).toEqual({ status: 'PENDING_UPLOAD' });
+    expect(
+      (
+        await listEmployeeDocuments(db, ownerContext, {
+          ownerType: 'CUSTOMER',
+          ownerId: customerId,
+          limit: 20,
+        })
+      ).documents.find((d) => d.documentId === id)?.status,
+    ).toBe('PROCESSING');
+  });
+  it('filters sensitive metadata before LIMIT and never creates hidden-row cursors', async () => {
+    const visible = await availableFixture(),
+      hidden = await availableFixture();
+    await db
+      .prepare("UPDATE documents SET classification='IDENTITY',version=version+1 WHERE id=?")
+      .bind(hidden.documentId)
+      .run();
+    const ids: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    do {
+      const page = await listEmployeeDocuments(db, ownerContext, {
+        ownerType: 'CUSTOMER',
+        ownerId: customerId,
+        limit: 1,
+        ...(cursor ? { cursor } : {}),
+      });
+      expect(page.documents).toHaveLength(1);
+      ids.push(page.documents[0]!.documentId);
+      cursor = page.nextCursor ?? undefined;
+      expect(++pages).toBeLessThan(25);
+    } while (cursor);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain(visible.documentId);
+    expect(ids).not.toContain(hidden.documentId);
+    await db
+      .prepare("UPDATE documents SET status='ARCHIVED',version=version+1 WHERE id=?")
+      .bind(visible.documentId)
+      .run();
+    expect(
+      (
+        await listEmployeeDocuments(db, ownerContext, {
+          ownerType: 'CUSTOMER',
+          ownerId: customerId,
+          limit: 20,
+        })
+      ).documents.some((d) => d.documentId === visible.documentId),
+    ).toBe(false);
+  });
+  it('parent list preserves MEMBER ASSIGNED/AGENCY and rejects malformed normal scopes', async () => {
+    const record = await availableFixture();
+    const grant = crypto.randomUUID();
+    await db
+      .prepare(
+        "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,'document.read','ASSIGNED')",
+      )
+      .bind(grant, memberId)
+      .run();
+    try {
+      await expect(
+        listEmployeeDocuments(db, memberContext, { ownerType: 'CUSTOMER', ownerId: customerId }),
+      ).rejects.toThrow();
+      await db
+        .prepare('UPDATE customers SET assignee_membership_id=? WHERE id=?')
+        .bind(memberId, customerId)
+        .run();
+      expect(
+        (
+          await listEmployeeDocuments(db, memberContext, {
+            ownerType: 'CUSTOMER',
+            ownerId: customerId,
+            limit: 20,
+          })
+        ).documents.some((d) => d.documentId === record.documentId),
+      ).toBe(true);
+      await db
+        .prepare('UPDATE customers SET assignee_membership_id=? WHERE id=?')
+        .bind(membershipId, customerId)
+        .run();
+      await db
+        .prepare("UPDATE membership_permissions SET scope='AGENCY' WHERE id=?")
+        .bind(grant)
+        .run();
+      expect(
+        (
+          await listEmployeeDocuments(db, memberContext, {
+            ownerType: 'CUSTOMER',
+            ownerId: customerId,
+            limit: 20,
+          })
+        ).documents.some((d) => d.documentId === record.documentId),
+      ).toBe(true);
+      await db
+        .prepare("UPDATE membership_permissions SET scope='UNSCOPED' WHERE id=?")
+        .bind(grant)
+        .run();
+      await expect(
+        listEmployeeDocuments(db, memberContext, { ownerType: 'CUSTOMER', ownerId: customerId }),
+      ).rejects.toThrow();
+    } finally {
+      await db.prepare('DELETE FROM membership_permissions WHERE id=?').bind(grant).run();
+      await db
+        .prepare('UPDATE customers SET assignee_membership_id=? WHERE id=?')
+        .bind(membershipId, customerId)
+        .run();
+    }
+  });
+  it.each([
+    ['CUSTOMER', customerId],
+    ['POLICY', policyId],
+    ['QUOTE', quoteId],
+  ] as const)(
+    'parent-scoped %s metadata authorizes typed parent and strict READY evidence',
+    async (ownerType, ownerId) => {
+      const record = await availableFixture(ownerType, ownerId);
+      const page = await listEmployeeDocuments(db, ownerContext, { ownerType, ownerId, limit: 20 });
+      expect(page.documents.find((d) => d.documentId === record.documentId)).toMatchObject({
+        status: 'READY',
+        downloadMode: 'NORMAL',
+      });
+      expect(JSON.stringify(page)).not.toMatch(/objectKey|checksum|versionId|jobId|backupId/);
+      await expect(
+        listEmployeeDocuments(db, ownerContext, { ownerType, ownerId: 'other-agency-parent' }),
+      ).rejects.toThrow();
+    },
+  );
   it('recent password assurance does not deny a normal authorized document download', async () => {
     const fixture = await availableFixture();
     const { post } = await appFor({ ...ownerContext, assurance: 'SECURE' });
