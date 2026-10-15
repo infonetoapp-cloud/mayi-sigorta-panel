@@ -1,4 +1,5 @@
 import type { Env } from '../index';
+import { emitDocumentUploadDiagnostic } from './upload-diagnostics';
 import { parseServerConfig } from '../config';
 import { hashSessionToken } from '../auth/session';
 import { uploadUnavailable } from './upload-runtime';
@@ -22,7 +23,8 @@ export async function dispatchDocumentUpload(request: Request, env: Env): Promis
     if (limited.success !== true) return uploadUnavailable(request, env, 429);
     if (!env.DOCUMENT_UPLOAD_RUNTIME) return uploadUnavailable(request, env, 503);
     return await env.DOCUMENT_UPLOAD_RUNTIME.getByName('mayi-document-upload-v1').fetch(request);
-  } catch {
+  } catch (error) {
+    emitDocumentUploadDiagnostic('EDGE_DISPATCH', 'FAIL', error);
     return uploadUnavailable(request, env, 503);
   }
 }

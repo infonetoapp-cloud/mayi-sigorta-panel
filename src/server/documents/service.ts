@@ -3,6 +3,7 @@ import { evaluateAuthorization } from '../auth/authorization';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { buildSafeAuditRecord } from '../mutations/audit';
 import { computePayloadHash } from '../mutations/canonical';
+import { emitDocumentUploadDiagnostic } from './upload-diagnostics';
 import { IdempotencyConflictError } from '../mutations/idempotency';
 import {
   inspectDocumentContent,
@@ -755,6 +756,7 @@ async function loadReceipt(
 }
 
 async function prepareUpload(input: DocumentUploadInput) {
+  emitDocumentUploadDiagnostic('PREPARE', 'START');
   try {
     const prepared = await prepareQuarantinedDocumentObject(input.file, {
       fileName: input.fileName,
@@ -765,8 +767,10 @@ async function prepareUpload(input: DocumentUploadInput) {
       new Uint8Array(prepared.content),
     );
     if (!validation.valid) throw new DocumentUploadError('VALIDATION_ERROR', 415);
+    emitDocumentUploadDiagnostic('PREPARE', 'OK');
     return { ...prepared, validation };
   } catch (error) {
+    emitDocumentUploadDiagnostic('PREPARE', 'FAIL', error);
     if (error instanceof DocumentUploadError) throw error;
     if (!(error instanceof DocumentQuarantineError)) {
       throw new DocumentUploadError('SERVICE_UNAVAILABLE', 503);
@@ -901,6 +905,7 @@ async function finalizeUpload(
     metadata: { safeCode: input.classification, targetVersion: 1 },
     createdAt: now,
   });
+  emitDocumentUploadDiagnostic('FINALIZE_BATCH', 'START');
   try {
     await db.batch([
       buildUploadAuthorityAssertion(
@@ -979,7 +984,9 @@ async function finalizeUpload(
           audit.createdAt,
         ),
     ]);
+    emitDocumentUploadDiagnostic('FINALIZE_BATCH', 'OK');
   } catch (error) {
+    emitDocumentUploadDiagnostic('FINALIZE_BATCH', 'FAIL', error);
     const message = String(error);
     if (
       message.includes('DOCUMENT_UPLOAD_AUTHORIZATION_RACE') ||
@@ -1154,6 +1161,7 @@ export async function createDocumentUpload(
   const reservationBody = JSON.stringify(reservation);
   const now = new Date().toISOString();
   const receiptId = crypto.randomUUID();
+  emitDocumentUploadDiagnostic('RESERVE_BATCH', 'START');
   try {
     await db.batch([
       buildUploadAuthorityAssertion(
@@ -1222,7 +1230,9 @@ export async function createDocumentUpload(
           membership.id,
         ),
     ]);
-  } catch {
+    emitDocumentUploadDiagnostic('RESERVE_BATCH', 'OK');
+  } catch (error) {
+    emitDocumentUploadDiagnostic('RESERVE_BATCH', 'FAIL', error);
     const racedReceipt = await loadReceipt(db, membership, context, idempotencyKey).catch(
       () => null,
     );

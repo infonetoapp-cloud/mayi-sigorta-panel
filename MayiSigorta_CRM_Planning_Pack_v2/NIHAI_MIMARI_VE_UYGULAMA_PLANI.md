@@ -524,6 +524,10 @@ Attribution preflight kabulünden sonra bounded küçük acente profili: temsil�
 
 Sonuç gerçek ölçüme göre verilir. Başarılı bounded profil ve fresh bağımsız HIGH olmadan sustainable capacity kabulü veya yeni production deployment yoktur. Gerekçelendirilmiş CLOSED release yalnız DOCUMENTS_ENABLED=false, mevcut JOBS/CRON/Queue/KDF/auth/private storage korunarak, exact artifact/config/deployment readback ve farklı fresh POST HIGH ile kapanabilir. Public activation öncesinde durulur; FEATURE_ENABLED=NO ve M4_COMPLETE=false korunur.
 
+### 10.12 JPEG finalization teşhis sınırı — F-38
+
+da2734f sonrası kullanıcı yetkisi yalnız mevcut private canonical DO adayında representative JPEG503'ü açıklamak için bounded sabit phase/code custody ekler. Log payload'ı yalnız server-owned phase/event/code'dur; raw exception/message/SQL/body/auth/header/credential/session/hash/ID veya signed URL yoktur. Teşhis hatası iş akışını değiştirmez; parser/auth/finalization/replay kontrolleri gevşetilmez. Aynı JPEG tek yeni disposable run'da fresh bağımsız HIGH sonrası denenir. Başarılı kontrollü deneme eski503'ü retroaktif PASS veya transient kesinliği yapmaz. Tam phase/native resource kanıtı eksikse NOT_OBSERVABLE/STOP; komşuCPU ödünç alınmaz, successfulPOST sırf telemetry için tekrarlanmaz. Root cause gösterilmeden business fix veya mimari redesign yoktur. Kalan kapasite profili ancak JPEG blocker'ı gerçek kapanış ve kaynak kimliğine bağlı güvenlik/resource kabulünden sonra sürer; DOCUMENTSfalse/FEATURENO/publicSTOP korunur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -805,6 +809,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-37 — F-36 adayının desteklenen attribution ve bounded kapasite kanıtı
 
 15 Ekim 2026; 707e10d sonrası açık kullanıcı yetkisiyle §10.11 eklendi. Private canonical DO mimarisi ve tarihsel FAIL/STOP korunur. Optional telemetry kimliklerine bağımlı olmayan pozitif native URL/method/version/component modeli, küçük acente ölçüm profili ve koşullu CLOSED release sınırı tanımlandı; bu kayıt tek başına provider/kapasite kabulü değildir.
+
+### F-38 — Representative JPEG503 için bounded phase/code custody
+
+15 Ekim 2026; da2734f sonrası açık yetkiyle §10.12 eklendi. Teşhis ve tekcontrolledrun yetkisi kapasite/Paid/publicactivation kabulü değildir. Tarihsel503/FAIL/STOP korunur; exact root cause bulunmadığında açıkça NOT_DETERMINED yazılır.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 

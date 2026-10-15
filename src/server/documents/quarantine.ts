@@ -1,3 +1,4 @@
+import { emitDocumentUploadDiagnostic } from './upload-diagnostics';
 import {
   MAX_DOCUMENT_UPLOAD_BYTES,
   preflightDocumentBlob,
@@ -110,13 +111,17 @@ export async function writePreparedQuarantinedDocumentObject(
   }
 
   let actualSha256: string;
+  emitDocumentUploadDiagnostic('R2_CHECKSUM', 'START');
   try {
     actualSha256 = toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', prepared.content)));
-  } catch {
+    emitDocumentUploadDiagnostic('R2_CHECKSUM', 'OK');
+  } catch (error) {
+    emitDocumentUploadDiagnostic('R2_CHECKSUM', 'FAIL', error);
     throw new DocumentQuarantineError('CHECKSUM_FAILED');
   }
   if (actualSha256 !== prepared.sha256) throw new DocumentQuarantineError('CHECKSUM_FAILED');
 
+  emitDocumentUploadDiagnostic('R2_PUT', 'START');
   try {
     await bucket.put(objectKey, prepared.content, {
       httpMetadata: {
@@ -128,7 +133,9 @@ export async function writePreparedQuarantinedDocumentObject(
         sha256: prepared.sha256,
       },
     });
-  } catch {
+    emitDocumentUploadDiagnostic('R2_PUT', 'OK');
+  } catch (error) {
+    emitDocumentUploadDiagnostic('R2_PUT', 'FAIL', error);
     throw new DocumentQuarantineError('OBJECT_WRITE_FAILED');
   }
 }

@@ -1,0 +1,407 @@
+{
+  "scope": "CONTROLLED_JPEG_FUNCTIONAL_PASS_ORIGINAL_CAUSE_UNRESOLVED",
+  "baseHEAD": "da2734f52865a409763e2e96372829889401ed50",
+  "result": {
+    "onePOST": true,
+    "HTTP": 202,
+    "canonicalIntegrity": true,
+    "counts": {
+      "documents": 1,
+      "document_versions": 1,
+      "operation_receipts": 1,
+      "background_jobs": 1,
+      "audit_events": 1
+    },
+    "versions": [
+      {
+        "size": 22115,
+        "status": "BACKUP_PENDING",
+        "validationVersion": "m4-content-inspection-v1",
+        "validation": {
+          "valid": true,
+          "format": "JPEG",
+          "width": 1024,
+          "height": 768,
+          "pixelCount": 786432
+        },
+        "fullBinaryIntegrity": true
+      }
+    ],
+    "receipt": [
+      {
+        "status": "COMPLETED",
+        "response_status": 202
+      }
+    ],
+    "job": [
+      {
+        "status": "QUEUED",
+        "attempt_count": 0
+      }
+    ],
+    "rootCause": "ORIGINAL_FAILURE_NOT_REPRODUCED_NOT_FULLY_EXPLAINED",
+    "noSecondAttempt": true
+  },
+  "nativeEDGECPU": "NOT_OBSERVABLE",
+  "nativeDOCPU": "NOT_OBSERVABLE",
+  "exactFailurePhase": "ORIGINAL_UNDETERMINED; NEW_CANONICAL_FINALIZATION_COMMITTED",
+  "secondPOST": false,
+  "capacityAccepted": false,
+  "productionDeployed": false,
+  "finalReadback": {
+    "observedAt": "2026-10-15T16:32:07.252337+00:00",
+    "productionVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "productionDeployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+    "productionTraffic": 100,
+    "flags": {
+      "DOCUMENTS_ENABLED": "false",
+      "DOCUMENT_JOBS_ENABLED": "true",
+      "DOCUMENT_CRON_ENABLED": "true"
+    },
+    "newUploadBindingDeployed": false,
+    "threeQueues": [
+      {
+        "name": "mayisigorta-document-jobs",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2",
+        "paused": false,
+        "consumers": 1,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2-dlq",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      }
+    ],
+    "cronUnchanged": true,
+    "allOwnedTemporaryResourcesAbsent": {
+      "Worker": true,
+      "EUbucket": true,
+      "EUDB": true,
+      "SQLiteDONamespace": true
+    },
+    "permanentKdfNamespaceOnly": true,
+    "subscriptionsUnchanged": true,
+    "WorkersPaidEnabled": false,
+    "providerMutationCount": 0,
+    "GETcount": 11
+  },
+  "independentFinalHIGH": {
+    "scope": "SAFE_PHASE_DIAGNOSTIC_AND_UNRESOLVED_ORIGINAL_JPEG_NO_GO_ONLY",
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "OPTIONAL": 1,
+    "session": "20261015_193456_5c26cc",
+    "actualClosedModelProviderHIGHParentNullExactJSONVerified": true,
+    "finalFreezePins": 495,
+    "executionFreezePins": 399,
+    "drift": 0,
+    "independentGETs": 12,
+    "independentDryTelemetryQueries": 1,
+    "providerMutations": 0,
+    "rootCauseResolved": false,
+    "capacityAccepted": false,
+    "allowClosedProductionDeploy": false
+  },
+  "evidence": [
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\allowed-stages.json",
+      "SHA256": "8208cb562dd5ceda71eadaae8a5caa0abe81163f09461a123916e8f9f97036da"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\atomic-empty-delete-intent.json",
+      "SHA256": "0decc66d2211bbe7bc26aadfdb512b3150edef3e98ddd3ddc4c09836228ee175"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\bounded-broad-readonly-completion.json",
+      "SHA256": "07d3d5476d33f6c5632dc1785f37f92970774716578e2413eafca34490a96bdb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\bucket-identity.json",
+      "SHA256": "9769c1faf3dd40dfe3d84e4b1110b6c71ebad7b0928f522383ac74b5e7bff3c6"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-absence-delete-database.json",
+      "SHA256": "f0629e6330698621ad0e020edb598774e4cd1290eca438d486bb3133487cc676"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-class-intent.json",
+      "SHA256": "a7a6211510f10f595de450655f13f165e2a5ac008724afd5e46d8559308ea75e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-class-result.json",
+      "SHA256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-complete-099d94982daa4d609f706cd38c2fa564.json",
+      "SHA256": "4fd723dcf611800d5df27b8e6d7a02a6720f42069b618a4dcfba3482e8a8df98"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-config.json",
+      "SHA256": "f11f15a2bf7cb903158a3e0fbef82a110d29a018d699614a0d7f2ebe297fd696"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-known-objects.json",
+      "SHA256": "e69b7b1c2877c8d7c71995eda119dde1ba6cb9fa76b630531030b38646b4da28"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\cleanup-namespace-absent.json",
+      "SHA256": "196b1c34c22818b7a66a177250219c978cb03a1f324160351c92c5f368de6a63"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\controlled-jpeg-readonly-completion.json",
+      "SHA256": "3a5eec69bbc930b97f32df2fc9ec33f1dd198b1fc8efce9649457538f9158389"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\create-bucket-intent.json",
+      "SHA256": "bbf47ebb8eb9dd8919e4a2c83ef023229769a6f66d9c06163cb7c0934a30b379"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\create-bucket-result.json",
+      "SHA256": "041aa2eae91fab42178bb1eac0b6aa61c9793b7ef14ea433bb932a409ef0cb7c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\create-database-intent.json",
+      "SHA256": "3ca22b430bd20c9ee0cd549045ba5d8a2d4907be731911ebd8294e716cd012bf"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\create-database-result.json",
+      "SHA256": "47e2a6f37a02e176ba4eca7fa5c36e66e94002c380c5a8681d71d39753b50efc"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\delete-database-intent.json",
+      "SHA256": "d07a4f89cb484e5fbcb8cb11fcfb2de767e72b032a15db312faf69d5629f9f7e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\delete-database-result.json",
+      "SHA256": "8a751b6c4bfb362a5367e249d727d79fb45aeb15ddb3855de1d8d248d1857dbb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\delete-object-e6177e83e1726c9ec9ed-intent.json",
+      "SHA256": "953813496ef711f18cc0b7f47e0d6dc17507d3c97f852445265ad253bd02355f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\delete-worker-intent.json",
+      "SHA256": "ee37c639d447ce866090bd0cf2ed6142e6b6e467e95c0d976626d9caec70917d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deploy-cli-intent.json",
+      "SHA256": "a5fb5949fa0bb78ff864abda27e1ac5180fbcac75ed6b3183af0b643606838e9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deploy-cli-result.json",
+      "SHA256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deploy-complete.json",
+      "SHA256": "de15e86b78ea2ce139540965faf408936dc0214c444ea68c090c952570e766b7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deploy-intent.json",
+      "SHA256": "b58ce45a0febe7a5ee2efb60809ad18875940600ee0bea0e827c83df364787f9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deployed-bundle-readback.json",
+      "SHA256": "21bc4d70598d56d2f560b0a43a14a847844cce9dbf1793acf0471876f8b705ee"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\deployed.json",
+      "SHA256": "335be94ed20359b4f7190440c9bf0c49f87b2885c699f9de0b9b85c0423ff400"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\enable-worker-url-intent.json",
+      "SHA256": "e4901201009d5e2250846b0a1af7347aeb7ad455ceec48f8df300d9d26cf4a98"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\enable-worker-url-result.json",
+      "SHA256": "d9c09e86d28fd94a16c4695a5e0393d46bb197a315375569ad235f5833cabe84"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\expected-schema.json",
+      "SHA256": "c7b43cda53abd046054f998ea4dbac8bc62d2a8522c9dc025bbeb91d606248f9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\fixture-manifest.json",
+      "SHA256": "6043485c3053f7a68531459ea2405652207e8848963e72117134f70c553d53d4"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\freeze-v2.json",
+      "SHA256": "6b6afbc575606d86757b180b711bec86304cf9afa3cdcc52ac7d279b151ee8c1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\freeze-v3.json",
+      "SHA256": "627d55d08dbf5c865d6ed4a3fa1e325a5a72f4cc3c310feea2080f8c71ab99ed"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\freeze-v4.json",
+      "SHA256": "b69360097507f557e3ab7ea6879358dc8768a6a74ea6382dd968eaf1e14dcaed"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\freeze.json",
+      "SHA256": "80fa2169f7af65ab784e98a1fd54b8c31406ccbbacfec10a9ad2ea828f5f8dac"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\import-config.json",
+      "SHA256": "b94a400246f619a84e3d0843a6c7c4b59331b374a2f801063c8134c17d30e477"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\initial-namespace-inventory.json",
+      "SHA256": "78df9405e8c54c04dca26df48840e8cb081cd642e5c42dd85f2d5779604d90f1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\integrity-repr-jpeg-1024x768.json",
+      "SHA256": "045f2382518739af1f547d04814398b3dacb23e72135b88c899a087b812f81ee"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\namespace-preflight-readonly.json",
+      "SHA256": "2892534345ba00498a05748d289997ec794ced65b1b050edcfa8498ad3d92eb1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\native-preparation.json",
+      "SHA256": "6c440687ef6f4f8df7c2f4dc90c8b248165f76cc568b59f3d2d9344767c62327"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-0.json",
+      "SHA256": "b1c4b9355ac1175b25ffa090ac07c2d6861607eeff61af60ab625a4e31556723"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-1.json",
+      "SHA256": "de045117b354712ea4f12b341d55508fb44c0067131a8203c427224036466991"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-2.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-3.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-4.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-5.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-6.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\observe-repr-jpeg-1024x768-7.json",
+      "SHA256": "b39744c127372d2644e0cd78f1b9a979955f5de536a22178dbc80f4bfda3b647"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\pre-provision-inventory.json",
+      "SHA256": "a99d672276ce79905aa84b21d93582c86d82f270b828a503cb8211194700bee2"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\proposed-build-config.json",
+      "SHA256": "7e252d2a2d90394f1360081eab4d5643e1b00ce5b5c6865e2f72cbd4ab85302f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\provisioned.json",
+      "SHA256": "c4a88b6a308b92e88cb034eb70cfd94ed9844d6df6b8ce7bc3939b86f65f082c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\resources.json",
+      "SHA256": "3db22deae6b19d4e46dcf468aec8da6aa972d830fe8293dc40ce74400c68f757"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\runtime-config.json",
+      "SHA256": "5e577358ddfb79d2e25ae4f8571e445da52d8677f69374aeb4d58baf1e906933"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\safe-response-repr-jpeg-1024x768.json",
+      "SHA256": "1a91abeedafa238372819486cc61bb661750ac1e6cd375da7f267486f1e43a6a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\schema-import-intent.json",
+      "SHA256": "468905ae45c937a8094411d4a18f554d03bd10330fe7e7594b69563ddd1fae56"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\schema-import-result.json",
+      "SHA256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\schema-readback.json",
+      "SHA256": "c04e0c57c9767a3e3195e1d2ef517fef27d2d9076bc338f1dc88502895c3d320"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\schema-seed-finished.json",
+      "SHA256": "1e1b00105e9965144ca61ba3077fd14648cf7a2020d037649149997158606a9d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\scope.json",
+      "SHA256": "e4fc5dcd82b36dd9900682bdc62fc138e404a4b2790a5e372800df614f67c5f3"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\secret-csrf-intent.json",
+      "SHA256": "30c6c573af3db64d4a028a8160b6340cb38d5125d03ba42a7dbc532e94ece52c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\secret-csrf-result.json",
+      "SHA256": "20d572dc214062eeba9ebe8e7be8099b64eb715f4c3e6399ccc1ad7c9bad0d8e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-0-intent.json",
+      "SHA256": "e90cf1c3054ac3c8200c7b1464cac0427d8136ff597af89eeffb299d8af0bf0c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-1-intent.json",
+      "SHA256": "017f6cc31e86566ab7532f19648a9c4d94fa6dd24b1df2085ae0eabe4e0e8ed6"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-2-intent.json",
+      "SHA256": "90ffaad11d6353776dfca27ae870d78d21fe4d45ca37abca70cbd5209a6f8aeb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-3-intent.json",
+      "SHA256": "c34797e8cc997ca7944d5fce10536beaeced0d0e12bdb31f2e3f98012e618324"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-4-intent.json",
+      "SHA256": "6ccf52c1e9636cfb8c2d4104c77d7044231c53660e170b1608707e38a49cb9d8"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-5-intent.json",
+      "SHA256": "3239b6028feb85365b1d0b676ef1fc4383216f9f3d0e7e7be0bf5831367dfe78"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-6-intent.json",
+      "SHA256": "bfb3c8ecb243b928a2a20d48960f852851cc1566dec94b002ee8b9c8198c67d9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-7-intent.json",
+      "SHA256": "21df2faa1e8f7e77710835eb49a348558e0d60d0ee37ce2d3ccf8b198a8c5925"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\seed-8-intent.json",
+      "SHA256": "430783d7a65f1bf5c9b954e725536e8c9ec1060cddab1514487ced79bb93bfd1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\STOP-fd3d769eef2542eca8abf4301167eb08.json",
+      "SHA256": "0ec638d7d67c3bf2b64190244e0a5ae4ff72a5395aa0d3fad5a151264e0118ac"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\upload-repr-jpeg-1024x768-intent.json",
+      "SHA256": "82de83b58b579193cfe2e57e12902418081973f9f875e9c223b826f678c9dc37"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\upload-repr-jpeg-1024x768-response.json",
+      "SHA256": "d61dc9047eb14258ec304142e5fcfd41f41f8dc51ff4538b78138ba7c329c742"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-jpeg-diagnostic-v3\\worker-identity.json",
+      "SHA256": "26da424acf77e7932a69ba67efaafcef15059af316e02e1e3ea5a4c852fc70dd"
+    }
+  ]
+}

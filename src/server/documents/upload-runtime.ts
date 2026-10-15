@@ -1,4 +1,5 @@
 import type { Env } from '../index';
+import { emitDocumentUploadDiagnostic } from './upload-diagnostics';
 import { parseServerConfig } from '../config';
 import { applySecurityHeaders } from '../security';
 import { createDocumentAdmission, trackedDocumentDatabase } from './resource-admission';
@@ -101,7 +102,8 @@ export function createUploadRuntime(canonical: (request: Request, env: Env) => P
             : undefined,
         };
         return await Promise.race([deadline, permit.run(() => canonical(request, local))]);
-      } catch {
+      } catch (error) {
+        emitDocumentUploadDiagnostic('DO_RUNTIME', 'FAIL', error);
         return uploadUnavailable(request, env, 503);
       } finally {
         clearTimeout(timer);
