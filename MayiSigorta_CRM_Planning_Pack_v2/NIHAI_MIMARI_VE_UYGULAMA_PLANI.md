@@ -532,6 +532,10 @@ da2734f sonrası kullanıcı yetkisi yalnız mevcut private canonical DO adayın
 
 0f8b5f7 sonrası kullanıcı yetkisi altında historical unreproduced JPEG503 rootUNKNOWN tek başına sonsuz engineering veto değildir. Mevcut canonical güvenlik, same-key recovery/tek logicalfinalization ve gerçek nativeEDGE/DOresource kanıtları bağımsız kapılardır. Önce supported identity-bound native collection doğrulanır; kritik observability kapısı başarısızken yeni pahalı provider yük deneyleri durur. Yerel native SQLiteDO/D1/R2 controlled finalbatchrollback→samekeyresume/replay kanıtı provider recovery yerine geçmez. Workers Logs native kayıtları cursor/count/dedupe ve explicit outcome/truncation/CPU/wall ile doğrulanır; CLI tail'in guarantee edilmeyen metric alanları veya custom elapsedtime nativeCPU sayılmaz. Publicactivation/Paid/productionbusinessmutation yasağı ve CLOSEDrelease pre/postHIGH sınırları korunur.
 
+### 10.14 F-40 — tek positive native-capture probe
+
+7890577 sonrası açık kullanıcı yetkisi F-39 observation NO-GO'yu aşmak için tek yeni disposable Worker→privateSQLiteDO minimal sentetik invocation'a izin verir. Belge/auth/D1/R2/Queue/production bağı yoktur; DOCUMENTSfalse kalır. Aynıscript/deployment/exactGETURL/publicstage/EDGEdefault ve namedDOentrypoint ayrımı, explicit nativeCPU/wall/outcome/truncated ve fixedstart/complete loglar gerçek provider kaydından istenir. FreshHIGH preflight, once-only invocation intent, finitepoll/cursorbudget ve mandatoryownednamespaceWorkercleanup gerekir. LightweightcapturePASS yalnız bu observation mekanizması/scope'udur; historicalJPEG503cause, canonical recovery veya uploadcapacityPASS değildir. Yeni recovery providerexperiment ayrı freshHIGH approval ister. Eksiknative/terminalkanıtta yeniinvocationrepeat yok; STOP/alternatifkararı boundedolur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -821,6 +825,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-39 — Bağımsız risk kapıları ve same-key recovery
 
 15 Ekim2026; 0f8b5f7 sonrası açık kullanıcı yetkisiyle §10.13 eklendi. Historical503 bilinmeyeni korunur; tek başına sürekli veto yerine mevcut recovery/security/nativecapacity riskleri ölçülür. Observabilitycriticalgate geçmeden providerexperiment yok; localproof provideracceptance sayılmaz.
+
+### F-40 — Minimal sentetik EDGE/DO native-capture deneyi
+
+15 Ekim2026; 7890577 sonrası yeni açık yetkiyle §10.14 eklendi. Exhaustedhistoricalqueryrepeat yerine bir scopedpositivecapture; başarılıdocumentPOSTreplay/Paid/prodmutation yok. Freshpre/postHIGH ve cleanup exactscope korunur.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 
