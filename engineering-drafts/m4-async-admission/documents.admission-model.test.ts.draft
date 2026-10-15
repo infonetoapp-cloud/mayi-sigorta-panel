@@ -1,0 +1,9 @@
+// @vitest-environment node
+import { expect, it } from 'vitest';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
+import { documentUploadAttempts, documentUploadAdmissions, documentUploadValidations } from '../src/server/db/schema';
+it('registers all three additive admission relations in the canonical schema export', () => {
+  expect(getTableConfig(documentUploadAttempts).name).toBe('document_upload_attempts');
+  expect(getTableConfig(documentUploadAdmissions).name).toBe('document_upload_admissions');
+  expect(getTableConfig(documentUploadValidations).name).toBe('document_upload_validations');
+});

@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "scope": "RECOVERED_SOURCE_LOCAL_DO_ADMISSION_CANDIDATE_AND_HONEST_PROVIDER_NOT_PROVEN_CHECKPOINT",
+  "startingCommit": "7da52fa6d597875dd8db82f8e5fdc6aa183aaf8d",
+  "interruption": {
+    "initialWorktreeEntries": 13,
+    "initialStaged": 0,
+    "allPreserved": true,
+    "reviewedTransportHashesReconciled": true,
+    "historicalProviderOperationsRepeated": false,
+    "historicalAcceptedExpensiveTestsRepeated": false,
+    "custodyArtifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-interrupt-admission-custody.json",
+    "custodySHA256": "4950fc0d4a257c5bbfc8846702b3c2136cc09575108dcb1da52c9b9ffcf91446"
+  },
+  "architecture": {
+    "candidate": "CANONICAL_UPLOAD_IN_PRIVATE_SQLITE_DO",
+    "productionDeployed": false,
+    "newD1DomainMigration": false,
+    "edgeNoBodyParseHash": true,
+    "canonicalSecurityParserHashReplayPreserved": true,
+    "nonwaitingIsolateUploads": 1,
+    "logicalHandlerDeadlineMs": 60000,
+    "rawLateProviderCustody": true,
+    "providerQueueZeroGuaranteed": false,
+    "sharedKdfHeapProven": false
+  },
+  "isolatedProvider": {
+    "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+    "resources": {
+      "database": {
+        "name": "mayi-http-6568760fe8",
+        "uuid": "29181cbd-9a75-40bd-9e01-130a204b98fe",
+        "jurisdiction": "eu"
+      },
+      "bucket": "mayi-http-6568760fe8",
+      "worker": "mayi-http-6568760fe8",
+      "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8"
+    },
+    "deployment": {
+      "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+      "origin": "https://mayi-http-6568760fe8.sinancanpolat41.workers.dev",
+      "deployment": "dc182044-813b-432c-bcd3-aefd458a056d",
+      "version": "211da97c-d02f-4ac2-af84-d85855458499",
+      "namespace": "4014688542a84cc8b8d6ad536a20ccfd"
+    },
+    "schema": {
+      "PASS": true,
+      "objects": 350,
+      "triggers": 176,
+      "canonicalSQLUnchanged": true
+    },
+    "bundle": {
+      "PASS": true,
+      "version": "211da97c-d02f-4ac2-af84-d85855458499",
+      "SHA256": "2f4bec65ab7774c50bb92162a3150cb6b7c8bced1a5e18a20ec98c61ee387215",
+      "exactFrozenDryrunAndUploadedBundleEqual": true
+    },
+    "syntheticCookiePreparationFailurePreserved": true,
+    "oneAdditionalSyntheticSessionInserted": true,
+    "uploadPOSTs": 4,
+    "uploadRetries": 0,
+    "allFourHTTP202CanonicalIntegrity": true,
+    "acceptedNativeReceipts": [
+      {
+        "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+        "PASS": true,
+        "label": "tiny-jpeg",
+        "size": 723,
+        "components": {
+          "EDGE": {
+            "CPUms": 2,
+            "wallMs": 1458,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "0ce7ddfe88661e648201b89e15f01a49",
+            "nativeID": "01M4ZEE75F000000000000000C",
+            "markerIDs": [
+              "01M4ZEE5QX0000000000000001",
+              "01M4ZEE75F0000000000000006"
+            ],
+            "startMs": 1792056694525,
+            "completeMs": 1792056695983
+          },
+          "DO": {
+            "CPUms": 43,
+            "wallMs": 1071,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "7e460bf37cf64b19298ffeade9a4de08",
+            "nativeID": "01M4ZEE744000000000000002Q",
+            "markerIDs": [
+              "01M4ZEE63Z0000000000000001",
+              "01M4ZEE744000000000000002N"
+            ],
+            "startMs": 1792056694911,
+            "completeMs": 1792056695940
+          }
+        },
+        "uploadRetries": 0,
+        "peakHeap": "NOT_OBSERVABLE",
+        "scope": "ISOLATED_CANONICAL_HTTP_DO_ADMISSION_ONLY_NO_BACKUP_OR_PUBLIC_ENABLEMENT"
+      },
+      {
+        "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+        "PASS": true,
+        "label": "tiny-pdf",
+        "size": 369,
+        "components": {
+          "EDGE": {
+            "CPUms": 3,
+            "wallMs": 1585,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "41e2b82557c812c62cc01c51cfe531bd",
+            "nativeID": "01M4ZDX439000000000000000C",
+            "markerIDs": [
+              "01M4ZDX2HS0000000000000001",
+              "01M4ZDX4390000000000000006"
+            ],
+            "startMs": 1792056134201,
+            "completeMs": 1792056135785
+          },
+          "DO": {
+            "CPUms": 40,
+            "wallMs": 1021,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "f718f192b9907795fbbe9b56ca0164fb",
+            "nativeID": "01M4ZDX41T000000000000002Q",
+            "markerIDs": [
+              "01M4ZDX33D0000000000000001",
+              "01M4ZDX41T000000000000002N"
+            ],
+            "startMs": 1792056134765,
+            "completeMs": 1792056135738
+          }
+        },
+        "uploadRetries": 0,
+        "peakHeap": "NOT_OBSERVABLE",
+        "scope": "ISOLATED_CANONICAL_HTTP_DO_ADMISSION_ONLY_NO_BACKUP_OR_PUBLIC_ENABLEMENT"
+      },
+      {
+        "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+        "PASS": true,
+        "label": "tiny-png",
+        "size": 81,
+        "components": {
+          "EDGE": {
+            "CPUms": 3,
+            "wallMs": 852,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "9872105869c713436e7c496274542678",
+            "nativeID": "01M4ZEFB7P000000000000000C",
+            "markerIDs": [
+              "01M4ZEFAD40000000000000001",
+              "01M4ZEFB7P0000000000000006"
+            ],
+            "startMs": 1792056732068,
+            "completeMs": 1792056732918,
+            "startMarkerObservable": true,
+            "nativeTerminalExactIdentity": true
+          },
+          "DO": {
+            "CPUms": 16,
+            "wallMs": 822,
+            "outcome": "ok",
+            "truncated": false,
+            "version": "211da97c-d02f-4ac2-af84-d85855458499",
+            "groupID": "2f479253d965f831b830eb30aec26b35",
+            "nativeID": "01M4ZEFB6K000000000000002Q",
+            "markerIDs": [
+              "01M4ZEFB6K000000000000002N"
+            ],
+            "startMs": null,
+            "completeMs": 1792056732883,
+            "startMarkerObservable": false,
+            "nativeTerminalExactIdentity": true
+          }
+        },
+        "uploadRetries": 0,
+        "peakHeap": "NOT_OBSERVABLE",
+        "scope": "ISOLATED_CANONICAL_HTTP_DO_ADMISSION_ONLY_NO_BACKUP_OR_PUBLIC_ENABLEMENT"
+      }
+    ],
+    "representativePdf": {
+      "sizeBytes": 1659,
+      "pages": 12,
+      "HTTP": 202,
+      "canonicalIntegrity": true,
+      "DOCPUms": 44,
+      "DOwallMs": 1228,
+      "DOOutcome": "ok",
+      "DOTruncated": false,
+      "edgeNativeCPU": "NOT_OBSERVABLE",
+      "scope": "PARTIAL_RESOURCE_EVIDENCE_NOT_ACCEPTED_CAPACITY_RECEIPT"
+    },
+    "remainingWorkloads": {
+      "representativeJpeg1024x768": "NOT_EXECUTED",
+      "representativePng1024x768": "NOT_EXECUTED",
+      "exact20MiB": "NOT_EXECUTED",
+      "actualOverlap": "NOT_EXECUTED",
+      "sustained12MixedPosts": "NOT_EXECUTED"
+    },
+    "stop": "EXACT_REPRESENTATIVE_PDF_EDGE_NATIVE_LIFECYCLE_NOT_OBSERVABLE_AFTER_BOUNDED_READONLY_RECONCILIATION",
+    "positiveRuntimeFailureObserved": false,
+    "peakHeap": "NOT_OBSERVABLE",
+    "sameRequestReadOnlyCompletions": [
+      "tiny-pdf",
+      "tiny-png"
+    ],
+    "unrelatedCsrfNativeCPUNotBorrowed": [
+      18,
+      11,
+      12
+    ],
+    "cleanup": {
+      "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+      "ownedWorkerBucketDatabaseNamespaceAbsent": true,
+      "protectedProductionEqual": true
+    },
+    "namespaceCleanup": {
+      "run": "254a48b1-3c0e-49ec-ac15-0773285d2bb8",
+      "namespace": "4014688542a84cc8b8d6ad536a20ccfd",
+      "absent": true,
+      "permanentNamespacesEqual": true
+    }
+  },
+  "production": {
+    "activeVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "deployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+    "DOCUMENTS_ENABLED": false,
+    "FEATURE_ENABLED": "NO",
+    "DOCUMENT_JOBS_ENABLED": true,
+    "DOCUMENT_CRON_ENABLED": true,
+    "cron": "*/5 * * * *",
+    "protectedCategoriesEqualAtInitialRecovery": {
+      "workers": true,
+      "queue": true,
+      "buckets": true,
+      "domains": true,
+      "routes": true,
+      "backupAlert": true,
+      "subscriptions": true
+    },
+    "afterOwnedCleanupProtectedEqual": true,
+    "productionDeploys": 0,
+    "productionD1Mutations": 0,
+    "WorkersPaidEnabled": false,
+    "realCustomerDataUsed": false
+  },
+  "localVerification": {
+    "initialConsolidated": {
+      "files": 11,
+      "tests": 45,
+      "passed": 40,
+      "failed": 5,
+      "reason": "OLD_FIXTURES_MISSING_NEW_PRIVATE_BINDING"
+    },
+    "correctedConsolidated": {
+      "files": 11,
+      "tests": 45,
+      "passed": 44,
+      "failed": 1,
+      "reason": "NATIVE_AFTER_COMMIT_RACE_TEST_TIMEOUT_90S"
+    },
+    "isolatedAffectedRerun": {
+      "files": 1,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "coverageStatement": "43 unaffected passes retained from corrected aggregate plus2 affected isolated passes; not one clean45 aggregate",
+    "typecheck": "PASS",
+    "rootLint": "PASS",
+    "fullFormat": "PASS",
+    "clientBuild": "PASS",
+    "boundaries": "PASS",
+    "closedProductionDryrun": "PASS",
+    "fullRepositorySuiteClaimed": false
+  },
+  "reviews": [
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-pre-source-high-v1-FAIL.json",
+      "sha256": "140ffe5f9e8093d4004c508ef0d861c6a66b013ee151e5866683bd81297c5021",
+      "scope": "UPLOAD_DO_SOURCE_PRE_PROVIDER_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 2,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-pre-source-high-correction.json",
+      "sha256": "d4d520f62769f484396d324fd95d12808b8b7dcdad32839f11e0ba90aae8e46c",
+      "scope": "UPLOAD_DO_SOURCE_PRE_PROVIDER_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider-pre-high-v1-FAIL.json",
+      "sha256": "1cd0a41484a50e2055b3f45b13578ee5da54d9e87e8bcd338df7d7793adde6c1",
+      "scope": "DO_HTTP_CAPACITY_ISOLATED_EXECUTOR_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 4,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider-pre-high-v2.json",
+      "sha256": "1fcd90cc196cd9841f18b36906b4c93a19fc025a41277d142b52e907e4d1081e",
+      "scope": "DO_HTTP_CAPACITY_ISOLATED_EXECUTOR_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-session-correction-high.json",
+      "sha256": "a9c7a14986783cb188aef07987a1f745b9890da5de6d03590105b8d6a65adcb9",
+      "scope": "SYNTHETIC_COOKIE_FORMAT_CORRECTION_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-session-correction-high-v2.json",
+      "sha256": "61112061f46a0b4b107f7fa8f91c67779ba4deba8aa19ed88f77f7f8b81c2d8c",
+      "scope": "SYNTHETIC_COOKIE_FORMAT_CORRECTION_ONLY",
+      "verdict": "FAIL",
+      "BLOCKER": 0,
+      "IMPORTANT": 1,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-session-correction-high-v3.json",
+      "sha256": "4a5714eaf03249b545518c50f0aa9bda1e4753c19de971b7c68584c34044b693",
+      "scope": "SYNTHETIC_COOKIE_FORMAT_CORRECTION_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-window-adapter-high.json",
+      "sha256": "7836679cba8592a356d12db2459a35ade6edc593470b98d3f1ffdda9f24dbebf",
+      "scope": "BOUNDED_READONLY_OBSERVATION_WINDOW_ADAPTER_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    },
+    {
+      "artifact": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-native-terminal-high.json",
+      "sha256": "c42fd82e445d1466efdf7627c17fbc3f7d55344e6a5556c8f07ad61efcbeb46f",
+      "scope": "POSITIVE_NATIVE_TERMINAL_COMPLETION_ONLY",
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "session": "20261015_104956_a0a874"
+    }
+  ],
+  "frozenFinalSource": {
+    "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-post-source-freeze.json",
+    "count": 371,
+    "sha256": "d7eb6fa4aeb40c3449736c2ca297a45b2ad39451c8071c049f7c6dddf8a4023c"
+  },
+  "artifactCustody": [
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-closeout-boundaries.log",
+      "sha256": "2cc2ea1fda183bdcf0f0629174b195edb6f9c6670fc0f5c1adc1868cab53a569"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-closeout-client-build.log",
+      "sha256": "13620739a36ff44abc5ac74b53a854effd5ad250bf4be141059c3f352ee715a5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-closeout-format.log",
+      "sha256": "3efb2f2984473983627a1c9fe804f6c790684763690b9f0eafdbecab9fa40d0a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-closeout-lint.log",
+      "sha256": "7cb89f8caed1aa780547932b9c355cdb0c9e109a431169db1bd9c1e12a079687"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-closeout-typecheck.log",
+      "sha256": "61de6e754ccacd9e4fa33ff83f110b3f04732e756e89186f7e89e3c258324208"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-final-integration-v2.log",
+      "sha256": "fc5694764d4a7af7f1cff1b38e853f7b7b1754cac9a329278cb1661ea01cf65b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-final-integration.log",
+      "sha256": "3fd352f960ed86079167bc7891398cda79fc8863b6a9a6dad812652c79b22db8"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-final-isolated-race.log",
+      "sha256": "309a03b550a58e166bed88080ba4ede0f068cbf0b019bcb5add1783ef9445d8f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-final-production-dryrun.log",
+      "sha256": "78d1406a9373be83799c91b13949a4cad699ff6a2bbefd13d8f14ccf5bdff908"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-I1-green.log",
+      "sha256": "5d8411fa09ae13714b626d7f621bf62df97d8f7966a934b0f620343bc22951e9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-I1-red.log",
+      "sha256": "fad4c3cd7befe6baeeba7144d37698d0628332d70af8a76530d0b6f8ebecfbfc"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-I2-native-race.log",
+      "sha256": "844d9c0f9aa4bd47571f126df7331aa7d24b64ad2454a38dbfbb82f1c03ec066"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-I2-unit.log",
+      "sha256": "8b7f54694a72b885877c52ccaaa9e671ea7b9bc2de0d29fe95996ef083d5f233"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\cleanup-complete-647caffba3e4453e8d945906b9adf6b0.json",
+      "sha256": "f011e480adddd2f3c5cdf2ad83e5223bfe91d3f859682741f0c498f88b14db6b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\cleanup-known-objects.json",
+      "sha256": "a38aa94970b5a8b2636b4521e1abe0ad7b5e45dea4f01bae8a1d6fe905bcc653"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\cleanup-namespace-absent.json",
+      "sha256": "63da0f0ff0f5967757b0ba4fa367089b0082435f8a00a5f5fe3e023f829075f5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\deploy-complete.json",
+      "sha256": "56c9993042c69de1c26d71945352aff614497f6bcc37f86eff477f9efbf3c785"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\deployed-bundle-readback.json",
+      "sha256": "fc4770c46a0c83ed9bea9366e9dbc571955bfe5d69b063198c54c5b5ee26e17a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\deployed.json",
+      "sha256": "915efa6b2b3b92d80063bdc881225bd5a9f7cb0e999dbf67367f8698aaa6c110"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\first-csrf-readonly-diagnostic.json",
+      "sha256": "89f8c2e777e724a24576aedd2860f184c21834883eb9db0082dc8fbdb02c7813"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\integrity-repr-pdf-12page.json",
+      "sha256": "09393ea2291255bb5f471d0c9810abc540136681e798e403a8dc30ca74abfc08"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\integrity-tiny-jpeg.json",
+      "sha256": "d8ce0aa616a3f1ffe4f3b0c283fca3289765a574f8c684e93d55995f0b6f7bfd"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\integrity-tiny-pdf.json",
+      "sha256": "9cccbb8bb65e28181a196281a35ebfc8760e64f17dfc850be7c2d864a68a0487"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\integrity-tiny-png.json",
+      "sha256": "fee371dfe97fd04699a615134ffd11d4d533165773d69930af82a05708a59afb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\native-preparation.json",
+      "sha256": "0bf86b47028c4c205bdb3241102963369daae61eb799c0bedaa34ee0c3624671"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\native-terminal-STOP-eba577cd5e5e452abaad58ec90d1049f.json",
+      "sha256": "34d4a7634a9d282abb44fd6566ea7bb8cd8cc4ce50473bfa415f7926e8adde6d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\receipt-tiny-jpeg.json",
+      "sha256": "b056939d7dc3d067446e15fb9417f33e6ba74fe947ef0a4e5d836704e73d609e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\receipt-tiny-pdf.json",
+      "sha256": "02d75c2fc81dde5007552852fbcc26dde0018bbb0bc3e17d771ab8a146989384"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\receipt-tiny-png.json",
+      "sha256": "109deddd306bb2846195dc600ef20ceb79c067c20da1f555f5d8cb0ae4f15ece"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\repr-pdf-telemetry-broad-readonly-diagnostic.json",
+      "sha256": "1fb749289c47d1c6ed1489a439aa99d94f22cb97f51c38c03f8077b08fedcc89"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\schema-readback.json",
+      "sha256": "c04e0c57c9767a3e3195e1d2ef517fef27d2d9076bc338f1dc88502895c3d320"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\scope.json",
+      "sha256": "06b97c47e38a459af0caa0bf6cfa11d4654200079a2d6fa2ffe035d7e6817061"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\session-correction-insert-result.json",
+      "sha256": "ed5bda8d48af69984e57b28ea5f11f39e74fbf8c5c040ec8ca4aa54dddb6c5d7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\session-correction-STOP-03a14e39591f4b17b6734faf39e54de9.json",
+      "sha256": "fcff9d32db377a4db572e309031339b303c67731a71ebfc2a84a131881f9d56c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\session-correction-STOP-ff0fd051e7844fd4a23afa522e0777a8.json",
+      "sha256": "4e2e595dbf6063a1296c92f9c6829802d28b3ab6505ab094602bbb2183fb795a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\STOP-3a89142dbe0c4cec9a057edc2635cec5.json",
+      "sha256": "929b781d0e04aa4c791922982ad22792496d7c7b88083af51d6748d4d8d2ba42"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\tiny-pdf-telemetry-broad-readonly-diagnostic.json",
+      "sha256": "3bea6c005cd287ac1aed60ea3db38511e83352f33e19b5f6d089d0ac80cb9029"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\tiny-png-telemetry-broad-readonly-diagnostic.json",
+      "sha256": "de13c45f304b410204e5dd9b84e4f6e094ec4f8fffb203375822b9d52d286dbe"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-repr-pdf-12page-intent.json",
+      "sha256": "ca2d5c9468146ad3e61d2a298ddba81668e544cd567bf92894c0ec5f924ab93d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-repr-pdf-12page-response.json",
+      "sha256": "4a14d86615bed0d1f809993e112689f3838efd92b552904a9c28b033ab5f9ad2"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-jpeg-intent.json",
+      "sha256": "0dad7261654f4418c0dd94c40c713229fd4509cb1a38e290b1fa7ea9d761ed18"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-jpeg-response.json",
+      "sha256": "50f68afbc66a84844108fadd8dda54939a9f27d33ea8d85ccc72ade8b143ef99"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-pdf-intent.json",
+      "sha256": "a97464921b8bfef91e214068395dd13c7c9a9ed485dea8c13b7a44864f2ac1eb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-pdf-response.json",
+      "sha256": "14bb01b6a37ecb76ca08371c87eb2594416a269e2afd7b424d6ed34f4dabdb15"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-png-intent.json",
+      "sha256": "411087ec75964dcb87aa49e3cd04fdbc6bc0597b46644668264eea940e9d9702"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\upload-tiny-png-response.json",
+      "sha256": "b274d6586f3477102448ddbc7c8e531d705a0bce03361400fbc5a9bd0c945886"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-do-provider\\window-adapter-STOP-706022b55b944334af9dfdd2229ec1a8.json",
+      "sha256": "8f5d39c243e42a9af80e5d9d7130737856b52921218de0bd341337d56c24e29f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-upload-runtime-red.log",
+      "sha256": "3fd522509879ba3d2a176c4aa2d613bc3daef9f849e60d1bdbc3e479723c82c1"
+    }
+  ],
+  "gates": {
+    "M4_HTTP_ADMISSION_ARCHITECTURE_ACCEPTED": "NO",
+    "M4_HTTP_SUSTAINED_FREE_CAPACITY_ACCEPTED": "NO",
+    "M4_COMPLETE": false,
+    "publicActivation": "NO-GO",
+    "CLOSEDDeploymentPerformed": false,
+    "independentPostHIGH": {
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "OPTIONAL": 1,
+      "scope": "RECOVERED_LOCAL_DO_SOURCE_AND_HONEST_NO_GO_CHECKPOINT_ONLY",
+      "session": "20261015_125509_5db138",
+      "model": "gpt-6.1-sol",
+      "provider": "openai-codex",
+      "reasoning": "high",
+      "actualClosedFinalJSONAndParentNullVerified": true,
+      "frozenPaths": 379,
+      "sourceDrift": 0,
+      "independentProviderGETs": 52,
+      "independentDryTelemetryPOSTs": 8,
+      "independentProviderMutations": 0,
+      "independentRAMAssertions": 40,
+      "sourceEvidenceCommitPushAllowed": true,
+      "productionDeployAllowed": false,
+      "sustainedCapacityAccepted": false
+    }
+  }
+}

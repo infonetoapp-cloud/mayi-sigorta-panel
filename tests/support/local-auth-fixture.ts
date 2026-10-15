@@ -53,15 +53,17 @@ export function testRateLimit(limit = 10): RateLimit & { calls: number; reset():
   };
   return binding;
 }
-export async function localAuthFixture() {
+export async function localAuthFixture(runtime?: InstanceType<typeof miniflare.Miniflare>) {
   const { Miniflare, convertV4MiniflareOptions } = miniflare;
-  const mf = new Miniflare(
-    convertV4MiniflareOptions({
-      modules: true,
-      script: 'export default {fetch(){return new Response(null)}}',
-      d1Databases: { DB: '00000000-0000-0000-0000-000000000027' },
-    }),
-  );
+  const mf =
+    runtime ??
+    new Miniflare(
+      convertV4MiniflareOptions({
+        modules: true,
+        script: 'export default {fetch(){return new Response(null)}}',
+        d1Databases: { DB: '00000000-0000-0000-0000-000000000027' },
+      }),
+    );
   const db = await mf.getD1Database('DB');
   for (const file of readdirSync('db/migrations')
     .filter((f) => /^\d{4}_.*\.sql$/.test(f))

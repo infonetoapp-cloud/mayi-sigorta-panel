@@ -4,6 +4,7 @@ vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
 import { localAuthFixture } from './support/local-auth-fixture';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import worker from '../src/server/worker';
+import { createUploadRuntime } from '../src/server/documents/upload-runtime';
 import { createSyntheticPdf } from './fixtures/documents';
 import { createDocumentUpload } from '../src/server/documents/service';
 import { createR2DocumentBackupAdapter } from '../src/server/documents/backup-storage';
@@ -38,6 +39,15 @@ beforeAll(async () => {
   backup = (await storage.getR2Bucket('backup')) as unknown as R2Bucket;
   f.env.DOCS_QUARANTINE = primary;
   f.env.DOCUMENTS_ENABLED = 'true';
+  const runtime = createUploadRuntime((request, env) => Promise.resolve(f.app.fetch(request, env)));
+  // Node/native-D1 composition seam. Real private SQLite DO dispatch is exercised
+  // separately in documents.upload-do.workerd.test.ts; no production fallback.
+  f.env.DOCUMENT_UPLOAD_RUNTIME = {
+    getByName: (name: string) => {
+      expect(name).toBe('mayi-document-upload-v1');
+      return { fetch: (request: Request) => runtime.fetch(request, f.env) };
+    },
+  } as unknown as NonNullable<typeof f.env.DOCUMENT_UPLOAD_RUNTIME>;
 });
 afterAll(async () => {
   await f?.mf.dispose();

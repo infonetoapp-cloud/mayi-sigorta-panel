@@ -1,0 +1,387 @@
+// @vitest-environment node
+import { beforeAll, afterAll, expect, it, vi } from 'vitest';
+vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
+import { localAuthFixture } from './support/local-auth-fixture';
+let fixture: Awaited<ReturnType<typeof localAuthFixture>>;
+beforeAll(async () => {
+  fixture = await localAuthFixture();
+}, 60000);
+afterAll(async () => {
+  await fixture?.mf.dispose();
+});
+it('installs the additive bounded attempt ledger on the canonical native D1 schema', async () => {
+  const row = await fixture.db
+    .prepare(
+      "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name='document_upload_attempts'",
+    )
+    .first<{ n: number }>();
+  expect(row?.n).toBe(1);
+});
+it('installs the immutable admission relation separately from transport claims', async () => {
+  const row = await fixture.db
+    .prepare(
+      "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name='document_upload_admissions'",
+    )
+    .first<{ n: number }>();
+  expect(row?.n).toBe(1);
+});
+async function prepareAttempt(action = 'document.upload', ageMs = 0) {
+  const actor = await fixture.seed(crypto.randomUUID(), 'OWNER');
+  const versions = await fixture.db
+    .prepare(
+      'SELECT credential.credential_version,membership.permission_version FROM local_credentials credential JOIN agency_memberships membership ON membership.user_id=credential.user_id WHERE credential.user_id=? AND membership.id=?',
+    )
+    .bind(actor.id, actor.membershipId)
+    .first<{ credential_version: number; permission_version: number }>();
+  if (!versions) throw new Error('SYNTHETIC_ACTOR_VERSIONS_MISSING');
+  const customerId = crypto.randomUUID(),
+    receiptId = crypto.randomUUID(),
+    idempotencyKey = crypto.randomUUID();
+  await fixture.db
+    .prepare(
+      "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id) VALUES(?,?,'INDIVIDUAL','Synthetic','Synthetic','Only',?)",
+    )
+    .bind(customerId, actor.agencyId, actor.membershipId)
+    .run();
+  const operationStarted = new Date(Date.now() - ageMs).toISOString();
+  const started = new Date().toISOString(),
+    expires = new Date(Date.parse(started) + 30000).toISOString();
+  const fingerprint = 'b'.repeat(64);
+  await fixture.db
+    .prepare(
+      "INSERT INTO operation_receipts(id,agency_id,actor_user_id,actor_membership_id,action,idempotency_key,payload_fingerprint,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'IN_PROGRESS',?,?)",
+    )
+    .bind(
+      receiptId,
+      actor.agencyId,
+      actor.id,
+      actor.membershipId,
+      action,
+      idempotencyKey,
+      fingerprint,
+      operationStarted,
+      operationStarted,
+    )
+    .run();
+  const insert = (objectKey = 'quarantine/' + crypto.randomUUID()) =>
+    fixture.db
+      .prepare(
+        `INSERT INTO document_upload_attempts
+ (id,agency_id,operation_receipt_id,action,idempotency_key,payload_fingerprint,actor_user_id,actor_membership_id,identity_id,credential_version,permission_version,membership_type,owner_type,customer_id,classification,raw_file_name,declared_content_type,expected_sha256,size_bytes,ordinal,operation_started_at,started_at,expires_at,object_key)
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,'OWNER','CUSTOMER',?,'GENERAL','test.png','image/png',?,33,1,?,?,?,?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        actor.agencyId,
+        receiptId,
+        action,
+        idempotencyKey,
+        fingerprint,
+        actor.id,
+        actor.membershipId,
+        actor.identityId,
+        versions.credential_version,
+        versions.permission_version,
+        customerId,
+        'a'.repeat(64),
+        operationStarted,
+        started,
+        expires,
+        objectKey,
+      )
+      .run();
+  return { insert, receiptId, actor, customerId };
+}
+it('bounds each retry attempt without expiring the logical idempotency operation after two minutes', async () => {
+  const attempt = await prepareAttempt('document.upload', 600000);
+  await attempt.insert();
+  const count = await fixture.db
+    .prepare('SELECT count(*) AS n FROM document_upload_attempts WHERE operation_receipt_id=?')
+    .bind(attempt.receiptId)
+    .first<{ n: number }>();
+  expect(count?.n).toBe(1);
+});
+it('cannot use the legacy queued-backup branch to validate an admitted version without leased parser evidence', async () => {
+  const value = await prepareAdmission();
+  await value.admit();
+  const validation = {
+    valid: true,
+    format: 'PNG',
+    width: 1,
+    height: 1,
+    pixelCount: 1,
+    decompressedBytes: 5,
+  };
+  let rejected = false;
+  try {
+    await fixture.db
+      .prepare(
+        "UPDATE document_versions SET status='BACKUP_PENDING',validation_version='m4-content-inspection-v1',validation_result=? WHERE id=?",
+      )
+      .bind(JSON.stringify(validation), value.versionId)
+      .run();
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+  const row = await fixture.db
+    .prepare('SELECT status,validation_version FROM document_versions WHERE id=?')
+    .bind(value.versionId)
+    .first<{ status: string; validation_version: string | null }>();
+  expect(row?.status).toBe('PENDING_UPLOAD');
+  expect(row?.validation_version).toBeNull();
+});
+async function prepareAdmission(verified = true) {
+  const attempt = await prepareAttempt();
+  const objectKey = 'quarantine/' + crypto.randomUUID();
+  await attempt.insert(objectKey);
+  const row = await fixture.db
+    .prepare('SELECT id FROM document_upload_attempts WHERE operation_receipt_id=?')
+    .bind(attempt.receiptId)
+    .first<{ id: string }>();
+  if (!row) throw new Error('SYNTHETIC_ATTEMPT_MISSING');
+  if (verified)
+    await fixture.db
+      .prepare(
+        "UPDATE document_upload_attempts SET status='VERIFIED',detected_content_type='image/png',canonical_file_name='test.png',transport_proof_json=?,finished_at=? WHERE id=?",
+      )
+      .bind(
+        JSON.stringify({
+          sha256: 'a'.repeat(64),
+          sizeBytes: 33,
+          contentType: 'image/png',
+          fileName: 'test.png',
+          etag: 'synthetic-etag',
+        }),
+        new Date().toISOString(),
+        row.id,
+      )
+      .run();
+  const documentId = crypto.randomUUID(),
+    versionId = crypto.randomUUID(),
+    jobId = crypto.randomUUID(),
+    admissionId = crypto.randomUUID();
+  await fixture.db
+    .prepare(
+      "INSERT INTO documents(id,agency_id,owner_type,customer_id,classification,created_by_user_id,created_by_membership_id,version) VALUES(?,?,'CUSTOMER',?,'GENERAL',?,?,1)",
+    )
+    .bind(
+      documentId,
+      attempt.actor.agencyId,
+      attempt.customerId,
+      attempt.actor.id,
+      attempt.actor.membershipId,
+    )
+    .run();
+  await fixture.db
+    .prepare(
+      "INSERT INTO document_versions(id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,declared_content_type,detected_content_type,status,created_by_user_id,created_by_membership_id) VALUES(?,?,?,1,?,?,33,'test.png','image/png','image/png','PENDING_UPLOAD',?,?)",
+    )
+    .bind(
+      versionId,
+      attempt.actor.agencyId,
+      documentId,
+      objectKey,
+      'a'.repeat(64),
+      attempt.actor.id,
+      attempt.actor.membershipId,
+    )
+    .run();
+  await fixture.db
+    .prepare(
+      "INSERT INTO background_jobs(id,agency_id,job_type,document_version_id,input_sha256,generation) VALUES(?,?,'DOCUMENT_BACKUP',?,?,1)",
+    )
+    .bind(jobId, attempt.actor.agencyId, versionId, 'a'.repeat(64))
+    .run();
+  const admit = () =>
+    fixture.db
+      .prepare(
+        'INSERT INTO document_upload_admissions(id,agency_id,operation_receipt_id,attempt_id,document_id,document_version_id,version_number,backup_job_id,backup_generation,object_key,sha256,size_bytes,detected_content_type) VALUES(?,?,?,?,?,?,1,?,1,?,?,33,?)',
+      )
+      .bind(
+        admissionId,
+        attempt.actor.agencyId,
+        attempt.receiptId,
+        row.id,
+        documentId,
+        versionId,
+        jobId,
+        objectKey,
+        'a'.repeat(64),
+        'image/png',
+      )
+      .run();
+  return { ...attempt, admit, admissionId, versionId, jobId, objectKey };
+}
+it('accepts leased parser evidence and advances only to backup pending', async () => {
+  const value = await prepareAdmission();
+  await value.admit();
+  const token = 'c'.repeat(64),
+    runId = crypto.randomUUID();
+  await fixture.db.batch([
+    fixture.db
+      .prepare(
+        "UPDATE background_jobs SET status='RUNNING',attempt_count=1,lease_token_hash=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','+150 seconds'),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+      )
+      .bind(token, value.jobId),
+    fixture.db
+      .prepare(
+        'INSERT INTO background_job_runs(id,agency_id,job_id,attempt_number,lease_token_hash) VALUES(?,?,?,1,?)',
+      )
+      .bind(runId, value.actor.agencyId, value.jobId, token),
+  ]);
+  const result = JSON.stringify({
+    valid: true,
+    format: 'PNG',
+    width: 1,
+    height: 1,
+    pixelCount: 1,
+    decompressedBytes: 5,
+  });
+  await fixture.db.batch([
+    fixture.db
+      .prepare(
+        "INSERT INTO document_upload_validations(id,agency_id,admission_id,document_version_id,job_id,generation,job_run_id,attempt_number,lease_token_hash,object_key,sha256,size_bytes,detected_content_type,observed_sha256,observed_size_bytes,outcome,inspection_version,inspection_result) VALUES(?,?,?,?,?,1,?,1,?,?,?,33,'image/png',?,33,'VALID','m4-content-inspection-v1',?)",
+      )
+      .bind(
+        crypto.randomUUID(),
+        value.actor.agencyId,
+        value.admissionId,
+        value.versionId,
+        value.jobId,
+        runId,
+        token,
+        value.objectKey,
+        'a'.repeat(64),
+        'a'.repeat(64),
+        result,
+      ),
+    fixture.db
+      .prepare(
+        "UPDATE document_versions SET status='BACKUP_PENDING',validation_version='m4-content-inspection-v1',validation_result=? WHERE id=?",
+      )
+      .bind(result, value.versionId),
+  ]);
+  const row = await fixture.db
+    .prepare('SELECT status FROM document_versions WHERE id=?')
+    .bind(value.versionId)
+    .first<{ status: string }>();
+  expect(row?.status).toBe('BACKUP_PENDING');
+  const document = await fixture.db
+    .prepare(
+      'SELECT current_version_id FROM documents WHERE id=(SELECT document_id FROM document_versions WHERE id=?)',
+    )
+    .bind(value.versionId)
+    .first<{ current_version_id: string | null }>();
+  expect(document?.current_version_id).toBeNull();
+});
+it('binds one verified transport to an immutable pending admission without granting structural acceptance', async () => {
+  const value = await prepareAdmission();
+  await value.admit();
+  const row = await fixture.db
+    .prepare('SELECT status,validation_version FROM document_versions WHERE id=?')
+    .bind(value.versionId)
+    .first<{ status: string; validation_version: string | null }>();
+  expect(row?.status).toBe('PENDING_UPLOAD');
+  expect(row?.validation_version).toBeNull();
+  let rejected = false;
+  try {
+    await fixture.db
+      .prepare('UPDATE document_upload_admissions SET size_bytes=34 WHERE id=?')
+      .bind(value.admissionId)
+      .run();
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+});
+it('cannot turn an unverified transport claim into admission', async () => {
+  const value = await prepareAdmission(false);
+  let rejected = false;
+  try {
+    await value.admit();
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+  const count = await fixture.db
+    .prepare('SELECT count(*) AS n FROM document_upload_admissions WHERE id=?')
+    .bind(value.admissionId)
+    .first<{ n: number }>();
+  expect(count?.n).toBe(0);
+});
+it('rejects a sensitive action paired with a general classification at the native persistence boundary', async () => {
+  const attempt = await prepareAttempt('document.health.upload');
+  let rejected = false;
+  try {
+    await attempt.insert();
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+  const count = await fixture.db
+    .prepare('SELECT count(*) AS n FROM document_upload_attempts WHERE operation_receipt_id=?')
+    .bind(attempt.receiptId)
+    .first<{ n: number }>();
+  expect(count?.n).toBe(0);
+});
+it('allocates a valid live actor attempt and rejects a second active allocation', async () => {
+  const attempt = await prepareAttempt();
+  await attempt.insert();
+  let rejected = false;
+  try {
+    await attempt.insert();
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+  const count = await fixture.db
+    .prepare('SELECT count(*) AS n FROM document_upload_attempts WHERE operation_receipt_id=?')
+    .bind(attempt.receiptId)
+    .first<{ n: number }>();
+  expect(count?.n).toBe(1);
+});
+it('cannot attach intake provenance to an existing legacy version key', async () => {
+  const attempt = await prepareAttempt();
+  const documentId = crypto.randomUUID(),
+    versionId = crypto.randomUUID(),
+    objectKey = 'quarantine/' + crypto.randomUUID();
+  await fixture.db
+    .prepare(
+      "INSERT INTO documents(id,agency_id,owner_type,customer_id,classification,created_by_user_id,created_by_membership_id,version) VALUES(?,?,'CUSTOMER',?,'GENERAL',?,?,1)",
+    )
+    .bind(
+      documentId,
+      attempt.actor.agencyId,
+      attempt.customerId,
+      attempt.actor.id,
+      attempt.actor.membershipId,
+    )
+    .run();
+  await fixture.db
+    .prepare(
+      "INSERT INTO document_versions(id,agency_id,document_id,version_number,object_key,sha256,size_bytes,file_name,declared_content_type,detected_content_type,status,created_by_user_id,created_by_membership_id) VALUES(?,?,?,1,?,?,33,'test.png','image/png','image/png','PENDING_UPLOAD',?,?)",
+    )
+    .bind(
+      versionId,
+      attempt.actor.agencyId,
+      documentId,
+      objectKey,
+      'a'.repeat(64),
+      attempt.actor.id,
+      attempt.actor.membershipId,
+    )
+    .run();
+  let rejected = false;
+  try {
+    await attempt.insert(objectKey);
+  } catch {
+    rejected = true;
+  }
+  expect(rejected).toBe(true);
+  const count = await fixture.db
+    .prepare('SELECT count(*) AS n FROM document_upload_attempts WHERE operation_receipt_id=?')
+    .bind(attempt.receiptId)
+    .first<{ n: number }>();
+  expect(count?.n).toBe(0);
+});

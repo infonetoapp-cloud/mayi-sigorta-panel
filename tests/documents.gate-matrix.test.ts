@@ -92,7 +92,9 @@ it.each([
         env as never,
         ctx,
       );
-      expect(r.status).toBe(pub ? 401 : 404);
+      // Enabled uploads now require private runtime/source protection bindings;
+      // their absence must not fall back to the old synchronous HTTP path.
+      expect(r.status).toBe(pub ? (path === '/api/documents' ? 503 : 401) : 404);
     }
     let ack = 0;
     await worker.queue(

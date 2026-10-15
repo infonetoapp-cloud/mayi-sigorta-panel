@@ -49,8 +49,14 @@ it('preserves public closure while constraining the internal custody-backed Queu
       simple: { limit: 30, period: 60 },
     },
   ]);
-  expect(p.durable_objects).toEqual(current.durable_objects);
-  expect(p.migrations).toEqual(current.migrations);
+  expect(p.durable_objects.bindings).toEqual([
+    ...current.durable_objects.bindings,
+    { name: 'DOCUMENT_UPLOAD_RUNTIME', class_name: 'DocumentUploadDurableObject' },
+  ]);
+  expect(p.migrations).toEqual([
+    ...current.migrations,
+    { tag: 'document-upload-v1', new_sqlite_classes: ['DocumentUploadDurableObject'] },
+  ]);
   expect(p.assets).toEqual(current.assets);
   expect(p.d1_databases).toEqual(current.env.foundation.d1_databases);
   expect(p.r2_buckets).toEqual([

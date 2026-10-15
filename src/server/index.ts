@@ -23,6 +23,7 @@ import { sessionBoundDatabase } from './auth/session-database';
 import { registerPersonnelRoutes } from './auth/personnel';
 import type { PasswordHasher } from './auth/password';
 import type { PasswordKdfDurableObject } from './auth/password-do';
+import type { DocumentUploadDurableObject } from './documents/upload-do';
 import { applySecurityHeaders, createSecurityBoundaryMiddleware } from './security';
 import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
@@ -45,6 +46,7 @@ import type { DocumentReconcileStorage } from './documents/reconcile-storage';
 
 export interface Env {
   PASSWORD_KDF?: DurableObjectNamespace<PasswordKdfDurableObject>;
+  DOCUMENT_UPLOAD_RUNTIME?: DurableObjectNamespace<DocumentUploadDurableObject>;
   ASSETS?: Fetcher;
   DB: D1Database;
   DOCS_QUARANTINE?: R2Bucket;

@@ -1,0 +1,238 @@
+-- F-35 transport attempts are claims until a native-checksum + envelope proof succeeds.
+-- This ledger alone neither authorizes an upload nor grants document availability.
+CREATE UNIQUE INDEX operation_receipts_agency_id_id_uq ON operation_receipts(agency_id,id);--> statement-breakpoint
+CREATE TABLE document_upload_attempts (
+ id TEXT PRIMARY KEY NOT NULL,
+ agency_id TEXT NOT NULL,
+ operation_receipt_id TEXT NOT NULL,
+ action TEXT NOT NULL CHECK(action IN ('document.upload','document.identity.upload','document.health.upload')),
+ idempotency_key TEXT NOT NULL CHECK(length(idempotency_key) BETWEEN 1 AND 128),
+ payload_fingerprint TEXT NOT NULL CHECK(length(payload_fingerprint)=64 AND payload_fingerprint NOT GLOB '*[^0-9a-f]*'),
+ actor_user_id TEXT NOT NULL,
+ actor_membership_id TEXT NOT NULL,
+ identity_id TEXT NOT NULL,
+ credential_version INTEGER NOT NULL CHECK(typeof(credential_version)='integer' AND credential_version>=1),
+ permission_version INTEGER NOT NULL CHECK(typeof(permission_version)='integer' AND permission_version>=1),
+ membership_type TEXT NOT NULL CHECK(membership_type IN ('OWNER','MEMBER')),
+ owner_type TEXT NOT NULL CHECK(owner_type IN ('CUSTOMER','POLICY','QUOTE')),
+ customer_id TEXT,
+ policy_id TEXT,
+ quote_id TEXT,
+ classification TEXT NOT NULL CHECK(classification IN ('GENERAL','IDENTITY','HEALTH')),
+ raw_file_name TEXT NOT NULL CHECK(length(raw_file_name) BETWEEN 1 AND 1024),
+ declared_content_type TEXT NOT NULL CHECK(declared_content_type IN ('application/pdf','image/jpeg','image/png')),
+ expected_sha256 TEXT NOT NULL CHECK(length(expected_sha256)=64 AND expected_sha256 NOT GLOB '*[^0-9a-f]*'),
+ size_bytes INTEGER NOT NULL CHECK(typeof(size_bytes)='integer' AND size_bytes BETWEEN 1 AND 20971520),
+ ordinal INTEGER NOT NULL CHECK(typeof(ordinal)='integer' AND ordinal BETWEEN 1 AND 4),
+ operation_started_at TEXT NOT NULL,
+ started_at TEXT NOT NULL,
+ expires_at TEXT NOT NULL,
+ object_key TEXT NOT NULL CHECK(length(object_key)=47 AND substr(object_key,1,11)='quarantine/' AND length(substr(object_key,12))=36 AND substr(object_key,20,1)='-' AND substr(object_key,25,1)='-' AND substr(object_key,30,1)='-' AND substr(object_key,35,1)='-' AND length(replace(substr(object_key,12),'-',''))=32 AND replace(substr(object_key,12),'-','') NOT GLOB '*[^0-9a-f]*'),
+ status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','VERIFIED','FAILED','EXPIRED')),
+ detected_content_type TEXT,
+ canonical_file_name TEXT,
+ transport_proof_json TEXT,
+ finished_at TEXT,
+ CONSTRAINT document_upload_attempts_action_classification CHECK((classification='GENERAL' AND action='document.upload') OR (classification='IDENTITY' AND action='document.identity.upload') OR (classification='HEALTH' AND action='document.health.upload')),
+ CHECK((owner_type='CUSTOMER' AND customer_id IS NOT NULL AND policy_id IS NULL AND quote_id IS NULL) OR (owner_type='POLICY' AND customer_id IS NULL AND policy_id IS NOT NULL AND quote_id IS NULL) OR (owner_type='QUOTE' AND customer_id IS NULL AND policy_id IS NULL AND quote_id IS NOT NULL)),
+ CHECK(strftime('%Y-%m-%dT%H:%M:%fZ',operation_started_at) IS operation_started_at AND strftime('%Y-%m-%dT%H:%M:%fZ',started_at) IS started_at AND strftime('%Y-%m-%dT%H:%M:%fZ',expires_at) IS expires_at AND julianday(started_at)>=julianday(operation_started_at) AND julianday(expires_at)>julianday(started_at) AND julianday(expires_at)<=julianday(started_at,'+30 seconds')),
+ CHECK((status='ACTIVE' AND finished_at IS NULL AND transport_proof_json IS NULL AND detected_content_type IS NULL AND canonical_file_name IS NULL) OR (status IN ('FAILED','EXPIRED') AND finished_at IS NOT NULL AND transport_proof_json IS NULL AND detected_content_type IS NULL AND canonical_file_name IS NULL) OR (status='VERIFIED' AND finished_at IS NOT NULL AND transport_proof_json IS NOT NULL AND detected_content_type IS NOT NULL AND canonical_file_name IS NOT NULL AND detected_content_type=declared_content_type)),
+ CHECK(finished_at IS NULL OR (strftime('%Y-%m-%dT%H:%M:%fZ',finished_at) IS finished_at AND julianday(finished_at)>=julianday(started_at))),
+ CHECK(canonical_file_name IS NULL OR (length(trim(canonical_file_name)) BETWEEN 1 AND 255 AND instr(canonical_file_name,'/')=0 AND instr(canonical_file_name,char(92))=0 AND instr(canonical_file_name,'..')=0 AND instr(canonical_file_name,char(0))=0 AND canonical_file_name NOT GLOB ('*['||char(1)||'-'||char(31)||']*') AND canonical_file_name NOT GLOB ('*['||char(128)||'-'||char(159)||']*') AND instr(canonical_file_name,char(127))=0 AND instr(canonical_file_name,char(34))=0 AND instr(canonical_file_name,char(39))=0 AND instr(canonical_file_name,char(59))=0)),
+ FOREIGN KEY(agency_id,operation_receipt_id) REFERENCES operation_receipts(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,actor_membership_id) REFERENCES agency_memberships(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(actor_user_id) REFERENCES local_credentials(user_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(identity_id) REFERENCES auth_identities(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,customer_id) REFERENCES customers(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,policy_id) REFERENCES policies(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,quote_id) REFERENCES renewal_quotes(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT
+);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_attempts_agency_id_id_uq ON document_upload_attempts(agency_id,id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_attempts_active_uq ON document_upload_attempts(agency_id,operation_receipt_id) WHERE status='ACTIVE';--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_attempts_ordinal_uq ON document_upload_attempts(agency_id,operation_receipt_id,ordinal);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_attempts_key_uq ON document_upload_attempts(object_key);--> statement-breakpoint
+CREATE TRIGGER document_upload_attempts_insert_guard BEFORE INSERT ON document_upload_attempts
+WHEN NEW.status<>'ACTIVE' OR NEW.ordinal<>COALESCE((SELECT max(a.ordinal)+1 FROM document_upload_attempts a WHERE a.agency_id=NEW.agency_id AND a.operation_receipt_id=NEW.operation_receipt_id),1)
+ OR julianday(NEW.started_at)>julianday('now') OR julianday(NEW.expires_at)<=julianday('now')
+ OR EXISTS(SELECT 1 FROM document_versions existing WHERE existing.object_key=NEW.object_key)
+ OR NOT EXISTS(SELECT 1 FROM operation_receipts r JOIN agency_memberships m ON m.agency_id=r.agency_id AND m.id=r.actor_membership_id JOIN users u ON u.id=m.user_id JOIN agencies agency ON agency.id=m.agency_id JOIN local_credentials credential ON credential.user_id=u.id JOIN auth_identities identity ON identity.id=credential.identity_id
+ WHERE r.id=NEW.operation_receipt_id AND r.agency_id=NEW.agency_id AND r.actor_user_id=NEW.actor_user_id AND r.actor_membership_id=NEW.actor_membership_id AND r.action=NEW.action AND r.idempotency_key=NEW.idempotency_key AND r.payload_fingerprint=NEW.payload_fingerprint AND r.status IN ('IN_PROGRESS','COMPLETED') AND r.created_at=NEW.operation_started_at
+ AND u.id=NEW.actor_user_id AND u.status='ACTIVE' AND agency.status='ACTIVE' AND m.status='ACTIVE' AND m.type=NEW.membership_type AND m.permission_version=NEW.permission_version AND credential.identity_id=NEW.identity_id AND credential.credential_version=NEW.credential_version AND credential.login_enabled=1 AND credential.must_change_password=0 AND identity.user_id=u.id AND identity.status='ACTIVE')
+ OR EXISTS(SELECT 1 FROM document_upload_attempts prior WHERE prior.agency_id=NEW.agency_id AND prior.operation_receipt_id=NEW.operation_receipt_id AND NOT(prior.action IS NEW.action AND prior.idempotency_key IS NEW.idempotency_key AND prior.payload_fingerprint IS NEW.payload_fingerprint AND prior.actor_user_id IS NEW.actor_user_id AND prior.actor_membership_id IS NEW.actor_membership_id AND prior.identity_id IS NEW.identity_id AND prior.credential_version IS NEW.credential_version AND prior.permission_version IS NEW.permission_version AND prior.membership_type IS NEW.membership_type AND prior.owner_type IS NEW.owner_type AND prior.customer_id IS NEW.customer_id AND prior.policy_id IS NEW.policy_id AND prior.quote_id IS NEW.quote_id AND prior.classification IS NEW.classification AND prior.raw_file_name IS NEW.raw_file_name AND prior.declared_content_type IS NEW.declared_content_type AND prior.expected_sha256 IS NEW.expected_sha256 AND prior.size_bytes IS NEW.size_bytes AND prior.operation_started_at IS NEW.operation_started_at))
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ATTEMPT_INVALID'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_attempts_identity_immutable BEFORE UPDATE OF id,agency_id,operation_receipt_id,action,idempotency_key,payload_fingerprint,actor_user_id,actor_membership_id,identity_id,credential_version,permission_version,membership_type,owner_type,customer_id,policy_id,quote_id,classification,raw_file_name,declared_content_type,expected_sha256,size_bytes,ordinal,operation_started_at,started_at,expires_at,object_key ON document_upload_attempts
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ATTEMPT_IMMUTABLE'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_attempts_terminal_guard BEFORE UPDATE ON document_upload_attempts
+WHEN OLD.status<>'ACTIVE' OR NEW.status NOT IN ('VERIFIED','FAILED','EXPIRED') OR NEW.finished_at IS NULL OR julianday(NEW.finished_at)>julianday('now') OR (NEW.status='EXPIRED' AND julianday(NEW.finished_at)<julianday(OLD.expires_at)) OR (NEW.status='VERIFIED' AND julianday(OLD.expires_at)<=julianday('now'))
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ATTEMPT_TRANSITION_INVALID'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_attempts_proof_guard BEFORE UPDATE ON document_upload_attempts
+WHEN NEW.status='VERIFIED' AND (CASE WHEN NEW.transport_proof_json IS NOT NULL AND length(NEW.transport_proof_json)<=1024 AND json_valid(NEW.transport_proof_json)=1 THEN CASE WHEN json_type(NEW.transport_proof_json)='object' AND (SELECT count(*) FROM json_each(NEW.transport_proof_json))=5 AND NOT EXISTS(SELECT 1 FROM json_each(NEW.transport_proof_json) WHERE key NOT IN ('sha256','sizeBytes','contentType','fileName','etag')) AND json_type(NEW.transport_proof_json,'$.sha256')='text' AND json_extract(NEW.transport_proof_json,'$.sha256')=NEW.expected_sha256 AND json_type(NEW.transport_proof_json,'$.sizeBytes')='integer' AND json_extract(NEW.transport_proof_json,'$.sizeBytes')=NEW.size_bytes AND json_type(NEW.transport_proof_json,'$.contentType')='text' AND json_extract(NEW.transport_proof_json,'$.contentType')=NEW.detected_content_type AND json_type(NEW.transport_proof_json,'$.fileName')='text' AND json_extract(NEW.transport_proof_json,'$.fileName')=NEW.canonical_file_name AND json_type(NEW.transport_proof_json,'$.etag')='text' AND length(json_extract(NEW.transport_proof_json,'$.etag')) BETWEEN 1 AND 255 THEN 0 ELSE 1 END ELSE 1 END)=1
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_TRANSPORT_PROOF_INVALID'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_attempts_no_delete BEFORE DELETE ON document_upload_attempts
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ATTEMPT_IMMUTABLE'); END;--> statement-breakpoint
+
+-- This relation binds verified transport to one admitted business effect.
+-- The sealed HTTP executor must also run the full parent/permission/session assertion
+-- in the same batch: these tuple/lifecycle guards do not replace authorization.
+CREATE TABLE document_upload_admissions (
+ id TEXT PRIMARY KEY NOT NULL,
+ agency_id TEXT NOT NULL,
+ operation_receipt_id TEXT NOT NULL,
+ attempt_id TEXT NOT NULL,
+ document_id TEXT NOT NULL,
+ document_version_id TEXT NOT NULL,
+ version_number INTEGER NOT NULL CHECK(typeof(version_number)='integer' AND version_number>=1),
+ backup_job_id TEXT NOT NULL,
+ backup_generation INTEGER NOT NULL CHECK(typeof(backup_generation)='integer' AND backup_generation>=1),
+ object_key TEXT NOT NULL,
+ sha256 TEXT NOT NULL CHECK(length(sha256)=64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+ size_bytes INTEGER NOT NULL CHECK(typeof(size_bytes)='integer' AND size_bytes BETWEEN 1 AND 20971520),
+ detected_content_type TEXT NOT NULL CHECK(detected_content_type IN ('application/pdf','image/jpeg','image/png')),
+ created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')) CHECK(strftime('%Y-%m-%dT%H:%M:%fZ',created_at) IS created_at),
+ FOREIGN KEY(agency_id,operation_receipt_id) REFERENCES operation_receipts(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,attempt_id) REFERENCES document_upload_attempts(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,document_id) REFERENCES documents(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,document_version_id) REFERENCES document_versions(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,backup_job_id) REFERENCES background_jobs(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT
+);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_admissions_agency_id_id_uq ON document_upload_admissions(agency_id,id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_admissions_operation_uq ON document_upload_admissions(agency_id,operation_receipt_id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_admissions_attempt_uq ON document_upload_admissions(agency_id,attempt_id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_admissions_version_uq ON document_upload_admissions(agency_id,document_version_id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_admissions_job_uq ON document_upload_admissions(agency_id,backup_job_id);--> statement-breakpoint
+CREATE TRIGGER document_upload_admissions_insert_guard BEFORE INSERT ON document_upload_admissions
+WHEN NOT EXISTS (
+ SELECT 1 FROM document_upload_attempts attempt
+ JOIN operation_receipts receipt ON receipt.agency_id=attempt.agency_id AND receipt.id=attempt.operation_receipt_id
+ JOIN documents document ON document.agency_id=attempt.agency_id AND document.id=NEW.document_id
+ JOIN document_versions version ON version.agency_id=document.agency_id AND version.document_id=document.id AND version.id=NEW.document_version_id
+ JOIN background_jobs job ON job.agency_id=version.agency_id AND job.document_version_id=version.id AND job.id=NEW.backup_job_id
+ JOIN agency_memberships membership ON membership.agency_id=attempt.agency_id AND membership.id=attempt.actor_membership_id
+ JOIN users actor ON actor.id=membership.user_id
+ JOIN agencies agency ON agency.id=membership.agency_id
+ JOIN local_credentials credential ON credential.user_id=actor.id AND credential.identity_id=attempt.identity_id
+ JOIN auth_identities identity ON identity.id=credential.identity_id AND identity.user_id=actor.id
+ WHERE (attempt.agency_id=NEW.agency_id AND attempt.id=NEW.attempt_id AND attempt.operation_receipt_id=NEW.operation_receipt_id)
+ AND (attempt.status='VERIFIED' AND attempt.transport_proof_json IS NOT NULL
+  AND attempt.object_key=NEW.object_key AND attempt.expected_sha256=NEW.sha256 AND attempt.size_bytes=NEW.size_bytes AND attempt.detected_content_type=NEW.detected_content_type)
+ AND (receipt.status='IN_PROGRESS' AND receipt.actor_user_id=attempt.actor_user_id AND receipt.actor_membership_id=attempt.actor_membership_id AND receipt.action=attempt.action AND receipt.idempotency_key=attempt.idempotency_key AND receipt.payload_fingerprint=attempt.payload_fingerprint)
+ AND (document.status='ACTIVE' AND document.current_version_id IS NULL
+  AND document.owner_type=attempt.owner_type AND document.customer_id IS attempt.customer_id AND document.policy_id IS attempt.policy_id AND document.quote_id IS attempt.quote_id AND document.classification=attempt.classification
+  AND document.created_by_user_id=attempt.actor_user_id AND document.created_by_membership_id=attempt.actor_membership_id)
+ AND (version.created_by_user_id=attempt.actor_user_id AND version.created_by_membership_id=attempt.actor_membership_id
+  AND version.version_number=NEW.version_number AND version.version_number=(SELECT max(v.version_number) FROM document_versions v WHERE v.agency_id=version.agency_id AND v.document_id=version.document_id)
+  AND version.status='PENDING_UPLOAD' AND version.validation_version IS NULL AND version.validation_result IS NULL)
+ AND (version.object_key=NEW.object_key AND version.sha256=NEW.sha256 AND version.size_bytes=NEW.size_bytes AND version.file_name=attempt.canonical_file_name AND version.declared_content_type=attempt.declared_content_type AND version.detected_content_type=NEW.detected_content_type)
+ AND (job.job_type='DOCUMENT_BACKUP' AND job.input_sha256=NEW.sha256 AND job.generation=NEW.backup_generation AND job.status='QUEUED' AND job.attempt_count=0
+  AND job.generation=(SELECT max(j.generation) FROM background_jobs j WHERE j.agency_id=job.agency_id AND j.job_type=job.job_type AND j.document_version_id=job.document_version_id AND j.input_sha256=job.input_sha256))
+ AND (membership.user_id=attempt.actor_user_id AND membership.type=attempt.membership_type AND membership.permission_version=attempt.permission_version AND membership.status='ACTIVE' AND actor.status='ACTIVE' AND agency.status='ACTIVE')
+ AND (credential.credential_version=attempt.credential_version AND credential.login_enabled=1 AND credential.must_change_password=0 AND identity.status='ACTIVE')
+ AND (julianday(NEW.created_at)>=julianday(attempt.finished_at) AND julianday(NEW.created_at)<=julianday('now'))
+)
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ADMISSION_INVALID'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_admissions_no_update BEFORE UPDATE ON document_upload_admissions
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ADMISSION_IMMUTABLE'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_admissions_no_delete BEFORE DELETE ON document_upload_admissions
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_ADMISSION_IMMUTABLE'); END;--> statement-breakpoint
+
+CREATE TABLE document_upload_validations (
+ id TEXT PRIMARY KEY NOT NULL,
+ agency_id TEXT NOT NULL,
+ admission_id TEXT NOT NULL,
+ document_version_id TEXT NOT NULL,
+ job_id TEXT NOT NULL,
+ generation INTEGER NOT NULL CHECK(typeof(generation)='integer' AND generation>=1),
+ job_run_id TEXT NOT NULL,
+ attempt_number INTEGER NOT NULL CHECK(typeof(attempt_number)='integer' AND attempt_number>=1),
+ lease_token_hash TEXT NOT NULL CHECK(length(lease_token_hash)=64 AND lease_token_hash NOT GLOB '*[^0-9a-f]*'),
+ object_key TEXT NOT NULL,
+ sha256 TEXT NOT NULL CHECK(length(sha256)=64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+ size_bytes INTEGER NOT NULL CHECK(typeof(size_bytes)='integer' AND size_bytes BETWEEN 1 AND 20971520),
+ detected_content_type TEXT NOT NULL CHECK(detected_content_type IN ('application/pdf','image/jpeg','image/png')),
+ observed_sha256 TEXT NOT NULL CHECK(observed_sha256=sha256),
+ observed_size_bytes INTEGER NOT NULL CHECK(typeof(observed_size_bytes)='integer' AND observed_size_bytes=size_bytes),
+ outcome TEXT NOT NULL CHECK(outcome IN ('VALID','INVALID')),
+ inspection_version TEXT NOT NULL CHECK(inspection_version='m4-content-inspection-v1'),
+ inspection_result TEXT,
+ reason_code TEXT,
+ validated_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')) CHECK(strftime('%Y-%m-%dT%H:%M:%fZ',validated_at) IS validated_at),
+ CHECK((outcome='VALID' AND inspection_result IS NOT NULL AND length(inspection_result)<=256 AND reason_code IS NULL) OR (outcome='INVALID' AND inspection_result IS NULL AND reason_code IS NOT NULL AND reason_code IN ('MALFORMED_PDF','ENCRYPTED_PDF','PDF_ACTIVE_CONTENT','PDF_PAGE_LIMIT','PDF_PAGE_RESOURCE_LIMIT','PDF_PAGE_GEOMETRY_UNAVAILABLE','PDF_RESOURCE_LIMIT','PDF_UNSUPPORTED_FEATURE','IMAGE_DIMENSIONS_UNAVAILABLE','MALFORMED_JPEG','JPEG_UNSUPPORTED_FEATURE','MALFORMED_PNG','IMAGE_PIXEL_LIMIT','PNG_DECOMPRESSION_LIMIT','PNG_RESOURCE_LIMIT','PNG_UNSUPPORTED_FEATURE'))),
+ FOREIGN KEY(agency_id,admission_id) REFERENCES document_upload_admissions(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,document_version_id) REFERENCES document_versions(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,job_id) REFERENCES background_jobs(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+ FOREIGN KEY(agency_id,job_run_id) REFERENCES background_job_runs(agency_id,id) ON UPDATE RESTRICT ON DELETE RESTRICT
+);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_validations_agency_id_id_uq ON document_upload_validations(agency_id,id);--> statement-breakpoint
+CREATE UNIQUE INDEX document_upload_validations_run_uq ON document_upload_validations(agency_id,job_run_id);--> statement-breakpoint
+CREATE TRIGGER document_upload_validations_insert_guard BEFORE INSERT ON document_upload_validations
+WHEN NOT EXISTS (
+ SELECT 1 FROM document_upload_admissions admission
+ JOIN document_upload_attempts attempt ON attempt.agency_id=admission.agency_id AND attempt.id=admission.attempt_id
+ JOIN document_versions version ON version.agency_id=admission.agency_id AND version.id=admission.document_version_id
+ JOIN documents document ON document.agency_id=version.agency_id AND document.id=version.document_id
+ JOIN background_jobs job ON job.agency_id=version.agency_id AND job.id=NEW.job_id AND job.document_version_id=version.id
+ JOIN background_job_runs run ON run.agency_id=job.agency_id AND run.job_id=job.id AND run.id=NEW.job_run_id
+ JOIN agency_memberships membership ON membership.agency_id=attempt.agency_id AND membership.id=attempt.actor_membership_id
+ JOIN users actor ON actor.id=membership.user_id
+ JOIN agencies agency ON agency.id=membership.agency_id
+ JOIN local_credentials credential ON credential.user_id=actor.id AND credential.identity_id=attempt.identity_id
+ JOIN auth_identities identity ON identity.id=credential.identity_id AND identity.user_id=actor.id
+ WHERE (admission.agency_id=NEW.agency_id AND admission.id=NEW.admission_id AND admission.document_version_id=NEW.document_version_id AND admission.backup_job_id=NEW.job_id AND admission.backup_generation=NEW.generation)
+ AND (attempt.status='VERIFIED' AND document.status='ACTIVE' AND document.current_version_id IS NULL AND document.classification=attempt.classification
+  AND document.owner_type=attempt.owner_type AND document.customer_id IS attempt.customer_id AND document.policy_id IS attempt.policy_id AND document.quote_id IS attempt.quote_id)
+ AND (version.status='PENDING_UPLOAD' AND version.validation_version IS NULL AND version.validation_result IS NULL
+  AND version.version_number=(SELECT max(v.version_number) FROM document_versions v WHERE v.agency_id=version.agency_id AND v.document_id=version.document_id))
+ AND (admission.object_key=NEW.object_key AND version.object_key=NEW.object_key AND admission.sha256=NEW.sha256 AND version.sha256=NEW.sha256 AND admission.size_bytes=NEW.size_bytes AND version.size_bytes=NEW.size_bytes AND admission.detected_content_type=NEW.detected_content_type AND version.detected_content_type=NEW.detected_content_type)
+ AND (job.job_type='DOCUMENT_BACKUP' AND job.status='RUNNING' AND job.input_sha256=NEW.sha256 AND job.generation=NEW.generation AND job.attempt_count=NEW.attempt_number AND job.lease_token_hash=NEW.lease_token_hash
+  AND job.generation=(SELECT max(j.generation) FROM background_jobs j WHERE j.agency_id=job.agency_id AND j.job_type=job.job_type AND j.document_version_id=job.document_version_id AND j.input_sha256=job.input_sha256))
+ AND (run.status='RUNNING' AND run.attempt_number=NEW.attempt_number AND run.lease_token_hash=NEW.lease_token_hash AND julianday(job.lease_expires_at)>julianday('now') AND julianday(NEW.validated_at)>=julianday(run.started_at) AND julianday(NEW.validated_at)<=julianday('now'))
+ AND (membership.user_id=attempt.actor_user_id AND membership.type=attempt.membership_type AND membership.permission_version=attempt.permission_version AND membership.status='ACTIVE' AND actor.status='ACTIVE' AND agency.status='ACTIVE')
+ AND (credential.credential_version=attempt.credential_version AND credential.login_enabled=1 AND credential.must_change_password=0 AND identity.status='ACTIVE')
+)
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_VALIDATION_CLAIM_INVALID'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_validations_no_update BEFORE UPDATE ON document_upload_validations
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_VALIDATION_IMMUTABLE'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_validations_no_delete BEFORE DELETE ON document_upload_validations
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_VALIDATION_IMMUTABLE'); END;--> statement-breakpoint
+CREATE TRIGGER document_upload_validation_provenance_guard BEFORE UPDATE OF status,validation_version,validation_result ON document_versions
+WHEN EXISTS(SELECT 1 FROM document_upload_attempts attempt WHERE attempt.object_key=OLD.object_key)
+ AND NEW.status='BACKUP_PENDING' AND (OLD.status='PENDING_UPLOAD' OR NEW.validation_version IS NOT OLD.validation_version OR NEW.validation_result IS NOT OLD.validation_result)
+ AND NOT EXISTS(SELECT 1 FROM document_upload_validations validation
+  JOIN background_jobs job ON job.agency_id=validation.agency_id AND job.id=validation.job_id
+  JOIN background_job_runs run ON run.agency_id=job.agency_id AND run.job_id=job.id AND run.id=validation.job_run_id
+  WHERE (validation.agency_id=NEW.agency_id AND validation.document_version_id=NEW.id AND validation.object_key=NEW.object_key AND validation.sha256=NEW.sha256 AND validation.size_bytes=NEW.size_bytes AND validation.detected_content_type=NEW.detected_content_type)
+   AND (validation.outcome='VALID' AND validation.inspection_version=NEW.validation_version AND validation.inspection_result=NEW.validation_result)
+   AND (job.status='RUNNING' AND job.job_type='DOCUMENT_BACKUP' AND job.generation=validation.generation AND job.attempt_count=validation.attempt_number AND job.lease_token_hash=validation.lease_token_hash AND julianday(job.lease_expires_at)>julianday('now'))
+   AND (run.status='RUNNING' AND run.attempt_number=job.attempt_count AND run.lease_token_hash=job.lease_token_hash))
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_UPLOAD_VALIDATION_PROVENANCE_REQUIRED'); END;--> statement-breakpoint
+
+-- Preserve the legacy state graph; only an intake-marked initial transition uses
+-- the new, exact running parser receipt rather than a generic QUEUED exception.
+DROP TRIGGER document_validated_state_transition_guard;--> statement-breakpoint
+CREATE TRIGGER document_validated_state_transition_guard BEFORE UPDATE OF status ON document_versions
+WHEN NEW.validation_version IS NOT NULL AND NEW.status<>OLD.status AND NOT (
+ (OLD.status='PENDING_UPLOAD' AND NEW.status='BACKUP_PENDING' AND (
+  (NOT EXISTS(SELECT 1 FROM document_upload_attempts attempt WHERE attempt.object_key=OLD.object_key)
+   AND EXISTS(SELECT 1 FROM background_jobs j WHERE j.agency_id=NEW.agency_id AND j.document_version_id=NEW.id AND j.input_sha256=NEW.sha256 AND j.job_type='DOCUMENT_BACKUP' AND j.status='QUEUED'))
+  OR (EXISTS(SELECT 1 FROM document_upload_attempts attempt WHERE attempt.object_key=OLD.object_key)
+   AND EXISTS(SELECT 1 FROM document_upload_validations validation
+    JOIN background_jobs job ON job.agency_id=validation.agency_id AND job.id=validation.job_id
+    JOIN background_job_runs run ON run.agency_id=job.agency_id AND run.job_id=job.id AND run.id=validation.job_run_id
+    WHERE (validation.agency_id=NEW.agency_id AND validation.document_version_id=NEW.id AND validation.object_key=NEW.object_key AND validation.sha256=NEW.sha256 AND validation.size_bytes=NEW.size_bytes AND validation.detected_content_type=NEW.detected_content_type)
+     AND (validation.outcome='VALID' AND validation.inspection_version=NEW.validation_version AND validation.inspection_result=NEW.validation_result)
+     AND (job.status='RUNNING' AND job.job_type='DOCUMENT_BACKUP' AND job.generation=validation.generation AND job.attempt_count=validation.attempt_number AND job.lease_token_hash=validation.lease_token_hash AND julianday(job.lease_expires_at)>julianday('now'))
+     AND (run.status='RUNNING' AND run.attempt_number=job.attempt_count AND run.lease_token_hash=job.lease_token_hash)))
+ ))
+ OR (OLD.status='BACKUP_PENDING' AND NEW.status='AVAILABLE'
+ AND EXISTS(SELECT 1 FROM document_backup_copies c JOIN background_job_runs r ON r.agency_id=c.agency_id AND r.id=c.job_run_id
+ JOIN background_jobs j ON j.agency_id=r.agency_id AND j.id=r.job_id
+ WHERE c.agency_id=NEW.agency_id AND c.document_version_id=NEW.id AND c.source_sha256=NEW.sha256 AND c.backup_sha256=NEW.sha256
+ AND r.status='SUCCEEDED' AND j.status='COMPLETED' AND j.job_type='DOCUMENT_BACKUP' AND j.document_version_id=NEW.id AND j.input_sha256=NEW.sha256
+ AND r.attempt_number=j.attempt_count AND j.generation=(SELECT max(n.generation) FROM background_jobs n WHERE n.agency_id=j.agency_id
+ AND n.job_type=j.job_type AND n.document_version_id=j.document_version_id AND n.input_sha256=j.input_sha256)))
+ OR (OLD.status='AVAILABLE' AND NEW.status='BACKUP_PENDING' AND EXISTS(SELECT 1 FROM background_jobs j WHERE j.agency_id=NEW.agency_id
+ AND j.document_version_id=NEW.id AND j.input_sha256=NEW.sha256 AND j.job_type='DOCUMENT_BACKUP' AND j.status='QUEUED'))
+ OR (OLD.status='BACKUP_PENDING' AND NEW.status='SCAN_FAILED' AND EXISTS(SELECT 1 FROM background_jobs j WHERE j.agency_id=NEW.agency_id
+ AND j.document_version_id=NEW.id AND j.input_sha256=NEW.sha256 AND j.job_type='DOCUMENT_BACKUP' AND j.status='DEAD'))
+ OR (OLD.status='AVAILABLE' AND NEW.status='RETIRED'))
+BEGIN SELECT RAISE(ABORT,'DOCUMENT_VALIDATED_STATE_TRANSITION_INVALID'); END;
