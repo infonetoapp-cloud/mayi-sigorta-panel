@@ -528,6 +528,10 @@ Sonuç gerçek ölçüme göre verilir. Başarılı bounded profil ve fresh bağ
 
 da2734f sonrası kullanıcı yetkisi yalnız mevcut private canonical DO adayında representative JPEG503'ü açıklamak için bounded sabit phase/code custody ekler. Log payload'ı yalnız server-owned phase/event/code'dur; raw exception/message/SQL/body/auth/header/credential/session/hash/ID veya signed URL yoktur. Teşhis hatası iş akışını değiştirmez; parser/auth/finalization/replay kontrolleri gevşetilmez. Aynı JPEG tek yeni disposable run'da fresh bağımsız HIGH sonrası denenir. Başarılı kontrollü deneme eski503'ü retroaktif PASS veya transient kesinliği yapmaz. Tam phase/native resource kanıtı eksikse NOT_OBSERVABLE/STOP; komşuCPU ödünç alınmaz, successfulPOST sırf telemetry için tekrarlanmaz. Root cause gösterilmeden business fix veya mimari redesign yoktur. Kalan kapasite profili ancak JPEG blocker'ı gerçek kapanış ve kaynak kimliğine bağlı güvenlik/resource kabulünden sonra sürer; DOCUMENTSfalse/FEATURENO/publicSTOP korunur.
 
+### 10.13 F-39 — risk temelli recovery ve native observation kapısı
+
+0f8b5f7 sonrası kullanıcı yetkisi altında historical unreproduced JPEG503 rootUNKNOWN tek başına sonsuz engineering veto değildir. Mevcut canonical güvenlik, same-key recovery/tek logicalfinalization ve gerçek nativeEDGE/DOresource kanıtları bağımsız kapılardır. Önce supported identity-bound native collection doğrulanır; kritik observability kapısı başarısızken yeni pahalı provider yük deneyleri durur. Yerel native SQLiteDO/D1/R2 controlled finalbatchrollback→samekeyresume/replay kanıtı provider recovery yerine geçmez. Workers Logs native kayıtları cursor/count/dedupe ve explicit outcome/truncation/CPU/wall ile doğrulanır; CLI tail'in guarantee edilmeyen metric alanları veya custom elapsedtime nativeCPU sayılmaz. Publicactivation/Paid/productionbusinessmutation yasağı ve CLOSEDrelease pre/postHIGH sınırları korunur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -813,6 +817,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-38 — Representative JPEG503 için bounded phase/code custody
 
 15 Ekim 2026; da2734f sonrası açık yetkiyle §10.12 eklendi. Teşhis ve tekcontrolledrun yetkisi kapasite/Paid/publicactivation kabulü değildir. Tarihsel503/FAIL/STOP korunur; exact root cause bulunmadığında açıkça NOT_DETERMINED yazılır.
+
+### F-39 — Bağımsız risk kapıları ve same-key recovery
+
+15 Ekim2026; 0f8b5f7 sonrası açık kullanıcı yetkisiyle §10.13 eklendi. Historical503 bilinmeyeni korunur; tek başına sürekli veto yerine mevcut recovery/security/nativecapacity riskleri ölçülür. Observabilitycriticalgate geçmeden providerexperiment yok; localproof provideracceptance sayılmaz.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 
