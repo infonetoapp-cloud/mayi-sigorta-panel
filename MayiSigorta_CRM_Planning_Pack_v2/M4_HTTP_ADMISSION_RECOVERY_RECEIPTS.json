@@ -566,6 +566,13 @@
       "sha256": "3fd522509879ba3d2a176c4aa2d613bc3daef9f849e60d1bdbc3e479723c82c1"
     }
   ],
+  "gitCloseout": {
+    "implementationCommit": "b7fd27bb950f96af1779eea967a7716f2c08d673",
+    "implementationPushAndRemoteReadbackVerified": true,
+    "implementationWorktreeCleanVerified": true,
+    "postReviewChanges": "DOC_METADATA_ONLY",
+    "originalCapacityMissionCompleted": false
+  },
   "gates": {
     "M4_HTTP_ADMISSION_ARCHITECTURE_ACCEPTED": "NO",
     "M4_HTTP_SUSTAINED_FREE_CAPACITY_ACCEPTED": "NO",
