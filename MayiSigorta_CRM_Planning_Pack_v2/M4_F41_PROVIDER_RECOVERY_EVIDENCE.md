@@ -1,0 +1,44 @@
+# F-41 — controlled canonical provider recovery
+
+Başlangıç main/HEAD/origin/main/remote5c509e7a7ef264864b20c93ede412622accd84a3 eşit ve temiz. Production initial21:06:24Z11GET version7e97419b/deploy182b1c6/false-true-true/3QueueCronFree/KDFonly/oldownedabsencePASS. Aynı F36 source/config/test unchanged; historicalF37JPEG503UNKNOWN/F38JPEG202functionalPASS/F39localrecoveryPASS/F40minimalnativecapturePASS korunur. Bu görevde kapasiteprofile veya productiondeployment yok.
+
+## Failure injection and ownership
+
+Tek yeni disposable EU run c4bf3f98-583c-4ce0-b014-12a5ee5cfc55 / mayi-http-5fce22843b Worker/EUD1/privateEUquarantinebucket/privateSQLiteDO. Provision/import/deployONCE; canonical21migration350schemaobject/176trigger/FK0/native64hexsyntheticsession/exactuploadedmodule=frozenproposedbundle/strictbindings/protectedproductionbaselinePASS. İzoleDOCUMENTStrue canonicaltestiçin; JOBS/CRONfalse/noQueue/noCron/nozone. ProductionDOCUMENTSfalse. Sourcefailpoint/envbypass/validationweakening yok.
+
+Yalnız ownedD1'e ordinarytemporaryexperimenttrigger eklendi: BEFOREUPDATEstatusdocument_versions WHENNEWstatusBACKUP_PENDING RAISEABORT('DOCUMENT_UPLOAD_VERSION_STATE_RACE'). Final db.batch içindeki jobinsert sonrasında updateabort bütünbatch'i rollback etti. TriggerSQLexactreadback ve sonrakiDROP/absence birer kez doğrulandı. Bu kontrollüfail F37JPEG503'ün kök nedeninin kanıtı değildir.
+
+Payload64×64syntheticJPEG723byte; aynı servercanonical metadata/filebytes ve idempotencykey üçcorePOST'ta aynıdır; query stage yalnıznativeattributioniçindir. Boundary/CSRFtokenrefresh HTTPmultipartencoding farklılığı logicalpayloadfingerprint'i değiştirmez. Smallfixture recoverykanıtı20MiB/representativecapacity yerinegeçmez.
+
+## Authoritative state and native resources
+
+| Stage | HTTP | EDGE CPU/wall | DO CPU/wall | Functional/state |
+| --- | ---: | --- | --- | --- |
+| Controlled failure |503 UPLOAD_RETRYABLE|2ms /1196ms|59ms /820ms|1document/1version/1receipt; PENDING_UPLOAD/validationNULL/IN_PROGRESS; job0/audit0 |
+| Same-key recovery |202 replayedfalse|8ms /602ms|18ms /562ms|BACKUP_PENDING/validated JPEG; receiptCOMPLETED202; job1QUEUEDattempt0/audit1SUCCESS |
+| Completed replay |202 replayedtrue|3ms /628ms|17ms /606ms|Aynıdocument/version/receipt/objectkey/hash; tüm logicalcount1 |
+| Missing CSRF |403 FORBIDDEN|2ms /186ms|4ms /165ms|Hiçbir state/binary/count değişmedi |
+| Same key, changed valid payload |409 IDEMPOTENCY_CONFLICT|2ms /546ms|NOT_OBSERVABLE|State/binary/count unchanged; DO terminal absent, sixpollSTOP |
+| Revoked session |NOT_TESTED|NOT_TESTED|NOT_TESTED|Önceki criticaltelemetrySTOP nedeniyle çalıştırılmadı |
+
+Core3+CSRF bütünnativepairs exact ownedWorker/versiond94d458b-bcb9-4bc6-a59e-24743fd56103/POST/exactoriginpath/unique stage/defaultEDGEvsnamedMeasuredDocumentUploadRuntimeDO; nativeIDler ayrı, CPU/wallfinite/nonnegative, outcomeok/truncatedfalse. Bunlar gerçek provider metrikleridir. EXPECTED503applicationrollback ve ordinary403/409rejection, exceededCPU/memory/resourceexception değildir. Observed resourceexception0; changedpayloadDOoutcomeNOTOBSERVABLE olduğundan bütün6stage için tamamresourcePASSdenmez. AyrıCSRFGET11/14ms native değerleri hiçbirupload'a ödünç verilmedi. AuthGETFreeheadroom veya sharedKDFcapacity kabulü yok. Peakheap NOT_OBSERVABLE.
+
+Her yürütülenstage'de ownedD1recordseedagency/customer/actor/member/sha/size/validation/receiptkey/status/jobinputhash/audittarget SUCCESS/idempotency bağı kontrol edildi. Bütünstage'lerde tekledgerobjectfullbyte/SHA ve privatebucketexactonekeyinventory doğrulandı. Failure→recovery→replay→denials boyunca document/version/receipt/objectkey/sha immutableeşit; AVAILABLEcount0. Backup/jobexecution yoktur; no unvalidatedAVAILABLE. No automaticretry; actual5uploadPOST (planmax6), successfulrecovery/replay ayrımetriciçin tekrarPOST edilmedi.
+
+## Missing progress versus missing native
+
+İlkcontrolledfailure sixpollSTOP: PREPAREOK/RESERVESTART consoleprogress eksikti; fakat gerçeknative2+4wrapper ve FINALIZEFAILUPLOAD_VERSION_RACE/R2PUTOK/reserveOK/pendingatomicstate tamdı. SameHIGHdarphasecustodyreview0/0PASS/23RAM: iki eksikprogressNOTOBSERVABLE kalırken positive terminal/native/stateproof ile retainedfailureclosure kabul edildi; newPOST0.
+
+Recovery ilk sixpollSTOP: DOstart/PREPARESTART-OK eksikti; gerçeknative2/bothcomplete202/R2checksumOK/R2PUTOK/FINALIZEOK/fullvalidatedstate tamdı. AynıHIGHpositive-native-terminaldarreview0/0PASS/20RAM: başlangıçmarkeroptional, nativepair+bothcomplete+requiredterminalphase/state mandatory. Missingstart/progress explícitNOTOBSERVABLE; sahteevent/metric/time/count üretilmedi. OriginalSTOPlar aynen tutuldu; adapter'lar kaynak/domain kontrolünü gevşetmedi, sadece gözlemkanıtı completeness sözleşmesini ayırdı. Nativeexceptions/resourcebudgets/identity/status/type/truncation mandatory kaldı. ReplayPREPAREphase varsa kaydedilir; completedreplayedDTO ve unchangedauthoritativeeffect ayrımandatorykanıttır.
+
+Changedpayload409'da gerçekDO native terminal veDOcomplete yoktu. Bu optionalprogressgap değildir: altıboundedpoll sonrası criticalNOTOBSERVABLE/STOP korundu, 409POSTtekrarı ve sonrevocationstage yok. Dolayısıyla full6stageexperiment PASS veya fullnegativeprofilePASS iddiası yok. Corefailure/recovery/replay veCSRFnativekanıtı ayrıscope olarak finalHIGH'a sunuldu; darproviderrecoveryacceptancekararı aşağıdaki finalHIGHkapsamıyla doğrulandı. En kapsamlıstatus NO-GO'dur; narrowcorekanıtın değeri kaybolmaz.
+
+## Review custody and cleanup
+
+Fresh SolHIGH20261016_001146_067d71 ilkprovider429limitte raporsuz durdu; kullanıcıdevamisteği sonrası aynıoturumretryreview verdi. İlk0BLOCKER/2IMPORTANTFAIL: partialnativeinventory overbudget immediateveto ve boşnativeID proof. Narrowfix/v2FAILwhitespaceID→v3PASS0/0/0;409immutablepins0drift. Source/db/seed/bundle değişmedi. Phasecustody417pins0drift vepositive-native-terminal422pins0drift actualmodel/provider/high/parentNULL/closedlatestJSONbyscope/exacthash gates ile doğrulandı. Reportscope custody üçbağımsızkapsamı aynısessioniçindekorumak için latestJSONbyscope kullanır; yalnızdosyaPASS'a güvenilmedi. HistoricalFAIL/STOP/429reviewoutput saklıdır. Unchangedexpensiveaccepted suite tekrarlanmadı; localnative21migrationseedprep+dryrun vefocusedreviewRAM çalıştı.
+
+Critical409gap sonrası mandatoryownedcleanupONCE: classdelete→namespaceabsent/permanentKDFexact;WorkerDELETE404;singleledgerobjectfullhashDELETE404;atomicemptyEUbucketDELETE404;ownedEUDBDELETE404;protectedproduction veüçexactQueue readbackPASS. Parent22:10:30Z11GET prodversion7e97419b-241a-4cf1-92de-d4ee62d70002/deploy182b1c6d-0542-4568-8e20-6453a73d297b/traffic100/false-true-true/3QueueCronFree/ownedabsence/KDFonlyPASS. No prodsource/config/business/realcustomer/Paid/DNS/authinfrastructure/frontend/Excel/backuprestore/monitor changes; productiondeployment0. Cleanupsonrasıveri tekrarcanlandırılmadı.
+
+FarklıfreshPOSTSolHIGH20261016_011436_a7d0c6actualmodel/provider/high/parentNULL/ended_at/cli_close/exactfinalJSON parentverified:0BLOCKER/0IMPORTANT/0OPTIONAL/PASS yalnız CONTROLLED_PROVIDER_CORE_RECOVERY_WITH_ADDITIONAL_GUARD_TELEMETRY_STOP. providerCoreRecoveryAccepted=true CORE_ONLY(controlledcanonicalfailure→samekey/payloadresume→completedreplay); fullSixStageProfileAccepted=false/capacityAccepted=false/allowCapacityExecution=false/allowClosedProductionDeploy=false. Bağımsız59assertion/502finalpins/124artifactreference0drift; core3+CSRFnativepairs liverequery veimmutablekey/state/binarycustody doğrulandı. Allreviewattempts44GET+20drytelemetryPOST/0mutation/appinvocation0; finalsuccessful14GET+10dryqueries. OwnedWorker/bucket/DB404/namespaceabsent/protectedproductionbindingsdeploymenttrafficthreeQueueCronFree independentlyPASS. Silinmişbinary/D1 tekrar okunmuş gibi sunulmadı; hashboundretainedcustody ile actualnative/metadatafreshread ayrıldı. Reviewerdeploymenthistorypagination/enumallowlist/changedsizefixtureSTOP'ları, pathescapeSyntaxErrortranscript ve wrappercount3 düzeltmesi retained; yalnızTempfixture, yeni appquery/postgerektirmedi. Reviewsonrasıyalnızüçclosuremetadatafile değişir; source/test/configunchanged.
+
+Sonraki milestone boundedrepresentativePNG/exact20971520/gerçekoverlap/sustainedagencyprofilidir. FreshHIGH allowNextCapacityExecutorPreflight=true yalnızplanlama/exactexecutorreview kapısıdır: 409guardnativegap veproviderrevocationprobe kalan kabulkapısı açıkça çözülmeli veya ayrıca scope-gatedolmalıdır; otomatik load/profilebaşlangıcı yok. Dar core-recoveryPASS tam6stage veya fullsecuritynegativeacceptance değildir. Productiondeploy/publicactivation bu görevin dışında kalır. HistoricalJPEG503 rootUNKNOWN. F41_PROVIDER_CORE_RECOVERY_ACCEPTED=YES;M4_HTTP_ADMISSION_ARCHITECTURE_ACCEPTED=NO;M4_HTTP_SUSTAINED_FREE_CAPACITY_ACCEPTED=NO;DOCUMENTS_ENABLED=false;FEATURE_ENABLED=NO;M4_COMPLETE=false.

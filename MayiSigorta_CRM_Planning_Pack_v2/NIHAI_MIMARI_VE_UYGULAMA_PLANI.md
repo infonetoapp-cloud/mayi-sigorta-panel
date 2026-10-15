@@ -536,6 +536,10 @@ da2734f sonrası kullanıcı yetkisi yalnız mevcut private canonical DO adayın
 
 7890577 sonrası açık kullanıcı yetkisi F-39 observation NO-GO'yu aşmak için tek yeni disposable Worker→privateSQLiteDO minimal sentetik invocation'a izin verir. Belge/auth/D1/R2/Queue/production bağı yoktur; DOCUMENTSfalse kalır. Aynıscript/deployment/exactGETURL/publicstage/EDGEdefault ve namedDOentrypoint ayrımı, explicit nativeCPU/wall/outcome/truncated ve fixedstart/complete loglar gerçek provider kaydından istenir. FreshHIGH preflight, once-only invocation intent, finitepoll/cursorbudget ve mandatoryownednamespaceWorkercleanup gerekir. LightweightcapturePASS yalnız bu observation mekanizması/scope'udur; historicalJPEG503cause, canonical recovery veya uploadcapacityPASS değildir. Yeni recovery providerexperiment ayrı freshHIGH approval ister. Eksiknative/terminalkanıtta yeniinvocationrepeat yok; STOP/alternatifkararı boundedolur.
 
+### 10.15 F-41 — controlled canonical provider recovery
+
+5c509e7 sonrası açık kullanıcı yetkisi tek yeni isolated EU D1/R2/Worker/privateSQLiteDO ortamında canonical finalization batch'ini yalnız disposableD1trigger ile abort etmeye, partialstatefailclosed kanıtından sonra aynıkey/payload resume ve completedreplay'i ölçmeye izin verir. Productionfailpoint/envselector/sourcebypass yok; live auth/session/CSRF/tenant/parent/parser/serverhash/finalatomicSQL/replay korunur. Her corestage için exactidentity nativeEDGE/DO CPU/wall/outcome/truncation ve relevantterminalphase/state/integrity zorunludur. Eksik optionalprogress/start console kayıtları ancak positive native çift, iki completion marker, gerekli terminalphase ve authoritativeD1/R2 kanıtı altında separatelyreviewed kapsamla NOT_OBSERVABLE kalabilir; uydurulmaz. Eksik gerçeknative/resourceoutcome criticalSTOP'tur, başarılıPOSTmetriciçintekrarlanmaz. Controlledfailure historicalJPEG503rootcauseyerinegeçmez. Dar core-recovery kabulü fullsecuritynegativeprofile/sustainedcapacity/proddeployment/publicactivation kabulü değildir; allplannedgates sonucu ayrı raporlanır. Bu görevde productiondeploy yok, DOCUMENTSfalse/FEATURENO/Free korunur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -829,6 +833,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-40 — Minimal sentetik EDGE/DO native-capture deneyi
 
 15 Ekim2026; 7890577 sonrası yeni açık yetkiyle §10.14 eklendi. Exhaustedhistoricalqueryrepeat yerine bir scopedpositivecapture; başarılıdocumentPOSTreplay/Paid/prodmutation yok. Freshpre/postHIGH ve cleanup exactscope korunur.
+
+### F-41 — Real-provider canonical same-key recovery kanıtı
+
+16 Ekim2026; 5c509e7 sonrası açık yetkiyle §10.15 eklendi. Yeni ownedsynthetic run dışında failinjection/yazım yok; provider native metrik ve partial/finalstate exactcustody/independentHIGH zorunlu. TarihselFAIL/STOP ve kabuller scope'uyla korunur.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 
