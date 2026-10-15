@@ -514,6 +514,16 @@ F-35 migration0021 ve iki şema testinin kesinti anındaki exact bytes'ı engine
 
 Engineering kabulü henüz yoktur: gerçek exported Worker→SQLiteDO→canonical app testleri, abort/overload/late-I/O/replay/yetki kaybı, representative PDF/JPEG/PNG/exact20MiB native CPU ve realistic sustained/overlap ölçümü zorunludur. Dış Worker10ms ve DO30s ayrı attribution ile kanıtlanır. Main Queue→private leaf852/523ms ve RPC limit inheritance UNKNOWN ayrıca açık kalır; upload DO bunları kendiliğinden çözmez. Peak heap NOT_OBSERVABLE ise öyle raporlanır. Fresh HIGH/source/provider preflight ve farklı post-HIGH, CLOSED deployment ve readback gelmeden architecture/capacity acceptance verilmez. DOCUMENTS_ENABLED=false, FEATURE_ENABLED=NO, M4_COMPLETE=false; public enablement ve ilgisiz monitoring/recovery/frontend işleri kapsam dışıdır.
 
+### 10.11 F-36 bounded Free admission kanıtının devamı — F-37
+
+15 Ekim 2026 yeni kullanıcı yetkisi, 707e10d checkpoint'indeki dürüst NO-GO'yu kabul ederek aynı private SQLite DO adayının kalan kanıtını sürdürür; mimari baştan tasarlanmaz. Önce retained 12 sayfalık PDF salt-okunur uzlaştırılır. Native EDGE CPU kaydı yoksa DO veya komşu CSRF isteğinin metriği yerine geçirilemez; tarihsel POST yeniden oynatılmaz.
+
+En küçük yeni izole attribution probe'u canonical route'a yalnız sentetik run/stage query parametreleri ekleyebilir. Pozitif native invocation kaydının owned Worker/service, deployment version, POST method, exact origin/path, tekil public stage ve EDGE/DO component eşleşmesi CPU kimliğidir. Cloudflare'ın privacy redaction uygulayabildiği UUID run query değeri, optional requestId/invocationId, query group ID veya console başlangıç/bitiş satırı CPU kabulünün zorunlu alanı değildir; redacted token tahmin edilmez veya onarılmaz. Her public stage için tek POST intent ve ayrı native EDGE/DO çifti gerekir. CPU/wall sonlu ve negatif olmayan gerçek provider ölçümü; outcome=ok, truncated=false, beklenen HTTP status zorunludur. Eksik metric NOT_OBSERVABLE→STOP; inventory genelinde exception/resource failure veya ölçülen bütçe aşımı FAIL'dir. Başka stage/invocation metriği ödünç alınmaz. Console interval'ları gerçek overlap kanıtı olarak ayrıca kullanılabilir.
+
+Attribution preflight kabulünden sonra bounded küçük acente profili: temsilî 12 sayfa PDF ve 1024×768 JPEG/PNG, exact20971520 byte PNG, tek active büyük upload yanında en fazla iki busy istemci, ardından 12 mixed upload/12 saniye aralık. Otomatik POST retry, internet ölçeği yük, gerçek müşteri verisi veya Paid yoktur. Her kabul edilen upload canonical validation/server hash, strict DTO, D1 receipt/audit/job ve full R2 binary readback ile doğrulanır; busy istek finalize etmez. Tek permit ve mevcut güvenlik/byte/parser/timeout sınırları korunur. Bu upload admission kanıtı, bütün gün/bütün format worst-case, doğrudan peak heap veya backup/recovery pipeline kapasite garantisi değildir.
+
+Sonuç gerçek ölçüme göre verilir. Başarılı bounded profil ve fresh bağımsız HIGH olmadan sustainable capacity kabulü veya yeni production deployment yoktur. Gerekçelendirilmiş CLOSED release yalnız DOCUMENTS_ENABLED=false, mevcut JOBS/CRON/Queue/KDF/auth/private storage korunarak, exact artifact/config/deployment readback ve farklı fresh POST HIGH ile kapanabilir. Public activation öncesinde durulur; FEATURE_ENABLED=NO ve M4_COMPLETE=false korunur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -791,6 +801,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-36 — Kesinti sonrası daha dar Free CPU mimari adayı
 
 15 Ekim 2026; kullanıcının interrupt recovery ve serbest mimari seçimi yetkisiyle §10.10, henüz uygulanmamış F-35 async admission yönünü private SQLite DO canonical upload adayıyla ileri yönlü supersede eder. Amaç domain/state-machine değişimini azaltarak HTTP CPU aşımına dayanmamaktır. Önceki draft/profil/review/FAIL/STOP bytes korunur; provider veya source kabulü verilmez. Aynı security/parser/hash/finalization/replay/backup invariant'ları ve tüm CLOSED/Free/no-real-data sınırları geçerlidir.
+
+### F-37 — F-36 adayının desteklenen attribution ve bounded kapasite kanıtı
+
+15 Ekim 2026; 707e10d sonrası açık kullanıcı yetkisiyle §10.11 eklendi. Private canonical DO mimarisi ve tarihsel FAIL/STOP korunur. Optional telemetry kimliklerine bağımlı olmayan pozitif native URL/method/version/component modeli, küçük acente ölçüm profili ve koşullu CLOSED release sınırı tanımlandı; bu kayıt tek başına provider/kapasite kabulü değildir.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 
