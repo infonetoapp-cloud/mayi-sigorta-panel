@@ -2,6 +2,14 @@
 
 Son güncelleme: **16 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
+## Müşteri iletişim bilgisi düzenleme — LOCAL ACCEPTED, 16 Ekim 2026
+
+- Başlangıç main/HEAD/origin/main `dbb95a22b75b9535bc72d653c04c0018d083ae92`, worktree temiz. `CustomerContactSection.tsx`, mevcut müşteri detayına Türkçe email/telefon/adres düzenlemesi ekler; aynı PATCH, DTO, CSRF, idempotency ve expectedVersion/CAS kullanılır. Yalnız değiştirilmiş iletişim alanları gönderilir; boş alan null olarak temizlenir. Kimlik/ad/tür/izin ve server sözleşmeleri değişmedi.
+- Validation/409 sırasında taslak korunur. 409 sonrası güncel detay ayrı karşılaştırma alanında gösterilir; sürüm yenilendikten sonra çalışan açıkça tekrar kaydeder. Değiştirilmemiş alanlar gönderilmez; diğer çalışanın güncel telefon/adresi eski taslaktan ezilmez. Ağ/503 tekrarında aynı body/key, düzenlenmiş payload'da yeni key kullanılır. Başarılı PATCH sonrası GET ile detay ve liste güncellenir; bu GET başarısızsa yalnız okuma tekrar edilir, PATCH tekrar gönderilmez.
+- Arşivlenmiş müşteri düzenleme butonu yok; çatışma yenilemesinde arşivlenmiş kayıt veya izin/erişim kaybında yazma kapalıdır. Müşteri değiştirilince geç yanıt yeni kaydı etkilemez. Taslak yalnız açık form belleğindedir; tarayıcı depolamasına yazılmaz.
+- Odaklı UI: yeni **11** senaryo ve mevcut App/T02 kardeşleriyle **3 dosya 31/31 PASS**. Mevcut gerçek local D1/API customer PATCH ve stale-version testleri **2 PASS/39 filtre skip**. İlk eksik buton RED, çift görünüm test sorgusu ve readonly DTO türevi type hatası giderildi; final typecheck/lint/client build/Worker dry-run/boundaries PASS. Geniş tarihsel suites ve ek ajan/HIGH çalıştırılmadı. Dry-run'ın mevcut environment seçimi uyarısı gerçek deploy değildir.
+- Migration/deploy/Cloudflare deneyi/gerçek veri/altyapı değişikliği yok. DOCUMENTS_ENABLED=false, FEATURE_ENABLED=NO, M4_COMPLETE=false ve M4 kabulleri/NO-GO kararları korunur. Önceki durum kayıtları tarihçedir. Sonraki öneri görüşme geçmişinde mevcut not/zaman/aktör bağlamının gösterilmesidir; bu görevde başlatılmadı.
+
 ## Yenileme WON/LOST çalışan akışı — LOCAL ACCEPTED, 16 Ekim 2026
 
 - Önceki uncommitted pilot değerlendirmesinin tamamı aşağıda korundu; bu uygulama onun 1 numaralı önerisini tamamlar. Önceki “uygulama başlamadı/commit edilmedi” ifadeleri o değerlendirme anının tarihçesidir, güncel durum değildir. Değerlendirme ve bu sonuç notu aynı yetkili implementation commit kapsamındadır.

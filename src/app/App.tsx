@@ -10,6 +10,7 @@ import type {
 } from '../shared/types';
 import { CustomerIdentitySection } from './components/CustomerIdentitySection';
 import { CustomerAssignmentSection } from './components/CustomerAssignmentSection';
+import { CustomerContactSection } from './components/CustomerContactSection';
 import { CustomerExternalReferencesSection } from './components/CustomerExternalReferencesSection';
 import { SensitiveSearchPanel } from './components/SensitiveSearchPanel';
 import { CatalogsPanel } from './components/CatalogsPanel';
@@ -1507,6 +1508,19 @@ export const App: React.FC = () => {
                     <span style={{ fontWeight: 500 }}>{selectedCustomer.address || '—'}</span>
                   </div>
                 </div>
+
+                <CustomerContactSection
+                  key={selectedCustomer.id}
+                  customer={selectedCustomer}
+                  onUpdated={(current) => {
+                    setSelectedCustomer((previous) =>
+                      previous?.id === current.id ? current : previous,
+                    );
+                    setCustomers((previous) =>
+                      previous.map((item) => (item.id === current.id ? current : item)),
+                    );
+                  }}
+                />
 
                 {selectedCustomer.archivedAt == null && (
                   <>
