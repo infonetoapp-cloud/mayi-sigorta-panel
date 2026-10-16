@@ -219,6 +219,37 @@ describe('M3 Renewal workspace UI', () => {
         if (url.endsWith('/quotes')) {
           return response({ quotes: [], defaultVersion });
         }
+        if (url === '/api/catalogs/selectable')
+          return response({
+            insurers: [
+              {
+                id: 'insurer-a',
+                code: 'ANADOLU',
+                name: 'Anadolu Sigorta',
+                status: 'ACTIVE',
+                agencyId: 'agency',
+              },
+            ],
+            products: [
+              {
+                id: 'product-a',
+                insurerId: 'insurer-a',
+                branchId: 'branch-a',
+                name: 'Kasko',
+                status: 'ACTIVE',
+                agencyId: 'agency',
+              },
+            ],
+            branches: [{ id: 'branch-a', status: 'ACTIVE', agencyId: 'agency' }],
+            paymentMethods: [
+              {
+                id: 'payment-a',
+                status: 'ACTIVE',
+                supportsInstallments: false,
+                maxInstallments: 1,
+              },
+            ],
+          });
         return response({});
       }),
     );
@@ -235,7 +266,9 @@ describe('M3 Renewal workspace UI', () => {
     );
     expect(await screen.findByText(/WhatsApp açıldı; gerçek temas değildir\./)).toBeTruthy();
     expect(await screen.findByText(/^Son deneme:/)).toBeTruthy();
-    fireEvent.click(await screen.findByRole('button', { name: 'Teklif oluştur: Individual A' }));
+    const create = await screen.findByRole('button', { name: 'Teklif oluştur: Individual A' });
+    await waitFor(() => expect((create as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(create);
     await waitFor(() =>
       expect(
         calls.some((call) => call.init?.method === 'POST' && call.url.endsWith('/quotes')),

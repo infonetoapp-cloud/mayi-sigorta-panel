@@ -1,25 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WhatsAppPreviewPanel } from './WhatsAppPreviewPanel';
+import { RenewalQuoteForm, type VersionPayload, type SavedQuoteVersion } from './RenewalQuoteForm';
 import {
   RenewalPolicySelector,
   completionMoney,
   type RenewalResultPolicy,
 } from './RenewalPolicySelector';
-
-interface VersionPayload {
-  insurerId: string;
-  productId: string;
-  branchId: string;
-  paymentMethodId: string;
-  startDate: string;
-  endDate: string;
-  validUntil: string;
-  grossPremiumMinor: number;
-  currency: string;
-  installmentCount: number | null;
-  termsSummary: string | null;
-}
 
 interface WorkspaceData {
   interactions: Array<{
@@ -36,13 +23,7 @@ interface WorkspaceData {
   companyContacts: Array<{ id: string; displayName: string; role: string | null }>;
 }
 
-interface QuoteVersionRow {
-  id: string;
-  version_number: number;
-  product_id: string;
-  product_name: string;
-  gross_premium_minor: number;
-  currency: string;
+interface QuoteVersionRow extends SavedQuoteVersion {
   created_at: string;
 }
 
@@ -215,7 +196,7 @@ export function RenewalWorkspacePanel({
   const [channel, setChannel] = useState('PHONE');
   const [companyContactId, setCompanyContactId] = useState('');
   const [note, setNote] = useState('');
-  const [premiumMinor, setPremiumMinor] = useState('');
+
   const [terminalAction, setTerminalAction] = useState<'NONE' | 'WON' | 'LOST' | 'VOIDED'>('NONE');
   const [lossReasonId, setLossReasonId] = useState('');
   const [lossReasonNotes, setLossReasonNotes] = useState('');
@@ -294,7 +275,6 @@ export function RenewalWorkspacePanel({
       if (quoteResult.status === 'fulfilled') {
         const quotes = quoteResult.value;
         setQuoteData(quotes);
-        setPremiumMinor(String(quotes.defaultVersion.grossPremiumMinor));
         if (!activeQuote && quotes.quotes.length > 0) {
           const latest = quotes.quotes[quotes.quotes.length - 1]!;
           const current = latest.versions.find(
@@ -401,20 +381,7 @@ export function RenewalWorkspacePanel({
     }
   }
 
-  function versionPayload(): VersionPayload | null {
-    if (!quoteData) return null;
-    const amount = Number(premiumMinor);
-    if (!Number.isSafeInteger(amount) || amount < 0) {
-      setError('Prim, para biriminin minor unit cinsinden tam sayı olmalıdır.');
-      return null;
-    }
-    return { ...quoteData.defaultVersion, grossPremiumMinor: amount };
-  }
-
-  async function createQuote(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const version = versionPayload();
-    if (!version) return;
+  async function createQuote(version: VersionPayload) {
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -440,10 +407,8 @@ export function RenewalWorkspacePanel({
     }
   }
 
-  async function createQuoteVersion() {
+  async function createQuoteVersion(version: VersionPayload) {
     if (!activeQuote) return;
-    const version = versionPayload();
-    if (!version) return;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -734,26 +699,17 @@ export function RenewalWorkspacePanel({
           )}
           {quoteData && (
             <>
-              <form onSubmit={(event) => void createQuote(event)}>
-                <h4>Yenileme teklifi</h4>
-                <label>
-                  Prim (minor unit): {customerDisplayName}
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={premiumMinor}
-                    onChange={(event) => setPremiumMinor(event.target.value)}
-                  />
-                </label>
-                <p>
-                  Tutarlar {quoteData.defaultVersion.currency} cinsinden tam minor-unit integer
-                  olarak kaydedilir.
-                </p>
-                <button type="submit" disabled={saving || loading || Boolean(activeQuote)}>
-                  Teklif oluştur: {customerDisplayName}
-                </button>
-              </form>
+              <RenewalQuoteForm
+                key={renewalId}
+                defaults={quoteData.defaultVersion}
+                quotes={quoteData.quotes}
+                currentQuoteId={activeQuote?.quoteId}
+                currentStatus={activeQuote?.status}
+                customerName={customerDisplayName}
+                busy={saving || loading}
+                onCreate={createQuote}
+                onVersion={createQuoteVersion}
+              />
               {activeQuote && (
                 <div>
                   <p>
@@ -765,31 +721,8 @@ export function RenewalWorkspacePanel({
                       Teklif sürümü {activeQuote.versionNumber}’i gönder: {customerDisplayName}
                     </button>
                   )}
-                  {activeQuote.status !== 'ACCEPTED' && (
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => void createQuoteVersion()}
-                    >
-                      Yeni teklif sürümü oluştur: {customerDisplayName}
-                    </button>
-                  )}
                 </div>
               )}
-              {quoteData.quotes.map((quote) => (
-                <div key={quote.id}>
-                  <p>
-                    {quote.status} · {quote.versions.length} değiştirilemeyen sürüm
-                  </p>
-                  <ul>
-                    {quote.versions.map((version) => (
-                      <li key={version.id}>
-                        v{version.version_number}: {version.gross_premium_minor} {version.currency}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
             </>
           )}
           {taskId && !['WON', 'LOST', 'VOIDED'].includes(renewalState) && (
