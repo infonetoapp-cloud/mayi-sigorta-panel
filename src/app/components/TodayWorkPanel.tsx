@@ -197,6 +197,10 @@ interface TaskCardProps {
   readonly getCsrfToken: () => Promise<string>;
   readonly invalidateCsrfToken: () => void;
   readonly onTerminalOutcome: () => void;
+  readonly refreshCompletionVersions: () => Promise<{
+    renewalVersion: number;
+    taskVersion: number;
+  }>;
 }
 
 function TaskCard({
@@ -224,6 +228,7 @@ function TaskCard({
   getCsrfToken,
   invalidateCsrfToken,
   onTerminalOutcome,
+  refreshCompletionVersions,
 }: TaskCardProps) {
   return (
     <article
@@ -337,6 +342,7 @@ function TaskCard({
       )}
       <RenewalWorkspacePanel
         renewalId={task.renewalId}
+        customerId={task.customerId}
         taskId={task.taskId}
         customerDisplayName={task.customerDisplayName}
         renewalVersion={task.renewalVersion}
@@ -345,6 +351,7 @@ function TaskCard({
         getCsrfToken={getCsrfToken}
         invalidateCsrfToken={invalidateCsrfToken}
         onTerminalOutcome={onTerminalOutcome}
+        refreshCompletionVersions={refreshCompletionVersions}
       />
     </article>
   );
@@ -375,6 +382,9 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
   const viewGeneration = useRef(0);
   const activeController = useRef<AbortController | null>(null);
   const assignmentOptionRequests = useRef(new Map<string, number>());
+  // Remember the page that disclosed each task; refreshing a conflict must not
+  // reload/unmount the workspace or silently discard a later-page draft.
+  const completionPages = useRef(new Map<string, string>());
 
   const loadTasks = useCallback(
     async (cursor: string | null, append: boolean, queue: TaskQueue = 'WORK') => {
@@ -401,6 +411,9 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
         const envelope = (await response.json()) as ApiResponse<TodayTasksResponseData>;
         if (!envelope.success) throw new TaskListRequestError(response.status);
         if (generation !== requestGeneration.current) return;
+        for (const task of envelope.data.items) completionPages.current.set(task.taskId, query);
+        for (const task of envelope.data.unassignedItems)
+          completionPages.current.set(task.taskId, query);
         setData((previous) => {
           if (!append || !previous) return envelope.data;
           if (queue === 'WORK') {
@@ -781,6 +794,27 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
             getCsrfToken={getCsrfToken}
             invalidateCsrfToken={invalidateCsrfToken}
             onTerminalOutcome={() => void loadTasks(null, false, 'WORK')}
+            refreshCompletionVersions={async () => {
+              const query = completionPages.current.get(task.taskId);
+              if (query === undefined) throw new Error('TASK_PAGE_UNAVAILABLE');
+              const response = await fetch(`/api/tasks/today${query ? `?${query}` : ''}`, {
+                method: 'GET',
+                cache: 'no-store',
+              });
+              if (!response.ok) throw new Error('TASK_REFRESH_DENIED');
+              const envelope = (await response.json()) as ApiResponse<TodayTasksResponseData>;
+              if (!envelope.success) throw new Error('TASK_REFRESH_FAILED');
+              const current = [...envelope.data.items, ...envelope.data.unassignedItems].find(
+                (item) => item.taskId === task.taskId && item.renewalId === task.renewalId,
+              );
+              if (
+                !current ||
+                !Number.isSafeInteger(current.renewalVersion) ||
+                !Number.isSafeInteger(current.taskVersion)
+              )
+                throw new Error('TASK_NO_LONGER_ON_PAGE');
+              return { renewalVersion: current.renewalVersion, taskVersion: current.taskVersion };
+            }}
           />
         ))}
       </div>

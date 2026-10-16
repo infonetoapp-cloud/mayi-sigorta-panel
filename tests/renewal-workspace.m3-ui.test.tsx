@@ -358,11 +358,18 @@ describe('M3 Renewal workspace UI', () => {
         if (url.endsWith('/api/policies/policy-new')) {
           return response({
             id: 'policy-new',
+            version: 7,
+            policyNumber: 'YENI-2026',
             grossPremiumMinor: 12000,
             currency: 'TRY',
             product: { id: 'result-product', name: 'Result Product' },
           });
         }
+        if (url.includes('/api/policies?'))
+          return response({
+            items: [{ id: 'policy-new', policyNumber: 'YENI-2026', endDate: '2027-10-24' }],
+            nextCursor: null,
+          });
         if (url.endsWith('/interactions')) {
           return response({
             interactions: [],
@@ -396,23 +403,28 @@ describe('M3 Renewal workspace UI', () => {
     fireEvent.change(await screen.findByLabelText('Sonuç türü: Individual A'), {
       target: { value: 'WON' },
     });
-    fireEvent.change(screen.getByLabelText('Bağlanacak poliçe ID: Individual A'), {
+    fireEvent.change(await screen.findByLabelText('Bağlanacak poliçe: Individual A'), {
       target: { value: 'policy-new' },
     });
+    await screen.findByText(/Seçilen poliçe: YENI-2026/);
     fireEvent.change(screen.getByLabelText('Kabul edilen teklif sürümü: Individual A'), {
       target: { value: 'quote-version-a1' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'WON sonucunu kaydet: Individual A' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Kazanıldı sonucunu kaydet: Individual A' }),
+    );
     await screen.findByText(/Teklif ve poliçe arasında ürün\/prim farkı var/);
     expect(screen.getByText(/Teklif: Quoted Product/)).toBeTruthy();
-    expect(screen.getByText(/Teklif: Quoted Product/).textContent).toContain('10000 TRY');
+    expect(screen.getByText(/Teklif: Quoted Product/).textContent).toContain('100,00 TRY');
     expect(screen.getByText(/Poliçe: Result Product/)).toBeTruthy();
-    expect(screen.getByText(/Poliçe: Result Product/).textContent).toContain('12000 TRY');
+    expect(screen.getByText(/Poliçe: Result Product/).textContent).toContain('120,00 TRY');
     expect(calls.some((item) => item.url.endsWith('/close-won'))).toBe(false);
-    fireEvent.change(screen.getByLabelText('Ürün/prim farkı gerekçe kodu: Individual A'), {
+    fireEvent.change(screen.getByLabelText('Ürün/prim farkı nedeni: Individual A'), {
       target: { value: 'INSURER_REQUOTE' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'WON sonucunu kaydet: Individual A' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Kazanıldı sonucunu kaydet: Individual A' }),
+    );
     await waitFor(() => expect(onTerminalOutcome).toHaveBeenCalledOnce());
     const call = calls.find((item) => item.url.endsWith('/close-won'));
     expect(JSON.parse(String(call?.init?.body))).toMatchObject({
@@ -420,7 +432,13 @@ describe('M3 Renewal workspace UI', () => {
       expectedTaskVersion: 3,
       acceptedQuoteVersionId: 'quote-version-a1',
       quoteDifferenceReasonCode: 'INSURER_REQUOTE',
-      result: { kind: 'LINK_POLICY', newPolicyId: 'policy-new' },
+      result: {
+        kind: 'LINK_POLICY',
+        newPolicyId: 'policy-new',
+        expectedPolicyVersion: 7,
+        allocatedNewPremiumMinor: 12000,
+        currency: 'TRY',
+      },
     });
   });
 });

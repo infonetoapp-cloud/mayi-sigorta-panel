@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WhatsAppPreviewPanel } from './WhatsAppPreviewPanel';
+import {
+  RenewalPolicySelector,
+  completionMoney,
+  type RenewalResultPolicy,
+} from './RenewalPolicySelector';
 
 interface VersionPayload {
   insurerId: string;
@@ -54,13 +59,6 @@ interface QuoteListData {
   defaultVersion: VersionPayload;
 }
 
-interface PolicyPreviewData {
-  id: string;
-  grossPremiumMinor: number;
-  currency: string;
-  product: { id: string; name: string };
-}
-
 interface MutationResult {
   operationId: string;
   quoteId?: string;
@@ -86,6 +84,7 @@ interface ApiEnvelope<T> {
 
 interface Props {
   readonly renewalId: string;
+  readonly customerId?: string;
   readonly customerDisplayName: string;
   readonly renewalVersion?: number;
   readonly taskId?: string;
@@ -94,6 +93,10 @@ interface Props {
   readonly getCsrfToken: () => Promise<string>;
   readonly invalidateCsrfToken: () => void;
   readonly onTerminalOutcome?: () => void;
+  readonly refreshCompletionVersions?: () => Promise<{
+    renewalVersion: number;
+    taskVersion: number;
+  }>;
 }
 
 function outcomeLabel(outcome: WorkspaceData['interactions'][number]['outcome']): string {
@@ -139,6 +142,12 @@ async function readEnvelope<T>(response: Response): Promise<T> {
   return payload.data;
 }
 
+class CompletionConflictError extends Error {
+  constructor() {
+    super('Kayıt değişti. Taslağınız korundu; güncel bilgileri yükleyip poliçeyi yeniden seçin.');
+  }
+}
+
 function mutationData(data: unknown): MutationResult {
   if (!data || typeof data !== 'object') throw new Error('İşlem sonucu okunamadı.');
   const candidate = data as { data?: unknown };
@@ -153,6 +162,7 @@ function newIdempotencyKey(): string {
 
 export function RenewalWorkspacePanel({
   renewalId,
+  customerId,
   customerDisplayName,
   renewalVersion = 1,
   taskId,
@@ -161,6 +171,7 @@ export function RenewalWorkspacePanel({
   getCsrfToken,
   invalidateCsrfToken,
   onTerminalOutcome,
+  refreshCompletionVersions,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -169,8 +180,7 @@ export function RenewalWorkspacePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
   const [quoteData, setQuoteData] = useState<QuoteListData | null>(null);
-  const [policyPreview, setPolicyPreview] = useState<PolicyPreviewData | null>(null);
-  const [policyPreviewLoading, setPolicyPreviewLoading] = useState(false);
+  const [policyPreview, setPolicyPreview] = useState<RenewalResultPolicy | null>(null);
   const [activeQuote, setActiveQuote] = useState<ActiveQuote | null>(null);
   const [outcome, setOutcome] =
     useState<WorkspaceData['interactions'][number]['outcome']>('CONTACT_CONFIRMED');
@@ -179,14 +189,50 @@ export function RenewalWorkspacePanel({
   const [note, setNote] = useState('');
   const [premiumMinor, setPremiumMinor] = useState('');
   const [terminalAction, setTerminalAction] = useState<'NONE' | 'WON' | 'LOST' | 'VOIDED'>('NONE');
-  const [policyId, setPolicyId] = useState('');
-  const [policyVersion, setPolicyVersion] = useState('1');
   const [lossReasonId, setLossReasonId] = useState('');
+  const [lossReasonNotes, setLossReasonNotes] = useState('');
+  const [lossReasons, setLossReasons] = useState<Array<{ id: string; code: string; name: string }>>(
+    [],
+  );
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [completionConflict, setCompletionConflict] = useState(false);
+  const [completionVersions, setCompletionVersions] = useState<{
+    renewalVersion: number;
+    taskVersion: number;
+  } | null>(null);
+  const [policyRefresh, setPolicyRefresh] = useState(0);
   const [voidReasonCode, setVoidReasonCode] = useState('TECHNICAL_ERROR');
   const [acceptedQuoteVersionId, setAcceptedQuoteVersionId] = useState('');
   const [quoteDifferenceReasonCode, setQuoteDifferenceReasonCode] = useState('');
   const requestGeneration = useRef(0);
   const attempts = useRef(new Map<string, { body: string; key: string }>());
+  const selectedLossReason = lossReasons.find((reason) => reason.id === lossReasonId);
+
+  useEffect(() => {
+    if (!open || terminalAction !== 'LOST') return;
+    let current = true;
+    setCatalogLoading(true);
+    setCatalogError('');
+    void fetch('/api/catalogs/selectable', { cache: 'no-store' })
+      .then(readEnvelope<{ lossReasons: Array<{ id: string; code: string; name: string }> }>)
+      .then((data) => {
+        if (current) setLossReasons(data.lossReasons);
+      })
+      .catch(() => {
+        if (current) {
+          setLossReasons([]);
+          setCatalogError('Kayıp nedenleri yüklenemedi veya erişilemiyor.');
+        }
+      })
+      .finally(() => {
+        if (current) setCatalogLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [open, terminalAction, catalogRefresh]);
 
   const loadResources = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -283,6 +329,8 @@ export function RenewalWorkspacePanel({
         },
         body,
       });
+      if (response.status === 409 && (url.endsWith('/close-won') || url.endsWith('/close-lost')))
+        throw new CompletionConflictError();
       const data = await readEnvelope<unknown>(response);
       attempts.current.delete(attemptId);
       setMessage(operation);
@@ -431,26 +479,24 @@ export function RenewalWorkspacePanel({
     setError(null);
     setMessage(null);
     try {
+      const versions = completionVersions ?? { renewalVersion, taskVersion };
+      if (completionConflict) throw new CompletionConflictError();
+      if (terminalAction === 'WON' && !policyPreview) throw new Error('Güncel bir poliçe seçin.');
+      if (terminalAction === 'LOST' && (!selectedLossReason || catalogLoading || catalogError))
+        throw new Error('Geçerli bir kayıp nedeni seçin.');
+      if (
+        terminalAction === 'LOST' &&
+        selectedLossReason?.code === 'OTHER' &&
+        !lossReasonNotes.trim()
+      )
+        throw new Error('Diğer kayıp nedeni için açıklama zorunludur.');
       let quoteDifferenceReasonCodeToSend: string | undefined;
       if (terminalAction === 'WON' && acceptedQuoteVersionId) {
         const quoteVersion = quoteData?.quotes
           .flatMap((quote) => quote.versions)
           .find((version) => version.id === acceptedQuoteVersionId);
         if (!quoteVersion) throw new Error('Gönderilmiş teklif sürümü bulunamadı.');
-        let targetPolicy = policyPreview?.id === policyId ? policyPreview : null;
-        if (!targetPolicy) {
-          setPolicyPreviewLoading(true);
-          try {
-            const response = await fetch(`/api/policies/${encodeURIComponent(policyId)}`, {
-              method: 'GET',
-              cache: 'no-store',
-            });
-            targetPolicy = await readEnvelope<PolicyPreviewData>(response);
-            setPolicyPreview(targetPolicy);
-          } finally {
-            setPolicyPreviewLoading(false);
-          }
-        }
+        const targetPolicy = policyPreview!;
         const differsFromQuote =
           quoteVersion.product_id !== targetPolicy.product.id ||
           quoteVersion.gross_premium_minor !== targetPolicy.grossPremiumMinor ||
@@ -476,14 +522,14 @@ export function RenewalWorkspacePanel({
       const payload =
         terminalAction === 'WON'
           ? {
-              expectedRenewalVersion: renewalVersion,
-              expectedTaskVersion: taskVersion,
+              expectedRenewalVersion: versions.renewalVersion,
+              expectedTaskVersion: versions.taskVersion,
               result: {
                 kind: 'LINK_POLICY',
-                newPolicyId: policyId,
-                expectedPolicyVersion: Number(policyVersion),
-                allocatedNewPremiumMinor: Number(premiumMinor),
-                currency: quoteData?.defaultVersion.currency ?? 'TRY',
+                newPolicyId: policyPreview!.id,
+                expectedPolicyVersion: policyPreview!.version,
+                allocatedNewPremiumMinor: policyPreview!.grossPremiumMinor,
+                currency: policyPreview!.currency,
               },
               ...(acceptedQuoteVersionId ? { acceptedQuoteVersionId } : {}),
               ...(quoteDifferenceReasonCodeToSend
@@ -492,10 +538,11 @@ export function RenewalWorkspacePanel({
             }
           : terminalAction === 'LOST'
             ? {
-                expectedRenewalVersion: renewalVersion,
-                expectedTaskVersion: taskVersion,
+                expectedRenewalVersion: versions.renewalVersion,
+                expectedTaskVersion: versions.taskVersion,
                 lossReasonId,
-                lossReasonNotes: null,
+                lossReasonNotes:
+                  selectedLossReason?.code === 'OTHER' ? lossReasonNotes.trim() : null,
               }
             : {
                 expectedRenewalVersion: renewalVersion,
@@ -506,6 +553,7 @@ export function RenewalWorkspacePanel({
       onTerminalOutcome?.();
       await loadResources();
     } catch (caught) {
+      if (caught instanceof CompletionConflictError) setCompletionConflict(true);
       setError(caught instanceof Error ? caught.message : 'Terminal sonuç kaydedilemedi.');
     } finally {
       setSaving(false);
@@ -527,7 +575,7 @@ export function RenewalWorkspacePanel({
     .flatMap((quote) => quote.versions)
     .find((version) => version.id === acceptedQuoteVersionId);
   const quoteDifference =
-    selectedQuoteVersion && policyPreview?.id === policyId
+    selectedQuoteVersion && policyPreview
       ? selectedQuoteVersion.product_id !== policyPreview.product.id ||
         selectedQuoteVersion.gross_premium_minor !== policyPreview.grossPremiumMinor ||
         selectedQuoteVersion.currency !== policyPreview.currency
@@ -690,7 +738,7 @@ export function RenewalWorkspacePanel({
           )}
           {taskId && !['WON', 'LOST', 'VOIDED'].includes(renewalState) && (
             <form onSubmit={(event) => void submitTerminal(event)}>
-              <h4>Terminal sonuç</h4>
+              <h4>Yenilemeyi sonuçlandır</h4>
               <label>
                 Sonuç türü: {customerDisplayName}
                 <select
@@ -700,35 +748,24 @@ export function RenewalWorkspacePanel({
                   }
                 >
                   <option value="NONE">Sonuç seçin</option>
-                  <option value="WON">WON — poliçeyi bağla</option>
-                  <option value="LOST">LOST</option>
+                  <option value="WON">Kazanıldı — yeni poliçeyi bağla</option>
+                  <option value="LOST">Kaybedildi</option>
                   <option value="VOIDED">VOIDED</option>
                 </select>
               </label>
               {terminalAction === 'WON' && (
                 <>
-                  <label>
-                    Bağlanacak poliçe ID: {customerDisplayName}
-                    <input
-                      value={policyId}
-                      onChange={(event) => {
-                        setPolicyId(event.target.value);
-                        setPolicyPreview(null);
-                        setQuoteDifferenceReasonCode('');
-                      }}
-                      required
-                    />
-                  </label>
-                  <label>
-                    Poliçe sürümü: {customerDisplayName}
-                    <input
-                      type="number"
-                      min="1"
-                      value={policyVersion}
-                      onChange={(event) => setPolicyVersion(event.target.value)}
-                      required
-                    />
-                  </label>
+                  <RenewalPolicySelector
+                    customerId={customerId}
+                    customerName={customerDisplayName}
+                    selected={policyPreview}
+                    onSelect={(policy) => {
+                      setPolicyPreview(policy);
+                      setQuoteDifferenceReasonCode('');
+                    }}
+                    disabled={saving}
+                    refreshKey={policyRefresh}
+                  />
                   {sentVersions.length > 0 && (
                     <label>
                       Kabul edilen teklif sürümü: {customerDisplayName}
@@ -748,43 +785,81 @@ export function RenewalWorkspacePanel({
                       </select>
                     </label>
                   )}
-                  {policyPreviewLoading && <p role="status">Poliçe ve teklif karşılaştırılıyor…</p>}
+
                   {quoteDifference && selectedQuoteVersion && policyPreview && (
                     <>
                       <div role="status">
                         <p>Teklif ve poliçe arasında ürün/prim farkı var.</p>
                         <p>
                           Teklif: {selectedQuoteVersion.product_name} ·{' '}
-                          {selectedQuoteVersion.gross_premium_minor} {selectedQuoteVersion.currency}
+                          {completionMoney(
+                            selectedQuoteVersion.gross_premium_minor,
+                            selectedQuoteVersion.currency,
+                          )}
                         </p>
                         <p>
-                          Poliçe: {policyPreview.product.name} · {policyPreview.grossPremiumMinor}{' '}
-                          {policyPreview.currency}
+                          Poliçe: {policyPreview.product.name} ·{' '}
+                          {completionMoney(policyPreview.grossPremiumMinor, policyPreview.currency)}
                         </p>
                       </div>
                       <label>
-                        Ürün/prim farkı gerekçe kodu: {customerDisplayName}
-                        <input
+                        Ürün/prim farkı nedeni: {customerDisplayName}
+                        <select
                           value={quoteDifferenceReasonCode}
-                          maxLength={64}
-                          pattern="[A-Z][A-Z0-9_]{2,63}"
                           onChange={(event) => setQuoteDifferenceReasonCode(event.target.value)}
                           required
-                        />
+                        >
+                          <option value="">Neden seçin</option>
+                          <option value="INSURER_REQUOTE">Sigortacının güncel teklifi</option>
+                          <option value="COVERAGE_CHANGED">Ürün veya teminat değişikliği</option>
+                          <option value="CUSTOMER_APPROVED_CHANGE">
+                            Müşterinin onayladığı değişiklik
+                          </option>
+                        </select>
                       </label>
                     </>
                   )}
                 </>
               )}
               {terminalAction === 'LOST' && (
-                <label>
-                  Kayıp nedeni ID: {customerDisplayName}
-                  <input
-                    value={lossReasonId}
-                    onChange={(event) => setLossReasonId(event.target.value)}
-                    required
-                  />
-                </label>
+                <>
+                  <label>
+                    Kayıp nedeni: {customerDisplayName}
+                    <select
+                      value={lossReasonId}
+                      onChange={(event) => setLossReasonId(event.target.value)}
+                      disabled={catalogLoading || saving}
+                      required
+                    >
+                      <option value="">Kayıp nedeni seçin</option>
+                      {lossReasons.map((reason) => (
+                        <option key={reason.id} value={reason.id}>
+                          {reason.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedLossReason?.code === 'OTHER' && (
+                    <label>
+                      Kayıp açıklaması: {customerDisplayName}
+                      <textarea
+                        value={lossReasonNotes}
+                        onChange={(event) => setLossReasonNotes(event.target.value)}
+                        maxLength={500}
+                        required
+                      />
+                    </label>
+                  )}
+                  {catalogError && <p role="alert">{catalogError}</p>}
+                  {catalogLoading && <p role="status">Kayıp nedenleri yükleniyor…</p>}
+                  <button
+                    type="button"
+                    disabled={catalogLoading || saving}
+                    onClick={() => setCatalogRefresh((value) => value + 1)}
+                  >
+                    Kayıp nedenlerini yenile
+                  </button>
+                </>
               )}
               {terminalAction === 'VOIDED' && (
                 <label>
@@ -802,8 +877,54 @@ export function RenewalWorkspacePanel({
                 </label>
               )}
               {terminalAction !== 'NONE' && (
-                <button type="submit" disabled={saving}>
-                  {terminalAction} sonucunu kaydet: {customerDisplayName}
+                <button
+                  type="submit"
+                  disabled={
+                    saving ||
+                    completionConflict ||
+                    (terminalAction === 'WON' && !policyPreview) ||
+                    (terminalAction === 'LOST' &&
+                      (!selectedLossReason || catalogLoading || Boolean(catalogError)))
+                  }
+                >
+                  {terminalAction === 'WON'
+                    ? 'Kazanıldı'
+                    : terminalAction === 'LOST'
+                      ? 'Kaybedildi'
+                      : 'VOIDED'}{' '}
+                  sonucunu kaydet: {customerDisplayName}
+                </button>
+              )}
+              {completionConflict && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      if (!refreshCompletionVersions)
+                        throw new Error(
+                          'İş listesini yenileyip bu yenilemeyi tekrar açın. Taslağınız bu ekranda korunuyor.',
+                        );
+                      const versions = await refreshCompletionVersions();
+                      setCompletionVersions(versions);
+                      setPolicyPreview(null);
+                      setPolicyRefresh((value) => value + 1);
+                      setCompletionConflict(false);
+                      setError(null);
+                      setMessage(
+                        'Güncel iş bilgileri yüklendi. Seçimlerinizi kontrol edip yeniden onaylayın.',
+                      );
+                    } catch {
+                      setError(
+                        'Güncel iş bilgileri yüklenemedi veya iş artık erişilebilir değil. Taslağınız korundu; iş listesinden kaydı yeniden kontrol edin.',
+                      );
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                >
+                  Güncel bilgileri yükle / poliçeyi yeniden seç
                 </button>
               )}
             </form>
