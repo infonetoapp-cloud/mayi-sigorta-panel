@@ -26,7 +26,9 @@ interface WorkspaceData {
     id: string;
     outcome: 'CONTACT_CONFIRMED' | 'ATTEMPT_NO_RESPONSE' | 'WHATSAPP_OPENED' | 'NOTE';
     channel: string;
-    occurred_at: string;
+    occurred_at?: string | null;
+    note?: string | null;
+    actor_membership_id?: string | null;
   }>;
   lastContactAt: string | null;
   lastAttemptAt: string | null;
@@ -109,7 +111,33 @@ function outcomeLabel(outcome: WorkspaceData['interactions'][number]['outcome'])
       return 'WhatsApp açıldı; gerçek temas değildir.';
     case 'NOTE':
       return 'Not';
+    default:
+      return 'Sonuç bilgisi bulunmuyor';
   }
+}
+
+function channelLabel(channel: string): string {
+  switch (channel) {
+    case 'PHONE':
+      return 'Telefon';
+    case 'EMAIL':
+      return 'E-posta';
+    case 'WHATSAPP':
+      return 'WhatsApp';
+    case 'IN_PERSON':
+      return 'Yüz yüze';
+    case 'OTHER':
+      return 'Diğer';
+    default:
+      return 'Kanal bilgisi bulunmuyor';
+  }
+}
+
+function interactionTimestamp(value: string | null | undefined): string | null {
+  // Never infer the timezone of an incomplete historical timestamp.
+  if (typeof value !== 'string' || !/(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
 function dateLabel(value: string | null): string {
@@ -656,12 +684,40 @@ export function RenewalWorkspacePanel({
                   Görüşmeyi kaydet: {customerDisplayName}
                 </button>
               </form>
-              <ul aria-label={`İletişim geçmişi: ${customerDisplayName}`}>
-                {workspace.interactions.map((interaction) => (
-                  <li key={interaction.id}>
-                    {outcomeLabel(interaction.outcome)} — {interaction.channel}
-                  </li>
-                ))}
+              <h4>İletişim geçmişi</h4>
+              <p>Tarihler Türkiye saatiyle (Europe/Istanbul) gösterilir.</p>
+              {workspace.interactions.length === 0 && <p>Henüz iletişim kaydı yok.</p>}
+              <ul
+                aria-label={`İletişim geçmişi: ${customerDisplayName}`}
+                style={{ display: 'grid', gap: '0.75rem', paddingLeft: '1.25rem' }}
+              >
+                {workspace.interactions.map((interaction) => {
+                  const timestamp = interactionTimestamp(interaction.occurred_at);
+                  return (
+                    <li key={interaction.id} style={{ overflowWrap: 'anywhere' }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {outcomeLabel(interaction.outcome)} — {channelLabel(interaction.channel)}
+                      </div>
+                      <div>
+                        {timestamp ? (
+                          <time dateTime={timestamp}>{dateLabel(timestamp)}</time>
+                        ) : (
+                          <span>Tarih bilgisi bulunmuyor</span>
+                        )}
+                      </div>
+                      {/* The authorized history DTO has no employee name. Do not fetch
+                        OWNER personnel data or present an internal ID as a name. */}
+                      <p style={{ color: '#475569', margin: '0.25rem 0' }}>
+                        Kaydeden: Çalışan adı mevcut değil
+                      </p>
+                      {typeof interaction.note === 'string' && interaction.note.trim() && (
+                        <p style={{ whiteSpace: 'pre-wrap', margin: '0.25rem 0' }}>
+                          {interaction.note}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               <WhatsAppPreviewPanel
                 key={`${renewalId}:${companyContactId}`}

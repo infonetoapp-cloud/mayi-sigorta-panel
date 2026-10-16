@@ -2,6 +2,13 @@
 
 Son güncelleme: **16 Ekim 2026**. Mimari kaynak: [NIHAI_MIMARI_VE_UYGULAMA_PLANI.md](NIHAI_MIMARI_VE_UYGULAMA_PLANI.md), sürüm 1.2/F-27 auth + F-28 recovery kararı. Authorization source-of-truth: [RG-00_AUTHORIZATION_CONTRACT.md](RG-00_AUTHORIZATION_CONTRACT.md). Önceki ClamAV/Queue kanıtları tarihsel checkpoint'lerdir; güncel gereksinimler [ileri yönlü supersession kaydındadır](M4_INTERNAL_DOCUMENT_SECURITY_DECISION.md).
 
+## Yenileme iletişim geçmişi — LOCAL ACCEPTED, 16 Ekim 2026
+
+- Temiz `8c5a0c5e1f5709b4f91e52f85b814ae5a4ba50b3` üzerinden UI-only değişiklik: `RenewalWorkspacePanel.tsx` sonuç/kanalı Türkçe, tarih-saati Europe/Istanbul, mevcut notları satır sonları korunmuş güvenli React metni olarak gösterir. Boş geçmiş, eksik/geçersiz veya timezone'suz tarih ve bilinmeyen tarihsel kodlar anlaşılır etiketlerle karşılanır; teknik kodlar gösterilmez.
+- Mevcut authorized interaction DTO çalışan adı içermiyor; `/api/personnel` OWNER-only ve email/izin gibi ilgisiz veriler de döndürüyor. Bu görevin dar UI kapsamı için personel API'si çağrılmaz, server/izinler genişletilmez. Her kayıtta dürüstçe “Kaydeden: Çalışan adı mevcut değil” gösterilir; membership ID ad yerine kullanılmaz. Çalışan adı çözümü bu dilimde uygulanmadı; mevcut sorumlu da geçmiş kaydın aktörü diye gösterilmez.
+- Yeni altı UI senaryosu RED→GREEN; history/workspace/completion/WhatsApp **4 dosya 31/31 PASS**. İstanbul gün sınırı, explicit offset, eksik tarih, not/XSS, raw-ID ifşa etmeme, personel API'sine bağımlı olmama ve boş geçmiş kapsanır. Mevcut creation/CSRF/idempotency/terminal/WhatsApp UI regresyonları PASS. Typecheck, lint, client build, Worker yalnız dry-run ve boundaries PASS; mevcut environment seçimi uyarısı var. Değişmeyen server/D1 tarihsel suites tekrarlanmadı; ek ajan/HIGH yok.
+- Server/shared/schema/migration/config/nihai mimari, production, altyapı ve gerçek veri değişmedi. DOCUMENTS_ENABLED=false, FEATURE_ENABLED=NO, M4_COMPLETE=false ve bütün mevcut kabul/NO-GO kararları korunur. Önceki “sıradaki iş” kayıtları tarihçedir. Sonraki öneri mevcut teklif formunda sigortacı/ürün seçimi için ayrı odaklı ürün dilimidir; uygulanmadı.
+
 ## Müşteri iletişim bilgisi düzenleme — LOCAL ACCEPTED, 16 Ekim 2026
 
 - Başlangıç main/HEAD/origin/main `dbb95a22b75b9535bc72d653c04c0018d083ae92`, worktree temiz. `CustomerContactSection.tsx`, mevcut müşteri detayına Türkçe email/telefon/adres düzenlemesi ekler; aynı PATCH, DTO, CSRF, idempotency ve expectedVersion/CAS kullanılır. Yalnız değiştirilmiş iletişim alanları gönderilir; boş alan null olarak temizlenir. Kimlik/ad/tür/izin ve server sözleşmeleri değişmedi.
