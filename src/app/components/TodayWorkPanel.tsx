@@ -256,6 +256,9 @@ function TaskCard({
       {task.customerPhone && <p style={{ margin: 0 }}>Telefon: {task.customerPhone}</p>}
       {task.customerEmail && <p style={{ margin: 0 }}>E-posta: {task.customerEmail}</p>}
       {task.isUnassigned && <span style={{ color: '#92400e' }}>Atanmamış</span>}
+      {task.needsReassignment && (
+        <p style={{ color: '#92400e' }}>Önceki sorumlu pasif veya askıda; açık takip korunuyor.</p>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -314,14 +317,26 @@ function TaskCard({
                     value={selectedAssignee}
                     onChange={(event) => onAssigneeChange(event.target.value)}
                   >
-                    <option value="">Atanmamış</option>
+                    <option value="">
+                      {task.needsReassignment ? 'Aktif çalışan seçin' : 'Atanmamış'}
+                    </option>
                     {assignmentOptions.map((option) => (
                       <option key={option.membershipId} value={option.membershipId}>
                         {option.label} ({option.membershipType})
                       </option>
                     ))}
                   </select>
-                  <button type="button" disabled={assignmentSaving} onClick={onSaveAssignment}>
+                  <button
+                    type="button"
+                    disabled={
+                      assignmentSaving ||
+                      (task.needsReassignment &&
+                        !assignmentOptions.some(
+                          (option) => option.membershipId === selectedAssignee,
+                        ))
+                    }
+                    onClick={onSaveAssignment}
+                  >
                     {assignmentSaving
                       ? 'Kaydediliyor…'
                       : `Atamayı kaydet: ${task.customerDisplayName}`}
@@ -385,6 +400,8 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
   // Remember the page that disclosed each task; refreshing a conflict must not
   // reload/unmount the workspace or silently discard a later-page draft.
   const completionPages = useRef(new Map<string, string>());
+  const reassignmentMode = useRef(false);
+  const [showReassignment, setShowReassignment] = useState(false);
 
   const loadTasks = useCallback(
     async (cursor: string | null, append: boolean, queue: TaskQueue = 'WORK') => {
@@ -399,6 +416,7 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
 
       try {
         const parameters = new URLSearchParams();
+        if (reassignmentMode.current) parameters.set('needsReassignment', 'true');
         if (queue === 'WORK' && cursor) parameters.set('cursor', cursor);
         if (queue === 'UNASSIGNED' && cursor) parameters.set('unassignedCursor', cursor);
         const query = parameters.toString();
@@ -596,7 +614,8 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
       }
       setAssignmentOptions((previous) => ({ ...previous, [taskId]: envelope.data }));
       setSelectedAssignees((previous) => {
-        const selected = previous[taskId] ?? task.assigneeMembershipId ?? '';
+        const selected =
+          previous[taskId] ?? (task.needsReassignment ? '' : task.assigneeMembershipId) ?? '';
         const candidateExists = envelope.data.some((option) => option.membershipId === selected);
         return { ...previous, [taskId]: selected === '' || candidateExists ? selected : '' };
       });
@@ -644,6 +663,7 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
           .clone()
           .json()
           .catch(() => null)) as { success?: boolean; error?: { code?: string } } | null;
+        if (activeView !== viewGeneration.current) return;
         if (
           response.status === 403 &&
           !csrfRetried &&
@@ -709,6 +729,17 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
   const handleSaveAssignment = useCallback(
     (task: TodayTaskDto) => {
       const selected = selectedAssignees[task.taskId] ?? task.assigneeMembershipId ?? '';
+      if (
+        task.needsReassignment &&
+        !assignmentOptions[task.taskId]?.some((option) => option.membershipId === selected)
+      ) {
+        setAssignmentMessage({
+          taskId: task.taskId,
+          error: 'Uygun bir aktif çalışan seçin.',
+          success: null,
+        });
+        return;
+      }
       const body = JSON.stringify({
         expectedRenewalVersion: task.renewalVersion,
         expectedTaskVersion: task.taskVersion,
@@ -726,7 +757,7 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
             };
       void runAssignmentAttempt(attempt);
     },
-    [assignmentAttempt, runAssignmentAttempt, selectedAssignees],
+    [assignmentAttempt, assignmentOptions, runAssignmentAttempt, selectedAssignees],
   );
 
   useEffect(() => {
@@ -848,6 +879,48 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
         </button>
       </div>
 
+      {data?.canSeeReassignment && (
+        <nav aria-label="İş görünümü" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            type="button"
+            aria-pressed={!showReassignment}
+            onClick={() => {
+              reassignmentMode.current = false;
+              setShowReassignment(false);
+              viewGeneration.current++;
+              setAssignmentAttempt(null);
+              setSavingAssignmentTaskId(null);
+              setLoadingAssignmentOptionsTaskId(null);
+              setAssignmentMessage(null);
+              setAssignmentOptions({});
+              setAssignmentPanels({});
+              setSelectedAssignees({});
+              void loadTasks(null, false);
+            }}
+          >
+            Tüm açık takipler
+          </button>
+          <button
+            type="button"
+            aria-pressed={showReassignment}
+            onClick={() => {
+              reassignmentMode.current = true;
+              setShowReassignment(true);
+              viewGeneration.current++;
+              setAssignmentAttempt(null);
+              setSavingAssignmentTaskId(null);
+              setLoadingAssignmentOptionsTaskId(null);
+              setAssignmentMessage(null);
+              setAssignmentOptions({});
+              setAssignmentPanels({});
+              setSelectedAssignees({});
+              void loadTasks(null, false);
+            }}
+          >
+            Yeniden Atama Gerekenler
+          </button>
+        </nav>
+      )}
       {loading && <p role="status">Görevler yükleniyor…</p>}
       {error && <p role="alert">{error}</p>}
       {!loading && data && (
@@ -857,30 +930,46 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
               Görevleri acente kuyruğundan atayabilirsiniz.
             </p>
           )}
-          <section
-            aria-labelledby="overdue-tasks-title"
-            style={{ display: 'grid', gap: '0.75rem' }}
-          >
-            <h3 id="overdue-tasks-title" style={{ margin: 0 }}>
-              Geciken Takipler
-            </h3>
-            {renderTasks(overdue)}
-          </section>
-          <section aria-labelledby="today-tasks-title" style={{ display: 'grid', gap: '0.75rem' }}>
-            <h3 id="today-tasks-title" style={{ margin: 0 }}>
-              Bugünkü Takipler
-            </h3>
-            {renderTasks(dueToday)}
-          </section>
-          <section
-            aria-labelledby="upcoming-tasks-title"
-            style={{ display: 'grid', gap: '0.75rem' }}
-          >
-            <h3 id="upcoming-tasks-title" style={{ margin: 0 }}>
-              Yaklaşan Takipler
-            </h3>
-            {renderTasks(upcoming)}
-          </section>
+          {showReassignment ? (
+            <section aria-labelledby="reassignment-tasks-title">
+              <h3 id="reassignment-tasks-title">Yeniden Atama Gerekenler</h3>
+              <p>
+                Pasif veya askıya alınmış sorumlulardaki açık takipler. Kayıtlar otomatik
+                aktarılmaz; uygun aktif çalışanı seçip onaylayın.
+              </p>
+              {renderTasks(assignedTasks)}
+            </section>
+          ) : (
+            <>
+              <section
+                aria-labelledby="overdue-tasks-title"
+                style={{ display: 'grid', gap: '0.75rem' }}
+              >
+                <h3 id="overdue-tasks-title" style={{ margin: 0 }}>
+                  Geciken Takipler
+                </h3>
+                {renderTasks(overdue)}
+              </section>
+              <section
+                aria-labelledby="today-tasks-title"
+                style={{ display: 'grid', gap: '0.75rem' }}
+              >
+                <h3 id="today-tasks-title" style={{ margin: 0 }}>
+                  Bugünkü Takipler
+                </h3>
+                {renderTasks(dueToday)}
+              </section>
+              <section
+                aria-labelledby="upcoming-tasks-title"
+                style={{ display: 'grid', gap: '0.75rem' }}
+              >
+                <h3 id="upcoming-tasks-title" style={{ margin: 0 }}>
+                  Yaklaşan Takipler
+                </h3>
+                {renderTasks(upcoming)}
+              </section>
+            </>
+          )}
           {data.canSeeUnassigned && (
             <section
               aria-labelledby="unassigned-tasks-title"

@@ -327,6 +327,7 @@ export interface TodayTaskDto {
   readonly renewalVersion: number;
   readonly bucket: TaskDueBucket;
   readonly isUnassigned: boolean;
+  readonly needsReassignment?: boolean;
 }
 
 export type RenewalStateCode =
@@ -347,6 +348,7 @@ export interface TodayTasksResponseData {
   readonly unassignedNextCursor: string | null;
   readonly unassignedHasMore: boolean;
   readonly canSeeUnassigned: boolean;
+  readonly canSeeReassignment?: boolean;
   readonly canAssign: boolean;
   readonly timezone: string;
   readonly todayLocalDate: string;

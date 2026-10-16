@@ -42,6 +42,7 @@ interface TodayTaskRow {
   renewal_id: string;
   task_title: string;
   due_at: string;
+  needs_reassignment: number;
   task_assignee_membership_id: string | null;
   task_version: number;
   renewal_assignee_membership_id: string | null;
@@ -188,7 +189,7 @@ async function authorizeTaskParents(
 }
 
 interface TaskCursorBinding {
-  readonly queue: 'WORK' | 'UNASSIGNED';
+  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
   readonly agencyId: string;
   readonly membershipId: string;
   readonly permissionVersion: number;
@@ -280,6 +281,12 @@ interface TaskPage {
   readonly nextCursor: string | null;
 }
 
+// Keep unavailable assignees attached until an explicit authorized assignment.
+const needsReassignmentSql = `t.assignee_membership_id IS NOT NULL AND EXISTS(
+  SELECT 1 FROM agency_memberships previous_m JOIN users previous_u ON previous_u.id=previous_m.user_id
+  WHERE previous_m.agency_id=t.agency_id AND previous_m.id=t.assignee_membership_id
+    AND (previous_m.status IN ('SUSPENDED','INACTIVE') OR previous_u.status<>'ACTIVE'))`;
+
 async function loadTaskPage(input: {
   readonly context: AuthenticatedUserContext;
   readonly db: D1Database;
@@ -292,7 +299,7 @@ async function loadTaskPage(input: {
   readonly canSeeUnassigned: boolean;
   readonly cursor: TaskCursor | null;
   readonly limit: number;
-  readonly queue: 'WORK' | 'UNASSIGNED';
+  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
   readonly now: Date;
   readonly todayLocalDate: string;
   readonly timezone: string;
@@ -345,6 +352,11 @@ async function loadTaskPage(input: {
   ];
   if (input.queue === 'UNASSIGNED') {
     where.push('t.assignee_membership_id IS NULL');
+  } else if (input.queue === 'REASSIGNMENT') {
+    where.push(`(${needsReassignmentSql})`);
+    where.push(`EXISTS(SELECT 1 FROM agency_memberships owner_m WHERE owner_m.id=?
+      AND owner_m.agency_id=t.agency_id AND owner_m.type='OWNER' AND owner_m.status='ACTIVE')`);
+    values.push(input.active.id);
   } else if (input.canSeeUnassigned) {
     where.push('t.assignee_membership_id IS NOT NULL');
   }
@@ -384,6 +396,7 @@ async function loadTaskPage(input: {
           t.due_at,t.assignee_membership_id AS task_assignee_membership_id,t.version AS task_version,
           r.assignee_membership_id AS renewal_assignee_membership_id,r.state AS renewal_state,
           r.version AS renewal_version,p.id AS policy_id,p.policy_number,p.end_date AS policy_end_date,
+          CASE WHEN ${needsReassignmentSql} THEN 1 ELSE 0 END AS needs_reassignment,
           CASE
             WHEN b.data_classification='GENERAL' AND ?='AGENCY' THEN 1
             WHEN b.data_classification='GENERAL' AND ?='ASSIGNED'
@@ -468,6 +481,7 @@ function toDto(
           ? 'TODAY'
           : 'UPCOMING',
     isUnassigned: row.task_assignee_membership_id === null,
+    needsReassignment: row.needs_reassignment === 1,
   };
 }
 
@@ -512,6 +526,8 @@ export async function listTodayTasks(
     renewalAssign.effectiveScope === 'AGENCY';
   const canSeeUnassigned =
     taskRead.effectiveScope === 'AGENCY' && renewalRead.effectiveScope === 'AGENCY';
+  const canSeeReassignment = active.type === 'OWNER' && canSeeUnassigned && canAssign;
+  if (query.needsReassignment && !canSeeReassignment) throw new TaskForbiddenError();
 
   const agency = await db
     .prepare(
@@ -535,7 +551,8 @@ export async function listTodayTasks(
     policyReadScope: policyRead.effectiveScope as 'ASSIGNED' | 'AGENCY',
     policyHealthReadScope,
   };
-  const workCursor = parseCursor(query.cursor, { ...cursorScopes, queue: 'WORK' });
+  const workQueue = query.needsReassignment ? 'REASSIGNMENT' : 'WORK';
+  const workCursor = parseCursor(query.cursor, { ...cursorScopes, queue: workQueue });
   const unassignedCursor = parseCursor(query.unassignedCursor, {
     ...cursorScopes,
     queue: 'UNASSIGNED',
@@ -556,7 +573,7 @@ export async function listTodayTasks(
     todayLocalDate,
     timezone: agency.timezone,
   };
-  const workPage = await loadTaskPage({ ...pageInput, cursor: workCursor, queue: 'WORK' });
+  const workPage = await loadTaskPage({ ...pageInput, cursor: workCursor, queue: workQueue });
   const unassignedPage = canSeeUnassigned
     ? await loadTaskPage({ ...pageInput, cursor: unassignedCursor, queue: 'UNASSIGNED' })
     : { items: [], hasMore: false, nextCursor: null };
@@ -569,6 +586,7 @@ export async function listTodayTasks(
     unassignedHasMore: unassignedPage.hasMore,
     unassignedNextCursor: unassignedPage.nextCursor,
     canSeeUnassigned,
+    canSeeReassignment,
     canAssign,
     timezone: agency.timezone,
     todayLocalDate,

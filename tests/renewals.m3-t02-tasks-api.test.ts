@@ -2061,4 +2061,184 @@ describe('M3-T02 scoped Today’s Work API', () => {
       policyEndDate: '2026-11-01',
     });
   });
+
+  it('exposes suspended assignee work only in the owner reassignment view and keeps unassigned separate', async () => {
+    const target = await seedRenewalTask(db, 'orphan-a');
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE renewal_opportunities SET assignee_membership_id='task-member-membership',version=version+1 WHERE id=?",
+        )
+        .bind(target.renewalId),
+      db
+        .prepare(
+          "UPDATE tasks SET assignee_membership_id='task-member-membership',version=version+1 WHERE id=?",
+        )
+        .bind(target.taskId),
+      db.prepare(
+        "UPDATE agency_memberships SET status='SUSPENDED',suspended_at='2026-09-24T06:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id='task-member-membership'",
+      ),
+    ]);
+    try {
+      const app = createTaskApp(context);
+      const response = await app.request(
+        'https://panel.mayisigorta.com/api/tasks/today?needsReassignment=true&limit=1',
+        {},
+        { DB: db } as Env,
+      );
+      expect(response.status).toBe(200);
+      const envelope = (await response.json()) as {
+        data: {
+          items: Array<{
+            taskId: string;
+            needsReassignment: boolean;
+            isUnassigned: boolean;
+            assigneeMembershipId: string;
+          }>;
+          nextCursor: string | null;
+          canSeeReassignment: boolean;
+        };
+      };
+      expect(envelope.data.canSeeReassignment).toBe(true);
+      expect(envelope.data.items[0]).toMatchObject({
+        needsReassignment: true,
+        isUnassigned: false,
+        assigneeMembershipId: 'task-member-membership',
+      });
+      expect(envelope.data.nextCursor).toBeTruthy();
+      const page2 = await app.request(
+        'https://panel.mayisigorta.com/api/tasks/today?needsReassignment=true&limit=1&cursor=' +
+          encodeURIComponent(envelope.data.nextCursor!),
+        {},
+        { DB: db } as Env,
+      );
+      expect(page2.status).toBe(200);
+      expect(
+        ((await page2.json()) as { data: { items: Array<{ taskId: string }> } }).data.items[0]
+          ?.taskId,
+      ).not.toBe(envelope.data.items[0]?.taskId);
+      const wrongQueue = await app.request(
+        'https://panel.mayisigorta.com/api/tasks/today?cursor=' +
+          encodeURIComponent(envelope.data.nextCursor!),
+        {},
+        { DB: db } as Env,
+      );
+      expect(wrongQueue.status).toBe(400);
+      const member = await createTaskApp(memberContext).request(
+        'https://panel.mayisigorta.com/api/tasks/today?needsReassignment=true',
+        {},
+        { DB: db } as Env,
+      );
+      expect(member.status).not.toBe(200);
+      const options = await listRenewalTaskAssignmentOptions(
+        context,
+        db,
+        target.renewalId,
+        target.taskId,
+      );
+      expect(options.map((option) => option.membershipId)).not.toContain('task-member-membership');
+      expect(options.map((option) => option.membershipId)).toContain('task-actor-membership');
+      const all = await app.request(
+        'https://panel.mayisigorta.com/api/tasks/today?needsReassignment=true&limit=50',
+        {},
+        { DB: db } as Env,
+      );
+      const page = (
+        (await all.json()) as {
+          data: {
+            items: Array<{ taskId: string }>;
+            unassignedItems: Array<{ taskId: string; isUnassigned: boolean }>;
+          };
+        }
+      ).data;
+      expect(page.items.map((item) => item.taskId)).toContain(target.taskId);
+      expect(page.unassignedItems.every((item) => item.isUnassigned)).toBe(true);
+      expect(page.unassignedItems.map((item) => item.taskId)).not.toContain(target.taskId);
+      await db
+        .prepare(
+          "UPDATE agency_memberships SET status='INACTIVE',inactivated_at='2026-09-24T06:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id='task-member-membership'",
+        )
+        .run();
+      const inactive = await listTodayTasks(context, db, { limit: 50, needsReassignment: 'true' });
+      expect(inactive.items.map((item) => item.taskId)).toContain(target.taskId);
+
+      const env: Env = { DB: db, CSRF_SECRET: 'test-csrf-secret-that-is-long-enough' };
+      const csrfResponse = await app.request(
+        'https://panel.mayisigorta.com/api/csrf-token',
+        {},
+        env,
+      );
+      const csrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
+      const row = await db
+        .prepare('SELECT version FROM tasks WHERE id=?')
+        .bind(target.taskId)
+        .first<{ version: number }>();
+      const renewal = await db
+        .prepare('SELECT version FROM renewal_opportunities WHERE id=?')
+        .bind(target.renewalId)
+        .first<{ version: number }>();
+      const payload = {
+        expectedRenewalVersion: renewal!.version,
+        expectedTaskVersion: row!.version,
+        assigneeMembershipId: 'task-actor-membership',
+      };
+      const assign = (body = payload, key = 'orphan-explicit-assignment') =>
+        app.request(
+          `https://panel.mayisigorta.com/api/renewals/${target.renewalId}/tasks/${target.taskId}/assign`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://panel.mayisigorta.com',
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrf,
+              'Idempotency-Key': key,
+            },
+            body: JSON.stringify(body),
+          },
+          env,
+        );
+      expect(
+        (await assign({ ...payload, expectedTaskVersion: row!.version + 1 }, 'orphan-stale'))
+          .status,
+      ).toBe(409);
+      expect(
+        (
+          await assign(
+            { ...payload, assigneeMembershipId: 'task-member-membership' },
+            'orphan-inactive-target',
+          )
+        ).status,
+      ).not.toBe(200);
+      expect((await assign()).status).toBe(200);
+      expect((await assign()).status).toBe(200);
+      const after = await listTodayTasks(context, db, { limit: 50, needsReassignment: 'true' });
+      expect(after.items.map((item) => item.taskId)).not.toContain(target.taskId);
+      expect(
+        await db
+          .prepare('SELECT assignee_membership_id,status FROM tasks WHERE id=?')
+          .bind(target.taskId)
+          .first(),
+      ).toEqual({ assignee_membership_id: 'task-actor-membership', status: 'OPEN' });
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM audit_events WHERE action='renewal.task.assigned' AND idempotency_key='orphan-explicit-assignment'",
+          )
+          .first(),
+      ).toEqual({ count: 1 });
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM operation_receipts WHERE idempotency_key='orphan-explicit-assignment'",
+          )
+          .first(),
+      ).toEqual({ count: 1 });
+    } finally {
+      await db
+        .prepare(
+          "UPDATE agency_memberships SET status='ACTIVE',suspended_at=NULL,version=version+1,permission_version=permission_version+1 WHERE id='task-member-membership'",
+        )
+        .run();
+    }
+  });
 });

@@ -20,6 +20,7 @@ export const todayTasksQuerySchema = z
       .pipe(z.number().int().min(1).max(50)),
     cursor: z.string().trim().min(1).max(1024).optional(),
     unassignedCursor: z.string().trim().min(1).max(1024).optional(),
+    needsReassignment: z.literal('true').optional(),
   })
   .strict();
 
