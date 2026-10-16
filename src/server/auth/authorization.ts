@@ -771,7 +771,9 @@ export function createDefaultActionRegistry(): ActionRegistry {
     if (perm.classification === 'NORMAL') {
       const actionDef = validateAndCreateActionDefinition({
         code: perm.code,
-        authority: 'MEMBERSHIP_AUTHORIZED',
+        authority: ['task.assign', 'renewal.assign', 'report.management'].includes(perm.code)
+          ? 'OWNER_ONLY'
+          : 'MEMBERSHIP_AUTHORIZED',
         requiredNormalPermissions: [perm.code],
         requiredSensitivePermissions: [],
         assurance: perm.assurance,
@@ -2819,6 +2821,21 @@ export async function evaluateAuthorization(
   }
 
   // 8. Yetki ve Kapsam Değerlendirmesi (BLOCKER-1 & IMPORTANT-1)
+  // Legacy AGENCY grants cannot override task privacy, including composite/export actions.
+  if (activeMembership.type !== 'OWNER') {
+    for (const code of graph.keys()) {
+      if (['task.assign', 'renewal.assign', 'report.management'].includes(code))
+        return deny('OWNER_REQUIRED');
+      if (
+        (code.startsWith('task.') || code === 'report.operations') &&
+        resourceSnapshot?.isCollection !== true &&
+        resourceSnapshot?.taskAssigneeMembershipId !== activeMembership.id
+      )
+        return deny('SCOPE_RESOLVER_DENIED');
+      if (code === 'report.operations' && resourceSnapshot?.isCollection === true)
+        return deny('SCOPE_RESOLVER_DENIED');
+    }
+  }
   const effectiveScopeMap = new Map<string, EffectiveScope>();
 
   const hasSensitiveInGraph = Array.from(graph.values()).some(

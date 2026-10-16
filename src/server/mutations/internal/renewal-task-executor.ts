@@ -125,25 +125,7 @@ function actorAuthorityStatement(input: ExecuteRenewalTaskAssignmentInput): D1Pr
              WHERE health_read.membership_id=m.id
                AND health_read.permission_code='sensitive.health.read'
                AND health_read.scope='UNSCOPED'))
-           AND (m.type='OWNER' OR (
-             EXISTS(SELECT 1 FROM membership_permissions ta
-               WHERE ta.membership_id=m.id AND ta.permission_code='task.assign' AND ta.scope='AGENCY')
-             AND EXISTS(SELECT 1 FROM membership_permissions tr
-               WHERE tr.membership_id=m.id AND tr.permission_code='task.read' AND tr.scope='AGENCY')
-             AND EXISTS(SELECT 1 FROM membership_permissions ra
-               WHERE ra.membership_id=m.id AND ra.permission_code='renewal.assign' AND ra.scope='AGENCY')
-             AND EXISTS(SELECT 1 FROM membership_permissions rr
-               WHERE rr.membership_id=m.id AND rr.permission_code='renewal.read' AND rr.scope='AGENCY')
-             AND EXISTS(SELECT 1 FROM membership_permissions cr
-               WHERE cr.membership_id=m.id AND cr.permission_code='customer.read'
-                 AND (cr.scope='AGENCY' OR
-                   (cr.scope='ASSIGNED' AND c.assignee_membership_id=m.id)))
-             AND EXISTS(SELECT 1 FROM membership_permissions pr
-               WHERE pr.membership_id=m.id AND pr.permission_code='policy.read'
-                 AND (pr.scope='AGENCY' OR
-                   (pr.scope='ASSIGNED'
-                     AND (p.assignee_membership_id=m.id OR c.assignee_membership_id=m.id))))
-           ))
+           AND m.type='OWNER'
        ) THEN 1 ELSE 0 END,'MEMBERSHIP_PERMISSION_NOT_FOUND'`,
     )
     .bind(
@@ -623,6 +605,7 @@ function completionAuthorityStatement(
                  AND (policy_read.scope='AGENCY' OR
                    (policy_read.scope='ASSIGNED'
                      AND (p.assignee_membership_id=m.id OR c.assignee_membership_id=m.id))))
+             AND t.assignee_membership_id=m.id
              AND ${dependencyScopeValid ? '1=1' : '1=0'}
              AND (?='AGENCY' OR t.assignee_membership_id=m.id)
              AND (?='AGENCY' OR t.assignee_membership_id=m.id)
@@ -1035,6 +1018,7 @@ function completionReplayTargetAssertion(
            AND target.kind='RENEWAL_FOLLOWUP' AND target.actor_kind='USER'
            AND target.created_by_user_id=? AND target.created_by_membership_id=?
            AND source.kind='RENEWAL_FOLLOWUP' AND source.status='COMPLETED'
+           AND (m.type='OWNER' OR (source.assignee_membership_id=m.id AND target.assignee_membership_id=m.id))
           AND source.completed_at=?
            AND m.user_id=? AND m.status='ACTIVE' AND u.status='ACTIVE' AND a.status='ACTIVE'
            AND m.permission_version=?

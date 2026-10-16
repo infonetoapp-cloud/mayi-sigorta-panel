@@ -486,6 +486,7 @@ function actorAuthorityPredicate(
             AND u.status='ACTIVE' AND a.status='ACTIVE' AND m.permission_version=?
             ${assignmentConsistencyPredicate}
             AND t.kind='RENEWAL_FOLLOWUP'
+            AND (m.type='OWNER' OR t.assignee_membership_id=m.id)
             ${parentLifecyclePredicate}
             AND (b.data_classification<>'HEALTH' OR EXISTS(
               SELECT 1 FROM membership_permissions health

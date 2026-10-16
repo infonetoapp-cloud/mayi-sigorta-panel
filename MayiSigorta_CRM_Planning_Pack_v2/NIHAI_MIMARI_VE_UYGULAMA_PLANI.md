@@ -132,32 +132,32 @@ Kapsamlı izinlerde değerler: `NONE` (yok), `ASSIGNED` (atanmış), `AGENCY` (a
 
 | İzin kodu | Personel | Yetkili Personel | Anlam |
 |---|---:|---:|---|
-| customer.read | A | T | Müşteri kartı |
+| customer.read | T | T | Ortak müşteri kartı |
 | customer.create | ✓ | ✓ | Yeni müşteri |
-| customer.update | A | T | Temel iletişim/müşteri bilgisi |
+| customer.update | T | T | Ortak temel iletişim/müşteri bilgisi |
 | customer.archive | — | T | Gerekçeli arşivleme |
 | customer.assign | — | T | Sorumlu atama |
-| policy.read | A | T | Poliçe bilgisi |
+| policy.read | T | T | Ortak poliçe bilgisi |
 | policy.create | ✓ | ✓ | Erişilebilir müşteriye poliçe |
-| policy.update | A | T | İzin verilen poliçe düzeltmeleri |
+| policy.update | T | T | İzin verilen ortak poliçe düzeltmeleri |
 | policy.archive | — | T | Arşivleme; geçmişi silmez |
 | policy.assign | — | T | Poliçe sorumlusu |
-| renewal.read | A | T | Yenileme işi |
-| renewal.update | A | T | Açık durum/takip/öncelik |
-| renewal.close_won | A | T | Sonuç poliçesiyle kazanma |
-| renewal.close_lost | A | T | Gerekçeli kayıp |
-| renewal.assign | — | T | Yenileme sorumlusu |
+| renewal.read | T | T | Ortak yenileme kaydı; özel Task ayrıntıları hariç |
+| renewal.update | T | T | Açık durum/takip/öncelik |
+| renewal.close_won | T | T | Sonuç poliçesiyle kazanma; bağlı özel Task yetkisi ayrıca gerekir |
+| renewal.close_lost | T | T | Gerekçeli kayıp; bağlı özel Task yetkisi ayrıca gerekir |
+| renewal.assign | — | — | OWNER; bağlı takip sorumlusunun yönetimi |
 | renewal.reopen | — | T | Kontrollü yeniden açma |
 | renewal.void | — | — | Hatalı/uygunsuz işin rapor dışı iptali |
-| quote.read | A | T | Teklifler |
-| quote.manage | A | T | Teklif oluşturma/düzeltme/pasifleştirme |
-| interaction.read | A | T | Görüşme geçmişi |
-| interaction.create | A | T | Yeni görüşme |
+| quote.read | T | T | Ortak teklifler |
+| quote.manage | T | T | Ortak teklif oluşturma/düzeltme/pasifleştirme |
+| interaction.read | T | T | Ortak görüşme geçmişi |
+| interaction.create | T | T | Yeni ortak görüşme |
 | interaction.correct | — | T | Gerekçeli düzeltme; eski içerik korunur |
-| task.read | A | T | Görevler |
+| task.read | A | A | Yalnız kendi görevleri; AGENCY grant MEMBER gizlilik sınırını aşmaz |
 | task.create | ✓ | ✓ | Erişilebilir kayıt üzerinde/kendine görev |
-| task.update | A | T | Kapsamdaki görev güncellemesi |
-| task.assign | — | T | Başka personele görev |
+| task.update | A | A | Yalnız kendi görevini güncelleme |
+| task.assign | — | — | Yalnız OWNER; atanmamış/yeniden-atama dahil |
 | document.read | A | T | Yetkili kaydın doğrulanmış ve yedeklenmiş belgeleri; antivirüs güvenliği iddiası yok |
 | document.upload | A | T | Belge ekleme |
 | document.archive | — | T | Belgeyi kullanımdan kaldırma |
@@ -165,8 +165,8 @@ Kapsamlı izinlerde değerler: `NONE` (yok), `ASSIGNED` (atanmış), `AGENCY` (a
 | sensitive.identity.write | — | — | TCKN/VKN/kimlik belgesi düzenleme |
 | sensitive.health.read | — | — | Sağlık branşı detayları ve sağlık poliçesi belgeleri |
 | sensitive.health.write | — | — | İzinli sağlık branşı veri/belge işlemleri |
-| report.operations | A | T | Kapsamdaki iş yükü/iş listesi |
-| report.management | — | T | Kapsamdaki yönetim metrikleri |
+| report.operations | A | A | Yalnız kendi görev istatistikleri; genel personel iş yükü yok |
+| report.management | — | — | Yalnız OWNER yönetim metrikleri |
 | export.scoped | — | — | Görülebildiği kapsamdan kontrollü export |
 | export.portfolio | — | — | Tam portföy export yetkisi; okuma izinlerini genişletmez |
 | audit.read | — | — | Maskelenmiş güvenlik audit'i |
@@ -176,6 +176,12 @@ Kapsamlı izinlerde değerler: `NONE` (yok), `ASSIGNED` (atanmış), `AGENCY` (a
 Yalnız owner işlemleri: personel/izin yönetimi, owner devri, ilk importun production commit'i, mahremiyet amaçlı fiziksel silme, saklama profilinin onayı, güvenlik ayarı değişikliği. Üretim veritabanı/Cloudflare hesabına erişim CRM owner rolünün otomatik sonucu değildir; altyapı yetkisi ayrıdır.
 
 ### 4.3 Yetki hesabının kesin kuralları
+
+Ürün sahibinin ortak acente/özel günlük görev kararı: yeni standart çalışanlar regular customer/policy/renewal/quote/interaction read ve olağan edit izinlerini AGENCY snapshot olarak alır. Müşteri/poliçe sorumlusu erişim duvarı değil, sorumluluk ve raporlama alanıdır. Aşağıdaki ASSIGNED kuralları yalnız açıkça korunmuş dar/custom grant'lerin anlamıdır; standart personel için portföy izolasyonu varsayımı değildir. Mevcut hesaplar kendiliğinden genişletilmez: OWNER kişi bazında mevcut izin taslağını inceler, isterse ortak çalışma şablonunu açıkça uygular, gerekçe + mevcut secure grant/CAS/audit akışıyla onaylar. Otomatik production permission migration yoktur.
+
+MEMBER görev mahremiyeti grant'lerden üstte zorunlu sınırdır: eski AGENCY task/report izinleri dahil yalnız kendi atanmış Task kayıtları, listeleri, sayfaları ve kişisel istatistikleri okunur/değiştirilir. OWNER tüm yetkili görevleri ve iş yükünü görür/yönetir; atanmamış işler, task/renewal sorumlusu değiştirme ve yönetim raporları OWNER'a ayrılır. Ortak müşteri/yenileme/teklif/görüşme okuması başka çalışanın task kimliği, vadesi, task sürümü veya iş yükü bilgisini döndürmez. API/direct-ID/replay/atomik komut, sayfalama, sayım ve gelecekteki export/rapor sorguları aynı sınırı uygulamak zorundadır; henüz olmayan rapor/export endpoint'leri bu kararla uygulanmış sayılmaz. Sağlık/kimlik, arşivleme, personel/güvenlik işlemleri ve cross-agency sınırları ayrı kalır.
+
+Görüşme yazarını sunucu authenticated user/membership üzerinden belirler. Okumada yalnız aynı agency'de bağlı user'ın okunabilir adı ile zaman ve içerik paylaşılır; yazarın pasif/askıda olması tarihsel adı gizlemez, email/izin/ham aktör kimliği paylaşılmaz. Yenileme NOTE kayıtları yenilemeye özgüdür; müşteri profilindeki “Yenileme görüşmeleri ve teklifler” bölümünde kaynak poliçesiyle gösterilir, genel müşteri notu diye sunulmaz. Genel müşteri notu için ayrı kapsamlı depolama/CRUD olmadığı sürece bu özellik açık takip işidir; yenileme kayıtlarını yanlış bağlayarak taklit edilmez.
 
 Her işlem: doğrulanmış yerel session + aktif identity/User/AgencyMembership/Agency + permission + kayıt kapsamı + hassasiyet kontrolü. `agency_id` ve membership sunucunun kimliğinden gelir. Client'ın rol/email/agency/sorumlu iddiası yetki oluşturmaz.
 
@@ -197,7 +203,7 @@ F-27 akışı: ad+kurumsal email → şablon → explicit izin/kapsam snapshot �
 
 İzin değişimi tek transaction'da yeni kayıtlar + permission_version artışı + audit yazar. Sonraki API isteği güncel permission_version ve aktifliği D1'den denetler; uzun TTL permission cache yok. Ekrandaki açık butonlar eski kalsa da sunucu reddeder. Client kimlik/izin değişiminde veri cache'ini temizler.
 
-Pasifleştirme önce erişimi durdurur, sonra açık işleri seçilen aktif personele aktarır. Toplu aktarım sürerken sahipsiz/aktif olmayan kullanıcı işleri owner'ın Atanmamış kuyruğunda görünür; iş kaybolmaz. Tamamlanan görevlerde eski aktör korunur. Kullanıcı silinmez. Email'in başka kişiye devrinde eski subject üzerinden erişim devam etmez; yeni davet/kimlik eşleme gerekir.
+Pasifleştirme/askıya alma erişimi durdurur; açık işleri sessizce aktarmaz veya silmez. OWNER “Yeniden Atama Gerekenler” görünümünde eski non-null sorumludaki işleri görür ve uygun aktif çalışanı açıkça seçerek aktarır. Gerçek NULL atanmamış kuyruğu ayrıdır. Task ataması müşteri/poliçe sahipliğini değiştirmez. Tamamlanan görevlerde ve görüşmelerde eski aktör korunur. Kullanıcı silinmez. Email'in başka kişiye devrinde eski subject üzerinden erişim devam etmez; yeni davet/kimlik eşleme gerekir.
 
 ## 5. Yerel kimlik, oturum ve kritik işlem doğrulaması
 
@@ -775,6 +781,8 @@ Bilinmeyen personel sayısı başlangıcı durdurmaz: kabul kapasitesi 20 eşzam
 16 Eylül 2026 salt okunur gözlem: Cloudflare zone aktif ve Free Website; Access API `not_enabled`; panel DNS/Worker Custom Domain kaydı ve zone Worker route görülmedi. Bu kurulum tamamlandı anlamına gelmez. Sonraki ajan setup öncesi güncel durumu tekrar okur. Bu dokümanla hiçbir Cloudflare ayarı değiştirilmemiştir.
 
 ## 18. Kararların kapanış kaydı
+
+Ortak acente/özel görev kararı — ürün sahibinin `aa278e864722d016623ecbc1c2b64cd962f3a440` sonrası açık yetkisiyle bölüm 4 başlangıç matrisi ve yetki kuralları güncellendi. Standart AGENCY CRM kayıtları + her MEMBER için zorunlu kendi-Task sınırı + OWNER-only görev yönetimi + sunucu kaynaklı tarihsel görüşme yazarı esastır. Eski çalışan-portföy izolasyonu standart model değildir; custom scope kısıtları ve hassasiyet korunur. Mevcut hesap genişletme yalnız açık OWNER onayıyla; production migration/deploy veya belge aktivasyonu yetkisi değildir. Önceki M4 kabul/NO-GO kararları değişmez.
 
 Kayıt statüleri: **KESİN** (bu sürümün kuralı), **ERTELENDİ** (V1 dışı), **YASAK** (güvenlik/ürün sınırı), **KURULUM GİRDİSİ** (gerçek değer/kanıt). Eski belgelerin OPEN/PREFERRED etiketleri yürürlükte değildir.
 

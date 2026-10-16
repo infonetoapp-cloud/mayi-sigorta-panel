@@ -41,6 +41,7 @@ import {
   createRenewalQuote,
   createRenewalQuoteVersion,
   listRenewalInteractions,
+  listCustomerRenewals,
   listRenewalQuotes,
   sendRenewalQuote,
 } from './engagement';
@@ -989,6 +990,39 @@ export function registerRenewalCommandRoutes(
       );
     } catch (error) {
       return whatsAppFailure(c, error);
+    }
+  });
+
+  app.get(`${API_PREFIX}/customers/:id/renewals`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const parsed = z
+      .object({
+        cursor: z
+          .string()
+          .regex(/^[A-Za-z0-9_.:-]{1,128}$/)
+          .optional(),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+      })
+      .strict()
+      .safeParse(c.req.query());
+    const id = c.req.param('id');
+    if (!parsed.success || !/^[A-Za-z0-9_.:-]{1,128}$/.test(id))
+      return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    try {
+      const data = await listCustomerRenewals(
+        authenticated.context,
+        c.env.DB,
+        id,
+        parsed.data.cursor,
+        parsed.data.limit,
+      );
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data, timestamp: new Date().toISOString() });
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(c, error.status, error.code, 'Kayıtlar okunamadı.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
     }
   });
 

@@ -10,6 +10,12 @@ Bu sözleşme `NIHAI_MIMARI_VE_UYGULAMA_PLANI.md` içindeki authorization kararl
 
 ## A. Executive decision
 
+Aktif ürün sahibi kararı (`aa278e864722d016623ecbc1c2b64cd962f3a440` sonrası): standart personel regular müşteri/poliçe/yenileme/teklif/görüşme kayıtlarında AGENCY read ve olağan edit snapshot'ıyla çalışır. ASSIGNED yalnız bilinçli custom kısıt olarak korunur; kayıt sorumluluğu standart görünürlüğü kısıtlamaz. Yeni şablon mevcut grant kayıtlarını değiştirmez; geçiş kişi bazında OWNER'ın taslak incelemesi, gerekçe ve mevcut secure grant/CAS/audit onayıyla yapılır. Hassasiyet ve tenant invariant'ları değişmez.
+
+Task mahremiyeti zorunlu üst sınırdır: MEMBER eski AGENCY grant'i olsa bile yalnız kendi Task kayıtlarını ve kişisel görev istatistiğini görür/değiştirir. Merkezi evaluator bu kuralı task permission içeren composite action'larda da uygular; collection listeleri sorguda `task.assignee_membership_id = authenticated membership` filtresini LIMIT/cursor/sayım öncesi zorunlu uygular. Genel kayıt erişimi private task kimlik/vade/sürüm/iş yükü ayrıntılarını açıklamaz. `task.assign`, `renewal.assign`, `report.management` OWNER_ONLY'dir; OWNER atanmamış/yeniden-atama kuyruğunu yönetir. İzin checkbox'ı bu sınırı kaldıramaz. Özel Task değiştiren terminal komut/replay canlı task yetkisini ayrıca korur; ortak görüşme/teklif çalışması bunun dışındadır. Henüz olmayan rapor/export route'ları fail-closed kalır; ileride aynı kendi-Task filtresini uygulamadan açılamaz.
+
+Yenileme etkileşimi yazar kimliği yalnız authenticated sunucu identity'sinden yazılır. Aynı agency içindeki kalıcı membership/user bağı okunabilir adı sağlar; pasifleştirme/askıya alma tarihsel yazarı gizlemez. DTO email, grant veya ham aktör ID'si döndürmez. Kaynakta ad yoksa dürüst fallback gösterilir. Yenileme NOTE genel müşteri notu değildir; müşteri profilinde ilgili yenilemenin altında gösterilir. Bağımsız müşteri notu deposu/komutu bu dilimde kurulmaz ve ayrı takip işidir.
+
 RG-00 authorization modeli şu şekilde kesinleştirilmiştir:
 
 - ROLE ile PERMISSION aynı kavram değildir.

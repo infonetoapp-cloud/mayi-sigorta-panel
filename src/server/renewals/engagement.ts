@@ -948,6 +948,108 @@ export async function sendRenewalQuote(
   return { data: result, replayed: false, status: 201 };
 }
 
+// Shared customer workspace deliberately has no task joins, due times, IDs or workloads.
+export async function listCustomerRenewals(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  customerId: string,
+  after = '',
+  limit = 20,
+) {
+  const active = activeMembership(context);
+  const scopes: Record<string, string> = {};
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > 50 ||
+    (after && !/^[A-Za-z0-9_.:-]{1,128}$/.test(after))
+  )
+    throw new RenewalCommandError('VALIDATION_ERROR', 400);
+  for (const action of ['customer.read', 'policy.read', 'renewal.read'] as const) {
+    const result = await evaluateAuthorization(db, {
+      context,
+      action,
+      resource: { agencyId: active.agencyId, isCollection: true },
+    });
+    if (result.decision !== 'ALLOW' || !result.effectiveScope)
+      throw new RenewalCommandError('FORBIDDEN', 403);
+    scopes[action] = result.effectiveScope;
+  }
+  const health = await evaluateAuthorization(db, {
+    context,
+    action: 'policy.health.read',
+    resource: { agencyId: active.agencyId, isCollection: true },
+  });
+  const predicates = [
+    'r.agency_id=?',
+    'p.customer_id=?',
+    'r.id>?',
+    'c.archived_at IS NULL',
+    'p.archived_at IS NULL',
+    'm.id=?',
+    'm.user_id=?',
+    "m.status='ACTIVE'",
+    "u.status='ACTIVE'",
+    "a.status='ACTIVE'",
+    'm.permission_version=?',
+    "EXISTS(SELECT 1 FROM auth_identities ai WHERE ai.id=? AND ai.user_id=u.id AND ai.status='ACTIVE')",
+  ];
+  const values: unknown[] = [
+    active.agencyId,
+    customerId,
+    after,
+    active.id,
+    context.userId,
+    active.permissionVersion,
+    context.identityId,
+  ];
+  for (const [code, scope] of Object.entries(scopes)) {
+    const assigned =
+      code === 'customer.read'
+        ? 'c.assignee_membership_id=m.id'
+        : code === 'policy.read'
+          ? '(p.assignee_membership_id=m.id OR c.assignee_membership_id=m.id)'
+          : '(r.assignee_membership_id=m.id OR c.assignee_membership_id=m.id)';
+    predicates.push(
+      `(m.type='OWNER' OR EXISTS(SELECT 1 FROM membership_permissions mp WHERE mp.membership_id=m.id AND mp.permission_code=? AND mp.scope=?))`,
+    );
+    values.push(code, scope);
+    if (scope === 'ASSIGNED') predicates.push(assigned);
+  }
+  if (health.decision !== 'ALLOW') predicates.push("b.data_classification='GENERAL'");
+  else {
+    predicates.push(
+      `(b.data_classification='GENERAL' OR EXISTS(SELECT 1 FROM membership_permissions hp WHERE hp.membership_id=m.id AND hp.permission_code='sensitive.health.read' AND hp.scope='UNSCOPED'))`,
+    );
+    if (health.effectiveScope === 'ASSIGNED')
+      predicates.push(
+        "(b.data_classification='GENERAL' OR p.assignee_membership_id=m.id OR c.assignee_membership_id=m.id)",
+      );
+  }
+  const result = await db
+    .prepare(
+      `SELECT r.id,r.state,r.version,p.policy_number AS policyNumber,p.end_date AS policyEndDate
+    FROM renewal_opportunities r
+    JOIN policies p ON p.agency_id=r.agency_id AND p.id=r.expiring_policy_id
+    JOIN customers c ON c.agency_id=p.agency_id AND c.id=p.customer_id
+    JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
+    JOIN agency_memberships m ON m.agency_id=r.agency_id
+    JOIN users u ON u.id=m.user_id JOIN agencies a ON a.id=m.agency_id
+    WHERE ${predicates.join(' AND ')} ORDER BY r.id LIMIT ?`,
+    )
+    .bind(...values, limit + 1)
+    .all<{
+      id: string;
+      state: string;
+      version: number;
+      policyNumber: string;
+      policyEndDate: string;
+    }>();
+  if (!result.success) throw new RenewalCommandError('QUERY_FAILED', 500);
+  const items = result.results.slice(0, limit);
+  return { items, nextCursor: result.results.length > limit ? items.at(-1)!.id : null };
+}
+
 export async function listRenewalInteractions(
   context: AuthenticatedUserContext,
   db: D1Database,
@@ -962,8 +1064,13 @@ export async function listRenewalInteractions(
   const { active, parent } = await authorizeParent(context, db, renewalId, 'interaction.read');
   const result = await db
     .prepare(
-      `SELECT id,outcome,channel,occurred_at,company_contact_id,note,actor_membership_id
-       FROM renewal_interactions WHERE agency_id=? AND renewal_id=? ORDER BY occurred_at,id`,
+      `SELECT i.id,i.outcome,i.channel,i.occurred_at,i.company_contact_id,i.note,
+          u.display_name AS author_name
+       FROM renewal_interactions i
+       LEFT JOIN agency_memberships author ON author.agency_id=i.agency_id
+         AND author.id=i.actor_membership_id AND author.user_id=i.actor_user_id
+       LEFT JOIN users u ON u.id=author.user_id
+       WHERE i.agency_id=? AND i.renewal_id=? ORDER BY i.occurred_at,i.id`,
     )
     .bind(active.agencyId, parent.id)
     .all<{
@@ -973,7 +1080,7 @@ export async function listRenewalInteractions(
       occurred_at: string;
       company_contact_id: string | null;
       note: string | null;
-      actor_membership_id: string;
+      author_name: string | null;
     }>();
   const lastContact = await db
     .prepare(

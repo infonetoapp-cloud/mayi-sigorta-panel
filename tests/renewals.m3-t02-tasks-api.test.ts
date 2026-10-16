@@ -8,6 +8,12 @@ import { listRenewalTaskAssignmentOptions, listTodayTasks } from '../src/server/
 import { TaskValidationError } from '../src/server/tasks/errors';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import type { AuthenticatedPrincipal } from '../src/server/auth/types';
+import { createOnboardingTemplateGrants } from '../src/shared/permissions';
+import { evaluateAuthorization } from '../src/server/auth/authorization';
+import {
+  executeRenewalTaskAssignment,
+  executeRenewalTaskReplacementCompletion,
+} from '../src/server/mutations/internal/renewal-task-executor';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const root = resolve(__dirname, '..');
@@ -1855,7 +1861,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(replayEnvelope.replayed).toBe(true);
   });
 
-  it('rechecks current assignment authority before returning a completed replay', async () => {
+  it('rechecks live OWNER authority before returning a completed assignment replay', async () => {
     const fixture = await seedRenewalTask(db, 'assignment-replay-authority');
     await db.batch([
       db.prepare(
@@ -1869,7 +1875,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
                ('task-member-renewal-assign','task-member-membership','renewal.assign','AGENCY')`,
       ),
       db.prepare(
-        `UPDATE agency_memberships SET permission_version=3,version=version+1
+        `UPDATE agency_memberships SET type='OWNER',permission_version=permission_version+1,version=version+1
          WHERE id='task-member-membership'`,
       ),
     ]);
@@ -1881,9 +1887,13 @@ describe('M3-T02 scoped Today’s Work API', () => {
         {
           id: 'task-member-membership',
           agencyId: 'task-agency',
-          type: 'MEMBER',
+          type: 'OWNER',
           status: 'ACTIVE',
-          permissionVersion: 3,
+          permissionVersion: (await db
+            .prepare(
+              "SELECT permission_version FROM agency_memberships WHERE id='task-member-membership'",
+            )
+            .first<{ permission_version: number }>())!.permission_version,
         },
       ],
     };
@@ -1932,7 +1942,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
              AND permission_code IN ('task.assign','renewal.assign')`,
       ),
       db.prepare(
-        `UPDATE agency_memberships SET permission_version=4,version=version+1
+        `UPDATE agency_memberships SET type='MEMBER',permission_version=permission_version+1,version=version+1
          WHERE id='task-member-membership'`,
       ),
     ]);
@@ -2050,6 +2060,16 @@ describe('M3-T02 scoped Today’s Work API', () => {
         },
       ],
     };
+    const colleaguesTasks = await listTodayTasks(healthReaderContext, db, { limit: 50 });
+    expect(colleaguesTasks.items.map((task) => task.taskId)).not.toContain('task-health-primary');
+    await db.batch([
+      db.prepare(
+        "UPDATE renewal_opportunities SET assignee_membership_id='health-task-reader-membership',version=version+1 WHERE id='task-health-renewal'",
+      ),
+      db.prepare(
+        "UPDATE tasks SET assignee_membership_id='health-task-reader-membership',version=version+1 WHERE id='task-health-primary'",
+      ),
+    ]);
     const permittedTasks = await listTodayTasks(healthReaderContext, db, {
       limit: 50,
       cursor: undefined,
@@ -2060,6 +2080,364 @@ describe('M3-T02 scoped Today’s Work API', () => {
       policyNumber: 'HEALTH-TASK-1',
       policyEndDate: '2026-11-01',
     });
+  });
+
+  it('shares regular records and attributed interactions while enforcing private work despite legacy AGENCY task grants', async () => {
+    const employees: AuthenticatedUserContext[] = [];
+    for (const suffix of ['shared-a', 'shared-b']) {
+      const user = `${suffix}-user`,
+        membership = `${suffix}-membership`,
+        identity = `${suffix}-identity`;
+      await db
+        .prepare("INSERT INTO users(id,status,display_name) VALUES(?,'ACTIVE',?)")
+        .bind(user, suffix === 'shared-a' ? 'Ayşe Yılmaz' : 'Mehmet Kaya')
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO agency_memberships(id,agency_id,user_id,type,status,permission_version,version,activated_at,invitation_email,invitation_expires_at) VALUES(?,'task-agency',?,'MEMBER','ACTIVE',1,1,'2026-09-24T06:00:00.000Z',?,'2099-01-01T00:00:00.000Z')",
+        )
+        .bind(membership, user, `${suffix}@test.test`)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status) VALUES(?,?,'urn:test:shared',?,?,'ACTIVE')",
+        )
+        .bind(identity, user, identity, `${suffix}@test.test`)
+        .run();
+      const grants = createOnboardingTemplateGrants('personel');
+      // A pre-existing broad task grant must not defeat the new mandatory privacy ceiling.
+      if (suffix === 'shared-b')
+        for (const grant of grants)
+          if (grant.permission_code === 'task.read' || grant.permission_code === 'task.update')
+            (grant as { scope: string }).scope = 'AGENCY';
+      if (suffix === 'shared-b')
+        grants.push(
+          { permission_code: 'task.assign', scope: 'AGENCY' },
+          { permission_code: 'renewal.assign', scope: 'AGENCY' },
+          { permission_code: 'report.management', scope: 'AGENCY' },
+        );
+      await db.batch(
+        grants.map((grant) =>
+          db
+            .prepare(
+              'INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,?)',
+            )
+            .bind(crypto.randomUUID(), membership, grant.permission_code, grant.scope),
+        ),
+      );
+      employees.push({
+        userId: user,
+        identityId: identity,
+        assurance: 'NORMAL',
+        memberships: [
+          {
+            id: membership,
+            agencyId: 'task-agency',
+            type: 'MEMBER',
+            status: 'ACTIVE',
+            permissionVersion: 1,
+          },
+        ],
+      });
+    }
+    const [employeeA, employeeB] = employees as [
+      AuthenticatedUserContext,
+      AuthenticatedUserContext,
+    ];
+    const a = await seedRenewalTask(db, 'shared-a'),
+      a2 = await seedRenewalTask(db, 'shared-a2'),
+      b = await seedRenewalTask(db, 'shared-b');
+    const healthTarget = await seedRenewalTask(db, 'shared-health');
+    await db.batch([
+      db.prepare(
+        "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('shared-health-branch','task-agency','SH-HEALTH','Health','HEALTH')",
+      ),
+      db.prepare(
+        "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name) VALUES('shared-health-product','task-agency','task-insurer','shared-health-branch','SH-HEALTH','Health')",
+      ),
+      db
+        .prepare(
+          "UPDATE policies SET product_id='shared-health-product',branch_id='shared-health-branch',version=version+1 WHERE id=?",
+        )
+        .bind(healthTarget.policyId),
+      db.prepare("INSERT INTO agencies(id,status) VALUES('shared-foreign-agency','PROVISIONING')"),
+      db.prepare("INSERT INTO users(id,status) VALUES('shared-foreign-user','ACTIVE')"),
+      db.prepare(
+        "INSERT INTO auth_identities(id,user_id,issuer,subject,verified_email,status) VALUES('shared-foreign-identity','shared-foreign-user','urn:test:shared','shared-foreign-subject','foreign@test.test','ACTIVE')",
+      ),
+      db.prepare(
+        "INSERT INTO agency_memberships(id,agency_id,user_id,type,status,invitation_email,invitation_expires_at) VALUES('shared-foreign-member','shared-foreign-agency','shared-foreign-user','OWNER','INVITED','foreign@test.test','2099-01-01T00:00:00.000Z')",
+      ),
+      db.prepare(
+        "UPDATE agency_memberships SET status='ACTIVE',activated_at='2026-01-01T00:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id='shared-foreign-member'",
+      ),
+      db.prepare(
+        "UPDATE agencies SET status='ACTIVE',bootstrap_completed_at='2026-01-01T00:00:00.000Z',activated_at='2026-01-01T00:00:00.000Z',version=version+1 WHERE id='shared-foreign-agency'",
+      ),
+      db.prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id) VALUES('shared-foreign-customer','shared-foreign-agency','INDIVIDUAL','Foreign','Foreign','Customer','shared-foreign-member')",
+      ),
+      db.prepare(
+        "INSERT INTO insurers(id,agency_id,code,name) VALUES('shared-foreign-insurer','shared-foreign-agency','SF','Foreign')",
+      ),
+      db.prepare(
+        "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('shared-foreign-branch','shared-foreign-agency','SF','Foreign','GENERAL')",
+      ),
+      db.prepare(
+        "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name) VALUES('shared-foreign-product','shared-foreign-agency','shared-foreign-insurer','shared-foreign-branch','SF','Foreign')",
+      ),
+      db.prepare(
+        "INSERT INTO payment_methods(id,agency_id,code,name,supports_installments,max_installments) VALUES('shared-foreign-payment','shared-foreign-agency','SF','Foreign',0,12)",
+      ),
+      db.prepare(
+        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency) VALUES('shared-foreign-policy','shared-foreign-agency','shared-foreign-customer','shared-foreign-insurer','shared-foreign-product','shared-foreign-branch','shared-foreign-payment','shared-foreign-member','SF','SF','2026-01-01','2026-11-01',10000,'TRY')",
+      ),
+      db.prepare(
+        "INSERT INTO renewal_opportunities(id,agency_id,expiring_policy_id,state) VALUES('shared-foreign-renewal','shared-foreign-agency','shared-foreign-policy','CONTACT_PENDING')",
+      ),
+    ]);
+    for (const [target, assignee] of [
+      [a, 'shared-a-membership'],
+      [a2, 'shared-a-membership'],
+      [b, 'shared-b-membership'],
+    ] as const)
+      await db.batch([
+        db
+          .prepare(
+            'UPDATE renewal_opportunities SET assignee_membership_id=?,version=version+1 WHERE id=?',
+          )
+          .bind(assignee, target.renewalId),
+        db
+          .prepare('UPDATE tasks SET assignee_membership_id=?,version=version+1 WHERE id=?')
+          .bind(assignee, target.taskId),
+      ]);
+    const env: Env = { DB: db, CSRF_SECRET: 'test-csrf-secret-that-is-long-enough' };
+    for (const employee of employees) {
+      const app = createTaskApp(employee);
+      expect(
+        (await app.request('https://panel.mayisigorta.com/api/customers/task-customer', {}, env))
+          .status,
+      ).toBe(200);
+      expect(
+        (await app.request(`https://panel.mayisigorta.com/api/policies/${a.policyId}`, {}, env))
+          .status,
+      ).toBe(200);
+      const work = await listTodayTasks(employee, db, { limit: 1 });
+      expect(work.canSeeUnassigned).toBe(false);
+      expect(work.canAssign).toBe(false);
+      expect(work.unassignedItems).toEqual([]);
+      expect(
+        work.items.every((item) => item.assigneeMembershipId === employee.memberships[0]!.id),
+      ).toBe(true);
+      expect(work.items).toHaveLength(1);
+      expect(work.hasMore).toBe(employee === employeeA);
+      if (work.nextCursor) {
+        const page2 = await listTodayTasks(employee, db, { limit: 1, cursor: work.nextCursor });
+        expect(
+          page2.items.every((item) => item.assigneeMembershipId === employee.memberships[0]!.id),
+        ).toBe(true);
+      }
+      const shared = await app.request(
+        'https://panel.mayisigorta.com/api/customers/task-customer/renewals?limit=1',
+        {},
+        env,
+      );
+      expect(shared.status).toBe(200);
+      const page = (await shared.json()) as {
+        data: { items: unknown[]; nextCursor: string | null };
+      };
+      expect(page.data.items).toHaveLength(1);
+      expect(Object.keys(page.data.items[0] as object).sort()).toEqual([
+        'id',
+        'policyEndDate',
+        'policyNumber',
+        'state',
+        'version',
+      ]);
+      expect(JSON.stringify(page.data)).not.toMatch(/taskId|dueAt|assignee|workload|taskVersion/);
+      expect(
+        (
+          await app.request(
+            'https://panel.mayisigorta.com/api/tasks/today?needsReassignment=true',
+            {},
+            env,
+          )
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await app.request(
+            `https://panel.mayisigorta.com/api/renewals/${b.renewalId}/tasks/${b.taskId}/assignment-options`,
+            {},
+            env,
+          )
+        ).status,
+      ).not.toBe(200);
+      expect(
+        (
+          await app.request(
+            'https://panel.mayisigorta.com/api/customers/task-customer/identity',
+            {},
+            env,
+          )
+        ).status,
+      ).not.toBe(200);
+      expect(
+        (
+          await app.request(
+            `https://panel.mayisigorta.com/api/policies/${healthTarget.policyId}`,
+            {},
+            env,
+          )
+        ).status,
+      ).not.toBe(200);
+      const foreign = await app.request(
+        'https://panel.mayisigorta.com/api/customers/shared-foreign-customer/renewals',
+        {},
+        env,
+      );
+      expect(((await foreign.json()) as { data: { items: unknown[] } }).data.items).toEqual([]);
+      expect(
+        (
+          await app.request(
+            'https://panel.mayisigorta.com/api/renewals/shared-foreign-renewal/interactions',
+            {},
+            env,
+          )
+        ).status,
+      ).not.toBe(200);
+      for (const action of [
+        'task.read',
+        'task.update',
+        'report.management',
+        'task.assign',
+      ] as const)
+        expect(
+          (
+            await evaluateAuthorization(db, {
+              context: employee,
+              action,
+              resource: {
+                agencyId: 'task-agency',
+                taskAssigneeMembershipId: 'task-actor-membership',
+                parentReadAuthorized: true,
+              },
+            })
+          ).decision,
+        ).toBe('DENY');
+    }
+    const ownerTasks = await listTodayTasks(context, db, { limit: 50 });
+    const direct = {
+      db,
+      agencyId: 'task-agency',
+      actorUserId: employeeB.userId,
+      actorMembershipId: 'shared-b-membership',
+      actorIdentityId: employeeB.identityId,
+      permissionVersion: 1,
+      renewalId: a.renewalId,
+      taskId: a.taskId,
+      expectedRenewalVersion: 2,
+      expectedTaskVersion: 2,
+      payload: {},
+    };
+    await expect(
+      executeRenewalTaskAssignment({
+        ...direct,
+        idempotencyKey: 'shared-direct-assign-deny',
+        previousAssigneeMembershipId: 'shared-a-membership',
+        assigneeMembershipId: 'shared-b-membership',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      executeRenewalTaskReplacementCompletion({
+        ...direct,
+        idempotencyKey: 'shared-direct-complete-deny',
+        replacementTaskId: 'shared-forbidden-replacement',
+        replacementDueAt: '2026-09-25T06:00:00.000Z',
+        replacementAssigneeMembershipId: 'shared-b-membership',
+        taskUpdateScope: 'AGENCY',
+        taskReadScope: 'AGENCY',
+        renewalReadScope: 'AGENCY',
+      }),
+    ).rejects.toThrow();
+    expect(
+      await db
+        .prepare('SELECT version,assignee_membership_id FROM tasks WHERE id=?')
+        .bind(a.taskId)
+        .first(),
+    ).toEqual({ version: 2, assignee_membership_id: 'shared-a-membership' });
+    expect(ownerTasks.items.map((item) => item.taskId)).toEqual(
+      expect.arrayContaining([a.taskId, a2.taskId, b.taskId]),
+    );
+    expect(ownerTasks.canAssign).toBe(true);
+    const appA = createTaskApp(employeeA),
+      appB = createTaskApp(employeeB);
+    const csrf = (
+      (await (
+        await appA.request('https://panel.mayisigorta.com/api/csrf-token', {}, env)
+      ).json()) as { data: { token: string } }
+    ).data.token;
+    const note = {
+      outcome: 'NOTE',
+      channel: 'OTHER',
+      occurredAt: '2026-09-24T06:00:00.000Z',
+      companyContactId: null,
+      note: 'Ortak yenileme görüşmesi.',
+    };
+    const headers = {
+      Origin: 'https://panel.mayisigorta.com',
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrf,
+      'Idempotency-Key': 'shared-author-note',
+    };
+    expect(
+      (
+        await appA.request(
+          `https://panel.mayisigorta.com/api/renewals/${b.renewalId}/interactions`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...note, author_name: 'Fake Author' }),
+          },
+          env,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await appA.request(
+          `https://panel.mayisigorta.com/api/renewals/${b.renewalId}/interactions`,
+          { method: 'POST', headers, body: JSON.stringify(note) },
+          env,
+        )
+      ).status,
+    ).toBe(201);
+    const history = async () =>
+      (await (
+        await appB.request(
+          `https://panel.mayisigorta.com/api/renewals/${b.renewalId}/interactions`,
+          {},
+          env,
+        )
+      ).json()) as { data: { interactions: Array<Record<string, unknown>> } };
+    expect((await history()).data.interactions[0]).toMatchObject({
+      author_name: 'Ayşe Yılmaz',
+      note: note.note,
+    });
+    expect((await history()).data.interactions[0]).not.toHaveProperty('actor_membership_id');
+    await db
+      .prepare(
+        "UPDATE agency_memberships SET status='SUSPENDED',suspended_at='2026-09-24T06:00:00.000Z',version=version+1,permission_version=permission_version+1 WHERE id='shared-a-membership'",
+      )
+      .run();
+    expect(
+      (await appA.request('https://panel.mayisigorta.com/api/customers/task-customer', {}, env))
+        .status,
+    ).not.toBe(200);
+    expect(
+      (await appA.request('https://panel.mayisigorta.com/api/tasks/today', {}, env)).status,
+    ).not.toBe(200);
+    expect((await history()).data.interactions[0]!.author_name).toBe('Ayşe Yılmaz');
   });
 
   it('exposes suspended assignee work only in the owner reassignment view and keeps unassigned separate', async () => {

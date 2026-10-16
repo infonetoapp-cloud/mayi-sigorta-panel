@@ -16,6 +16,7 @@ interface WorkspaceData {
     occurred_at?: string | null;
     note?: string | null;
     actor_membership_id?: string | null;
+    author_name?: string | null;
   }>;
   lastContactAt: string | null;
   lastAttemptAt: string | null;
@@ -670,10 +671,9 @@ export function RenewalWorkspacePanel({
                           <span>Tarih bilgisi bulunmuyor</span>
                         )}
                       </div>
-                      {/* The authorized history DTO has no employee name. Do not fetch
-                        OWNER personnel data or present an internal ID as a name. */}
+                      {/* Only the server-authorized historical author label is shown. */}
                       <p style={{ color: '#475569', margin: '0.25rem 0' }}>
-                        Kaydeden: Çalışan adı mevcut değil
+                        Kaydeden: {interaction.author_name?.trim() || 'Çalışan adı mevcut değil'}
                       </p>
                       {typeof interaction.note === 'string' && interaction.note.trim() && (
                         <p style={{ whiteSpace: 'pre-wrap', margin: '0.25rem 0' }}>

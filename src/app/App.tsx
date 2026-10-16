@@ -11,6 +11,7 @@ import type {
 import { CustomerIdentitySection } from './components/CustomerIdentitySection';
 import { CustomerAssignmentSection } from './components/CustomerAssignmentSection';
 import { CustomerContactSection } from './components/CustomerContactSection';
+import { CustomerRenewalsSection } from './components/CustomerRenewalsSection';
 import { CustomerExternalReferencesSection } from './components/CustomerExternalReferencesSection';
 import { SensitiveSearchPanel } from './components/SensitiveSearchPanel';
 import { CatalogsPanel } from './components/CatalogsPanel';
@@ -1524,6 +1525,13 @@ export const App: React.FC = () => {
 
                 {selectedCustomer.archivedAt == null && (
                   <>
+                    <CustomerRenewalsSection
+                      key={selectedCustomer.id}
+                      customerId={selectedCustomer.id}
+                      customerDisplayName={selectedCustomer.displayName}
+                      getCsrfToken={getCsrfToken}
+                      invalidateCsrfToken={invalidateCsrfToken}
+                    />
                     {selectedCustomerId === selectedCustomer.id && (
                       <DocumentSection
                         key={'CUSTOMER:' + selectedCustomer.id}

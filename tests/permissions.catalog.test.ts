@@ -493,21 +493,30 @@ describe('M1-T04 Onboarding Şablonları Sözleşmesi (Bölüm 4.2 & RG-00)', ()
   });
 
   it('şablonlardaki pozitif izin sayıları ve beklenen anahtar izinler Bölüm 4.2 matrisine uymalıdır', () => {
-    // Personel: 20 pozitif yetki (tüm kayıt kapsamlılar ASSIGNED, create'ler UNSCOPED)
+    // Shared regular records; task/report privacy remains ASSIGNED.
     const personelGrants = ONBOARDING_TEMPLATES.personel.grants;
     expect(personelGrants).toHaveLength(20);
 
     const personelMap = new Map(personelGrants.map((g) => [g.permission_code, g.scope]));
-    expect(personelMap.get('customer.read')).toBe('ASSIGNED');
+    expect(personelMap.get('customer.read')).toBe('AGENCY');
     expect(personelMap.get('customer.create')).toBe('UNSCOPED');
-    expect(personelMap.get('customer.update')).toBe('ASSIGNED');
+    expect(personelMap.get('customer.update')).toBe('AGENCY');
     expect(personelMap.get('customer.archive')).toBeUndefined();
     expect(personelMap.get('catalog.manage')).toBeUndefined();
     expect(personelMap.get('renewal.void')).toBeUndefined();
 
-    // Yetkili Personel: 31 pozitif yetki (tüm kayıt kapsamlılar AGENCY, create ve catalog.manage UNSCOPED)
+    for (const code of [
+      'policy.read',
+      'policy.update',
+      'renewal.read',
+      'quote.read',
+      'interaction.read',
+    ])
+      expect(personelMap.get(code as never)).toBe('AGENCY');
+    expect(personelMap.get('task.read')).toBe('ASSIGNED');
+    // Assignment and management oversight cannot be delegated to MEMBER.
     const yetkiliGrants = ONBOARDING_TEMPLATES.yetkili_personel.grants;
-    expect(yetkiliGrants).toHaveLength(31);
+    expect(yetkiliGrants).toHaveLength(28);
 
     const yetkiliMap = new Map(yetkiliGrants.map((g) => [g.permission_code, g.scope]));
     expect(yetkiliMap.get('customer.read')).toBe('AGENCY');
@@ -517,6 +526,10 @@ describe('M1-T04 Onboarding Şablonları Sözleşmesi (Bölüm 4.2 & RG-00)', ()
     expect(yetkiliMap.get('customer.assign')).toBe('AGENCY');
     expect(yetkiliMap.get('catalog.manage')).toBe('UNSCOPED');
     expect(yetkiliMap.get('renewal.void')).toBeUndefined();
+    expect(yetkiliMap.get('task.assign')).toBeUndefined();
+    expect(yetkiliMap.get('renewal.assign')).toBeUndefined();
+    expect(yetkiliMap.get('report.management')).toBeUndefined();
+    expect(yetkiliMap.get('task.read')).toBe('ASSIGNED');
   });
 
   it('şablon içi bağımlılıklar ve kapsam hiyerarşisi tam olarak karşılanmalıdır', () => {
@@ -559,12 +572,12 @@ describe('M1-T04 Onboarding Şablonları Sözleşmesi (Bölüm 4.2 & RG-00)', ()
 
     // Snapshot1'in mutasyonu snapshot2'yi veya kaynak şablonu etkilememelidir
     // @ts-expect-error - readonly alanı test amacıyla mutasyona uğratma
-    snapshot1[0]!.scope = 'AGENCY';
+    snapshot1[0]!.scope = 'ASSIGNED';
     snapshot1.pop();
 
     const snapshot3 = createOnboardingTemplateGrants('personel');
     expect(snapshot3).toHaveLength(20);
-    expect(snapshot3[0]!.scope).toBe('ASSIGNED');
+    expect(snapshot3[0]!.scope).toBe('AGENCY');
     expect(snapshot3).toEqual(snapshot2);
 
     // Tanımsız şablon kimliği hata vermelidir

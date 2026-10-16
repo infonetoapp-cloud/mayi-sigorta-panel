@@ -1354,7 +1354,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db.prepare(
         `INSERT INTO renewal_opportunities
            (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
-         VALUES('won-create-renewal','terminal-agency','won-create-old-policy','terminal-membership',
+         VALUES('won-create-renewal','terminal-agency','won-create-old-policy','terminal-won-membership',
            'CONTACT_PENDING',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
       db.prepare(
@@ -1368,7 +1368,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
            (id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,
             status,actor_kind,version,created_at,updated_at)
          VALUES('won-create-primary-task','terminal-agency','terminal-customer','won-create-renewal',
-           'RENEWAL_FOLLOWUP','WON follow-up','2026-09-24T06:00:00.000Z','terminal-membership',
+           'RENEWAL_FOLLOWUP','WON follow-up','2026-09-24T06:00:00.000Z','terminal-won-membership',
            'OPEN','SYSTEM',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
     ]);
@@ -1669,7 +1669,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db.prepare(
         `INSERT INTO renewal_opportunities
            (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
-         VALUES('won-race-renewal','terminal-agency','won-race-old-policy','terminal-membership',
+         VALUES('won-race-renewal','terminal-agency','won-race-old-policy','terminal-won-membership',
            'CONTACT_PENDING',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
       db.prepare(
@@ -1683,7 +1683,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
            (id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,
             status,actor_kind,version,created_at,updated_at)
          VALUES('won-race-primary-task','terminal-agency','terminal-customer','won-race-renewal',
-           'RENEWAL_FOLLOWUP','WON race follow-up','2026-09-24T06:00:00.000Z','terminal-membership',
+           'RENEWAL_FOLLOWUP','WON race follow-up','2026-09-24T06:00:00.000Z','terminal-won-membership',
            'OPEN','SYSTEM',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
     ]);
@@ -1791,7 +1791,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db.prepare(
         `INSERT INTO renewal_opportunities
            (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
-         VALUES('won-split-renewal','terminal-agency','won-split-old-policy','terminal-membership',
+         VALUES('won-split-renewal','terminal-agency','won-split-old-policy','terminal-won-membership',
            'CONTACT_PENDING',2,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
       db.prepare(
@@ -1805,7 +1805,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
            (id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,
             status,actor_kind,version,created_at,updated_at)
          VALUES('won-split-primary-task','terminal-agency','terminal-customer','won-split-renewal',
-           'RENEWAL_FOLLOWUP','WON split follow-up','2026-09-24T06:00:00.000Z','terminal-membership',
+           'RENEWAL_FOLLOWUP','WON split follow-up','2026-09-24T06:00:00.000Z','terminal-won-membership',
            'OPEN','SYSTEM',2,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
       db.prepare(
@@ -1914,7 +1914,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db.prepare(
         `INSERT INTO renewal_opportunities
            (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
-         VALUES('won-link-renewal','terminal-agency','won-link-old-policy','terminal-membership',
+         VALUES('won-link-renewal','terminal-agency','won-link-old-policy','terminal-won-membership',
            'CONTACT_PENDING',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
       db.prepare(
@@ -1929,7 +1929,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
             status,actor_kind,version,created_at,updated_at)
          VALUES('won-link-primary-task','terminal-agency','terminal-customer','won-link-renewal',
            'RENEWAL_FOLLOWUP','WON policy link follow-up','2026-09-24T06:00:00.000Z',
-           'terminal-membership','OPEN','SYSTEM',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
+           'terminal-won-membership','OPEN','SYSTEM',1,'2026-09-24T06:00:00.000Z','2026-09-24T06:00:00.000Z')`,
       ),
     ]);
     const wonApp = terminalApp(wonActor, wonPrincipal);
@@ -3179,8 +3179,8 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
           .prepare(
             `INSERT INTO renewal_opportunities
              (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
-             VALUES(?,'terminal-agency',?,'terminal-membership','CONTACT_PENDING',1,?,?),
-                   (?,'terminal-agency',?,'terminal-membership','CONTACT_PENDING',1,?,?)`,
+             VALUES(?,'terminal-agency',?,'terminal-won-membership','CONTACT_PENDING',1,?,?),
+                   (?,'terminal-agency',?,'terminal-won-membership','CONTACT_PENDING',1,?,?)`,
           )
           .bind(renewalA, oldPolicyA, now, now, renewalB, oldPolicyB, now, now),
         db
@@ -3196,9 +3196,9 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
             `INSERT INTO tasks
              (id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,
               status,actor_kind,version,created_at,updated_at)
-             VALUES(?, 'terminal-agency',?,?,'RENEWAL_FOLLOWUP',?,?,'terminal-membership',
+             VALUES(?, 'terminal-agency',?,?,'RENEWAL_FOLLOWUP',?,?,'terminal-won-membership',
                'OPEN','SYSTEM',1,?,?),
-                   (?, 'terminal-agency',?,?,'RENEWAL_FOLLOWUP',?,?,'terminal-membership',
+                   (?, 'terminal-agency',?,?,'RENEWAL_FOLLOWUP',?,?,'terminal-won-membership',
                'OPEN','SYSTEM',1,?,?)`,
           )
           .bind(

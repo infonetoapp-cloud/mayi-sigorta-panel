@@ -360,7 +360,7 @@ async function loadTaskPage(input: {
   } else if (input.canSeeUnassigned) {
     where.push('t.assignee_membership_id IS NOT NULL');
   }
-  if (input.taskReadScope === 'ASSIGNED') {
+  if (input.active.type !== 'OWNER' || input.taskReadScope === 'ASSIGNED') {
     where.push('t.assignee_membership_id=?');
     values.push(input.active.id);
   }
@@ -525,7 +525,9 @@ export async function listTodayTasks(
     renewalAssign.decision === 'ALLOW' &&
     renewalAssign.effectiveScope === 'AGENCY';
   const canSeeUnassigned =
-    taskRead.effectiveScope === 'AGENCY' && renewalRead.effectiveScope === 'AGENCY';
+    active.type === 'OWNER' &&
+    taskRead.effectiveScope === 'AGENCY' &&
+    renewalRead.effectiveScope === 'AGENCY';
   const canSeeReassignment = active.type === 'OWNER' && canSeeUnassigned && canAssign;
   if (query.needsReassignment && !canSeeReassignment) throw new TaskForbiddenError();
 

@@ -407,6 +407,32 @@ export function PersonnelPanel() {
                 required
               />
             </label>
+            {selected.kind === 'permissions' && selected.person.type === 'MEMBER' && (
+              <div>
+                <p>
+                  Mevcut izinler otomatik değiştirilmez. Aşağıdaki işlem ortak
+                  müşteri/poliçe/yenileme izinlerini taslağa ekler; kişisel kısıtları inceleyip
+                  gerekçeli güvenli onay vermeden kaydedilmez. Hassas veri izinleri eklenmez.
+                  Çalışanlar eski AGENCY görev izni bulunsa da yalnız kendi görevlerini görür; atama
+                  ve yönetim raporları OWNER'a ayrılmıştır.
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGrants((current) => {
+                      const merged = new Map(
+                        current.map((grant) => [grant.permission_code, grant]),
+                      );
+                      for (const grant of createOnboardingTemplateGrants('personel'))
+                        merged.set(grant.permission_code, grant);
+                      return [...merged.values()];
+                    })
+                  }
+                >
+                  Standart ortak çalışma izinlerini taslağa uygula
+                </button>
+              </div>
+            )}
             {['permissions', 'promote', 'demote'].includes(selected.kind) && (
               <PermissionEditor
                 grants={grants}
