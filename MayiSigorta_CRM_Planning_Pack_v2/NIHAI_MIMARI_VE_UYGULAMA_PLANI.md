@@ -564,6 +564,14 @@ Yalnız engineering-drafts/m4-csrf-local içinde saf CSRF config-validation PoC'
 
 F45 iki yolu kapatır: aynı upload DO'ya ayrı permit ile zorlanan auth delegation yok; ölçülmüş yararı gösterilmeyen handwritten validator rollout'u yok. Mevcut HTTP/F36, F41/F42/F43/F44 dar kabulleri ve bütün FAIL/STOP korunur. Native CSRF Free headroom açık kalır; minimum sonraki doğrulama ancak ayrıca yetkilendirilmiş tracing-disabled/idle-touch/cold-isolate etkileri ayrılmış bounded native referans olabilir, bu görevde plan yürütme izni verilmez. Retained root-trace sorusu ikincildir ve bu yerel kararın prerequisite'i değildir. Ayrıntılı source/test/review kanıtı M4_F45_LOCAL_CSRF_FEASIBILITY.md ve receipts dosyasındadır. DOCUMENTSfalse/FEATURENO/M4_COMPLETEfalse; exact20MiB/overlap/sustained ve production release kapıları kapalıdır.
 
+### 10.19 F-46 — bounded native CSRF referansı preflight STOP
+
+16 Ekim2026; c8ca21f F45 yerel commit'i exact reviewed PoC/test bytes, closed HIGH ve production source/config/schema no-diff ile doğrulandı; yalnız bundan sonra normal push/remote equality yapıldı. F45 HTTP placement/shared uploadDO reddi/handwritten validator non-promotion kararı değiştirilmez. Güncel görev bir disposable Worker+EU D1, tracingfalse, canonical worker.ts ve tek sabit6GET(3no-touch/3idle-touch alternating) referansını ancak fresh HIGH preflight PASS ile yetkilendirir. Önceden konan dar headroom ölçütü tüm6 functional/state/native complete ve CPU<=8ms; nominal Free10ms'ye marj göstermeyen örnek atılmaz, >10/outcomeok sustained1102 sayılmaz. Startup/isolate reuse/cold-warm ve D1 wall/CPU ayrımları kanıtsız etiketlenmez; CSRF PASS, F43 positiveEDGE/canonical upload/sustained kabulü olmaz.
+
+Fresh independent SolHIGH preflight FAIL1BLOCKER/5IMPORTANT: inherited cleanup immediate-before D1 envanterine ve partial Worker exact version custody'sine tam bağlanmaz; native attribution/resource veto, no-touch eşitliği, üçQueue/KDF protected kapsamı ve final deadline kabulü eksiktir. Bunlar executor güvenlik/kanıt açıklarıdır, canonical authentication veya provider CPU failure kanıtı değildir. Kullanıcının explicit preflight-fail STOP sınırı uygulanır: provider provisioning/deploy/app/telemetry0; düzeltme/ikinci preflight/ikinci deney yok. Yerel6/6 full HTTP/D1 fixture ve dry-run PASS bu FAIL'i kapatmaz. Önce/sonra protected production11+11GET ve F46 exact Worker404/complete D1 inventory2GET, kaynak oluşturulmadığını ve production'ın değişmediğini doğrular; DELETE gerekmez/yapılmaz.
+
+CSRF Free headroom gösterilmedi; F46 native ölçümü yoktur, Free mimarinin imkânsız olduğu veya Paid gerekliliği de gösterilmedi. Source optimizasyonu gerekçelendirilmez, algoritma/cache/authority/deployment/feature değişmez. Otomatik yeni deney zinciri açılmaz. İlerlemek için minimum ayrı kullanıcı kararı yalnız bu6 executor sınıfının bounded yerel hardening'i ve bağımsız incelemesidir; bu iş F46 CPU/kapsam kapılarını waive etmez veya provider iznini otomatik yenilemez. Workers Paid yalnız ayrıca onayla düşünülebilir ve executor açıklarını gidermez. Ayrıntılı ret/kanıt/review M4_F46_CSRF_REFERENCE_PREFLIGHT_STOP.md ve receipts içindedir; final bağımsız STOP-kapanış incelemesi ayrı kaydedilir. DOCUMENTSfalse/FEATURENO/M4_COMPLETEfalse, CSRF_FREE_HEADROOM_ACCEPTED=NO ve CAPACITY_EXECUTOR_AUTHORIZED=NO korunur.
+
 ## 11. Uygulama ve altyapı güvenliği
 
 ### 11.1 Sunucu kontrolleri
@@ -861,6 +869,10 @@ Provider proof acceptance — 8 Ekim 2026; kullanıcı `b2fef53394d58d818de3088b
 ### F-41 — Real-provider canonical same-key recovery kanıtı
 
 16 Ekim2026; 5c509e7 sonrası açık yetkiyle §10.15 eklendi. Yeni ownedsynthetic run dışında failinjection/yazım yok; provider native metrik ve partial/finalstate exactcustody/independentHIGH zorunlu. TarihselFAIL/STOP ve kabuller scope'uyla korunur.
+
+### F-46 — Native CSRF referansının preflight öncesi güvenlik kapısı
+
+16 Ekim2026; c8ca21f sonrası tek bounded native referans yetkisi ve explicit preflightFAIL STOP koşulu §10.19'da kaydedildi. Preflight1BLOCKER/5IMPORTANT sonrasında provider yürütmesi yapılmadı; kaynak/kapasite/ücret kararı uydurulmadı. F45 mimarisi ve önceki dar kabuller değişmez; minimum sonraki iş ayrıca yetkilendirilecek yerel executor hardening'idir, yeni genel teşhis zinciri değildir.
 
 ## 19. Ajan çalışma ve devir sözleşmesi
 

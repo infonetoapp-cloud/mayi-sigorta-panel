@@ -1,0 +1,417 @@
+{
+  "scope": "F46_PREFLIGHT_STOP_NO_PROVIDER_EXECUTION",
+  "recordedAt": "2026-10-16T13:48:15.831995+00:00",
+  "baselineGit": {
+    "preservedF45LocalCommit": "c8ca21f3e3c9f7ac966ee3401f9aae496a17790f",
+    "initialRemoteMain": "a9cff9c17685459fa363aba65fd378f92e338bf1",
+    "normalF45PushVerifiedRemoteMain": "c8ca21f3e3c9f7ac966ee3401f9aae496a17790f",
+    "F45SourceConfigSchemaDependencyDiff": 0,
+    "F45SevenNonclosureFilesExactReviewedBytes": true,
+    "F45ClosedHIGHVerified": true,
+    "F46CloseoutIntent": "LOCAL_ONLY_DOCS_COMMIT_AFTER_FRESH_POST_REVIEW; NO_PUSH"
+  },
+  "preflightHIGH": {
+    "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-pre-high.json",
+    "sha256": "ce8aa7822f3188fb4571c599fa79e2a4c4800047dd53b64d41b67d4082f72fe5",
+    "session": "20261016_163116_efe4dc",
+    "actualClosedModelProviderReasoningParentAndExactFinalJSONVerified": true,
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "reasoning": "high",
+    "verdict": "FAIL",
+    "BLOCKER": 1,
+    "IMPORTANT": 5,
+    "OPTIONAL": 0,
+    "findings": [
+      {
+        "severity": "BLOCKER",
+        "evidence": "mayi-f46-operator.py:41-49,118-125; mayi-http-operator.py:41-47,56-59. İzole gerçek fonksiyon kontrollerinde immediate before envanterinde zaten bulunan UUID owned_database tarafından kabul edildi; deployed.json bulunmayan partial-deploy durumunda owned_worker deployment/version sorgulamadan başarılı döndü.",
+        "reason": "Destructive cleanup için zorunlu sahiplik kanıtı eksik. D1 kontrolü UUID'yi yalnız eski permanent baseline ile karşılaştırıyor, bu run'ın pre-provision databaseIds envanteriyle değil. Partial Worker sahipliği ise deploy intent/result ve kesin version kimliğine bağlanmıyor. Buna rağmen cleanup DELETE yoluna geçebiliyor. Sadece ispatlanmış yeni UUID ve exact canary Worker/version silme sözleşmesi sağlanmadığından provider yürütmesi bloke edilmelidir; belirsiz hedef silinmemelidir. Gerçek DELETE yapılmadı."
+      },
+      {
+        "severity": "IMPORTANT",
+        "evidence": "mayi-f46-operator.py:65-67,85-89. İzole observe kontrolü entrypoint alanı tamamen olmayan kaydı kabul etti.",
+        "reason": "w.get('entrypoint') in [None,'default'] eksik native alanı default entrypoint kanıtı yerine geçiriyor. eventType da doğrulanmıyor. Exact default-entry attribution ve eksik alanı çıkarsamama şartı sağlanmıyor; bu fixture gerçek provider sonucu değildir."
+      },
+      {
+        "severity": "IMPORTANT",
+        "evidence": "mayi-f46-operator.py:82-91. İzole observe kontrolünde aynı Worker envanterindeki farklı URL'ye ait outcome=exceededCpu kaydı, hedef URL'nin ok kaydıyla birlikte verildiğinde kabul sürdü.",
+        "reason": "Global veto yalnız exceptionPresent üzerinde. URL/type eşleşmeyen satırlar outcome/truncated/resource incelemesinden önce atlanıyor. Görünür gerçek resource failure sessizce dışarıda bırakılabilir; resource failure durumunda sonraki slotu durdurma sözleşmesi tam uygulanmıyor. Başka kaydın CPU'sunu hedefe atfetmek de önerilmiyor."
+      },
+      {
+        "severity": "IMPORTANT",
+        "evidence": "mayi-f46-operator.py:110-113. Gerçek state assertion AST'si no-touch fixture'ında last_seen_at azaltıldığında da true döndü.",
+        "reason": "No-touch için yalnız after.last_seen_at > before.last_seen_at ifadesinin false olması isteniyor; eşitlik istenmiyor. Kolon iki taraftan da karşılaştırma dışında bırakıldığından geriye değişim state PASS olabilir. Yalnız beklenen idle-touch değişti kanıtı bu haliyle doğru değildir."
+      },
+      {
+        "severity": "IMPORTANT",
+        "evidence": "mayi-f46-operator.py:23-26; mayi-http-import-operator.py:16-21; mayi-closed-infra-snapshot.py:43-69. Gerçek inherited comparator izole çalıştırıldığında ikinci Queue değişikliği karşılaştırma dışında kalıp kabul edildi. Snapshot yalnız tek legacy Queue detayı alıyor; DO namespace envanteri almıyor.",
+        "reason": "Bu executor'ın protected zinciri üç Queue'nun tamamı ve permanent KDF-only namespace durumunu doğrulamıyor. Retained initial 11GET kaydı üç Queue/KDF/Free durumunu olumlu gösterse de gelecekteki pre/postdeploy/postcleanup korumasındaki eksik kapsamı kapatmaz. Production version/settings/Cron/subscriptions karşılaştırması vardır; tüm protected baseline aynı iddiası yine de desteklenmez."
+      },
+      {
+        "severity": "IMPORTANT",
+        "evidence": "mayi-f46-operator.py:69-93,99-116. Gerçek measure fonksiyonu yalnız RAM fake bağımlılıklarla çalıştırıldı: altıncı observe sonunda saat 901 saniyeye ilerletildiğinde measurements-complete PASS ve referenceHeadroomDemonstrated=true üretildi.",
+        "reason": "900 saniyelik bütçe yalnız slot başında kontrol ediliyor. D1 kontrolleri/native polling sırasında ve final kabul öncesinde deadline denetlenmiyor; provider çağrılarına kalan bütçe aktarılmıyor. Son slot bütçeyi aştıktan sonra dahi kabul çıkabiliyor. Bu yalnız yerel adversarial executor kanıtıdır, native CPU ölçümü değildir."
+      }
+    ],
+    "notCorrectedOrWaived": true
+  },
+  "frozenCandidate": {
+    "pins": 512,
+    "driftAtPreflightClosureBeforeDocs": 0,
+    "currentClosureDocsOnlyDrift": 2,
+    "operatorAndFrozenSourceDrift": 0,
+    "manifestSHA256": "0e5d0f94ed9900246f5193a0d705cc8b1a47da3c5fb078360ad6e610f8fea5fe",
+    "operatorSHA256": "cf41f16c721624715b9ec78b42019160d36eec07ab2581704ff2c65a0b01bc78"
+  },
+  "plannedNotExecuted": {
+    "scope": "F46_SINGLE_TRACING_DISABLED_CSRF_REFERENCE",
+    "run": "5712db3449794502b10838ce9babc3b4",
+    "appInvocationsMax": 6,
+    "order": [
+      "no-touch-1",
+      "idle-touch-1",
+      "no-touch-2",
+      "idle-touch-2",
+      "no-touch-3",
+      "idle-touch-3"
+    ],
+    "automaticAppRetries": 0,
+    "extraHealthOrPrimeRequests": 0,
+    "idleTouchAgeMs": 1200000,
+    "noTouchAgeMs": 60000,
+    "createdAgeMs": 3600000,
+    "absoluteMs": 43200000,
+    "fixtureTimes": "ONE_IMPORT_TIME_ORIGIN; NEVER_RESET_AFTER_REQUESTS",
+    "maxMeasurementSeconds": 900,
+    "nativeObservation": {
+      "pollsPerSlot": 6,
+      "pauseSeconds": 8,
+      "maxPagesPerPoll": 4,
+      "pageSize": 1000
+    },
+    "nominalFreeCPUms": 10,
+    "credibleReferenceHeadroomMaxCPUms": 8,
+    "decision": "ALL_SIX_NATIVE_COMPLETE_FUNCTIONAL_AND_STATE_PASS_AND_CPU_LE8_FOR_REFERENCE_ONLY; >8_NO_CREDIBLE_MARGIN; >10_OVER_NOMINAL_NOT_SUSTAINED_FAILURE",
+    "stop": "FUNCTIONAL/STATE/SECURITY/RESOURCE_OUTCOME/ABSENT_NATIVE_STOPS_NEXT_SLOT; CPU>10_WITH_OUTCOME_OK_CONTINUES_ONLY_FIXED_REMAINING_SLOTS",
+    "productionDeployAllowed": false,
+    "capacityAllowed": false,
+    "resources": "ONE_DISPOSABLE_WORKER_AND_ONE_EU_D1_ONLY; NO_R2_DO_QUEUE_CRON",
+    "isolateLabels": "NO_COLD_OR_WARM_LABELS_WITHOUT_PROOF; ALL_SLOTS_COUNT",
+    "startup": "RETAIN_WRANGLER_STARTUP_METADATA_SEPARATE_FROM_REQUEST_CPU; FIRST_OBSERVED_FETCH_NOT_PROVEN_COLD",
+    "cpuVsWall": "NO_WAIT_TIME_CPU_ATTRIBUTION; NO_WALL_MINUS_CPU_AS_D1_TIME",
+    "logs": "INVOCATION_LOGS_100_PERCENT; TRACES_EXPLICIT_FALSE; NO_TOKEN_OR_COOKIE_LOGGING; MISSING_NOT_OBSERVABLE",
+    "sourceOptimization": "NONE_UNLESS_DEMONSTRATED_HOTSPOT; F45_OPTIONS_NOT_REOPENED",
+    "ifFail": "DECISIVE_CURRENT_FREE_HEADROOM_NO; NO_IDENTICAL_FOLLOWUP_EXPERIMENT; USER_CONSTRAINT_DECISION_REQUIRED"
+  },
+  "execution": {
+    "status": "NOT_EXECUTED_PREFLIGHT_FAIL",
+    "providerProvisioningCalls": 0,
+    "providerDeployments": 0,
+    "appInvocations": 0,
+    "telemetryQueries": 0,
+    "providerMutations": 0,
+    "resourceCreates": 0,
+    "cleanupDeletes": 0,
+    "providerNativeMeasurements": [],
+    "newReferenceCPUms": null,
+    "newReferenceWallMs": null,
+    "newReferenceOutcome": null,
+    "newReferenceTruncated": null,
+    "correctiveOrSecondPreflightRuns": 0
+  },
+  "localEvidence": {
+    "canonicalFullHTTPD1Fixture": {
+      "PASS": true,
+      "localOnly": true,
+      "fullCanonicalHTTP": true,
+      "migrations": 21,
+      "schemaObjects": 350,
+      "casesPassed": 6,
+      "noTouch": 3,
+      "idleTouch": 3,
+      "tokenSignatureSubjectNonceTTL": true,
+      "onlyExpectedLastSeenChanges": true,
+      "noR2OrDOBindings": true,
+      "seedSHA256": "5f953c5ed5e90285a1f98451824ac81ac0f037e4b5f2a2756e397bfcf214affd"
+    },
+    "directEntryDryRun": "PASS_NO_PROVIDER_DEPLOYMENT",
+    "evaluatorMockUnitOnly": {
+      "PASS": true,
+      "scope": "PURE_LOCAL_MOCK_FIELD_VALIDATOR_NOT_NATIVE_MEASUREMENTS",
+      "validFixture": 1,
+      "rejectedMalformedFixtures": 16,
+      "rawHeadersProjected": false,
+      "providerCalls": 0,
+      "appCalls": 0
+    },
+    "parentPureLocalReproduction": {
+      "PASS": true,
+      "scope": "PARENT_PURE_LOCAL_REPRODUCTION_OF_EXECUTOR_DEFECTS_NOT_PROVIDER_RESULTS",
+      "immediateBeforeUUIDIncorrectlyAccepted": true,
+      "decreasedNoTouchLastSeenAssertionIncorrectlyAccepted": true,
+      "canonicalSQLTriggerStillPreventsDecreasingLastSeenInNormalWrites": true,
+      "productionRegressionDemonstrated": false,
+      "providerCalls": 0,
+      "appCalls": 0
+    },
+    "historicalLocalPreparationFAILsPreserved": true,
+    "expensiveHistoricalSuitesOrProfilerRerun": false
+  },
+  "protectedProduction": {
+    "initial": {
+      "observedAt": "2026-10-16T13:12:25.616384+00:00",
+      "productionVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+      "productionDeployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+      "productionTraffic": 100,
+      "flags": {
+        "DOCUMENTS_ENABLED": "false",
+        "DOCUMENT_JOBS_ENABLED": "true",
+        "DOCUMENT_CRON_ENABLED": "true"
+      },
+      "newUploadBindingDeployed": false,
+      "threeQueues": [
+        {
+          "name": "mayisigorta-document-jobs",
+          "paused": true,
+          "consumers": 0,
+          "equal": true
+        },
+        {
+          "name": "mayisigorta-document-jobs-v2",
+          "paused": false,
+          "consumers": 1,
+          "equal": true
+        },
+        {
+          "name": "mayisigorta-document-jobs-v2-dlq",
+          "paused": true,
+          "consumers": 0,
+          "equal": true
+        }
+      ],
+      "cronUnchanged": true,
+      "allOwnedTemporaryResourcesAbsent": {
+        "Worker": true,
+        "EUbucket": true,
+        "EUDB": true,
+        "SQLiteDONamespace": true
+      },
+      "permanentKdfNamespaceOnly": true,
+      "subscriptionsUnchanged": true,
+      "WorkersPaidEnabled": false,
+      "providerMutationCount": 0,
+      "GETcount": 11
+    },
+    "final": {
+      "observedAt": "2026-10-16T13:39:36.655481+00:00",
+      "productionVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+      "productionDeployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+      "productionTraffic": 100,
+      "flags": {
+        "DOCUMENTS_ENABLED": "false",
+        "DOCUMENT_JOBS_ENABLED": "true",
+        "DOCUMENT_CRON_ENABLED": "true"
+      },
+      "newUploadBindingDeployed": false,
+      "threeQueues": [
+        {
+          "name": "mayisigorta-document-jobs",
+          "paused": true,
+          "consumers": 0,
+          "equal": true
+        },
+        {
+          "name": "mayisigorta-document-jobs-v2",
+          "paused": false,
+          "consumers": 1,
+          "equal": true
+        },
+        {
+          "name": "mayisigorta-document-jobs-v2-dlq",
+          "paused": true,
+          "consumers": 0,
+          "equal": true
+        }
+      ],
+      "cronUnchanged": true,
+      "allOwnedTemporaryResourcesAbsent": {
+        "Worker": true,
+        "EUbucket": true,
+        "EUDB": true,
+        "SQLiteDONamespace": true
+      },
+      "permanentKdfNamespaceOnly": true,
+      "subscriptionsUnchanged": true,
+      "WorkersPaidEnabled": false,
+      "providerMutationCount": 0,
+      "GETcount": 11
+    },
+    "equalExceptObservationTime": true,
+    "legacyTemporaryScopeAbsencesNotF46": true,
+    "F46SpecificAbsence": {
+      "PASS": true,
+      "observedAt": "2026-10-16T13:40:27.915115+00:00",
+      "scopeSHA256": "a3bc608ee0250d3186f5b2205fb25ab72af885163ac08a1a1d2bbc1964d11b1d",
+      "F46WorkerAbsent": true,
+      "F46DatabaseAbsent": true,
+      "absenceSources": "EXACT_WORKER_404_AND_COMPLETE_EU_OR_DEFAULT_D1_ACCOUNT_INVENTORY",
+      "provisionDeployOrAppIntents": 0,
+      "experimentAppCalls": 0,
+      "providerMutations": 0,
+      "GETcount": 2,
+      "cleanupRequired": false,
+      "noDeleteAttempted": true
+    },
+    "totalAccountMetadataGET": 35,
+    "additionalReadbackAfterPostReview": {
+      "path": "C:/Users/sinan/AppData/Local/Temp/mayi-f46-post-review-readback.json",
+      "sha256": "66bb2fac806dbe4269402a511f9ceec69e058bed2dfb358fc83c81808d1228c9",
+      "observedAt": "2026-10-16T16:55:27.573115+00:00",
+      "GETcount": 11,
+      "equalToInitialAndPrePostReviewExceptObservationTime": true,
+      "productionMutationCount": 0
+    },
+    "JobsCronExistingTrueNotChanged": true
+  },
+  "engineeringDecision": {
+    "CSRFPlacement": "HTTP_WORKER_F45_UNCHANGED",
+    "sharedUploadDODelegation": "REJECTED_F45_UNCHANGED",
+    "handwrittenValidatorPromotion": false,
+    "sourceOptimizationJustified": false,
+    "FreeCPUHeadroom": "NOT_DEMONSTRATED_NOT_EXECUTED",
+    "FreeArchitectureImpossibilityDemonstrated": false,
+    "paidNecessityDemonstrated": false,
+    "PaidEnabled": false,
+    "constraintsChangeRequiredNow": "NEW_EXPLICIT_AUTHORIZATION_FOR_BOUNDED_LOCAL_EXECUTOR_HARDENING_ONLY; NO_AUTOMATIC_PROVIDER_REENTRY",
+    "uploadCapacityAccepted": false,
+    "capacityExecutorAuthorized": false,
+    "F43PositiveEDGE": "HISTORICAL_NOT_OBSERVABLE_SEPARATE_UNCHANGED",
+    "historicalJPEG503RootCause": "UNKNOWN",
+    "DOCUMENTS_ENABLED": false,
+    "FEATURE_ENABLED": "NO",
+    "M4_COMPLETE": false
+  },
+  "freshIndependentPostHIGH": {
+    "scope": "F46_PREFLIGHT_STOP_CLOSEOUT_ONLY",
+    "path": "C:/Users/sinan/AppData/Local/Temp/mayi-f46-post-high.json",
+    "sha256": "2ca8d2190e093e79cc583b436e0c7058dbead981493968dbafda8fa964d111bc",
+    "session": "20261016_194420_fc6dcd",
+    "model": "gpt-6.1-sol",
+    "provider": "openai-codex",
+    "reasoning": "high",
+    "actualClosedModelProviderReasoningParentNullAndExactFinalJSONVerified": true,
+    "verdict": "PASS",
+    "BLOCKER": 0,
+    "IMPORTANT": 0,
+    "OPTIONAL": 0,
+    "stopClosureAccepted": true,
+    "originalPreflightFAILPreserved": true,
+    "providerExecutionAuthorized": false,
+    "CSRFHeadroomAccepted": false,
+    "capacityExecutionAuthorized": false,
+    "custodyPath": "C:/Users/sinan/AppData/Local/Temp/mayi-f46-post-custody.json"
+  },
+  "artifactReferences": [
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-prepare.py",
+      "sha256": "0b33e047ed9b4fa1e625b6206bc6f7f04e96c667204a93746046c2d860e28ca1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-native-prepare.mjs",
+      "sha256": "9c64d525300eb0c2f5d7869b04b2d9dc2b850c5bd632795eb47ab4cef487533b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-operator.py",
+      "sha256": "cf41f16c721624715b9ec78b42019160d36eec07ab2581704ff2c65a0b01bc78"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-freeze.py",
+      "sha256": "fe22b44449a66f46a5848bcde968e798fc06ce7e75fad19af1be270c5d93de2d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-pre-high.json",
+      "sha256": "ce8aa7822f3188fb4571c599fa79e2a4c4800047dd53b64d41b67d4082f72fe5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-local-validation.log",
+      "sha256": "b148b58640ad9f8b464deae0c43a9c2df9409b2e44f9db194fd9f11189cff048"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-local-validation-v2.log",
+      "sha256": "db7a6d9d71e2f4b057758c9b77fb7a65bbf350b5b3780c705a0ab6149a45b950"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-local-validation-v3.log",
+      "sha256": "8e68d0cf108db2429f084c3b42edb8dddbabb8493999256ced896fda4afb6bc7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-dry-run.log",
+      "sha256": "8775e8dc3debe0ce0a0a5dda8cfbed5dfd457ef7e2af37b1bcc2c3bd7f96c423"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-evaluator-unit.py",
+      "sha256": "de74a7491184c03fc29e6ab95be72bce1f0a55676d7d4b23289e437792031b0a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-evaluator-unit.json",
+      "sha256": "24bebad42aa844413e57b8d4a1505fbaf717c5908ce2d816ae22c0c5868c0024"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-parent-preflight-reproduction.py",
+      "sha256": "5de3f9f777ccfaed5605125662cbef65d5624f5fc5b581ee392ac71550a7777a"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-parent-preflight-reproduction.json",
+      "sha256": "274edb8ef1f688c5510e5afc1dcd11c0d99108697e6fe8754d1fd005104a9cd1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-initial-readback.json",
+      "sha256": "03e54b52274b2c03bb004a710ade798d05a793b207417ac4507503f8efc1ead0"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-final-readback.json",
+      "sha256": "9fd2df320f1d119f81e5381dd63638141060200e99eaf8910ef1a0a3adae3283"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-own-scope-readback.py",
+      "sha256": "f11c0114da7202464627cf1167acd3481707de716063c5f2730a92b979b72084"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-own-scope-absence.json",
+      "sha256": "189612ce1fa39f9adaa19f3fc2b6a5554e4fb09c2594bcd70d970edfa24f438b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\scope.json",
+      "sha256": "a3bc608ee0250d3186f5b2205fb25ab72af885163ac08a1a1d2bbc1964d11b1d"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\plan.json",
+      "sha256": "92cf4b0674ddbe38406fbebce2703ee29629edab181a6f84bef597d70921cf37"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\freeze.json",
+      "sha256": "0e5d0f94ed9900246f5193a0d705cc8b1a47da3c5fb078360ad6e610f8fea5fe"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\seed.json",
+      "sha256": "5f953c5ed5e90285a1f98451824ac81ac0f037e4b5f2a2756e397bfcf214affd"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\private-cases.json",
+      "sha256": "5f522ba3f2510fd9dcab47e3d2f3bb7c8d7c6948c6aeb6b203488695cead726c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\canonical-schema.sql",
+      "sha256": "9821f0863e8ccad81ab99d686ffb2f7db9aa6543899d9855807aeb832c67b23b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\expected-schema.json",
+      "sha256": "c7b43cda53abd046054f998ea4dbac8bc62d2a8522c9dc025bbeb91d606248f9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f46-reference\\native-preparation.json",
+      "sha256": "99e215874c8d375808292f4dfcb06cf490d57f869920343e9a734c3292975458"
+    }
+  ]
+}
