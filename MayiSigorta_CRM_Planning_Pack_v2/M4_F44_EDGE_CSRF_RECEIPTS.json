@@ -1,0 +1,816 @@
+{
+  "scope": "F44_BOUNDED_SOURCE_DECISION_LIGHTWEIGHT_NATIVE_PASS_CSRF_HEADROOM_NOT_ACCEPTED",
+  "generatedAt": "2026-10-16T11:33:11.291800+00:00",
+  "startingCommit": "441b484e875f7a9273d41fdaff3160780a1a44b2",
+  "sourceChange": {
+    "file": "src/server/index.ts",
+    "delta": "three lines; static default router match at startup; no guards/SQL/cache/lifecycle change",
+    "test": "tests/server.static-router.test.ts",
+    "RED": true,
+    "GREEN": true,
+    "newTestsCorrected": "3/3",
+    "initialFocused": "15PASS/1fixtureFAIL preserved",
+    "staticConsumers": "143/143PASS",
+    "lintTypecheckBuildBoundariesCorrectedFormat": "PASS",
+    "fullExpensiveSuiteRepeated": false,
+    "nativeCPUmitigationAccepted": false
+  },
+  "missingHistoricalEDGErootCause": "UNKNOWN",
+  "historicalJPEG503RootCause": "UNKNOWN",
+  "reviews": [
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-options-high.json",
+      "sha256": "95c87e64a7e630d9e38ebf02fa40d1f58621e6c97de8c52e9ff08d4895acc847",
+      "session": "20261016_102055_fbd7f3",
+      "actualClosedHIGH": true,
+      "verdict": "PASS",
+      "BLOCKER": 1,
+      "IMPORTANT": 1,
+      "OPTIONAL": 1,
+      "interpretation": "options counts existing acceptance risks, not provider permission"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-pre-high.json",
+      "sha256": "84baad0c3fe7f95a50fc5037d2fd3bc8fba5995962d609552f7a2fd9e5379323",
+      "session": "20261016_104449_537e12",
+      "actualClosedHIGH": true,
+      "verdict": "PASS",
+      "BLOCKER": 0,
+      "IMPORTANT": 0,
+      "OPTIONAL": 1,
+      "interpretation": "exact experiment/source preflight only"
+    }
+  ],
+  "provider": {
+    "run": "57a8930d-b3b1-4344-8014-6e87221d90f9",
+    "appInvocations": 4,
+    "documentUploads": 0,
+    "stages": [
+      {
+        "stage": "csrf-first",
+        "response": {
+          "method": "GET",
+          "http": 200,
+          "start": 1792137276354,
+          "end": 1792137277111,
+          "noStore": true,
+          "setCookie": false
+        },
+        "native": {
+          "scope": "LIGHTWEIGHT_TRANSPORT_OR_CSRF_NOT_CANONICAL_UPLOAD_CAPACITY",
+          "nativeLogs": {
+            "EDGE": {
+              "CPUms": 18,
+              "wallMs": 110,
+              "outcome": "ok",
+              "truncated": false,
+              "nativeID": "01M51V9EVR000000000000000E",
+              "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+              "withinNominalCPU": false
+            }
+          },
+          "nativeComplete": true,
+          "traceRootCandidates": [],
+          "traceCandidateAcceptance": "NOT_ACCEPTED_AS_CAPACITY; IDENTITY_AND_TRUNCATION_REQUIRE_SEPARATE_REVIEW"
+        }
+      },
+      {
+        "stage": "csrf-warm-a",
+        "response": {
+          "method": "GET",
+          "http": 200,
+          "start": 1792137324280,
+          "end": 1792137324685,
+          "noStore": true,
+          "setCookie": false
+        },
+        "native": {
+          "scope": "LIGHTWEIGHT_TRANSPORT_OR_CSRF_NOT_CANONICAL_UPLOAD_CAPACITY",
+          "nativeLogs": {
+            "EDGE": {
+              "CPUms": 11,
+              "wallMs": 48,
+              "outcome": "ok",
+              "truncated": false,
+              "nativeID": "01M51VAXAR0000000000000008",
+              "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+              "withinNominalCPU": false
+            }
+          },
+          "nativeComplete": true,
+          "traceRootCandidates": [],
+          "traceCandidateAcceptance": "NOT_ACCEPTED_AS_CAPACITY; IDENTITY_AND_TRUNCATION_REQUIRE_SEPARATE_REVIEW"
+        }
+      },
+      {
+        "stage": "csrf-warm-b",
+        "response": {
+          "method": "GET",
+          "http": 200,
+          "start": 1792137371340,
+          "end": 1792137371770,
+          "noStore": true,
+          "setCookie": false
+        },
+        "native": {
+          "scope": "LIGHTWEIGHT_TRANSPORT_OR_CSRF_NOT_CANONICAL_UPLOAD_CAPACITY",
+          "nativeLogs": {
+            "EDGE": {
+              "CPUms": 19,
+              "wallMs": 63,
+              "outcome": "ok",
+              "truncated": false,
+              "nativeID": "01M51VCB9W0000000000000008",
+              "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+              "withinNominalCPU": false
+            }
+          },
+          "nativeComplete": true,
+          "traceRootCandidates": [],
+          "traceCandidateAcceptance": "NOT_ACCEPTED_AS_CAPACITY; IDENTITY_AND_TRUNCATION_REQUIRE_SEPARATE_REVIEW"
+        }
+      },
+      {
+        "stage": "transport",
+        "response": {
+          "method": "POST",
+          "http": 200,
+          "start": 1792137418563,
+          "end": 1792137419595,
+          "noStore": true,
+          "setCookie": false
+        },
+        "native": {
+          "scope": "LIGHTWEIGHT_TRANSPORT_OR_CSRF_NOT_CANONICAL_UPLOAD_CAPACITY",
+          "nativeLogs": {
+            "EDGE": {
+              "CPUms": 4,
+              "wallMs": 457,
+              "outcome": "ok",
+              "truncated": false,
+              "nativeID": "01M51VDT0Z000000000000000A",
+              "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+              "withinNominalCPU": true
+            },
+            "DO": {
+              "CPUms": 1,
+              "wallMs": 6,
+              "outcome": "ok",
+              "truncated": false,
+              "nativeID": "01M51VDT0J0000000000000002",
+              "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+              "withinNominalCPU": true
+            }
+          },
+          "nativeComplete": true,
+          "traceRootCandidates": [],
+          "traceCandidateAcceptance": "NOT_ACCEPTED_AS_CAPACITY; IDENTITY_AND_TRUNCATION_REQUIRE_SEPARATE_REVIEW"
+        }
+      }
+    ],
+    "measurements": {
+      "PASS": true,
+      "appInvocations": 4,
+      "canonicalUploadCapacityAccepted": false,
+      "CSRFnativeCPUms": [
+        18,
+        11,
+        19
+      ],
+      "allCSRFWithinNominalBudget": false,
+      "allBusinessCounts": 0,
+      "transport": {
+        "scope": "LIGHTWEIGHT_TRANSPORT_OR_CSRF_NOT_CANONICAL_UPLOAD_CAPACITY",
+        "nativeLogs": {
+          "EDGE": {
+            "CPUms": 4,
+            "wallMs": 457,
+            "outcome": "ok",
+            "truncated": false,
+            "nativeID": "01M51VDT0Z000000000000000A",
+            "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+            "withinNominalCPU": true
+          },
+          "DO": {
+            "CPUms": 1,
+            "wallMs": 6,
+            "outcome": "ok",
+            "truncated": false,
+            "nativeID": "01M51VDT0J0000000000000002",
+            "version": "881676d3-72a5-4c30-b342-30d8cf1f8bdc",
+            "withinNominalCPU": true
+          }
+        },
+        "nativeComplete": true,
+        "traceRootCandidates": [],
+        "traceCandidateAcceptance": "NOT_ACCEPTED_AS_CAPACITY; IDENTITY_AND_TRUNCATION_REQUIRE_SEPARATE_REVIEW"
+      },
+      "nextCapacityExecutor": "SEPARATE_FRESH_REVIEW_REQUIRED_NOT_AUTHORIZED"
+    },
+    "startupMs": 47,
+    "ownedFinalState": {
+      "PASS": true,
+      "counts": {
+        "documents": 0,
+        "document_versions": 0,
+        "operation_receipts": 0,
+        "background_jobs": 0,
+        "audit_events": 0
+      },
+      "privateR2Objects": 0,
+      "sessionKind": "NORMAL",
+      "lastSeenUpdatedSinceSeed": true,
+      "traceViewReadback": {
+        "newRunOnly": true,
+        "queries": 1,
+        "view": "traces",
+        "count": 4,
+        "summary": [
+          {
+            "traceId": "5d13b0fda97c07fe236b5fcb3cbaaa91",
+            "spans": 5,
+            "rootSpanName": "POST",
+            "rootTransactionName": "POST https://mayi-http-cd3ad01ea7.sinancanpolat41.workers.dev/__f44/transport"
+          },
+          {
+            "traceId": "21c755c4fe266d9bfa4c773e3aa24175",
+            "spans": 2,
+            "rootSpanName": "GET",
+            "rootTransactionName": "GET https://mayi-http-cd3ad01ea7.sinancanpolat41.workers.dev/api/auth/csrf-token"
+          },
+          {
+            "traceId": "03559973f88750c52aeee5a56772f8d3",
+            "spans": 2,
+            "rootSpanName": "GET",
+            "rootTransactionName": "GET https://mayi-http-cd3ad01ea7.sinancanpolat41.workers.dev/api/auth/csrf-token"
+          },
+          {
+            "traceId": "e968d3c3217d3c44e9de653792e67b1c",
+            "spans": 3,
+            "rootSpanName": "GET",
+            "rootTransactionName": "GET https://mayi-http-cd3ad01ea7.sinancanpolat41.workers.dev/api/auth/csrf-token"
+          }
+        ],
+        "queryWindow": {
+          "from": 1792137271354,
+          "to": 1792137539595
+        },
+        "summaryNotPerInvocationCPU": true
+      },
+      "appInvocations": 4
+    },
+    "sameIsolateColdWarmGuaranteed": false,
+    "tracingEnabledConfounder": true,
+    "nativeTraceRootAccepted": false,
+    "sustainedCPUExhaustionProven": false
+  },
+  "productionInitial": {
+    "observedAt": "2026-10-16T07:19:19.225116+00:00",
+    "productionVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "productionDeployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+    "productionTraffic": 100,
+    "flags": {
+      "DOCUMENTS_ENABLED": "false",
+      "DOCUMENT_JOBS_ENABLED": "true",
+      "DOCUMENT_CRON_ENABLED": "true"
+    },
+    "newUploadBindingDeployed": false,
+    "threeQueues": [
+      {
+        "name": "mayisigorta-document-jobs",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2",
+        "paused": false,
+        "consumers": 1,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2-dlq",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      }
+    ],
+    "cronUnchanged": true,
+    "allOwnedTemporaryResourcesAbsent": {
+      "Worker": true,
+      "EUbucket": true,
+      "EUDB": true,
+      "SQLiteDONamespace": true
+    },
+    "permanentKdfNamespaceOnly": true,
+    "subscriptionsUnchanged": true,
+    "WorkersPaidEnabled": false,
+    "providerMutationCount": 0,
+    "GETcount": 11
+  },
+  "productionFinal": {
+    "observedAt": "2026-10-16T08:03:08.035970+00:00",
+    "productionVersion": "7e97419b-241a-4cf1-92de-d4ee62d70002",
+    "productionDeployment": "182b1c6d-0542-4568-8e20-6453a73d297b",
+    "productionTraffic": 100,
+    "flags": {
+      "DOCUMENTS_ENABLED": "false",
+      "DOCUMENT_JOBS_ENABLED": "true",
+      "DOCUMENT_CRON_ENABLED": "true"
+    },
+    "newUploadBindingDeployed": false,
+    "threeQueues": [
+      {
+        "name": "mayisigorta-document-jobs",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2",
+        "paused": false,
+        "consumers": 1,
+        "equal": true
+      },
+      {
+        "name": "mayisigorta-document-jobs-v2-dlq",
+        "paused": true,
+        "consumers": 0,
+        "equal": true
+      }
+    ],
+    "cronUnchanged": true,
+    "allOwnedTemporaryResourcesAbsent": {
+      "Worker": true,
+      "EUbucket": true,
+      "EUDB": true,
+      "SQLiteDONamespace": true
+    },
+    "permanentKdfNamespaceOnly": true,
+    "subscriptionsUnchanged": true,
+    "WorkersPaidEnabled": false,
+    "providerMutationCount": 0,
+    "GETcount": 11
+  },
+  "artifactReferences": [
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\allowed-stages.json",
+      "sha256": "1b7654b8d9eae0aa7ae054db282815aece3b8f6d6a25339a13c78f5ff7e4e043"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\atomic-empty-delete-intent.json",
+      "sha256": "3d69b3463e39dae4a7f1420772dec3922eebec8165b8d38c9991be62c99655fb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\bucket-identity.json",
+      "sha256": "afd3a9cc2c454d2223eeee56cf4ddea5c5b4186e2da477fb5f1c938cee965e07"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-absence-delete-database.json",
+      "sha256": "9c0bbdad7b5da957ba79d6c29116fd7e64e767cf0abab6cff60212a2abb431bc"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-class-intent.json",
+      "sha256": "9f5e4c49b271712fb6d57eca967d8efc57bdaef758016d66df8c5f2138fd9040"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-class-result.json",
+      "sha256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-complete-3f4c89b3e90f4d4f9a15fcbc345c3a42.json",
+      "sha256": "6c2de9bfb03bd3b7e67c1108a64a34e498b46bf4a43bac975bc7d5a48bf2d8a0"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-known-objects.json",
+      "sha256": "53e71f98793bbf4617a593caed76137756923904ace86dc1ebbf3c8ef1e9ef4b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\cleanup-namespace-absent.json",
+      "sha256": "e4ffb2aa4ec53d15d4c1c4184ec1f702b3fbf99cf9f576cfcb2f8d8674d55fee"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\create-bucket-intent.json",
+      "sha256": "13791ee2407bdb00dd448162aafae61dcffc0dfc9638effdb4f7746a2c99d3d5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\create-bucket-result.json",
+      "sha256": "1dce6ccfebd4b6d8791a464bbc9ebc4fd00858ff99360f531d86d0eb41515c5c"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\create-database-intent.json",
+      "sha256": "bb2ece7e348c4954fcc3233f47e99e197a87975736cfc41602659919afb4e329"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\create-database-result.json",
+      "sha256": "6dde77363b20b484dbe65b8c9e1e572dad2521c70a98bb71fc89608e72ceb329"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\delete-database-intent.json",
+      "sha256": "d4a066ff13ce250ba35b2e6d9a8acea7740d091b07251924995984302fd8c0ba"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\delete-database-result.json",
+      "sha256": "8a751b6c4bfb362a5367e249d727d79fb45aeb15ddb3855de1d8d248d1857dbb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\delete-worker-intent.json",
+      "sha256": "233f61b1fa725b6c0d4d44c298914ca04a25a578751be2cd61c51ef478be3f2f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deploy-cli-intent.json",
+      "sha256": "3bef8ae151a1d4df8a2117375b776e79f746939e6b5f8af75736f9998cee3134"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deploy-cli-result.json",
+      "sha256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deploy-complete.json",
+      "sha256": "652a3393cb9cd07017ee6efc1635c488e4269d521f71b1825523bbaffd825c04"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deploy-intent.json",
+      "sha256": "b2ed1bb3c9c0620e79c33a340e51ee11c5173be8be2a53dda2d1d03e605b7180"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deployed-bundle-readback.json",
+      "sha256": "b073405a49ab1863278f4338bab0a8aa4067ba987e1d5c6dfbe08479d1cf996f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\deployed.json",
+      "sha256": "64e69888ba939ee59e0b04b35818073ed48fa3bd68615b020946674d258ff93f"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\enable-worker-url-intent.json",
+      "sha256": "3a32add1419cadbffd34dd2cd914ae180d22bee3ff282c6ef29454584410f4e1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\enable-worker-url-result.json",
+      "sha256": "d9c09e86d28fd94a16c4695a5e0393d46bb197a315375569ad235f5833cabe84"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\expected-schema.json",
+      "sha256": "c7b43cda53abd046054f998ea4dbac8bc62d2a8522c9dc025bbeb91d606248f9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\experiment-intent.json",
+      "sha256": "eccd626b82283a1aff7a5de18ffec9ae570d82cd453c425a786410defc0649fb"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\final-owned-readback.json",
+      "sha256": "08665e6b510c850596486ed95beb4e6424ef8615d3a1f7441ef8e40e280c72c4"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\fixture-manifest.json",
+      "sha256": "6043485c3053f7a68531459ea2405652207e8848963e72117134f70c553d53d4"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\freeze.json",
+      "sha256": "c974cdb03d9eff0c4f905182ea770faa06abd1b8ca452ecc41a0016ceec6cad2"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\initial-namespace-inventory.json",
+      "sha256": "95e5c8b4784f53fd832beee412e7082d4786daf8eca88ba50bc7c28a9197b34b"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\measurements-complete.json",
+      "sha256": "bb99faf0087b865604dd9c700457bed44e3cf5ab630148c358c11d1e4e6552e6"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\namespace-preflight-readonly.json",
+      "sha256": "2892534345ba00498a05748d289997ec794ced65b1b050edcfa8498ad3d92eb1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\native-csrf-first.json",
+      "sha256": "491d0f4dfde0697ffb342e34fcdf8b02247454b60ab2cfec441ce8908ead1b69"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\native-csrf-warm-a.json",
+      "sha256": "34e642c128afe5c6c82bbad3abf9b49eba89ba7f116b9220f4e39c2f26dfdb30"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\native-csrf-warm-b.json",
+      "sha256": "c4e0df4758f1ae488cbb3da980ee29bffe589289aa2a931e3be8066ec8e09906"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\native-preparation.json",
+      "sha256": "46c0131d2cbbf57b04e13613aec0bf8e8f36a6d3fa52ad2fff973f68b9277d33"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\native-transport.json",
+      "sha256": "23f0adb1a5579e3ca05c4386c5f201f940e1ac84425730c55207211321c82dc7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-0.json",
+      "sha256": "290197d0868c8709885e41eed40ddf2cb91487253761548eee37ee1aae94a9d9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-1.json",
+      "sha256": "2f22e8796125267e82729e310993250a82f6e7ddf85441b38294a62b0addf661"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-2.json",
+      "sha256": "d187c0ee0cc58be172331473819169849e890535d12842ae3e70e546dce142e1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-3.json",
+      "sha256": "d187c0ee0cc58be172331473819169849e890535d12842ae3e70e546dce142e1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-4.json",
+      "sha256": "d187c0ee0cc58be172331473819169849e890535d12842ae3e70e546dce142e1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-first-5.json",
+      "sha256": "d187c0ee0cc58be172331473819169849e890535d12842ae3e70e546dce142e1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-0.json",
+      "sha256": "1c3d27f1bb14b1bdeda320625d7ddf3e1d6bf36f76d94bf0301fd51f54ac34fc"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-1.json",
+      "sha256": "1c3d27f1bb14b1bdeda320625d7ddf3e1d6bf36f76d94bf0301fd51f54ac34fc"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-2.json",
+      "sha256": "ca7ecd2d3883489fa961e9765a2b2bdfe13e0f195e14e352e9ddb8433fee3cb7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-3.json",
+      "sha256": "ca7ecd2d3883489fa961e9765a2b2bdfe13e0f195e14e352e9ddb8433fee3cb7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-4.json",
+      "sha256": "ca7ecd2d3883489fa961e9765a2b2bdfe13e0f195e14e352e9ddb8433fee3cb7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-a-5.json",
+      "sha256": "ca7ecd2d3883489fa961e9765a2b2bdfe13e0f195e14e352e9ddb8433fee3cb7"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-0.json",
+      "sha256": "c69a27633b3b3a38505f8124cb8f530eda135dfc0690887ed87005c6c74d7e60"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-1.json",
+      "sha256": "c69a27633b3b3a38505f8124cb8f530eda135dfc0690887ed87005c6c74d7e60"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-2.json",
+      "sha256": "bb6622f41e72c7a602bde5faf981a04b806b50d0b13c603d927e3d88221c5a14"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-3.json",
+      "sha256": "bb6622f41e72c7a602bde5faf981a04b806b50d0b13c603d927e3d88221c5a14"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-4.json",
+      "sha256": "bb6622f41e72c7a602bde5faf981a04b806b50d0b13c603d927e3d88221c5a14"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-csrf-warm-b-5.json",
+      "sha256": "bb6622f41e72c7a602bde5faf981a04b806b50d0b13c603d927e3d88221c5a14"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-0.json",
+      "sha256": "978f72e3b6638c2b8c494d9506789d6bddc0860e1d743844577ab39757af0c64"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-1.json",
+      "sha256": "978f72e3b6638c2b8c494d9506789d6bddc0860e1d743844577ab39757af0c64"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-2.json",
+      "sha256": "2ac37d0a4de1137eb242bbfa6a1aee8ed2e16920c828852f7cffcaea522c9a04"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-3.json",
+      "sha256": "2ac37d0a4de1137eb242bbfa6a1aee8ed2e16920c828852f7cffcaea522c9a04"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-4.json",
+      "sha256": "2ac37d0a4de1137eb242bbfa6a1aee8ed2e16920c828852f7cffcaea522c9a04"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\observation-transport-5.json",
+      "sha256": "2ac37d0a4de1137eb242bbfa6a1aee8ed2e16920c828852f7cffcaea522c9a04"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\pre-provision-inventory.json",
+      "sha256": "1e3a8d501cea440cb11f5887511e824667e0fe662ca30148958388a6009c2711"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\provisioned.json",
+      "sha256": "8418655a679d785fc62115ec964b766be245a572b292cd38410bb0b7214d34f1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\request-csrf-first-intent.json",
+      "sha256": "ad7ac3986e852b2ad6be945568369df784e3cb750654952e89d54f8e03276cd0"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\request-csrf-warm-a-intent.json",
+      "sha256": "decab2040fdfa7fa8ccf406be310c2cb3d7d27cf7d6a66da426c327fe787afdd"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\request-csrf-warm-b-intent.json",
+      "sha256": "97a2e0ec8d5cb4cb576611af248f0ad4d9f8a8617815a01b39f23fd0a2b3b608"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\request-transport-intent.json",
+      "sha256": "af5f9c13f43c09fadd7b2593a3a6b27793668dd7417e84cdfa79f46521075f52"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\response-csrf-first.json",
+      "sha256": "0ec409beeb87d1de2da3f7522eb4ab35d282aa2a7c072853392f6f305d3a0084"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\response-csrf-warm-a.json",
+      "sha256": "8fff043f97068315563fe0f60ca6a4b4ecd9107c37e698242180eb6a1c42cbff"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\response-csrf-warm-b.json",
+      "sha256": "36284c098ad83f8115a6d0a3ad010319ac700d85d618bf336ad1dd6b7e79c2e5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\response-transport.json",
+      "sha256": "9dc1f3021d9b992e4196c70a66cd122942336b0d7168910744939da18fe38c50"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\schema-import-intent.json",
+      "sha256": "a9ab68ec4562f87dcc3002758a6868ebf61f24d07c2181079eacacd61849864e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\schema-import-result.json",
+      "sha256": "5e90bcd477061073a94e30dc0c337e3673820b67f3dc3ff304a1bd9eba007bb5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\schema-readback.json",
+      "sha256": "c04e0c57c9767a3e3195e1d2ef517fef27d2d9076bc338f1dc88502895c3d320"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\scope.json",
+      "sha256": "762100dc7710fa09aa82689a284bfddb8ae5cc42ac02bf3c33d8a92033564653"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\trace-settings-readback.json",
+      "sha256": "e37555fd6b001699c63e01caabaf1712a64936d8b65336719f5cfa5845776369"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-native\\worker-identity.json",
+      "sha256": "0e85dea913e4aeb9f935df4907eb861677bd782e0c354809a05e23b8688ddf68"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-options-high.json",
+      "sha256": "95c87e64a7e630d9e38ebf02fa40d1f58621e6c97de8c52e9ff08d4895acc847"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-pre-high.json",
+      "sha256": "84baad0c3fe7f95a50fc5037d2fd3bc8fba5995962d609552f7a2fd9e5379323"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-initial-readback.json",
+      "sha256": "f1f78cd9e33e35219420154daeb47fa1a8856100cd53e25626efdb133ab3fcd1"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-final-readback.json",
+      "sha256": "dbd7c5adeb64d6191f09c44564e056baeb022b99a27ac7e35d4efd2eef9576b2"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-local-profile-v1-coarse.json",
+      "sha256": "3bf0996182939ec084957ded7e9dac386bfad7f3f667641f8d7152fb7263ba23"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-local-profile.json",
+      "sha256": "5b839406dcd0903e14051310858b6d879082dbadcf84fcd4f02d8a017ff3d458"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-local-full-profile.json",
+      "sha256": "6fc49e98a12f7a3278addf2c2fc17223088ff399075d4fd0b98415b2cd9702a0"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-source-fact-notes.txt",
+      "sha256": "650af698bfb13d3ed4f59a181e156132f8f5ac9d443f2a9b8d2b465aec27a046"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-operator.py",
+      "sha256": "7d5bc8dbbcb29d4e760cbb7e49d01d1081c9ded55e091ed0482d90d056af9242"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-owned-readback.py",
+      "sha256": "57924cabb1d1cbcdb108fb73f1347ad60e3cfb7706777ffabe540efdb36aecd9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-local-profile.mjs",
+      "sha256": "12abe90112a18056e43c8ec06e64a8f019d2ff9651e2b83331b868d17f7f0178"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-focused.log",
+      "sha256": "5c61c5fcc964f7d77645e0c4f7ff9975e67b2474252930b79ade39154265c6b3"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-router-RED.log",
+      "sha256": "a86721fa4235059250e1b50bbebd507bb2c62e6667da451cc8968bdbd6804f70"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-router-GREEN.log",
+      "sha256": "68094a7348ecf8b25f129d2697c06d9287fcc0783c005e0675c8ce20c7f590c5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-router-corrected.log",
+      "sha256": "7cf068dc90f91f30d1ad62eb8f0a52c94c7c5d84cab1f2720fe04db67ba59da4"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-static-consumers.log",
+      "sha256": "4e0a06eac110c2ab93221502d254782e09359b2b8803d8dfcd071eb220ab67e5"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-lint.log",
+      "sha256": "7cb89f8caed1aa780547932b9c355cdb0c9e109a431169db1bd9c1e12a079687"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-typecheck.log",
+      "sha256": "61de6e754ccacd9e4fa33ff83f110b3f04732e756e89186f7e89e3c258324208"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-build.log",
+      "sha256": "120b5375f4a8c587f79830629742feb42a92c6fc852239be2a5d8520e07677a9"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-format.log",
+      "sha256": "5de580f1cb5996eef5bf45b124d37ad3bb4dbb934e81bbce6a86dcb40cd3624e"
+    },
+    {
+      "path": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-f44-format-corrected.log",
+      "sha256": "3efb2f2984473983627a1c9fe804f6c790684763690b9f0eafdbecab9fa40d0a"
+    }
+  ],
+  "freshFinalPostHIGH": {
+    "path": "C:/Users/sinan/AppData/Local/Temp/mayi-f44-final-post-high.json",
+    "sha256": "21b5bab95965a99b1e904a22523019baf8a3b1ca94b2ced549c720d02245e17e",
+    "session": "20261016_143500_97afa1",
+    "actualClosedModelProviderHighParentNULLExactFinalJSON": "PASS",
+    "verdict": "PASS_SCOPED_SOURCE_DECISION_TRANSPORT_CLEANUP_NOT_CAPACITY",
+    "BLOCKER": 1,
+    "IMPORTANT": 1,
+    "OPTIONAL": 1,
+    "findingScopes": {
+      "B1": "EXISTING_CANONICAL_CAPACITY_RELEASE_GATE",
+      "I1": "UNRESOLVED_CSRF_FREE_HEADROOM",
+      "O1": "FUTURE_TRACE_ROOT_RETRIEVAL_CONTRACT"
+    },
+    "sourceChangeAccepted": true,
+    "lightweightNativeCaptureAccepted": true,
+    "CSRFHeadroomAccepted": false,
+    "canonicalCapacityAccepted": false,
+    "capacityExecutorAuthorized": false,
+    "cleanupIndependentlyVerified": true,
+    "productionClosedUnchanged": true,
+    "independentMatchComparisons": 623,
+    "independentMatchingHandlerExecutions": 0,
+    "independentProviderGET": 11,
+    "independentDryTelemetryPOST": 2,
+    "independentNativeIDs": 5,
+    "providerMutationsAndAppRequests": 0,
+    "liveReadbackPath": "C:/Users/sinan/AppData/Local/Temp/mayi-f44-post-97afa1-readback.json",
+    "liveReadbackSHA256": "7f3cd5e405afd17cbf9dbbacec17902ee442d5513bbdc48e60d2cd1329a41b74",
+    "independentRAMPath": "C:/Users/sinan/AppData/Local/Temp/mayi-f44-post-97afa1-ram.json",
+    "independentRAMSHA256": "276ac61ea2c640f7ec08a05d09d4d533c89db2065621f6e486851e932222eebb"
+  },
+  "decision": {
+    "retainF36": true,
+    "retainOnlyStaticStartupOptimization": "FINAL_HIGH_ACCEPTED_LOCAL_WORK_PLACEMENT_ONLY_NOT_HEADROOM_FIX",
+    "lifecycleRewriteRejected": true,
+    "secondSimilarProviderExperimentAllowed": false,
+    "repeatHistoricalUploadOrQueryAllowed": false,
+    "nextLocalCandidate": "NARROW_CANONICAL_CSRF_PRIVATE_DO_COST_PLACEMENT; LIVE_AUTHORITY_AND_UPLOAD_CONTENTION_MUST_BE_PROVEN",
+    "architectureAdjustmentImplemented": false,
+    "extraWorkerOrServiceCreated": false,
+    "capacityExecutorAuthorized": false,
+    "sourceTraceRootContract": "UNPROVEN_COLLECTOR_NOT_PLATFORM_FAILURE"
+  },
+  "flags": {
+    "F44_LIGHTWEIGHT_NATIVE_TRANSPORT_CAPTURE": "PASS",
+    "F44_CSRF_FREE_HEADROOM_ACCEPTED": "NO",
+    "F44_TRACE_ROOT_NATIVE_ACCEPTED": "NO",
+    "CAPACITY_EXECUTOR_AUTHORIZED": "NO",
+    "M4_HTTP_ADMISSION_ARCHITECTURE_ACCEPTED": "NO",
+    "M4_HTTP_SUSTAINED_FREE_CAPACITY_ACCEPTED": "NO",
+    "M4_HTTP_UPLOAD_RUNTIME_ACCEPTED": "YES_PREVIOUS_CANONICAL_CLOSED_SCOPE",
+    "M4_DOCUMENT_VERTICAL_SLICE_ACCEPTED": "YES",
+    "M4_DOCUMENT_USER_FLOW_ACCEPTED": "YES",
+    "M4_SECURITY_ACCEPTED": "YES",
+    "DOCUMENTS_ENABLED": false,
+    "FEATURE_ENABLED": "NO",
+    "M4_COMPLETE": false
+  },
+  "officialSources": [
+    "https://developers.cloudflare.com/workers/platform/limits/",
+    "https://developers.cloudflare.com/workers/runtime-apis/context/",
+    "https://developers.cloudflare.com/workers/observability/logs/workers-logs/",
+    "https://developers.cloudflare.com/workers/observability/traces/",
+    "https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/",
+    "https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/"
+  ]
+}

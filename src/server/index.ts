@@ -293,6 +293,9 @@ export function createApp(
   return app;
 }
 export const app = createApp();
+// Compile only the completed static router during startup, not the first auth request.
+// Matching executes no handler or I/O; createApp() remains open for trusted composition.
+app.router.match('GET', '/api/health');
 export function createWorker(
   appInstance: Hono<{ Bindings: Env }> = app,
   documentBackup?: DocumentBackupAdapter,
