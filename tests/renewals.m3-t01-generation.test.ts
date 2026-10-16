@@ -1193,4 +1193,253 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
       vi.setSystemTime(new Date('2026-09-25T00:00:00.000Z'));
     }
   });
+
+  it('daily Cron discovers a policy entering the window without editing it and ignores document ticks', async () => {
+    vi.setSystemTime(new Date('2035-01-01T00:00:00.000Z'));
+    await insertPolicy('daily-window-policy', 'DAILY-WINDOW', 'DAILYWINDOW', '2035-02-01');
+    const worker = createWorker();
+    async function tick(cron: string) {
+      const work: Promise<unknown>[] = [];
+      worker.scheduled({ cron } as ScheduledController, { DB: db }, {
+        waitUntil: (promise: Promise<unknown>) => work.push(promise),
+      } as unknown as ExecutionContext);
+      await Promise.all(work);
+      return work.length;
+    }
+    expect(await tick('*/5 * * * *')).toBe(0);
+    expect(await tick('0 0 * * *')).toBe(1);
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS count FROM renewal_opportunities WHERE expiring_policy_id='daily-window-policy'",
+        )
+        .first(),
+    ).toEqual({ count: 0 });
+    vi.setSystemTime(new Date('2035-01-02T00:00:00.000Z'));
+    await tick('0 0 * * *');
+    await tick('0 0 * * *');
+    const batchSizes: number[] = [];
+    const observed = new Proxy(db, {
+      get(target, property) {
+        if (property === 'batch')
+          return (statements: D1PreparedStatement[]) => {
+            batchSizes.push(statements.length);
+            return target.batch(statements);
+          };
+        const value = Reflect.get(target, property, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const replayWork: Promise<unknown>[] = [];
+    worker.scheduled({ cron: '0 0 * * *' } as ScheduledController, { DB: observed }, {
+      waitUntil: (promise: Promise<unknown>) => replayWork.push(promise),
+    } as unknown as ExecutionContext);
+    await Promise.all(replayWork);
+    expect(batchSizes).toEqual([1]); // Cursor only; no failed nine-statement insert per existing policy.
+    expect(
+      await db
+        .prepare("SELECT version,end_date FROM policies WHERE id='daily-window-policy'")
+        .first(),
+    ).toEqual({ version: 1, end_date: '2035-02-01' });
+    expect(
+      await db
+        .prepare(
+          `SELECT
+      (SELECT count(*) FROM renewal_opportunities WHERE expiring_policy_id='daily-window-policy') AS renewals,
+      (SELECT count(*) FROM tasks WHERE renewal_id IN (SELECT id FROM renewal_opportunities WHERE expiring_policy_id='daily-window-policy')) AS tasks,
+      (SELECT count(*) FROM renewal_state_history WHERE renewal_id IN (SELECT id FROM renewal_opportunities WHERE expiring_policy_id='daily-window-policy')) AS history,
+      (SELECT count(*) FROM system_audit_events WHERE idempotency_key='renewal-policy:daily-window-policy') AS audits`,
+        )
+        .first(),
+    ).toEqual({ renewals: 1, tasks: 1, history: 1, audits: 1 });
+  });
+
+  it('recovers a missed daily run after partial failure without advancing the cursor early or duplicating evidence', async () => {
+    vi.setSystemTime(new Date('2036-09-24T00:00:00.000Z'));
+    await db
+      .prepare(
+        "UPDATE renewal_generation_cursors SET last_successful_local_date='2036-09-20',updated_at='2036-09-20T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+      )
+      .run();
+    await insertPolicy('daily-recovery-a', 'DAILY-RECOVERY-A', 'DAILYRECOVERYA', '2036-09-25');
+    await insertPolicy('daily-recovery-b', 'DAILY-RECOVERY-B', 'DAILYRECOVERYB', '2036-09-26');
+    await db
+      .prepare(
+        "CREATE TRIGGER daily_recovery_failure BEFORE INSERT ON renewal_opportunities WHEN NEW.expiring_policy_id='daily-recovery-b' BEGIN SELECT RAISE(ABORT,'DAILY_RECOVERY_TEST_FAILURE'); END",
+      )
+      .run();
+    try {
+      await expect(runRenewalGenerationForAgency(db, 'agency-a')).rejects.toThrow(
+        /DAILY_RECOVERY_TEST_FAILURE/,
+      );
+      expect(
+        await db
+          .prepare(
+            "SELECT last_successful_local_date FROM renewal_generation_cursors WHERE agency_id='agency-a'",
+          )
+          .first(),
+      ).toEqual({ last_successful_local_date: '2036-09-20' });
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) AS count FROM renewal_opportunities WHERE expiring_policy_id IN ('daily-recovery-a','daily-recovery-b')",
+          )
+          .first(),
+      ).toEqual({ count: 1 });
+    } finally {
+      await db.prepare('DROP TRIGGER daily_recovery_failure').run();
+    }
+    vi.setSystemTime(new Date('2036-09-30T00:00:00.000Z'));
+    await runRenewalGenerationForAgency(db, 'agency-a');
+    await runRenewalGenerationForAgency(db, 'agency-a');
+    const rows = await db
+      .prepare(
+        `SELECT r.expiring_policy_id,r.state,
+      (SELECT count(*) FROM tasks t WHERE t.agency_id=r.agency_id AND t.renewal_id=r.id) AS tasks,
+      (SELECT count(*) FROM renewal_state_history h WHERE h.agency_id=r.agency_id AND h.renewal_id=r.id) AS history,
+      (SELECT count(*) FROM system_audit_events a WHERE a.agency_id=r.agency_id AND a.idempotency_key='renewal-policy:'||r.expiring_policy_id) AS audits
+      FROM renewal_opportunities r WHERE r.expiring_policy_id IN ('daily-recovery-a','daily-recovery-b') ORDER BY r.expiring_policy_id`,
+      )
+      .all();
+    expect(rows.results).toEqual(
+      ['daily-recovery-a', 'daily-recovery-b'].map((id) => ({
+        expiring_policy_id: id,
+        state: 'CONTACT_PENDING',
+        tasks: 1,
+        history: 1,
+        audits: 1,
+      })),
+    );
+    expect(
+      await db
+        .prepare(
+          "SELECT last_successful_local_date FROM renewal_generation_cursors WHERE agency_id='agency-a'",
+        )
+        .first(),
+    ).toEqual({ last_successful_local_date: '2036-09-30' });
+  });
+
+  it('makes retry progress in a 15000-policy portfolio under a local call budget without advancing the cursor early', async () => {
+    vi.setSystemTime(new Date('2040-01-01T00:00:00.000Z'));
+    await db
+      .prepare(
+        "UPDATE renewal_generation_cursors SET last_successful_local_date='2040-01-01',updated_at='2040-01-01T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+      )
+      .run();
+    await db
+      .prepare(
+        `WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM seq WHERE n<14999)
+      INSERT INTO policies (id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency)
+      SELECT 'capacity-profile-'||n,'agency-a','customer-a','insurer-a','product-a','branch-a','cash-a','member-a',
+        'CAPACITY-'||n,'CAPACITY'||n,'2039-01-01',date('2040-01-01','+'||(n%366)||' days'),10000,'TRY' FROM seq`,
+      )
+      .run();
+    function budgeted() {
+      const counts = { calls: 0, statements: 0, candidates: 0 };
+      function charge(statements: number) {
+        if (++counts.calls > 50) throw new Error('LOCAL_TEST_CALL_BUDGET');
+        counts.statements += statements;
+      }
+      function wrap(statement: D1PreparedStatement, query: string): D1PreparedStatement {
+        return new Proxy(statement, {
+          get(target, property) {
+            if (property === 'bind')
+              return (...values: unknown[]) => wrap(target.bind(...values), query);
+            const value = Reflect.get(target, property, target);
+            if (['first', 'all', 'run', 'raw'].includes(String(property)))
+              return async (...args: unknown[]) => {
+                charge(1);
+                const result = await value.apply(target, args);
+                if (property === 'all' && query.includes('SELECT p.id AS policy_id'))
+                  counts.candidates = result.results.length;
+                return result;
+              };
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      }
+      const bounded = new Proxy(db, {
+        get(target, property) {
+          if (property === 'prepare') return (query: string) => wrap(target.prepare(query), query);
+          if (property === 'batch')
+            return (statements: D1PreparedStatement[]) => {
+              charge(statements.length);
+              return target.batch(statements);
+            };
+          const value = Reflect.get(target, property, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      return { bounded, counts };
+    }
+    const countCreated = () =>
+      db
+        .prepare(
+          "SELECT count(*) AS count FROM renewal_opportunities WHERE expiring_policy_id LIKE 'capacity-profile-%'",
+        )
+        .first<{ count: number }>();
+    const first = budgeted();
+    await expect(runRenewalGenerationForAgency(first.bounded, 'agency-a')).rejects.toThrow(
+      'LOCAL_TEST_CALL_BUDGET',
+    );
+    const firstCreated = await countCreated();
+    const retry = budgeted();
+    await expect(runRenewalGenerationForAgency(retry.bounded, 'agency-a')).rejects.toThrow(
+      'LOCAL_TEST_CALL_BUDGET',
+    );
+    expect(firstCreated?.count).toBe(48);
+    expect((await countCreated())!.count).toBe(96);
+    expect(first.counts).toEqual({ calls: 51, statements: 434, candidates: 1271 });
+    expect(retry.counts).toEqual({ calls: 51, statements: 434, candidates: 1271 });
+    expect(
+      await db
+        .prepare(
+          "SELECT last_successful_local_date FROM renewal_generation_cursors WHERE agency_id='agency-a'",
+        )
+        .first(),
+    ).toEqual({ last_successful_local_date: '2040-01-01' });
+    expect(
+      await db
+        .prepare(
+          `SELECT
+      (SELECT count(*) FROM renewal_opportunities WHERE expiring_policy_id LIKE 'capacity-profile-%') AS renewals,
+      (SELECT count(*) FROM tasks WHERE renewal_id IN (SELECT id FROM renewal_opportunities WHERE expiring_policy_id LIKE 'capacity-profile-%')) AS tasks,
+      (SELECT count(*) FROM renewal_state_history WHERE renewal_id IN (SELECT id FROM renewal_opportunities WHERE expiring_policy_id LIKE 'capacity-profile-%')) AS history,
+      (SELECT count(*) FROM system_audit_events WHERE idempotency_key LIKE 'renewal-policy:capacity-profile-%') AS audits`,
+        )
+        .first(),
+    ).toEqual({ renewals: 96, tasks: 96, history: 96, audits: 96 });
+  }, 120000);
+
+  it('still rejects incomplete existing generation evidence before advancing the cursor', async () => {
+    vi.setSystemTime(new Date('2041-01-01T00:00:00.000Z'));
+    await db
+      .prepare(
+        "UPDATE renewal_generation_cursors SET last_successful_local_date='2041-01-01',updated_at='2041-01-01T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+      )
+      .run();
+    await insertPolicy(
+      '000-daily-evidence-gap',
+      'DAILY-EVIDENCE-GAP',
+      'DAILYEVIDENCEGAP',
+      '2041-01-01',
+    );
+    await db
+      .prepare(
+        `INSERT INTO renewal_opportunities (id,agency_id,expiring_policy_id,assignee_membership_id,state,version,created_at,updated_at)
+      VALUES ('daily-evidence-gap','agency-a','000-daily-evidence-gap','member-a','CONTACT_PENDING',1,'2041-01-01T00:00:00.000Z','2041-01-01T00:00:00.000Z')`,
+      )
+      .run();
+    const before = await db
+      .prepare("SELECT * FROM renewal_generation_cursors WHERE agency_id='agency-a'")
+      .first();
+    await expect(runRenewalGenerationForAgency(db, 'agency-a')).rejects.toThrow(
+      'RENEWAL_GENERATION_EXISTING_EFFECT_INCOMPLETE',
+    );
+    expect(
+      await db
+        .prepare("SELECT * FROM renewal_generation_cursors WHERE agency_id='agency-a'")
+        .first(),
+    ).toEqual(before);
+  });
 });

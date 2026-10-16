@@ -58,20 +58,16 @@ it('production internal commissioning keeps public closure, private recovery and
       dead_letter_queue: 'mayisigorta-document-jobs-v2-dlq',
     },
   ]);
-  expect(c.env.production.triggers.crons).toEqual(['*/5 * * * *']);
+  expect(c.env.production.triggers.crons).toEqual(['0 0 * * *', '*/5 * * * *']);
   expect(c.env.production.workers_dev).toBe(false);
   expect(c.env.production.preview_urls).toBe(false);
   const prior = config(
-    execFileSync('git', ['show', 'a5592ec5648ee61f7f2de1513e29bd1ef4af4338:wrangler.jsonc'], {
+    execFileSync('git', ['show', '37a42375ea161d3d1f00a3eced9da6ac2a25931b:wrangler.jsonc'], {
       encoding: 'utf8',
     }),
   );
   const unchanged = structuredClone(c);
-  unchanged.env.production.vars.DOCUMENT_JOBS_ENABLED = 'false';
-  unchanged.env.production.vars.DOCUMENT_CRON_ENABLED = 'false';
-  unchanged.env.production.triggers.crons = [];
-  unchanged.env.production.queues = prior.env.production.queues;
-  unchanged.env.production.r2_buckets = prior.env.production.r2_buckets;
+  unchanged.env.production.triggers.crons = ['*/5 * * * *'];
   expect(unchanged).toEqual(prior);
   expect(
     readFileSync('wrangler.backup.json', 'utf8').replace(/\r\n/gu, '\n') ===

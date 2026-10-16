@@ -299,15 +299,8 @@ function systemAuditInsert(
     );
 }
 
-async function assertExistingGenerationComplete(
-  db: D1Database,
-  agencyId: string,
-  policyId: string,
-): Promise<void> {
-  const existing = await db
-    .prepare(
-      `SELECT r.id,r.state,
-         (SELECT count(*) FROM renewal_state_history h
+// The same exact effect proof is used for scheduled reads and racing creates.
+const generationEvidenceColumns = `(SELECT count(*) FROM renewal_state_history h
           WHERE h.agency_id=r.agency_id AND h.renewal_id=r.id
             AND h.from_state IS NULL AND h.to_state='CONTACT_PENDING'
             AND h.actor_kind='SYSTEM' AND h.actor_user_id IS NULL AND h.actor_membership_id IS NULL
@@ -319,18 +312,32 @@ async function assertExistingGenerationComplete(
           WHERE a.agency_id=r.agency_id AND a.system_actor_code='renewal-generation'
             AND a.action='renewal.generate' AND a.target_type='renewal_opportunities'
             AND a.target_id=r.id AND a.idempotency_key=('renewal-policy:'||r.expiring_policy_id)
-            AND a.outcome='SUCCESS' AND a.reason_code='POLICY_EXPIRING') AS system_audit_count
+            AND a.outcome='SUCCESS' AND a.reason_code='POLICY_EXPIRING') AS system_audit_count`;
+
+function generationComplete(
+  existing: Pick<ExistingRenewalRow, 'initial_history_count' | 'task_count' | 'system_audit_count'>,
+): boolean {
+  return (
+    existing.initial_history_count === 1 &&
+    existing.task_count >= 1 &&
+    existing.system_audit_count === 1
+  );
+}
+
+async function assertExistingGenerationComplete(
+  db: D1Database,
+  agencyId: string,
+  policyId: string,
+): Promise<void> {
+  const existing = await db
+    .prepare(
+      `SELECT r.id,r.state,${generationEvidenceColumns}
        FROM renewal_opportunities r
        WHERE r.agency_id=? AND r.expiring_policy_id=?`,
     )
     .bind(agencyId, policyId)
     .first<ExistingRenewalRow>();
-  if (
-    !existing ||
-    existing.initial_history_count !== 1 ||
-    existing.task_count < 1 ||
-    existing.system_audit_count !== 1
-  ) {
+  if (!existing || !generationComplete(existing)) {
     throw new RenewalGenerationError('RENEWAL_GENERATION_EXISTING_EFFECT_INCOMPLETE');
   }
 }
@@ -528,15 +535,21 @@ export async function runRenewalGenerationForAgency(
                AND EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id AND ai.status='ACTIVE')
            ) THEN c.assignee_membership_id
            ELSE NULL
-         END AS assignee_membership_id
+         END AS assignee_membership_id,r.id AS existing_renewal_id,${generationEvidenceColumns}
        FROM policies p
        JOIN customers c ON c.agency_id=p.agency_id AND c.id=p.customer_id
+       LEFT JOIN renewal_opportunities r ON r.agency_id=p.agency_id AND r.expiring_policy_id=p.id
        WHERE p.agency_id=? AND p.status='ACTIVE' AND p.archived_at IS NULL
          AND c.archived_at IS NULL AND p.end_date>=? AND p.end_date<=?
        ORDER BY p.end_date,p.id`,
     )
     .bind(agencyId, window.lowerDate, window.upperDate)
-    .all<RenewalCandidateRow>();
+    .all<
+      RenewalCandidateRow &
+        Pick<ExistingRenewalRow, 'initial_history_count' | 'task_count' | 'system_audit_count'> & {
+          existing_renewal_id: string | null;
+        }
+    >();
   if (!candidates.success || !Array.isArray(candidates.results)) {
     throw new RenewalGenerationError('RENEWAL_GENERATION_QUERY_FAILED');
   }
@@ -554,6 +567,17 @@ export async function runRenewalGenerationForAgency(
         typeof candidate.assignee_membership_id !== 'string')
     ) {
       throw new RenewalGenerationError('RENEWAL_GENERATION_CANDIDATE_INVALID');
+    }
+    if (candidate.existing_renewal_id !== null) {
+      if (
+        typeof candidate.existing_renewal_id !== 'string' ||
+        !candidate.existing_renewal_id ||
+        !generationComplete(candidate)
+      ) {
+        throw new RenewalGenerationError('RENEWAL_GENERATION_EXISTING_EFFECT_INCOMPLETE');
+      }
+      existingCount += 1;
+      continue;
     }
     const outcome = await createOrObserveRenewal(db, {
       agencyId,

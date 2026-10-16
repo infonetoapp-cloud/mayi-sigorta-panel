@@ -25,7 +25,7 @@ it('preserves public closure while constraining the internal custody-backed Queu
   expect(p.workers_dev).toBe(false);
   expect(p.preview_urls).toBe(false);
   expect(p.routes).toEqual([{ pattern: 'panel.mayisigorta.com', custom_domain: true }]);
-  expect(p.triggers.crons).toEqual(['*/5 * * * *']);
+  expect(p.triggers.crons).toEqual(['0 0 * * *', '*/5 * * * *']);
   expect(p.queues.consumers).toEqual([
     {
       queue: 'mayisigorta-document-jobs-v2',
@@ -77,4 +77,16 @@ it('preserves public closure while constraining the internal custody-backed Queu
   );
   const without = { ...current, env: { foundation: current.env.foundation } };
   expect(without).toEqual(base);
+});
+
+it('adds only the production daily renewal Cron to the accepted release configuration', () => {
+  const current = configuration(readFileSync('wrangler.jsonc', 'utf8'));
+  const previous = configuration(
+    execFileSync('git', ['show', '37a42375ea161d3d1f00a3eced9da6ac2a25931b:wrangler.jsonc'], {
+      encoding: 'utf8',
+    }),
+  );
+  expect(current.env.production.triggers.crons).toEqual(current.triggers.crons);
+  current.env.production.triggers.crons = ['*/5 * * * *'];
+  expect(current).toEqual(previous);
 });
