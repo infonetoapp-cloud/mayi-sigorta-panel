@@ -80,7 +80,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     await screen.findByText('123******01');
     expect(identityEndpointCalled).toBe(false);
     expect(screen.queryByText('12345678901')).toBeNull();
-    expect(screen.getByRole('button', { name: /Kimliği Göster|Göster/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /^Kimliği Göster$/i })).toBeDefined();
   });
 
   it('2. Açık "Kimliği Göster" tıklandığında dedicated endpoint çağrılmalı ve kimlik gösterilmelidir', async () => {
@@ -126,7 +126,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     fireEvent.click(await screen.findByRole('button', { name: 'Detay & Yetkililer' }));
     await screen.findByText('123******01');
 
-    const revealBtn = screen.getByRole('button', { name: /Kimliği Göster|Göster/i });
+    const revealBtn = screen.getByRole('button', { name: /^Kimliği Göster$/i });
     fireEvent.click(revealBtn);
 
     await screen.findByText('12345678901');
@@ -174,7 +174,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     fireEvent.click(await screen.findByRole('button', { name: 'Detay & Yetkililer' }));
     await screen.findByText('123******01');
 
-    const revealBtn = screen.getByRole('button', { name: /Kimliği Göster|Göster/i });
+    const revealBtn = screen.getByRole('button', { name: /^Kimliği Göster$/i });
     fireEvent.click(revealBtn);
 
     await screen.findByText(/yetkiniz bulunmamaktadır|erişim reddedildi/i);
@@ -222,7 +222,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     fireEvent.click(await screen.findByRole('button', { name: 'Detay & Yetkililer' }));
     await screen.findByText('123******01');
 
-    fireEvent.click(screen.getByRole('button', { name: /Kimliği Göster|Göster/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Kimliği Göster$/i }));
     await screen.findByText('12345678901');
 
     const hideBtn = screen.getByRole('button', { name: /Kimliği Gizle|Gizle/i });

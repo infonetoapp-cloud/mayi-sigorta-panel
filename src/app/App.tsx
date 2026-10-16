@@ -12,6 +12,7 @@ import { CustomerIdentitySection } from './components/CustomerIdentitySection';
 import { CustomerAssignmentSection } from './components/CustomerAssignmentSection';
 import { CustomerContactSection } from './components/CustomerContactSection';
 import { CustomerRenewalsSection } from './components/CustomerRenewalsSection';
+import { CustomerNotesSection } from './components/CustomerNotesSection';
 import { CustomerExternalReferencesSection } from './components/CustomerExternalReferencesSection';
 import { SensitiveSearchPanel } from './components/SensitiveSearchPanel';
 import { CatalogsPanel } from './components/CatalogsPanel';
@@ -1521,6 +1522,14 @@ export const App: React.FC = () => {
                       previous.map((item) => (item.id === current.id ? current : item)),
                     );
                   }}
+                />
+
+                <CustomerNotesSection
+                  key={`notes:${selectedCustomer.id}`}
+                  customerId={selectedCustomer.id}
+                  archived={selectedCustomer.archivedAt != null}
+                  getCsrfToken={getCsrfToken}
+                  invalidateCsrfToken={invalidateCsrfToken}
                 />
 
                 {selectedCustomer.archivedAt == null && (

@@ -2544,6 +2544,61 @@ export const documentQueueDeadLetterEvents = sqliteTable(
   ],
 );
 
+export const customerNotes = sqliteTable(
+  'customer_notes',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    content: text('content').notNull(),
+    authorUserId: text('author_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    authorMembershipId: text('author_membership_id').notNull(),
+    authorName: text('author_name'),
+    operationReceiptId: text('operation_receipt_id')
+      .notNull()
+      .references(() => operationReceipts.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    check('customer_notes_id_nonempty', sql`length(trim(${table.id}))>0`),
+    check(
+      'customer_notes_content_bounded',
+      sql`length(${table.content}) BETWEEN 1 AND 2000 AND length(trim(${table.content}))>0 AND instr(${table.content},char(0))=0`,
+    ),
+    check(
+      'customer_notes_author_name_bounded',
+      sql`${table.authorName} IS NULL OR length(${table.authorName}) BETWEEN 1 AND 200`,
+    ),
+    check(
+      'customer_notes_timestamp_valid',
+      sql`length(${table.createdAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${table.createdAt})=${table.createdAt}`,
+    ),
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+      name: 'customer_notes_customer_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.authorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      name: 'customer_notes_author_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('customer_notes_receipt_uq').on(table.operationReceiptId),
+    index('customer_notes_customer_time_idx').on(
+      table.agencyId,
+      table.customerId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export type Agency = typeof agencies.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthIdentity = typeof authIdentities.$inferSelect;

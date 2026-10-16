@@ -49,6 +49,8 @@ import {
 } from './service';
 import { parseIdentityCryptoConfig } from '../security/identity-crypto';
 import type { AppDependencies, Env } from '../index';
+import { createCustomerNote, listCustomerNotes, CustomerNoteError } from './notes';
+import { AuthHttpError, readBoundedJson } from '../auth/routes';
 
 type CustomerRouteEnv = { Bindings: Env };
 
@@ -203,6 +205,32 @@ export function registerCustomerRoutes(
 
   // Ortak hata yakalama ve dönüştürme yardımcısı
   function handleError(c: Context<CustomerRouteEnv>, err: unknown) {
+    if (err instanceof AuthHttpError)
+      return c.json(
+        {
+          success: false,
+          error: { code: err.code, message: err.message },
+          timestamp: new Date().toISOString(),
+        },
+        err.status,
+      );
+    if (err instanceof CustomerNoteError)
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: err.code,
+            message:
+              err.status === 404
+                ? 'Kayıt bulunamadı.'
+                : err.status === 409
+                  ? 'İstek çakışması.'
+                  : 'Müşteri notu işlemi tamamlanamadı.',
+          },
+          timestamp: new Date().toISOString(),
+        },
+        err.status,
+      );
     if (err instanceof CustomerNotFoundError || err instanceof ContactNotFoundError) {
       return c.json(
         {
@@ -407,6 +435,57 @@ export function registerCustomerRoutes(
   });
 
   // 4. PATCH /api/customers/:id - Müşteri temel bilgisi güncelleme
+  app.get(`${API_PREFIX}/customers/:id/notes`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      return c.json({
+        success: true,
+        data: await listCustomerNotes(c.env.DB, auth.context, c.req.param('id'), c.req.query()),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+  app.post(`${API_PREFIX}/customers/:id/notes`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    const csrfError = await checkCsrf(c, auth.principal.subject);
+    if (csrfError) return csrfError;
+    let body: unknown;
+    try {
+      body = await readBoundedJson(c.req.raw, 16384);
+    } catch (error) {
+      return handleError(
+        c,
+        error instanceof AuthHttpError ? error : new CustomerNoteError('VALIDATION_ERROR', 400),
+      );
+    }
+    try {
+      const result = await createCustomerNote(
+        c.env.DB,
+        auth.context,
+        c.req.param('id'),
+        body,
+        c.req.header('idempotency-key') ?? '',
+      );
+      return c.json(
+        {
+          success: true,
+          data: result.data,
+          replayed: result.replayed,
+          timestamp: new Date().toISOString(),
+        },
+        result.replayed ? 200 : 201,
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.patch(`${API_PREFIX}/customers/:id`, async (c) => {
     c.header('Cache-Control', 'no-store');
     const auth = await authenticateAndResolve(c);

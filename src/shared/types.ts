@@ -307,6 +307,17 @@ export interface PolicyListResponseData {
 }
 
 export type TaskDueBucket = 'OVERDUE' | 'TODAY' | 'UPCOMING';
+export interface CustomerNoteDto {
+  readonly id: string;
+  readonly content: string;
+  readonly authorName: string | null;
+  readonly createdAt: string;
+}
+export interface CustomerNotesPage {
+  readonly items: readonly CustomerNoteDto[];
+  readonly nextCursor: string | null;
+  readonly canCreate: boolean;
+}
 
 export interface TodayTaskDto {
   readonly taskId: string;
