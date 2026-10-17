@@ -14,6 +14,7 @@ import {
 } from '../scripts/recovery/local-auth-restore-proof';
 import { createApp } from '../src/server/index';
 import type { PasswordHasher } from '../src/server/auth/password';
+import { runRenewalGenerationForAgency } from '../src/server/renewals/generation';
 
 let source: Awaited<ReturnType<typeof createSyntheticAuthBackup>>;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -52,12 +53,205 @@ function artifactChange(change: (a: AuthBackupArtifact) => void, rehashRows = fa
   return b;
 }
 
+it('restores current 0022 notes and pending generation, resumes exactly once and remains sealed', async () => {
+  expect(source.backup.manifest.schemaVersion).toBe('0022');
+  expect(source.backup.manifest.highestMigration).toBe('0022_renewal_generation_continuation.sql');
+  expect(source.backup.manifest.history).toHaveLength(23);
+  const restored = await restoreSyntheticAuthBackup(source.backup);
+  try {
+    for (const table of [
+      'customer_notes',
+      'operation_receipts',
+      'audit_events',
+      'renewal_generation_cursors',
+    ])
+      expect(
+        (await restored.db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all()).results,
+      ).toEqual((await source.db.prepare(`SELECT * FROM ${table} ORDER BY 1`).all()).results);
+    expect(
+      await restored.db.prepare('SELECT content,author_name FROM customer_notes').first(),
+    ).toEqual({
+      content: 'Sentetik müşteri notu.\nİkinci satır: “alıntı”.',
+      author_name: 'Sentetik İlk Ad',
+    });
+    expect(
+      await restored.db
+        .prepare("SELECT display_name FROM users WHERE id='synthetic-permanent'")
+        .first(),
+    ).toEqual({ display_name: 'Sonraki Ad' });
+    const before = await restored.db.prepare('SELECT * FROM renewal_generation_cursors').first<{
+      continuation_json: string;
+      last_attempt_order: number;
+      last_successful_local_date: string;
+    }>();
+    expect(before).toMatchObject({
+      last_successful_local_date: '2026-08-31',
+      last_attempt_order: 7,
+    });
+    expect(JSON.parse(before!.continuation_json)).toMatchObject({
+      through: '2026-09-01',
+      key: { policyId: 'synthetic-policy-03' },
+    });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-01T06:00:00.000Z'));
+    try {
+      expect(
+        await runRenewalGenerationForAgency(restored.db, 'synthetic-auth-agency'),
+      ).toMatchObject({ createdCount: 2, completedThrough: '2026-09-01' });
+      expect(
+        (await runRenewalGenerationForAgency(restored.db, 'synthetic-auth-agency')).createdCount,
+      ).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+    for (const table of ['renewal_opportunities', 'tasks', 'renewal_state_history'])
+      expect(await restored.db.prepare(`SELECT count(*) AS count FROM ${table}`).first()).toEqual({
+        count: 6,
+      });
+    expect(
+      await restored.db
+        .prepare(
+          "SELECT count(*) AS count FROM system_audit_events WHERE action='renewal.generate'",
+        )
+        .first(),
+    ).toEqual({ count: 6 });
+    expect(
+      await restored.db
+        .prepare(
+          'SELECT last_successful_local_date,continuation_json,last_attempt_order FROM renewal_generation_cursors',
+        )
+        .first(),
+    ).toEqual({
+      last_successful_local_date: '2026-09-01',
+      continuation_json: null,
+      last_attempt_order: 7,
+    });
+    expect((await restored.db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+    await expect(
+      restored.db.prepare("UPDATE customer_notes SET content='forged'").run(),
+    ).rejects.toThrow('CUSTOMER_NOTE_IMMUTABLE');
+    await expect(restored.db.prepare('DELETE FROM customer_notes').run()).rejects.toThrow(
+      'CUSTOMER_NOTE_IMMUTABLE',
+    );
+    expect(restored.assertPublication).toThrow('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
+  } finally {
+    await restored.dispose();
+  }
+}, 120000);
+
+it.each(['note author', 'continuation JSON'] as const)(
+  'rejects inconsistent %s even after unsigned artifact fingerprints are recomputed',
+  async (kind) => {
+    const changed = artifactChange((artifact) => {
+      if (kind === 'note author')
+        artifact.data.customer_notes![0]!.author_user_id = 'synthetic-temporary';
+      else artifact.data.renewal_generation_cursors![0]!.continuation_json = '{"offset":4}';
+    }, true);
+    expect(await rejectedRelation(changed)).toEqual({
+      accepted: false,
+      code: 'OPERATIONAL_RECOVERY_INVALID',
+    });
+  },
+);
+
+it.each([
+  'note membership',
+  'receipt payload',
+  'receipt result',
+  'note audit',
+  'audit actor',
+  'extra audit',
+  'missing note',
+  'completed date',
+  'rotation',
+  'window',
+  'key',
+  'generation history',
+  'generation audit',
+  'missing cursor',
+] as const)(
+  'rejects corrupted %s recovery evidence even with recomputed fingerprints',
+  async (kind) => {
+    const changed = artifactChange((a) => {
+      const saved = a.data.renewal_generation_cursors![0]!;
+      const receipt = a.data.operation_receipts!.find(
+        (row) => row.action === 'customer.note.create',
+      )!;
+      if (kind === 'note membership')
+        a.data.customer_notes![0]!.author_membership_id = 'synthetic-membership-temporary';
+      if (kind === 'receipt payload') receipt.payload_fingerprint = '0'.repeat(64);
+      if (kind === 'receipt result')
+        receipt.response_body = JSON.stringify({ id: '22222222-2222-4222-8222-222222222222' });
+      if (kind === 'note audit') a.data.audit_events = [];
+      if (kind === 'audit actor') {
+        a.data.audit_events![0]!.actor_user_id = 'synthetic-temporary';
+        a.data.audit_events![0]!.actor_membership_id = 'synthetic-membership-temporary';
+      }
+      if (kind === 'extra audit')
+        a.data.audit_events!.push({
+          ...a.data.audit_events![0]!,
+          id: 'synthetic-extra-note-audit',
+          actor_user_id: 'synthetic-temporary',
+          actor_membership_id: 'synthetic-membership-temporary',
+        });
+      if (kind === 'missing note') a.data.customer_notes = [];
+      if (kind === 'completed date') saved.last_successful_local_date = '2026-08-30';
+      if (kind === 'rotation') saved.last_attempt_order = -1;
+      if (kind === 'window' || kind === 'key') {
+        const pending = JSON.parse(String(saved.continuation_json));
+        if (kind === 'window') pending.upperDate = '2026-10-02';
+        else pending.key.endDate = '2026-12-01';
+        saved.continuation_json = JSON.stringify(pending);
+      }
+      if (kind === 'generation history') a.data.renewal_state_history!.pop();
+      if (kind === 'generation audit')
+        a.data.system_audit_events = a.data.system_audit_events!.filter(
+          (row) => row.id !== 'synthetic-generation-00',
+        );
+      if (kind === 'missing cursor') a.data.renewal_generation_cursors = [];
+    }, true);
+    expect(await rejectedRelation(changed)).toEqual({
+      accepted: false,
+      code: 'OPERATIONAL_RECOVERY_INVALID',
+    });
+  },
+);
+it.each(['content', 'author snapshot', 'checkpoint', 'rotation', 'completion date'] as const)(
+  'detects %s changes against the original deterministic table fingerprint',
+  async (kind) => {
+    const changed = artifactChange((a) => {
+      if (kind === 'content') a.data.customer_notes![0]!.content = 'Changed content';
+      if (kind === 'author snapshot') a.data.customer_notes![0]!.author_name = 'Changed author';
+      if (kind === 'checkpoint') a.data.renewal_generation_cursors![0]!.continuation_json = '{}';
+      if (kind === 'rotation') a.data.renewal_generation_cursors![0]!.last_attempt_order = 8;
+      if (kind === 'completion date')
+        a.data.renewal_generation_cursors![0]!.last_successful_local_date = '2026-08-30';
+    });
+    await expect(restoreSyntheticAuthBackup(changed)).rejects.toThrow('DATA_FINGERPRINT_MISMATCH');
+  },
+);
+it('rejects a note with a missing customer FK even after fingerprints are recomputed', async () => {
+  await expect(
+    restoreSyntheticAuthBackup(
+      artifactChange((a) => {
+        a.data.customer_notes![0]!.customer_id = 'synthetic-missing-customer';
+      }, true),
+    ),
+  ).rejects.toThrow('DB_FK_FAILED');
+});
+it('does not relabel a 0020 manifest as a current recovery proof', async () => {
+  const changed = manifestChange((backup) => {
+    (backup.manifest as unknown as Record<string, unknown>).schemaVersion = '0020';
+  });
+  await expect(restoreSyntheticAuthBackup(changed)).rejects.toThrow();
+});
+
 it('restores populated synthetic F-27 auth into a fresh native D1 and stays sealed', async () => {
   const restored = await restoreSyntheticAuthBackup(source.backup);
   try {
     expect(restored.report.code).toBe('VERIFIED_SEALED');
     expect(restored.report.schemaHash).toBe(
-      '335c292d19625658f789a09b9657730bb95a7db26bc5ac8b11f076d356a90a6f',
+      'f7d308266f6376551ba964e0df0089cf2f1a8eca466c9f54dadaf1c29ec4c763',
     );
     expect(restored.report.fingerprints).toEqual(source.backup.manifest.fingerprints);
     expect(await restored.db.prepare('PRAGMA foreign_key_check').all()).toMatchObject({
@@ -158,7 +352,7 @@ it('manifest is canonical/deterministic and contains hashes only, not credential
     source.backup.manifestSha256,
   );
   expect(m.history.map((r) => r.name.slice(0, 4))).toEqual(
-    Array.from({ length: 21 }, (_, i) => String(i).padStart(4, '0')),
+    Array.from({ length: 23 }, (_, i) => String(i).padStart(4, '0')),
   );
   expect(JSON.stringify(m)).not.toContain('synthetic-verifier');
   expect(JSON.stringify(m)).not.toContain('a'.repeat(64));

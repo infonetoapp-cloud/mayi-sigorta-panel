@@ -9,6 +9,7 @@ import { getPlatformProxy } from 'wrangler';
 import { z } from 'zod';
 import { canonicalizePayload } from '../../src/server/mutations/canonical';
 import { verifyHistoryChain, type RestoreHistoryEdge } from './renewal-history-proof';
+import { verifyOperationalRecovery } from './operational-data-proof';
 import {
   documentBackupObjectKey,
   backupAbortable,
@@ -59,7 +60,7 @@ const moneySchema = z.record(
 const manifestSchema = z.strictObject({
   format: z.literal('mayi-local-restore-v1'),
   appVersion: z.literal('0.1.0'),
-  schemaVersion: z.literal('0020'),
+  schemaVersion: z.literal('0022'),
   createdAt: z.iso.datetime({ precision: 3 }),
   bookmark: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
   dbExportSha256: digest,
@@ -879,6 +880,11 @@ export async function runLocalRestoreProof(input: LocalRestoreInput): Promise<Re
     await verifyInspectionEvidence(db);
     await verifyRenewalHistory(db);
     await verifyBackupCompletionAudits(db);
+    try {
+      await verifyOperationalRecovery((sql) => rows<Record<string, unknown>>(db, sql));
+    } catch {
+      return fail('OPERATIONAL_RECOVERY_INVALID');
+    }
     report.checks.domain = true;
     if (canonicalizePayload(actual.objects) !== canonicalizePayload(manifest.objects))
       return fail('DB_OBJECT_MAPPING_MISMATCH');

@@ -9,10 +9,11 @@ import { z } from 'zod';
 import { canonicalizePayload } from '../../src/server/mutations/canonical';
 import { RESTORE_LIMITS } from './local-restore-proof';
 import { orderedD1Import, OrderedImportFailure } from './ordered-d1-import';
+import { verifyOperationalRecovery } from './operational-data-proof';
 
 // Offline SYNTHETIC proof only: no caller-supplied target, account, remote binding or credentials.
 export const AUTH_RESTORE_SCHEMA_HASH =
-  '335c292d19625658f789a09b9657730bb95a7db26bc5ac8b11f076d356a90a6f';
+  'f7d308266f6376551ba964e0df0089cf2f1a8eca466c9f54dadaf1c29ec4c763';
 const SOURCE_ID = 'synthetic-local-auth-source';
 const ISO = '2026-09-01T00:00:00.000Z';
 export const SYNTHETIC_AUTH_TIME = Date.parse(ISO);
@@ -43,15 +44,15 @@ const manifestSchema = z.strictObject({
   appVersion: z.literal('0.1.0'),
   createdAt: z.literal(ISO),
   bookmark: z.literal('synthetic-paused-native-export'),
-  schemaVersion: z.literal('0020'),
-  highestMigration: z.literal('0020_local_authentication.sql'),
+  schemaVersion: z.literal('0022'),
+  highestMigration: z.literal('0022_renewal_generation_continuation.sql'),
   history: z
     .array(z.strictObject({ id: z.number().int(), name: z.string(), sourceSha256: digest }))
-    .length(21),
+    .length(23),
   counts: z.strictObject({
-    table: z.literal(44),
-    index: z.literal(171),
-    trigger: z.literal(176),
+    table: z.literal(45),
+    index: z.literal(174),
+    trigger: z.literal(180),
     view: z.literal(3),
   }),
   schemaHash: digest,
@@ -166,10 +167,10 @@ function manifestFor(artifact: Artifact, artifactJson: string): AuthRestoreManif
     appVersion: '0.1.0',
     createdAt: ISO,
     bookmark: 'synthetic-paused-native-export',
-    schemaVersion: '0020',
-    highestMigration: '0020_local_authentication.sql',
+    schemaVersion: '0022',
+    highestMigration: '0022_renewal_generation_continuation.sql',
     history: migrations(),
-    counts: { table: 44, index: 171, trigger: 176, view: 3 },
+    counts: { table: 45, index: 174, trigger: 180, view: 3 },
     schemaHash: authSchemaHash(artifact.schema),
     ...summary(artifact),
     artifactSha256: sha(artifactJson),
@@ -401,6 +402,129 @@ async function seed(db: D1Database) {
     .bind('d'.repeat(64), n)
     .run();
 }
+async function seedOperationalState(db: D1Database) {
+  const agency = 'synthetic-auth-agency',
+    customer = 'synthetic-customer';
+  const noteId = '11111111-1111-4111-8111-111111111111';
+  const content = 'Sentetik müşteri notu.\nİkinci satır: “alıntı”.';
+  await db
+    .prepare(
+      "UPDATE users SET display_name='Sentetik İlk Ad',version=version+1,updated_at=? WHERE id='synthetic-permanent'",
+    )
+    .bind(ISO)
+    .run();
+  await db.batch([
+    db
+      .prepare(
+        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id,created_at,updated_at) VALUES(?,?,'INDIVIDUAL','Synthetic','Syn','Thetic','synthetic-membership-temporary',?,?)",
+      )
+      .bind(customer, agency, ISO, ISO),
+    db
+      .prepare(
+        "INSERT INTO insurers(id,agency_id,code,name,created_at,updated_at) VALUES('synthetic-insurer',?,'SYN','Synthetic',?,?)",
+      )
+      .bind(agency, ISO, ISO),
+    db
+      .prepare(
+        "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification,created_at,updated_at) VALUES('synthetic-branch',?,'SYN','Synthetic','GENERAL',?,?)",
+      )
+      .bind(agency, ISO, ISO),
+    db
+      .prepare(
+        "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name,created_at,updated_at) VALUES('synthetic-product',?,'synthetic-insurer','synthetic-branch','SYN','Synthetic',?,?)",
+      )
+      .bind(agency, ISO, ISO),
+    db
+      .prepare(
+        "INSERT INTO payment_methods(id,agency_id,code,name,supports_installments,max_installments,created_at,updated_at) VALUES('synthetic-payment',?,'SYN','Synthetic',0,12,?,?)",
+      )
+      .bind(agency, ISO, ISO),
+    db
+      .prepare(
+        "INSERT INTO operation_receipts(id,agency_id,actor_user_id,actor_membership_id,action,idempotency_key,payload_fingerprint,status,response_status,response_body,created_at,updated_at) VALUES('synthetic-note-receipt',?,'synthetic-permanent','synthetic-membership-permanent','customer.note.create','synthetic-note-key',?,'COMPLETED',201,?,?,?)",
+      )
+      .bind(
+        agency,
+        sha(canonicalizePayload({ action: 'customer.note.create', customerId: customer, content })),
+        JSON.stringify({ id: noteId }),
+        ISO,
+        ISO,
+      ),
+    db
+      .prepare(
+        "INSERT INTO customer_notes(id,agency_id,customer_id,content,author_user_id,author_membership_id,author_name,operation_receipt_id,created_at) VALUES(?,?,?,?,'synthetic-permanent','synthetic-membership-permanent','Sentetik İlk Ad','synthetic-note-receipt',?)",
+      )
+      .bind(noteId, agency, customer, content, ISO),
+    db
+      .prepare(
+        "INSERT INTO audit_events(id,agency_id,actor_user_id,actor_membership_id,action,target_type,target_id,correlation_id,idempotency_key,outcome,metadata_json,created_at) VALUES('synthetic-note-audit',?,'synthetic-permanent','synthetic-membership-permanent','customer.note.created','customer_notes',?,'synthetic-note-correlation','synthetic-note-key','SUCCESS',?,?)",
+      )
+      .bind(
+        agency,
+        noteId,
+        JSON.stringify({ customerId: customer, changedFields: ['content'] }),
+        ISO,
+      ),
+  ]);
+  await db
+    .prepare(
+      "UPDATE users SET display_name='Sonraki Ad',version=version+1,updated_at=? WHERE id='synthetic-permanent'",
+    )
+    .bind(ISO)
+    .run();
+  for (let i = 0; i < 6; i++) {
+    const suffix = String(i).padStart(2, '0'),
+      policy = `synthetic-policy-${suffix}`,
+      renewal = `synthetic-renewal-${suffix}`;
+    await db
+      .prepare(
+        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,created_at,updated_at) VALUES(?,?,?,'synthetic-insurer','synthetic-product','synthetic-branch','synthetic-payment','synthetic-membership-temporary',?,?,'2026-01-01','2026-09-15',10000,'TRY',?,?)",
+      )
+      .bind(policy, agency, customer, policy, policy, ISO, ISO)
+      .run();
+    if (i >= 4) continue;
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO renewal_opportunities(id,agency_id,expiring_policy_id,assignee_membership_id,created_at,updated_at) VALUES(?,?,?,'synthetic-membership-temporary',?,?)",
+        )
+        .bind(renewal, agency, policy, ISO, ISO),
+      db
+        .prepare(
+          "INSERT INTO renewal_state_history(id,agency_id,renewal_id,from_state,to_state,actor_kind,reason_code,created_at) VALUES(?,?,?,NULL,'CONTACT_PENDING','SYSTEM','POLICY_EXPIRING',?)",
+        )
+        .bind(`synthetic-history-${suffix}`, agency, renewal, ISO),
+      db
+        .prepare(
+          "INSERT INTO tasks(id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,actor_kind,created_at,updated_at) VALUES(?,?,?,?,'RENEWAL_FOLLOWUP','Synthetic','2026-09-01T06:00:00.000Z','synthetic-membership-temporary','SYSTEM',?,?)",
+        )
+        .bind(`synthetic-task-${suffix}`, agency, customer, renewal, ISO, ISO),
+      db
+        .prepare(
+          "INSERT INTO system_audit_events(id,agency_id,system_actor_code,action,target_type,target_id,correlation_id,idempotency_key,outcome,reason_code,metadata_json,created_at) VALUES(?,?,'renewal-generation','renewal.generate','renewal_opportunities',?,'synthetic-generation',?,'SUCCESS','POLICY_EXPIRING','{}',?)",
+        )
+        .bind(`synthetic-generation-${suffix}`, agency, renewal, `renewal-policy:${policy}`, ISO),
+    ]);
+  }
+  await db
+    .prepare(
+      "INSERT INTO renewal_generation_cursors(agency_id,last_successful_local_date,continuation_json,last_attempt_order,version,updated_at) VALUES(?,'2026-08-31',?,7,3,?)",
+    )
+    .bind(
+      agency,
+      JSON.stringify({
+        through: '2026-09-01',
+        lowerDate: '2026-08-31',
+        upperDate: '2026-10-01',
+        timezone: 'Europe/Istanbul',
+        windowDays: 30,
+        key: { endDate: '2026-09-15', policyId: 'synthetic-policy-03' },
+      }),
+      ISO,
+    )
+    .run();
+}
+
 /** Optional explicit test-only seed remains confined to the freshly created local source. */
 export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => Promise<void>) {
   const directory = directoryFor('source');
@@ -409,7 +533,10 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
     localCommand(directory, ['d1', 'migrations', 'apply', 'DB']);
     platform = await openLocal(directory);
     if (seedLocal) await seedLocal(platform.db);
-    else await seed(platform.db);
+    else {
+      await seed(platform.db);
+      await seedOperationalState(platform.db);
+    }
     // Source is offline/quiescent. Native export is the consistent snapshot boundary, not row-by-row live reads.
     await platform.dispose();
     platform = undefined;
@@ -417,6 +544,7 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
       dump = join(directory, 'native.sql');
     localCommand(directory, ['d1', 'export', 'DB', '--output', dump]);
     const native = readFileSync(dump, 'utf8');
+
     const decoded = new DatabaseSync(':memory:', {
       enableForeignKeyConstraints: false,
       allowExtension: false,
@@ -565,6 +693,7 @@ export async function restoreSyntheticAuthBackup(input: SyntheticAuthBackup) {
         .all().length === 0,
       'AUTH_RELATION_MISMATCH',
     );
+    await verifyOperationalRecovery((sql) => pre.prepare(sql).all());
   } finally {
     pre.close();
   }

@@ -21,6 +21,34 @@ const native = [
 ].join('\n');
 
 describe('canonical ordered native recovery transport', () => {
+  it('decodes the exact bounded native newline constructors without admitting general expressions', () => {
+    const input =
+      "CREATE TABLE note_text(value TEXT PRIMARY KEY);INSERT INTO note_text VALUES(replace(replace('İlk\\r\\nİkinci O''Brien','\\n',char(10)),'\\r',char(13)));";
+    const restored = new DatabaseSync(':memory:');
+    try {
+      restored.exec(orderedD1Import(input));
+      expect(restored.prepare('SELECT value FROM note_text').get()!.value).toBe(
+        "İlk\r\nİkinci O'Brien",
+      );
+    } finally {
+      restored.close();
+    }
+    for (const expression of [
+      "replace('x','x','expanded')",
+      "replace('x','\\n',char(0))",
+      "replace('x','\\n',char(13))",
+      "replace('x','',char(10))",
+      "replace((SELECT 'x'),'\\n',char(10))",
+      "replace(replace(replace('x','\\n',char(10)),'\\n',char(10)),'\\n',char(10))",
+      'char(10)',
+      "'x'||char(10)",
+    ])
+      expect(() =>
+        orderedD1Import(
+          `CREATE TABLE note_text(value TEXT PRIMARY KEY);INSERT INTO note_text VALUES(${expression});`,
+        ),
+      ).toThrow('SOURCE_VALUE_DENIED');
+  });
   it('reproduces missing referenced table in raw D1-style transaction then restores same source', () => {
     const raw = new DatabaseSync(':memory:');
     try {

@@ -72,6 +72,28 @@ export function splitNativeExportStatements(source: string) {
   if (Buffer.byteLength(source) > ORDERED_IMPORT_LIMITS.sourceBytes) return fail('RESOURCE_LIMIT');
   return statements(source);
 }
+// Official native exports encode CR/LF in text as one or two shrinking REPLACE
+// constructors. This is a closed literal grammar, not a general SQL expression.
+function newlineLiteralEnd(data: readonly string[], at: number, depth = 0): number {
+  if (/^'(?:''|[^'])*'$/u.test(data[at] ?? '')) return at + 1;
+  if (depth >= 2 || data[at]?.toUpperCase() !== 'REPLACE' || data[at + 1] !== '(')
+    return fail('SOURCE_VALUE_DENIED');
+  const end = newlineLiteralEnd(data, at + 2, depth + 1);
+  const code = data[end + 1] === "'\\n'" ? '10' : data[end + 1] === "'\\r'" ? '13' : null;
+  if (
+    code === null ||
+    data[end] !== ',' ||
+    data[end + 2] !== ',' ||
+    data[end + 3]?.toUpperCase() !== 'CHAR' ||
+    data[end + 4] !== '(' ||
+    data[end + 5] !== code ||
+    data[end + 6] !== ')' ||
+    data[end + 7] !== ')'
+  )
+    return fail('SOURCE_VALUE_DENIED');
+  return end + 8;
+}
+
 function preflight(source: string) {
   if (typeof source !== 'string' || Buffer.byteLength(source) > ORDERED_IMPORT_LIMITS.sourceBytes)
     return fail('RESOURCE_LIMIT');
@@ -183,8 +205,8 @@ function preflight(source: string) {
       )
         return fail('SOURCE_UNSAFE_FUNCTION_DENIED');
     } else if (t[0] === 'INSERT' && t[1] === 'INTO' && !postData) {
-      // Export data is VALUES-only: no SELECT/CTE, conflict suppression, functions,
-      // concatenation, arithmetic, defaults, or mutation side effects.
+      // Export data is VALUES-only: no SELECT/CTE, conflict suppression, general
+      // functions, concatenation, arithmetic, defaults, or mutation side effects.
       const values = t.indexOf('VALUES');
       if (values < 3) return fail('SOURCE_OPERATION_DENIED');
       const data = statement.slice(values + 1);
@@ -195,6 +217,10 @@ function preflight(source: string) {
         let columns = 0;
         do {
           if (++columns > ORDERED_IMPORT_LIMITS.columns) return fail('RESOURCE_LIMIT');
+          if (data[at]?.toUpperCase() === 'REPLACE') {
+            at = newlineLiteralEnd(data, at);
+            continue;
+          }
           if (data[at]?.toUpperCase() === 'CAST') {
             if (
               data[at + 1] !== '(' ||

@@ -4,6 +4,7 @@ import { createRestoreFixture, type RestoreFixture } from './support/restore-fix
 import { explicitSyntheticSnapshotRows } from './support/explicit-synthetic-snapshot';
 import { runLocalRestoreProof } from '../scripts/recovery/local-restore-proof';
 import { createHash } from 'node:crypto';
+import { canonicalizePayload } from '../src/server/mutations/canonical';
 import { readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
@@ -1256,6 +1257,54 @@ describe('isolated local D1 + private backup object restore proof', () => {
     );
     await failed(input, 'DB_DOMAIN_FAILED');
   });
+  it.each(['valid', 'note-content', 'continuation'] as const)(
+    'checks 0021/0022 evidence through the general native D1 restore path: %s',
+    async (kind) => {
+      const time = (JSON.parse(fixture.input().manifestJson) as RestoreManifest).createdAt;
+      const content = 'Yerel sentetik not';
+      const noteId = '11111111-1111-4111-8111-111111111111';
+      const fingerprint = createHash('sha256')
+        .update(
+          canonicalizePayload({
+            action: 'customer.note.create',
+            customerId: 'backup-customer',
+            content,
+          }),
+        )
+        .digest('hex');
+      const pending =
+        kind === 'continuation'
+          ? { offset: 4 }
+          : {
+              through: '2026-09-24',
+              lowerDate: '2026-09-24',
+              upperDate: '2026-10-24',
+              timezone: 'Europe/Istanbul',
+              windowDays: 30,
+              key: { endDate: '2026-10-24', policyId: 'restore-old' },
+            };
+      const extra = [
+        `INSERT INTO operation_receipts(id,agency_id,actor_user_id,actor_membership_id,action,idempotency_key,payload_fingerprint,status,response_status,response_body,created_at,updated_at) VALUES('new-note-receipt','backup-agency','backup-user','backup-member','customer.note.create','new-note-key','${fingerprint}','COMPLETED',201,'{"id":"${noteId}"}',${sqlText(time)},${sqlText(time)});`,
+        `INSERT INTO customer_notes(id,agency_id,customer_id,content,author_user_id,author_membership_id,author_name,operation_receipt_id,created_at) VALUES('${noteId}','backup-agency','backup-customer',${sqlText(kind === 'note-content' ? 'Bozuk sentetik not' : content)},'backup-user','backup-member',NULL,'new-note-receipt',${sqlText(time)});`,
+        `INSERT INTO audit_events(id,agency_id,actor_user_id,actor_membership_id,action,target_type,target_id,correlation_id,idempotency_key,outcome,metadata_json,created_at) VALUES('new-note-audit','backup-agency','backup-user','backup-member','customer.note.created','customer_notes','${noteId}','new-note-correlation','new-note-key','SUCCESS','{"customerId":"backup-customer","changedFields":["content"]}',${sqlText(time)});`,
+        `INSERT INTO renewal_generation_cursors(agency_id,last_successful_local_date,continuation_json,last_attempt_order,version,updated_at) VALUES('backup-agency','2026-09-24',${sqlText(JSON.stringify(pending))},5,2,${sqlText(time)});`,
+        `INSERT INTO system_audit_events(id,agency_id,system_actor_code,action,target_type,target_id,correlation_id,idempotency_key,outcome,reason_code,metadata_json,created_at) VALUES('new-generation-audit','backup-agency','renewal-generation','renewal.generate','renewal_opportunities','restore-renewal','new-generation','renewal-policy:restore-old','SUCCESS','POLICY_EXPIRING','{}',${sqlText(time)});`,
+      ].join('\n');
+      const input = insertSnapshot(extra, {
+        operation_receipts: 1,
+        customer_notes: 1,
+        audit_events: 1,
+        renewal_generation_cursors: 1,
+        system_audit_events: 1,
+      });
+      const report = await runLocalRestoreProof(input);
+      expect(report.code, JSON.stringify(report)).toBe(
+        kind === 'valid' ? 'VERIFIED_SEALED' : 'OPERATIONAL_RECOVERY_INVALID',
+      );
+      expect(report.verdict).toBe(kind === 'valid' ? 'PASS' : 'FAIL');
+      expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
+    },
+  );
   it('restores a native D1 export and exact backup bytes, verifies both, and stays sealed', async () => {
     const report = await runLocalRestoreProof(fixture.input());
     expect(report.verdict, JSON.stringify(report)).toBe('PASS');
@@ -1302,7 +1351,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     [
       'schema version',
       (m: RestoreManifest) => {
-        m.schemaVersion = '0017' as '0020';
+        m.schemaVersion = '0017' as '0022';
       },
       'MANIFEST_INVALID',
     ],
