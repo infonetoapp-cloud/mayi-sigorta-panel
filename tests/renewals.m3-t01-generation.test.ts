@@ -511,9 +511,13 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         )
         .run();
 
-      await expect(runRenewalGenerationForAgency(db, 'agency-a')).rejects.toThrow(
-        /INJECTED_M3_FAILURE/,
-      );
+      try {
+        await expect(runRenewalGenerationForAgency(db, 'agency-a')).rejects.toThrow(
+          /INJECTED_M3_FAILURE/,
+        );
+      } finally {
+        await db.prepare(`DROP TRIGGER fail_m3_${table}`).run();
+      }
       expect(
         (
           await db
@@ -546,9 +550,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
           )
           .bind('agency-a')
           .first<{ last_successful_local_date: string | null; version: number }>(),
-      ).toEqual(cursorBefore);
-
-      await db.prepare(`DROP TRIGGER fail_m3_${table}`).run();
+      ).toMatchObject({ last_successful_local_date: cursorBefore!.last_successful_local_date });
       const retry = await runRenewalGenerationForAgency(db, 'agency-a');
       expect(retry.createdCount).toBe(1);
     },
@@ -1235,7 +1237,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
       waitUntil: (promise: Promise<unknown>) => replayWork.push(promise),
     } as unknown as ExecutionContext);
     await Promise.all(replayWork);
-    expect(batchSizes).toEqual([1]); // Cursor only; no failed nine-statement insert per existing policy.
+    expect(batchSizes).toEqual([2, 2]); // Start + atomic completion CAS; no business inserts for existing policies.
     expect(
       await db
         .prepare("SELECT version,end_date FROM policies WHERE id='daily-window-policy'")
@@ -1258,7 +1260,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
     vi.setSystemTime(new Date('2036-09-24T00:00:00.000Z'));
     await db
       .prepare(
-        "UPDATE renewal_generation_cursors SET last_successful_local_date='2036-09-20',updated_at='2036-09-20T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+        "UPDATE renewal_generation_cursors SET last_successful_local_date='2036-09-20',continuation_json=NULL,updated_at='2036-09-20T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
       )
       .run();
     await insertPolicy('daily-recovery-a', 'DAILY-RECOVERY-A', 'DAILYRECOVERYA', '2036-09-25');
@@ -1319,26 +1321,27 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
     ).toEqual({ last_successful_local_date: '2036-09-30' });
   });
 
-  it('makes retry progress in a 15000-policy portfolio under a local call budget without advancing the cursor early', async () => {
-    vi.setSystemTime(new Date('2040-01-01T00:00:00.000Z'));
+  it('drains a representative backlog with bounded statements, rows and durable continuation without advancing the date early', async () => {
+    vi.setSystemTime(new Date('2040-01-02T00:00:00.000Z'));
     await db
       .prepare(
-        "UPDATE renewal_generation_cursors SET last_successful_local_date='2040-01-01',updated_at='2040-01-01T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+        "INSERT INTO renewal_generation_cursors(agency_id,last_successful_local_date,updated_at) VALUES('agency-a','2040-01-01','2040-01-01T00:00:00.000Z') ON CONFLICT(agency_id) DO UPDATE SET last_successful_local_date=excluded.last_successful_local_date,continuation_json=NULL,updated_at=excluded.updated_at,version=renewal_generation_cursors.version+1",
       )
       .run();
     await db
       .prepare(
-        `WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM seq WHERE n<14999)
+        `WITH RECURSIVE seq(n) AS (SELECT 0 UNION ALL SELECT n+1 FROM seq WHERE n<63)
       INSERT INTO policies (id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency)
       SELECT 'capacity-profile-'||n,'agency-a','customer-a','insurer-a','product-a','branch-a','cash-a','member-a',
-        'CAPACITY-'||n,'CAPACITY'||n,'2039-01-01',date('2040-01-01','+'||(n%366)||' days'),10000,'TRY' FROM seq`,
+        'CAPACITY-'||n,'CAPACITY'||n,'2039-01-01','2040-01-15',10000,'TRY' FROM seq`,
       )
       .run();
     function budgeted() {
       const counts = { calls: 0, statements: 0, candidates: 0 };
       function charge(statements: number) {
-        if (++counts.calls > 50) throw new Error('LOCAL_TEST_CALL_BUDGET');
+        counts.calls++;
         counts.statements += statements;
+        if (counts.statements > 50) throw new Error('LOCAL_TEST_STATEMENT_BUDGET');
       }
       function wrap(statement: D1PreparedStatement, query: string): D1PreparedStatement {
         return new Proxy(statement, {
@@ -1351,7 +1354,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
                 charge(1);
                 const result = await value.apply(target, args);
                 if (property === 'all' && query.includes('SELECT p.id AS policy_id'))
-                  counts.candidates = result.results.length;
+                  counts.candidates = Math.max(counts.candidates, result.results.length);
                 return result;
               };
             return typeof value === 'function' ? value.bind(target) : value;
@@ -1379,18 +1382,22 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         )
         .first<{ count: number }>();
     const first = budgeted();
-    await expect(runRenewalGenerationForAgency(first.bounded, 'agency-a')).rejects.toThrow(
-      'LOCAL_TEST_CALL_BUDGET',
-    );
+    await expect(runRenewalGenerationForAgency(first.bounded, 'agency-a')).resolves.toMatchObject({
+      createdCount: 4,
+      completedThrough: null,
+    });
     const firstCreated = await countCreated();
     const retry = budgeted();
-    await expect(runRenewalGenerationForAgency(retry.bounded, 'agency-a')).rejects.toThrow(
-      'LOCAL_TEST_CALL_BUDGET',
-    );
-    expect(firstCreated?.count).toBe(48);
-    expect((await countCreated())!.count).toBe(96);
-    expect(first.counts).toEqual({ calls: 51, statements: 434, candidates: 1271 });
-    expect(retry.counts).toEqual({ calls: 51, statements: 434, candidates: 1271 });
+    await expect(runRenewalGenerationForAgency(retry.bounded, 'agency-a')).resolves.toMatchObject({
+      createdCount: 4,
+      completedThrough: null,
+    });
+    expect(firstCreated?.count).toBe(4);
+    expect((await countCreated())!.count).toBe(8);
+    expect(first.counts.statements).toBeLessThanOrEqual(50);
+    expect(retry.counts.statements).toBeLessThanOrEqual(50);
+    expect(first.counts.candidates).toBeLessThanOrEqual(4);
+    expect(retry.counts.candidates).toBeLessThanOrEqual(4);
     expect(
       await db
         .prepare(
@@ -1398,6 +1405,24 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         )
         .first(),
     ).toEqual({ last_successful_local_date: '2040-01-01' });
+    const progress = await db
+      .prepare(
+        "SELECT continuation_json FROM renewal_generation_cursors WHERE agency_id='agency-a'",
+      )
+      .first<{ continuation_json: string }>();
+    expect(JSON.parse(progress!.continuation_json)).toMatchObject({
+      through: '2040-01-02',
+      key: { endDate: '2040-01-15' },
+    });
+    let completed: string | null = null;
+    for (let tick = 0; tick < 20 && completed === null; tick++) {
+      const invocation = budgeted();
+      completed = (await runRenewalGenerationForAgency(invocation.bounded, 'agency-a'))
+        .completedThrough;
+      expect(invocation.counts.statements).toBeLessThanOrEqual(50);
+      expect(invocation.counts.candidates).toBeLessThanOrEqual(4);
+    }
+    expect(completed).toBe('2040-01-02');
     expect(
       await db
         .prepare(
@@ -1408,14 +1433,14 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
       (SELECT count(*) FROM system_audit_events WHERE idempotency_key LIKE 'renewal-policy:capacity-profile-%') AS audits`,
         )
         .first(),
-    ).toEqual({ renewals: 96, tasks: 96, history: 96, audits: 96 });
+    ).toEqual({ renewals: 64, tasks: 64, history: 64, audits: 64 });
   }, 120000);
 
   it('still rejects incomplete existing generation evidence before advancing the cursor', async () => {
     vi.setSystemTime(new Date('2041-01-01T00:00:00.000Z'));
     await db
       .prepare(
-        "UPDATE renewal_generation_cursors SET last_successful_local_date='2041-01-01',updated_at='2041-01-01T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
+        "UPDATE renewal_generation_cursors SET last_successful_local_date='2041-01-01',continuation_json=NULL,updated_at='2041-01-01T00:00:00.000Z',version=version+1 WHERE agency_id='agency-a'",
       )
       .run();
     await insertPolicy(
@@ -1440,6 +1465,6 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
       await db
         .prepare("SELECT * FROM renewal_generation_cursors WHERE agency_id='agency-a'")
         .first(),
-    ).toEqual(before);
+    ).toMatchObject({ last_successful_local_date: before!.last_successful_local_date });
   });
 });

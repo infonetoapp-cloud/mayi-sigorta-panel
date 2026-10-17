@@ -31,7 +31,7 @@ import { registerCatalogRoutes } from './catalogs/routes';
 import { registerPolicyRoutes } from './policies/routes';
 import { registerTaskRoutes } from './tasks/routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
-import { runScheduledRenewalGeneration } from './renewals/generation';
+import { runScheduledRenewalGeneration, RENEWAL_CONTINUATION_CRON } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
 import { consumeDurableDocumentJobs } from './documents/jobs';
 import { consumeWithDocumentCustody } from './documents/queue-custody';
@@ -55,6 +55,7 @@ export interface Env {
   DOCUMENTS_ENABLED?: string;
   DOCUMENT_JOBS_ENABLED?: string;
   DOCUMENT_CRON_ENABLED?: string;
+  RENEWAL_CONTINUATION_ENABLED?: string;
   DOCUMENT_BACKUP_CAPABILITY?: DocumentBackupCapability;
   AUTH_ACCOUNT_RATE_LIMITER?: RateLimit;
   DOCUMENT_UPLOAD_RATE_LIMITER?: RateLimit;
@@ -340,6 +341,13 @@ export function createWorker(
     scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
       if (!controller.cron || controller.cron === '0 0 * * *')
         ctx.waitUntil(runScheduledRenewalGeneration(env.DB));
+      // Separate invocation budget from the existing document tick. This source
+      // path is dormant: neither a trigger nor its opt-in flag is provisioned here.
+      if (
+        controller.cron === RENEWAL_CONTINUATION_CRON &&
+        env.RENEWAL_CONTINUATION_ENABLED === 'true'
+      )
+        ctx.waitUntil(runScheduledRenewalGeneration(env.DB, true));
       if (controller.cron === '*/5 * * * *' && env.DOCUMENT_CRON_ENABLED === 'true')
         ctx.waitUntil(runDocumentHealthMonitoring(env.DB));
       if (

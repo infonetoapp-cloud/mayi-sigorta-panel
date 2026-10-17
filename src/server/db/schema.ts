@@ -1515,6 +1515,8 @@ export const renewalGenerationCursors = sqliteTable(
       .primaryKey()
       .references(() => agencies.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
     lastSuccessfulLocalDate: text('last_successful_local_date'),
+    continuationJson: text('continuation_json'),
+    lastAttemptOrder: integer('last_attempt_order').notNull().default(0),
     version: integer('version').notNull().default(1),
     updatedAt: text('updated_at').notNull().default(utcNow),
   },
