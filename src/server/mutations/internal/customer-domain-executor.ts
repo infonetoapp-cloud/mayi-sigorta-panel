@@ -1971,6 +1971,32 @@ export async function executeCustomerDomainCommand<TResult>(
     );
   batchStatements.push(receiptStmt);
 
+  // New writes require a live parent, inside the same transaction as every
+  // child statement. Keep this AFTER receipt insertion: a concurrent completed
+  // exact request must still hit the existing unique-receipt replay path first.
+  // Completed replay above never executes this assertion or another write.
+  if (
+    [
+      'company_contact.create',
+      'company_contact.update',
+      'company_contact.set_primary',
+      'company_contact.deactivate',
+      'customer.identity.update',
+      'customer.external_reference.create',
+    ].includes(command.kind)
+  ) {
+    batchStatements.push(
+      db
+        .prepare(
+          `INSERT INTO d1_cas_assertions (id, expected, actual, failure_code)
+         SELECT ?, 1, CASE WHEN EXISTS (
+           SELECT 1 FROM customers WHERE id = ? AND agency_id = ? AND archived_at IS NULL
+         ) THEN 1 ELSE 0 END, 'OPTIMISTIC_CONCURRENCY_CONFLICT'`,
+        )
+        .bind(crypto.randomUUID(), command.customerId, agencyId),
+    );
+  }
+
   // D. İş Etkisi (Business Statements) + Otomatik CAS Assertion
   for (const op of plan.businessStatements) {
     batchStatements.push(op.statement);

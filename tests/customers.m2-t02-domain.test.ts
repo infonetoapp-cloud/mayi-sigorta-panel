@@ -47,7 +47,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     );
     db = await mf.getD1Database('DB');
 
-    // Apply migrations 0000-0005
+    // Apply the real customer archive schema required by lifecycle assertions.
     for (const file of [
       'db/migrations/0000_good_hammerhead.sql',
       'db/migrations/0001_chunky_blazing_skull.sql',
@@ -55,6 +55,9 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       'db/migrations/0003_lonely_zzzax.sql',
       'db/migrations/0004_thankful_pixie.sql',
       'db/migrations/0005_graceful_northstar.sql',
+      'db/migrations/0006_parched_proteus.sql',
+      'db/migrations/0007_robust_scalphunter.sql',
+      'db/migrations/0008_fearless_giant_girl.sql',
     ]) {
       const sql = readFileSync(resolve(rootDir, file), 'utf8');
       const stmts = sql

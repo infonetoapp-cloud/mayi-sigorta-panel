@@ -103,6 +103,9 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
       'db/migrations/0003_lonely_zzzax.sql',
       'db/migrations/0004_thankful_pixie.sql',
       'db/migrations/0005_graceful_northstar.sql',
+      'db/migrations/0006_parched_proteus.sql',
+      'db/migrations/0007_robust_scalphunter.sql',
+      'db/migrations/0008_fearless_giant_girl.sql',
     ]) {
       const sql = readFileSync(resolve(rootDir, file), 'utf8');
       const stmts = sql

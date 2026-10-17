@@ -312,6 +312,8 @@ Arşivleme açık işi görünmez yapamaz. Müşterinin açık yenileme/görevi 
 
 Policy.customer_id poliçe sahibidir. Ek sigortalı/lehtarlar PolicyParty ile tutulur. PolicyParty bağlantısı o kişinin bütün Customer kaydını veya diğer poliçelerini açmaz. Kişinin iş için gereken adı/rolü özet DTO'da; hassas alanlar izin kapısıyla gelir. V1 risk alanları typed plaka, adres/referans gibi sınırlı alanlardır; dinamik form/risk motoru yoktur.
 
+Archived Customer integrity closure (`64344c5` sonrası açık kullanıcı yetkisi): arşivlenmiş müşteriye yeni company_contact.create/update/set_primary/deactivate, customer.identity.update ve customer.external_reference.create uygulanmaz. Sealed executor mevcut D1 batch'inde receipt insertion sonrası/ilk business statement öncesi tenant+parent+archived_at IS NULL CAS assertion'ı, primary-reset dahil bütün child/evidence yazımlarını atomik korur. Lifecycle ret mevcut409 ile entire rollback'tir; current authority/non-disclosure değişmez. Completed historical exact replay yeni yazım yapmadan canlı yetkiyle sürebilir; receipt unique-conflict reconciliation lifecycle kapısından önce korunur. Yetkili archived history okuması devam eder. Assign için mevcut service archived400 ve parent-version/CAS race409 gerçek local API testlerinde yeterli çıktı; kanıtlanmış HTTP gap olmadığı için kaynak değiştirilmedi. Migration/trigger/yeni auth framework veya frontend değişikliği yoktur. Yerel RED→GREEN/race/replay/inceleme kanıtı `ARCHIVED_CUSTOMER_LIFECYCLE.md` dosyasındadır; kirli durum belgesi aynen korunur.
+
 ### 6.5 Yenileme bağlantısı ve çoklu sözleşme istisnası
 
 Normal akış bir eski poliçe → bir yenileme işi → bir yeni poliçe. `RenewalPolicyLink` bu bağın tek otoritesidir; ayrıca bağımsız previous/next alanları tutulmaz. Zincir bu bağlardan okunur ve döngüye izin verilmez.
@@ -807,6 +809,8 @@ Bilinmeyen personel sayısı başlangıcı durdurmaz: kabul kapasitesi 20 eşzam
 16 Eylül 2026 salt okunur gözlem: Cloudflare zone aktif ve Free Website; Access API `not_enabled`; panel DNS/Worker Custom Domain kaydı ve zone Worker route görülmedi. Bu kurulum tamamlandı anlamına gelmez. Sonraki ajan setup öncesi güncel durumu tekrar okur. Bu dokümanla hiçbir Cloudflare ayarı değiştirilmemiştir.
 
 ## 18. Kararların kapanış kaydı
+
+Archived Customer integrity — altı önceki statik sibling lifecycle şüphesi gerçek local D1/API'de200/201 ile doğrulandı ve mevcut sealed batch assertion'ıyla dar olarak kapatıldı. Assign yalnız şüphe kaldı; existing service/CAS/read/replay davranışı gerçek testte doğrulandığı için değiştirilmedi. Parent/child/encrypted identity/receipt/SUCCESS audit snapshot'ları, post-preflight archive race ve late concurrent receipt replay ayrı kabul kanıtlarıdır. Production/Cloudflare/migration/Paid/belge aktivasyonu ve frontend scope dışıdır. Kullanıcının dirty-status koruma talimatıyla yeni kanıt ayrı dosyadadır; UYGULAMA_DURUMU.md commit edilmez.
 
 Frontend PHASE2B — önce frontend-only sınırında yakalanan archived PATCH200 kusuru nedeniyle task commit edilmeden durdu. Kullanıcının sonraki açık yetkisi yalnız mevcut atomik UPDATE'a non-archived koşulu ve odaklı regression/race/replay kanıtını açtı. Modern create/contact-edit bu dar düzeltmeyle tamamlanır; sibling lifecycle gap'leri sessizce genişletilmez, ayrı raporlanır. Tam şirket yetkilisi migrasyonu sonraki dilimdir. Production/Cloudflare/schema/Paid/belge aktivasyonu ve önceden kirli UYGULAMA_DURUMU.md değişikliği kapsam dışıdır.
 
