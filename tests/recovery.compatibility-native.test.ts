@@ -155,7 +155,7 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
         await source.db.prepare('SELECT id,name FROM d1_migrations ORDER BY id').all()
       ).results;
       const historyExact =
-        history.length === 21 &&
+        history.length === 23 &&
         canonicalizePayload(history) === canonicalizePayload(expectedHistory);
       let rowsExact = true;
       for (const table of schema.filter((r) => r.type === 'table')) {
@@ -184,7 +184,7 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
           schema.filter((r) => r.tbl_name !== 'd1_migrations' && r.type === kind).length,
         ]),
       );
-      expect(counts).toEqual({ table: 44, index: 171, trigger: 176, view: 3 });
+      expect(counts).toEqual({ table: 45, index: 174, trigger: 180, view: 3 });
       expect(
         schemaExact &&
           historyExact &&

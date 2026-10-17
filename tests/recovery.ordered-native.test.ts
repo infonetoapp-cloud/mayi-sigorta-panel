@@ -144,14 +144,14 @@ it('native LOCAL raw missing-parent RED then same-source ordered full populated 
             inventory.filter((r) => r.type === kind).length,
           ]),
         );
-        expect(counts).toEqual({ table: 44, index: 171, trigger: 176, view: 3 });
+        expect(counts).toEqual({ table: 45, index: 174, trigger: 180, view: 3 });
         const history = (await db.prepare('SELECT id,name FROM d1_migrations ORDER BY id').all())
           .results;
         const reference = (
           await source.db.prepare('SELECT id,name FROM d1_migrations ORDER BY id').all()
         ).results;
         expect(
-          history.length === 21 && canonicalizePayload(history) === canonicalizePayload(reference),
+          history.length === 23 && canonicalizePayload(history) === canonicalizePayload(reference),
         ).toBe(true);
         expect((await db.prepare('PRAGMA foreign_key_check').all()).results.length).toBe(0);
         const rowCounts: Record<string, number> = {};
@@ -205,7 +205,7 @@ it('native LOCAL raw missing-parent RED then same-source ordered full populated 
             sourceHashDistinctFromDerived:
               prepared.sourceExportSha256 !== prepared.derivedRestoreSha256,
             counts,
-            migrations: 21,
+            migrations: 23,
             schemaHashExact: true,
             fkViolations: 0,
             rowCounts,
