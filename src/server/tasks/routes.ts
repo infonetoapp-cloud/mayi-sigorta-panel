@@ -24,6 +24,7 @@ import {
   TaskValidationError,
 } from './errors';
 import { todayTasksQuerySchema } from './validation';
+import { readTaskStatistics } from './statistics';
 
 type TaskRouteEnv = { Bindings: Env };
 
@@ -91,6 +92,25 @@ export function registerTaskRoutes(
       };
     }
   }
+
+  app.get(`${API_PREFIX}/tasks/statistics`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    try {
+      // Reject duplicate parameters rather than silently choosing a filter value.
+      const params = new URL(c.req.url).searchParams;
+      if ([...params.keys()].some((key) => params.getAll(key).length !== 1))
+        return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      const data = await readTaskStatistics(c.env.DB, authenticated.context, c.req.query());
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data, timestamp: new Date().toISOString() }, 200);
+    } catch (error) {
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      if (error instanceof TaskForbiddenError)
+        return fail(c, 403, 'FORBIDDEN', 'Erişim reddedildi.');
+      return fail(c, 503, 'SERVICE_UNAVAILABLE', 'İstatistikler şu anda kullanılamıyor.');
+    }
+  });
 
   app.get(`${API_PREFIX}/tasks/today`, async (c) => {
     const authenticated = await authenticateAndResolve(c);

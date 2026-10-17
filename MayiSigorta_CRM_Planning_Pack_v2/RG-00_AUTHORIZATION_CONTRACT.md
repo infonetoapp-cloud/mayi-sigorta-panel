@@ -18,6 +18,8 @@ Yenileme etkileşimi yazar kimliği yalnız authenticated sunucu identity'sinden
 
 RG-00 authorization modeli şu şekilde kesinleştirilmiştir:
 
+17 Ekim2026 sabit görev istatistiği kapsamı: `/api/tasks/statistics` self için report.operations+task.read, team için güncel OWNER+report.management+task.read ve her ikisinde bağlı kayıt/health scope ister. MEMBER'ın açık iş sayımı assignee=self, tamamlanan faaliyeti gerçek completed_by=self ile sınırlıdır; tamamlanan görevin bugünkü assignee'si tarihsel tamamlayanı değiştirmez. Başka kişi filtreleri ve team, legacy AGENCY report/task/management grant'leri dahil MEMBER için DENY. Bu yalnız toplu kendi faaliyet açıklamasıdır; başka kişiye atanmış görevin ID/içerik/vade veya ayrıntı okumasını açmaz. Genel report resolver fail-closed kalır; dar sabit servis yerel report resolver composition ve son session-bound D1 batch'te canlı permission/lifecycle/type assertion kullanır. OWNER personel sayfası50, toplam sayfalama öncesi tüm yetkili veri; pasif/askı çalışan geçmişi ve iş yükü korunur, NULL atanmamış ayrıdır. DTO özel task/müşteri/poliçe veya hassas alan taşımaz. İş günü/tarih tanımı nihai plan bölüm8'dedir.
+
 - ROLE ile PERMISSION aynı kavram değildir.
 - `Personel` ve `Yetkili Personel` yalnız onboarding şablonlarıdır. Runtime rolü veya yetki kaynağı değildir.
 - OWNER, normal bir rol veya permission set değildir. `AgencyMembership` üzerindeki korunan özel üyelik türüdür.

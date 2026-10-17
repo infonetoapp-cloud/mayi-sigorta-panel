@@ -6,6 +6,7 @@ import type {
   TodayTasksResponseData,
 } from '../../shared/types';
 import { RenewalWorkspacePanel } from './RenewalWorkspacePanel';
+import { TaskStatisticsPanel } from './TaskStatisticsPanel';
 
 interface TodayWorkPanelProps {
   readonly getCsrfToken: () => Promise<string>;
@@ -374,6 +375,7 @@ function TaskCard({
 
 export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkPanelProps) {
   const [data, setData] = useState<TodayTasksResponseData | null>(null);
+  const [statisticsRefreshKey, setStatisticsRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMoreQueue, setLoadingMoreQueue] = useState<TaskQueue | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -429,6 +431,7 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
         const envelope = (await response.json()) as ApiResponse<TodayTasksResponseData>;
         if (!envelope.success) throw new TaskListRequestError(response.status);
         if (generation !== requestGeneration.current) return;
+        if (!append) setStatisticsRefreshKey((value) => value + 1);
         for (const task of envelope.data.items) completionPages.current.set(task.taskId, query);
         for (const task of envelope.data.unassignedItems)
           completionPages.current.set(task.taskId, query);
@@ -878,6 +881,8 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
           Yenile
         </button>
       </div>
+
+      <TaskStatisticsPanel refreshKey={statisticsRefreshKey} />
 
       {data?.canSeeReassignment && (
         <nav aria-label="İş görünümü" style={{ display: 'flex', gap: '0.5rem' }}>
