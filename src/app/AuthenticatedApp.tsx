@@ -8,6 +8,8 @@ import { navigation } from './components/layout/navigation';
 import { Button } from './components/ui/button';
 import OverviewPage from './pages/OverviewPage';
 const CompatibilityPage = lazy(() => import('./pages/CompatibilityPage'));
+const CustomerListPage = lazy(() => import('./pages/customers/CustomerListPage'));
+const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfilePage'));
 const PersonnelPage = lazy(() =>
   import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
 );
@@ -84,8 +86,44 @@ export function AuthenticatedApp({
       {reauth}
       <Routes>
         <Route path="/" element={<OverviewPage owner={session.isOwner} />} />
+        <Route
+          path="/customers"
+          element={
+            <PageBoundary resetKey="customers">
+              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                <CustomerListPage />
+              </Suspense>
+            </PageBoundary>
+          }
+        />
+        <Route
+          path="/customers/:customerId"
+          element={
+            <PageBoundary resetKey="customer-profile">
+              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                <CustomerProfilePage />
+              </Suspense>
+            </PageBoundary>
+          }
+        />
+        {(['new', 'legacy', 'advanced'] as const).map((mode) => (
+          <Route
+            key={mode}
+            path={mode === 'advanced' ? '/customers/:customerId/advanced' : `/customers/${mode}`}
+            element={
+              <>
+                <PageHeader title={mode === 'new' ? 'Yeni müşteri' : 'Müşteri işlemleri'} />
+                <PageBoundary resetKey={`customer-${mode}`}>
+                  <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                    <CompatibilityPage page="customers" customerMode={mode} />
+                  </Suspense>
+                </PageBoundary>
+              </>
+            }
+          />
+        ))}
         {navigation
-          .filter((item) => item.path !== '/')
+          .filter((item) => item.path !== '/' && item.path !== '/customers')
           .map((item) => (
             <Route
               key={item.path}

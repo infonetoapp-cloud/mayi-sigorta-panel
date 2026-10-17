@@ -45,14 +45,14 @@ it('opens a nontechnical overview with real links without domain data requests',
 it('navigates the existing customer workflow with browser history and direct-link refresh', async () => {
   window.history.replaceState(null, '', '/customers');
   render(<AuthShell />);
-  await screen.findByRole('button', { name: '+ Yeni Müşteri' });
+  await screen.findByRole('link', { name: 'Yeni Müşteri' });
   fireEvent.click(screen.getByRole('link', { name: 'Genel Bakış' }));
   await screen.findByRole('heading', { name: 'Genel Bakış' });
   expect(window.location.pathname).toBe('/');
   await act(async () => {
     window.history.back();
   });
-  await screen.findByRole('button', { name: '+ Yeni Müşteri' });
+  await screen.findByRole('link', { name: 'Yeni Müşteri' });
   expect(window.location.pathname).toBe('/customers');
   await act(async () => {
     window.history.forward();
@@ -88,7 +88,7 @@ it('has accessible collapse/mobile disclosure, closes on Escape and navigation',
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   fireEvent.click(toggle);
   fireEvent.click(screen.getByRole('link', { name: 'Müşteriler' }));
-  await screen.findByRole('button', { name: '+ Yeni Müşteri' });
+  await screen.findByRole('link', { name: 'Yeni Müşteri' });
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
 });
 it('removes the shell immediately on session end and never exposes activation navigation', async () => {

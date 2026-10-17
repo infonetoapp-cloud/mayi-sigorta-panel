@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import type { ApiResponse, CustomerNoteDto, CustomerNotesPage } from '../../shared/types';
 
 interface Props {
+  presentation?: 'page';
   customerId: string;
   archived: boolean;
   getCsrfToken: () => Promise<string>;
@@ -20,12 +21,13 @@ const formatter = new Intl.DateTimeFormat('tr-TR', {
 
 // The customer-keyed mount in App prevents drafts and pending results crossing profiles.
 export function CustomerNotesSection({
+  presentation,
   customerId,
   archived,
   getCsrfToken,
   invalidateCsrfToken,
 }: Props) {
-  const [opened, setOpened] = useState(false),
+  const [opened, setOpened] = useState(presentation === 'page'),
     [items, setItems] = useState<readonly CustomerNoteDto[]>([]);
   const [cursor, setCursor] = useState<string | null>(null),
     [canCreate, setCanCreate] = useState(false);
@@ -60,6 +62,10 @@ export function CustomerNotesSection({
         cache: 'no-store',
       });
       if (view !== generation.current || request !== readRequest.current) return;
+      if (response.status === 401) {
+        invalidateCsrfToken();
+        document.dispatchEvent(new Event('mayi-session-ended'));
+      }
       if (response.status === 401 || response.status === 403 || response.status === 404) {
         setItems([]);
         setCursor(null);
@@ -89,6 +95,9 @@ export function CustomerNotesSection({
       if (view === generation.current && request === readRequest.current) setLoading(false);
     }
   }
+  useEffect(() => {
+    if (presentation === 'page') void load(null);
+  }, []);
   async function send(current: Attempt) {
     if (saving.current || archived || !canCreate) return;
     saving.current = true;
@@ -123,6 +132,10 @@ export function CustomerNotesSection({
         break;
       }
       if (!response) throw new Error('UNCERTAIN');
+      if (response.status === 401) {
+        invalidateCsrfToken();
+        document.dispatchEvent(new Event('mayi-session-ended'));
+      }
       if (!response.ok) {
         if (response.status >= 500 || response.status === 429) throw new Error('UNCERTAIN');
         attempt.current = null;
@@ -170,7 +183,11 @@ export function CustomerNotesSection({
     void send(current);
   }
   return (
-    <section aria-label="Müşteri Notları" style={{ display: 'grid', gap: '0.75rem' }}>
+    <section
+      className={presentation === 'page' ? 'customer-notes-page' : undefined}
+      aria-label="Müşteri Notları"
+      style={{ display: 'grid', gap: '0.75rem' }}
+    >
       <h3>Müşteri Notları</h3>
       <p>
         Müşteriye ait ortak notlar; yenileme görüşmelerinden ve özel günlük görevlerden bağımsızdır.

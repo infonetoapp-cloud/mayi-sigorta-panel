@@ -91,15 +91,96 @@ try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     stage = `compatibility-${index}`;
     await page.getByRole('link', { name: 'Müşteriler', exact: true }).click();
-    await page.getByRole('button', { name: '+ Yeni Müşteri', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).waitFor();
     await page.reload();
-    await page.getByRole('button', { name: '+ Yeni Müşteri', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/customers');
+    if (index === 0) {
+      stage = 'customer-create-open';
+      await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).click();
+      await page.getByRole('heading', { name: 'Yeni Müşteri Oluştur', exact: true }).waitFor();
+      await page.getByPlaceholder('Ahmet', { exact: true }).fill('Sentetik');
+      await page.getByPlaceholder('Yılmaz', { exact: true }).fill('Deneme');
+      stage = 'customer-create-save';
+      await page.getByRole('button', { name: 'Müşteriyi Kaydet', exact: true }).click();
+      await page.getByText('Sentetik Deneme', { exact: true }).waitFor();
+      stage = 'customer-created-profile';
+      await page.getByRole('link', { name: 'Modern müşteri listesine dön', exact: true }).click();
+      await page.getByRole('link', { name: 'Sentetik Deneme', exact: true }).click();
+      await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
+      stage = 'customer-contact-edit';
+      await page.getByRole('button', { name: 'İletişim bilgilerini düzenle', exact: true }).click();
+      const contactForm = page.getByRole('region', { name: 'İletişim bilgilerini düzenleme' });
+      await contactForm.getByLabel('E-posta', { exact: true }).fill('updated@demo.invalid');
+      await page.getByRole('button', { name: 'İletişim bilgilerini kaydet', exact: true }).click();
+      await page.getByText('updated@demo.invalid', { exact: true }).first().waitFor();
+      stage = 'customer-archive';
+      await page.getByRole('button', { name: 'Müşteriyi Arşivle', exact: true }).click();
+      stage = 'customer-archive-reason';
+      await page.getByLabel('Arşiv Nedeni', { exact: true }).fill('DEMO_CLOSED');
+      stage = 'customer-archive-save';
+      const [archiveResponse] = await Promise.all([
+        page.waitForResponse((response) => response.url().endsWith('/archive')),
+        page.getByRole('button', { name: 'Arşivlemeyi Onayla', exact: true }).click(),
+      ]);
+      assert.equal(archiveResponse.status(), 200);
+      assert.equal(Boolean((await archiveResponse.json()).data?.archivedAt), true);
+      stage = 'customer-archive-confirmation';
+      await page
+        .getByText('Bu müşteri arşivlenmiştir. Geçmiş kayıtları korunur.', { exact: true })
+        .waitFor();
+      await page.getByRole('button', { name: '✕', exact: true }).click();
+      await page.getByRole('link', { name: 'Modern müşteri profiline dön', exact: true }).click();
+      stage = 'customer-archived-profile';
+      await page.getByText('Arşivlenmiş müşteri', { exact: true }).waitFor();
+      await page.getByRole('link', { name: 'Müşteri listesine dön', exact: true }).click();
+      stage = `compatibility-${index}`;
+    }
+    await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).click();
+    await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/customers/demo-customer-0');
+    assert.equal(await page.locator('.legacy-workspace').count(), 0);
+    await page.reload();
+    await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
+    await page.getByText('Kaydeden: Ahmet', { exact: true }).first().waitFor();
+    await page.getByText('Kaydeden: Ayşe', { exact: true }).first().waitFor();
     await page
-      .locator('tr')
-      .filter({ hasText: 'Deniz Yılmaz' })
-      .getByRole('button', { name: 'Detay & Yetkililer' })
-      .click();
+      .getByLabel('Yeni müşteri notu', { exact: true })
+      .fill(`Yerel profil denemesi ${index}`);
+    await page.getByRole('button', { name: 'Notu kaydet', exact: true }).click();
+    await page.getByText(`Yerel profil denemesi ${index}`, { exact: true }).waitFor();
+    await page.getByText(`Kaydeden: ${user.name}`, { exact: true }).first().waitFor();
+    for (const width of [768, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
+      await page.getByText(`Yerel profil denemesi ${index}`, { exact: true }).waitFor();
+      assert.equal(
+        await page.evaluate(
+          () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+        ),
+        true,
+      );
+      await page.getByRole('link', { name: 'Müşteri listesine dön', exact: true }).click();
+      await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+      assert.equal(
+        await page.evaluate(
+          () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+        ),
+        true,
+      );
+      await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).click();
+      await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+      await page.goBack();
+      await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+      await page.goForward();
+      await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('link', { name: 'Poliçeler ve yenilemeler', exact: true }).click();
+    await page.getByRole('heading', { name: 'Mevcut poliçeler', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
+    await page.getByText('Geçici klasik müşteri çalışma alanı', { exact: true }).waitFor();
     await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).waitFor();
     await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).click();
     await page.waitForURL('**/policies');
@@ -150,6 +231,8 @@ try {
     assert.equal(new URL(page.url()).pathname, '/');
     stage = `session-end-${index}`;
     if (index === 2) {
+      await page.goto('https://localhost:8443/customers/demo-customer-0');
+      await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
       // Revoke the real live session, then exercise the existing 401 event path.
       await demo.db
         .prepare(
@@ -157,7 +240,7 @@ try {
         )
         .bind(Math.floor(Date.now() / 1000), 'demo-user-' + user.id)
         .run();
-      await page.getByRole('link', { name: 'Müşteriler', exact: true }).click();
+      await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
     } else await page.getByRole('button', { name: 'Çıkış Yap', exact: true }).click();
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
     await page.goto('https://localhost:8443/customers');
@@ -166,7 +249,7 @@ try {
     await context.close();
   }
   console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; 1440/768/360 layouts; collapse/drawer; refresh/history; legacy hand-off; task privacy; owner denial; logout/live revocation; CSP/runtime.',
+    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; 1440/768/360 customer list/profile/notes; direct refresh/history; legacy create/edit/archive/policy hand-off; private tasks; owner denial; logout/live profile revocation; CSP/runtime.',
   );
 } catch {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.

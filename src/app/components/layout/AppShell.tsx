@@ -25,7 +25,7 @@ export function AppShell({
   const mainRef = useRef<HTMLElement>(null);
   const location = useLocation();
   useEffect(() => {
-    document.title = `${navigation.find((item) => item.path === location.pathname)?.label ?? (location.pathname === '/account/password' ? 'Şifremi değiştir' : 'Sayfa bulunamadı')} · Mayı Sigorta`;
+    document.title = `${navigation.find((item) => item.path === location.pathname)?.label ?? (location.pathname.startsWith('/customers/') ? 'Müşteri çalışma alanı' : location.pathname === '/account/password' ? 'Şifremi değiştir' : 'Sayfa bulunamadı')} · Mayı Sigorta`;
     mainRef.current?.focus();
   }, [location.pathname]);
   useEffect(() => {

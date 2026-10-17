@@ -338,10 +338,12 @@ export function parseAppError(
   };
 }
 
-export const App: React.FC<{ page?: TabType; onNavigate?: (page: TabType) => void }> = ({
-  page,
-  onNavigate,
-}) => {
+export const App: React.FC<{
+  page?: TabType;
+  onNavigate?: (page: TabType) => void;
+  initialCustomerId?: string;
+  createCustomer?: boolean;
+}> = ({ page, onNavigate, initialCustomerId, createCustomer }) => {
   const [localTab, setLocalTab] = useState<TabType>('overview');
   const activeTab = page ?? localTab;
   const setActiveTab = onNavigate ?? setLocalTab;
@@ -501,6 +503,13 @@ export const App: React.FC<{ page?: TabType; onNavigate?: (page: TabType) => voi
       if (generation === customerDetailGeneration.current) setDetailLoading(false);
     }
   };
+
+  // Explicit legacy entry points from the modern list/profile; authority and
+  // customer data still come from the existing server detail endpoint.
+  useEffect(() => {
+    if (initialCustomerId) void loadCustomerDetail(initialCustomerId);
+    if (createCustomer) setShowCreateModal(true);
+  }, [initialCustomerId, createCustomer]);
 
   const runCreateCustomerAttempt = async (attempt: MutationRequestSnapshot) => {
     setCreateSubmitting(true);
