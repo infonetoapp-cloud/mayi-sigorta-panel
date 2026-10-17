@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "demo": "node scripts/demo/start.mjs",
     "build:client": "vite build",
     "build:worker": "wrangler deploy --dry-run --outdir dist/server",
     "build": "npm run build:client && npm run build:worker && npm run verify:boundaries",
