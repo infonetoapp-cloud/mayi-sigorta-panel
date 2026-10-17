@@ -42,7 +42,7 @@ it.each([
     if (view === 'reauth') render(<ReauthForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
     else render(<AuthShell />);
     if (view === 'normal')
-      fireEvent.click(await screen.findByRole('button', { name: 'Şifremi değiştir' }));
+      fireEvent.click(await screen.findByRole('link', { name: 'Şifremi değiştir' }));
     const input = (await screen.findByLabelText(label)) as HTMLInputElement;
     for (const element of document.querySelectorAll('input[type=password]'))
       expect(element.hasAttribute('maxlength')).toBe(false);

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getCsrfToken, invalidateCsrfToken } from './csrf';
+export { getCsrfToken, invalidateCsrfToken } from './csrf';
 import { APP_NAME } from '../shared/constants';
 import type {
   CustomerDto,
@@ -22,7 +24,7 @@ import { CustomerArchiveSection } from './components/CustomerArchiveSection';
 import { TodayWorkPanel } from './components/TodayWorkPanel';
 import { DocumentSection } from './components/DocumentSection';
 
-type TabType =
+export type TabType =
   'today-work' | 'overview' | 'customers' | 'policies' | 'catalogs' | 'agency-settings';
 
 const STYLES = {
@@ -336,30 +338,13 @@ export function parseAppError(
   };
 }
 
-let inMemoryCsrfToken: string | null = null;
-
-export async function getCsrfToken(): Promise<string> {
-  if (inMemoryCsrfToken) {
-    return inMemoryCsrfToken;
-  }
-  const res = await fetch('/api/csrf-token');
-  if (!res.ok) {
-    throw new Error(`CSRF belirteci alınamadı (${res.status})`);
-  }
-  const json = (await res.json()) as ApiResponse<{ token: string }>;
-  if (!json.success || !json.data?.token) {
-    throw new Error(json.success === false ? json.error.message : 'CSRF belirteci alınamadı');
-  }
-  inMemoryCsrfToken = json.data.token;
-  return inMemoryCsrfToken;
-}
-
-export function invalidateCsrfToken(): void {
-  inMemoryCsrfToken = null;
-}
-
-export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+export const App: React.FC<{ page?: TabType; onNavigate?: (page: TabType) => void }> = ({
+  page,
+  onNavigate,
+}) => {
+  const [localTab, setLocalTab] = useState<TabType>('overview');
+  const activeTab = page ?? localTab;
+  const setActiveTab = onNavigate ?? setLocalTab;
   const [showSensitiveSearch, setShowSensitiveSearch] = useState<boolean>(false);
   const [policyCustomer, setPolicyCustomer] = useState<{
     readonly id: string;
@@ -469,6 +454,18 @@ export const App: React.FC = () => {
 
   // Müşteri Detayı Yükleme
   const customerDetailGeneration = useRef(0);
+  // Route changes must not leave a customer/sensitive dialog over another page
+  // or let a late detail response resurrect it. Preserve the policy hand-off.
+  useEffect(() => {
+    customerDetailGeneration.current++;
+    setSelectedCustomerId(null);
+    setSelectedCustomer(null);
+    setShowSensitiveSearch(false);
+    setShowCreateModal(false);
+    setShowAddContact(false);
+    setContactRetryAttempt(null);
+    setContactActionError(null);
+  }, [page]);
   const loadCustomerDetail = async (id: string) => {
     const generation = ++customerDetailGeneration.current;
     setSelectedCustomerId(id);
@@ -695,101 +692,106 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={STYLES.container}>
+    <div
+      className={page ? 'legacy-workspace' : undefined}
+      style={page ? undefined : STYLES.container}
+    >
       {/* Üst Çubuk (Header) */}
-      <header style={STYLES.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <h1 style={STYLES.headerTitle}>{APP_NAME}</h1>
-          <nav style={STYLES.headerNav}>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'today-work')}
-              onClick={() => {
-                setShowSensitiveSearch(false);
-                setActiveTab('today-work');
-              }}
-            >
-              Bugünkü İşler
-            </button>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'overview')}
-              onClick={() => setActiveTab('overview')}
-            >
-              Genel Bakış
-            </button>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'customers')}
-              onClick={() => {
-                setShowSensitiveSearch(false);
-                setActiveTab('customers');
-              }}
-            >
-              Müşteriler
-            </button>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'policies')}
-              onClick={() => {
-                setShowSensitiveSearch(false);
-                setPolicyCustomer(null);
-                setActiveTab('policies');
-              }}
-            >
-              Poliçeler
-            </button>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'catalogs')}
-              onClick={() => {
-                setShowSensitiveSearch(false);
-                setActiveTab('catalogs');
-              }}
-            >
-              Kataloglar
-            </button>
-            <button
-              type="button"
-              style={STYLES.navButton(activeTab === 'agency-settings')}
-              onClick={() => {
-                setShowSensitiveSearch(false);
-                setActiveTab('agency-settings');
-              }}
-            >
-              Acente Ayarları
-            </button>
-          </nav>
-        </div>
+      {!page && (
+        <header style={STYLES.header}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <h1 style={STYLES.headerTitle}>{APP_NAME}</h1>
+            <nav style={STYLES.headerNav}>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'today-work')}
+                onClick={() => {
+                  setShowSensitiveSearch(false);
+                  setActiveTab('today-work');
+                }}
+              >
+                Bugünkü İşler
+              </button>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'overview')}
+                onClick={() => setActiveTab('overview')}
+              >
+                Genel Bakış
+              </button>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'customers')}
+                onClick={() => {
+                  setShowSensitiveSearch(false);
+                  setActiveTab('customers');
+                }}
+              >
+                Müşteriler
+              </button>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'policies')}
+                onClick={() => {
+                  setShowSensitiveSearch(false);
+                  setPolicyCustomer(null);
+                  setActiveTab('policies');
+                }}
+              >
+                Poliçeler
+              </button>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'catalogs')}
+                onClick={() => {
+                  setShowSensitiveSearch(false);
+                  setActiveTab('catalogs');
+                }}
+              >
+                Kataloglar
+              </button>
+              <button
+                type="button"
+                style={STYLES.navButton(activeTab === 'agency-settings')}
+                onClick={() => {
+                  setShowSensitiveSearch(false);
+                  setActiveTab('agency-settings');
+                }}
+              >
+                Acente Ayarları
+              </button>
+            </nav>
+          </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={STYLES.statusBadge}>
-            <span
-              style={{
-                width: '0.5rem',
-                height: '0.5rem',
-                borderRadius: '9999px',
-                backgroundColor: '#10b981',
-              }}
-            />
-            <span>Sistem Temeli Aktif (M1-T01)</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={STYLES.statusBadge}>
+              <span
+                style={{
+                  width: '0.5rem',
+                  height: '0.5rem',
+                  borderRadius: '9999px',
+                  backgroundColor: '#10b981',
+                }}
+              />
+              <span>Sistem Temeli Aktif (M1-T01)</span>
+            </div>
+            <div style={STYLES.statusBadge}>
+              <span
+                style={{
+                  width: '0.5rem',
+                  height: '0.5rem',
+                  borderRadius: '9999px',
+                  backgroundColor: '#2563eb',
+                }}
+              />
+              <span>Müşteri Modülü Aktif (M2-T01)</span>
+            </div>
           </div>
-          <div style={STYLES.statusBadge}>
-            <span
-              style={{
-                width: '0.5rem',
-                height: '0.5rem',
-                borderRadius: '9999px',
-                backgroundColor: '#2563eb',
-              }}
-            />
-            <span>Müşteri Modülü Aktif (M2-T01)</span>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Ana İçerik Alanı */}
-      <main style={STYLES.main}>
+      <div role={page ? undefined : 'main'} style={page ? undefined : STYLES.main}>
         {activeTab === 'today-work' && (
           <TodayWorkPanel getCsrfToken={getCsrfToken} invalidateCsrfToken={invalidateCsrfToken} />
         )}
@@ -1123,7 +1125,7 @@ export const App: React.FC = () => {
             onInitialCustomerConsumed={() => setPolicyCustomer(null)}
           />
         )}
-      </main>
+      </div>
 
       {/* YENİ MÜŞTERİ OLUŞTURMA MODALI */}
       {showCreateModal && (

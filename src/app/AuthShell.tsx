@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { App, invalidateCsrfToken } from './App';
-import { PersonnelPanel } from './components/PersonnelPanel';
+import { invalidateCsrfToken } from './csrf';
+import { BrowserRouter } from 'react-router';
+import { AuthenticatedApp } from './AuthenticatedApp';
+import { Input } from './components/ui/input';
 
 import { authErrorMessage } from './auth-errors';
 import { normalizeBoundedPassword, PASSWORD_INPUT_MESSAGE } from '../shared/password-input';
@@ -204,7 +206,6 @@ export function AuthShell() {
     [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
-    [view, setView] = useState<'crm' | 'personnel' | 'password'>('crm'),
     [standaloneReauth, setStandaloneReauth] = useState(false);
   async function refresh() {
     try {
@@ -225,8 +226,8 @@ export function AuthShell() {
     void refresh();
     const ended = () => {
       setSession(null);
-      setView('crm');
       invalidateCsrfToken();
+      setStandaloneReauth(false);
     };
     document.addEventListener('mayi-session-ended', ended);
     return () => document.removeEventListener('mayi-session-ended', ended);
@@ -236,7 +237,7 @@ export function AuthShell() {
     try {
       await authMutation('/api/auth/logout', {});
       setSession(null);
-      setView('crm');
+      setStandaloneReauth(false);
       setPassword('');
       invalidateCsrfToken();
     } catch (err) {
@@ -296,7 +297,7 @@ export function AuthShell() {
           >
             <label>
               E-posta
-              <input
+              <Input
                 type="email"
                 autoComplete="username"
                 value={email}
@@ -307,7 +308,7 @@ export function AuthShell() {
             </label>
             <label>
               Şifre
-              <input
+              <Input
                 type="password"
                 autoComplete="current-password"
                 value={password}
@@ -337,47 +338,35 @@ export function AuthShell() {
       </main>
     );
   return (
-    <>
-      <nav className="auth-toolbar" aria-label="Hesap işlemleri">
-        <span>{session.email}</span>
-        <div>
-          <button onClick={() => setView('crm')}>Çalışma alanı</button>
-          {session.isOwner && (
-            <button onClick={() => setView('personnel')}>Personel ve İzinler</button>
-          )}
-          <button onClick={() => setView('password')}>Şifremi değiştir</button>
-          <button onClick={() => setStandaloneReauth(true)}>Şifremi doğrula</button>
-          <button onClick={() => void logout()} disabled={busy}>
-            Çıkış Yap
-          </button>
-        </div>
-      </nav>
-      {error && <p role="alert">{error}</p>}
-      {standaloneReauth && (
-        <ReauthForm
-          onCancel={() => setStandaloneReauth(false)}
-          onSuccess={() => {
-            setStandaloneReauth(false);
-            void refresh();
-          }}
-        />
-      )}
-      {view === 'password' ? (
-        <main className="auth-page">
+    <BrowserRouter>
+      <AuthenticatedApp
+        session={session}
+        busy={busy}
+        error={error}
+        onReauth={() => setStandaloneReauth(true)}
+        onLogout={() => void logout()}
+        reauth={
+          standaloneReauth && (
+            <ReauthForm
+              onCancel={() => setStandaloneReauth(false)}
+              onSuccess={() => {
+                setStandaloneReauth(false);
+                void refresh();
+              }}
+            />
+          )
+        }
+        renderPassword={(done) => (
           <PasswordForm
             activation={false}
             onSuccess={() => {
-              setView('crm');
+              done();
               void refresh();
             }}
-            onCancel={() => setView('crm')}
+            onCancel={done}
           />
-        </main>
-      ) : view === 'personnel' ? (
-        <PersonnelPanel />
-      ) : (
-        <App />
-      )}
-    </>
+        )}
+      />
+    </BrowserRouter>
   );
 }

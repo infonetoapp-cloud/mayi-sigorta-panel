@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
 
 // Vite sınır denetleme eklentisi: İstemci derlemesine sunucu kodlarının sızmasını derleme anında engeller.
@@ -34,7 +35,7 @@ function serverBoundaryPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), serverBoundaryPlugin()],
+  plugins: [react(), tailwindcss(), serverBoundaryPlugin()],
   envPrefix: ['VITE_'],
   build: {
     outDir: 'dist/client',

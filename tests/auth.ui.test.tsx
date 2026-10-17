@@ -125,7 +125,7 @@ it('restricted loader renders only forced password replacement and logout then r
     target: { value: 'synthetic replacement phrase' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Şifreyi kaydet' }));
-  await screen.findByText('Sentetik CRM alanı');
+  await screen.findByRole('heading', { name: 'Genel Bakış' });
   expect(screen.getByRole('button', { name: 'Çıkış Yap' })).toBeTruthy();
 });
 it('own-password reauth uses session CSRF and clears secret on failure and cancellation', async () => {
