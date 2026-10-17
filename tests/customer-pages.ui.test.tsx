@@ -39,6 +39,40 @@ function profile() {
     </MemoryRouter>,
   );
 }
+it('edits contact fields inline and refreshes the profile header only after confirmed readback', async () => {
+  let current = customer('a');
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('csrf-token')) return reply({ token: 'synthetic-csrf' });
+    if (init?.method === 'PATCH') {
+      current = { ...current, email: JSON.parse(String(init.body)).email, version: 2 };
+      return reply(current);
+    }
+    return reply(current);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  profile();
+  fireEvent.click(await screen.findByRole('link', { name: 'İletişim' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  fireEvent.change(screen.getByLabelText('E-posta'), { target: { value: 'modern@demo.invalid' } });
+  fireEvent.click(screen.getByRole('button', { name: 'İletişim bilgilerini kaydet' }));
+  await screen.findByText('İletişim bilgileri kaydedildi.');
+  expect(screen.getAllByText('modern@demo.invalid')).toHaveLength(2);
+  const write = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
+  expect(JSON.parse(String(write[1]!.body))).toEqual({
+    expectedVersion: 1,
+    email: 'modern@demo.invalid',
+  });
+});
+it('does not offer modern contact editing on archived customers', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => reply({ ...customer('a'), archivedAt: '2026-01-02T00:00:00Z' })),
+  );
+  profile();
+  fireEvent.click(await screen.findByRole('link', { name: 'İletişim' }));
+  expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+  expect(screen.getByText('Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.')).toBeTruthy();
+});
 it('hides an already loaded profile immediately while the next profile loads', async () => {
   let release!: (response: Response) => void;
   vi.stubGlobal(

@@ -38,13 +38,17 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
     );
     db = await mf.getD1Database('DB');
 
-    // Apply migrations 0000 to 0004
+    // Customer lifecycle guards require the archived-parent schema from 0008.
     const migrationFiles = [
       'db/migrations/0000_good_hammerhead.sql',
       'db/migrations/0001_chunky_blazing_skull.sql',
       'db/migrations/0002_productive_arclight.sql',
       'db/migrations/0003_lonely_zzzax.sql',
       'db/migrations/0004_thankful_pixie.sql',
+      'db/migrations/0005_graceful_northstar.sql',
+      'db/migrations/0006_parched_proteus.sql',
+      'db/migrations/0007_robust_scalphunter.sql',
+      'db/migrations/0008_fearless_giant_girl.sql',
     ];
 
     for (const file of migrationFiles) {

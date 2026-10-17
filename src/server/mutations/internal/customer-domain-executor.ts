@@ -1017,7 +1017,7 @@ async function planCommand(
         .prepare(
           `UPDATE customers
            SET ${setClauses.join(', ')}
-           WHERE id = ? AND agency_id = ? AND version = ?`,
+           WHERE id = ? AND agency_id = ? AND version = ? AND archived_at IS NULL`,
         )
         .bind(...bindValues);
 

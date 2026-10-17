@@ -1,6 +1,85 @@
 .customer-modern {
   min-width: 0;
 }
+.customer-edit-form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.customer-edit-form label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.customer-edit-form select,
+.customer-edit-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+}
+.customer-edit-form textarea {
+  resize: vertical;
+}
+.customer-edit-form button,
+.customer-inline-edit > button {
+  min-height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.customer-edit-form button[type='submit'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.customer-edit-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.customer-edit-form [role='alert'],
+.customer-field-error {
+  color: #9f1239;
+  font-size: 0.85rem;
+}
+.customer-field-error {
+  margin: 0.4rem 0 0;
+}
+.customer-edit-form [role='status'] {
+  font-size: 0.85rem;
+}
+.customer-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.customer-form-wide {
+  grid-column: 1 / -1;
+}
+.customer-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.customer-inline-edit {
+  margin-top: 1.5rem;
+}
+.customer-inline-edit [role='status'] {
+  color: #16634c;
+}
 .customer-modern a,
 .customer-legacy-notice a {
   color: var(--primary);

@@ -22,11 +22,14 @@ const fieldStyle = {
 export function CustomerContactSection({
   customer,
   onUpdated,
+  presentation,
 }: {
   readonly customer: CustomerDetailDto;
   readonly onUpdated: (current: CustomerDetailDto) => void;
+  readonly presentation?: 'page';
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [base, setBase] = useState(customer);
   const [draft, setDraft] = useState({ email: '', phone: '', address: '' });
   const [latest, setLatest] = useState<CustomerDetailDto | null>(null);
@@ -78,6 +81,7 @@ export function CustomerContactSection({
         onUpdated(current);
         setEditing(false);
         setSaved(false);
+        setConfirmed(true);
       } else {
         setLatest(current);
         setNeedsRefresh(false);
@@ -135,6 +139,7 @@ export function CustomerContactSection({
         onUpdated(current);
         setEditing(false);
         setSaved(false);
+        setConfirmed(true);
       } catch {
         if (currentGeneration === generation.current)
           setError(
@@ -154,33 +159,40 @@ export function CustomerContactSection({
   }
 
   if (!editing)
-    return customer.archivedAt === null ? (
-      <button
-        type="button"
-        onClick={() => {
-          setBase(customer);
-          setDraft({
-            email: customer.email ?? '',
-            phone: customer.phone ?? '',
-            address: customer.address ?? '',
-          });
-          setLatest(null);
-          setError('');
-          setNeedsRefresh(false);
-          setBlocked(false);
-          setSaved(false);
-          setRetry(null);
-          attempt.current = null;
-          setEditing(true);
-        }}
-      >
-        İletişim bilgilerini düzenle
-      </button>
-    ) : null;
+    return (
+      <>
+        {confirmed && <p role="status">İletişim bilgileri kaydedildi.</p>}
+        {customer.archivedAt === null ? (
+          <button
+            type="button"
+            onClick={() => {
+              setBase(customer);
+              setDraft({
+                email: customer.email ?? '',
+                phone: customer.phone ?? '',
+                address: customer.address ?? '',
+              });
+              setLatest(null);
+              setError('');
+              setNeedsRefresh(false);
+              setBlocked(false);
+              setSaved(false);
+              setRetry(null);
+              attempt.current = null;
+              setConfirmed(false);
+              setEditing(true);
+            }}
+          >
+            {presentation === 'page' ? 'Düzenle' : 'İletişim bilgilerini düzenle'}
+          </button>
+        ) : null}
+      </>
+    );
 
   return (
     <section
       aria-label="İletişim bilgilerini düzenleme"
+      className={presentation === 'page' ? 'customer-edit-form' : undefined}
       style={{
         padding: '1rem',
         border: '1px solid #e2e8f0',

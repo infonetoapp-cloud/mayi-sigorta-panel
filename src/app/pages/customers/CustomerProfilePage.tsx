@@ -1,4 +1,5 @@
 import { Link, useParams, useSearchParams } from 'react-router';
+import { useState } from 'react';
 
 import { ArrowLeft, Settings2, Mail, Phone, MapPin } from 'lucide-react';
 import type { CustomerDetailDto, PolicyListResponseData } from '../../../shared/types';
@@ -6,6 +7,7 @@ import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { CustomerNotesSection } from '../../components/CustomerNotesSection';
+import { CustomerContactSection } from '../../components/CustomerContactSection';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { useCustomerResource } from './customer-resource';
 const sections = [
@@ -159,7 +161,8 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
     </Card>
   );
 }
-function ProfileWorkspace({ customer }: { customer: CustomerDetailDto }) {
+function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDetailDto }) {
+  const [customer, setCustomer] = useState(initialCustomer);
   const [params] = useSearchParams();
   const section = sections.some(([key]) => key === params.get('section'))
     ? params.get('section')!
@@ -231,8 +234,9 @@ function ProfileWorkspace({ customer }: { customer: CustomerDetailDto }) {
               </div>
             </dl>
             <p className="customer-legacy-hint">
-              Düzenleme, atama, arşivleme, şirket yetkilileri ve yetkili kimlik işlemleri “İleri
-              müşteri işlemleri” bağlantısında geçici klasik arayüzle kullanılabilir.
+              E-posta, telefon ve adresi İletişim bölümünden düzenleyebilirsiniz. Atama, arşivleme,
+              şirket yetkilileri ve yetkili kimlik işlemleri “İleri müşteri işlemleri”
+              bağlantısındadır.
             </p>
           </CardContent>
         </Card>
@@ -266,6 +270,29 @@ function ProfileWorkspace({ customer }: { customer: CustomerDetailDto }) {
                 <dd>{customer.address || 'Belirtilmedi'}</dd>
               </div>
             </dl>
+            <div className="customer-inline-edit">
+              <CustomerContactSection
+                key={customer.id}
+                customer={customer}
+                presentation="page"
+                onUpdated={(current) =>
+                  setCustomer((previous) => (previous.id === current.id ? current : previous))
+                }
+              />
+              {customer.archivedAt && (
+                <p>Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.</p>
+              )}
+            </div>
+            {customer.type === 'COMPANY' && (
+              <p className="customer-legacy-hint">
+                Şirket yetkilisi ekleme, düzenleme, birincil yetkili ve pasifleştirme işlemleri ayrı
+                bir sonraki dilimdedir. Mevcut işlemler için{' '}
+                <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
+                  klasik şirket yetkilisi işlemlerini açın
+                </Link>
+                .
+              </p>
+            )}
             {customer.contacts && (
               <>
                 <h3>Şirket yetkilileri</h3>

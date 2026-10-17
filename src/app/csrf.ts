@@ -6,6 +6,10 @@ let inMemoryCsrfToken: string | null = null;
 export async function getCsrfToken(): Promise<string> {
   if (inMemoryCsrfToken) return inMemoryCsrfToken;
   const res = await fetch('/api/csrf-token');
+  if (res.status === 401) {
+    invalidateCsrfToken();
+    document.dispatchEvent(new Event('mayi-session-ended'));
+  }
   if (!res.ok) throw new Error(`CSRF belirteci alınamadı (${res.status})`);
   const json = (await res.json()) as ApiResponse<{ token: string }>;
   if (!json.success || !json.data?.token)

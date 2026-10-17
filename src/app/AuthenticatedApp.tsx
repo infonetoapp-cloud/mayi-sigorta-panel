@@ -10,6 +10,7 @@ import OverviewPage from './pages/OverviewPage';
 const CompatibilityPage = lazy(() => import('./pages/CompatibilityPage'));
 const CustomerListPage = lazy(() => import('./pages/customers/CustomerListPage'));
 const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfilePage'));
+const CustomerCreatePage = lazy(() => import('./pages/customers/CustomerCreatePage'));
 const PersonnelPage = lazy(() =>
   import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
 );
@@ -106,13 +107,23 @@ export function AuthenticatedApp({
             </PageBoundary>
           }
         />
-        {(['new', 'legacy', 'advanced'] as const).map((mode) => (
+        <Route
+          path="/customers/new"
+          element={
+            <PageBoundary resetKey="customer-create">
+              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                <CustomerCreatePage />
+              </Suspense>
+            </PageBoundary>
+          }
+        />
+        {(['legacy', 'advanced'] as const).map((mode) => (
           <Route
             key={mode}
             path={mode === 'advanced' ? '/customers/:customerId/advanced' : `/customers/${mode}`}
             element={
               <>
-                <PageHeader title={mode === 'new' ? 'Yeni müşteri' : 'Müşteri işlemleri'} />
+                <PageHeader title="Müşteri işlemleri" />
                 <PageBoundary resetKey={`customer-${mode}`}>
                   <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
                     <CompatibilityPage page="customers" customerMode={mode} />

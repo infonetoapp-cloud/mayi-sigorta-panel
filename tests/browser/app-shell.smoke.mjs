@@ -95,47 +95,121 @@ try {
     await page.reload();
     await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/customers');
-    if (index === 0) {
-      stage = 'customer-create-open';
-      await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).click();
-      await page.getByRole('heading', { name: 'Yeni Müşteri Oluştur', exact: true }).waitFor();
-      await page.getByPlaceholder('Ahmet', { exact: true }).fill('Sentetik');
-      await page.getByPlaceholder('Yılmaz', { exact: true }).fill('Deneme');
-      stage = 'customer-create-save';
-      await page.getByRole('button', { name: 'Müşteriyi Kaydet', exact: true }).click();
-      await page.getByText('Sentetik Deneme', { exact: true }).waitFor();
-      stage = 'customer-created-profile';
-      await page.getByRole('link', { name: 'Modern müşteri listesine dön', exact: true }).click();
-      await page.getByRole('link', { name: 'Sentetik Deneme', exact: true }).click();
-      await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
-      stage = 'customer-contact-edit';
-      await page.getByRole('button', { name: 'İletişim bilgilerini düzenle', exact: true }).click();
+    for (const type of ['INDIVIDUAL', 'COMPANY']) {
+      stage = `modern-create-${index}-${type}`;
+      await page.goto('https://localhost:8443/customers/new');
+      await page.reload();
+      await page.getByLabel('Müşteri türü', { exact: true }).selectOption(type);
+      const name = type === 'INDIVIDUAL' ? `Sentetik Deneme${index}` : `Sentetik Şirket${index}`;
+      if (type === 'INDIVIDUAL') {
+        await page.getByLabel('Ad', { exact: true }).fill('Sentetik');
+        await page.getByLabel('Soyad', { exact: true }).fill(`Deneme${index}`);
+      } else await page.getByLabel('Şirket unvanı', { exact: true }).fill(name);
+      for (const width of [1440, 768, 360]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(
+          await page.evaluate(
+            () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+          ),
+          true,
+        );
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const lostReply = index === 0 && type === 'INDIVIDUAL';
+      const writes = [];
+      if (lostReply)
+        await page.route('**/api/customers', async (route) => {
+          if (route.request().method() !== 'POST') return route.continue();
+          writes.push({
+            body: route.request().postData(),
+            key: route.request().headers()['idempotency-key'],
+          });
+          if (writes.length === 1) {
+            const committed = await route.fetch();
+            assert.equal(committed.status(), 201);
+            await route.fulfill({
+              status: 503,
+              contentType: 'application/json',
+              body: JSON.stringify({ success: false }),
+            });
+          } else await route.continue();
+        });
+      await page.getByRole('button', { name: 'Müşteriyi kaydet', exact: true }).click();
+      if (lostReply) {
+        await page
+          .getByRole('button', { name: 'Aynı kaydı güvenle yeniden dene', exact: true })
+          .click();
+      }
+      await page.getByRole('heading', { name, exact: true }).waitFor();
+      if (lostReply) {
+        assert.equal(writes.length, 2);
+        assert.deepEqual(writes[0], writes[1]);
+        await page.unroute('**/api/customers');
+      }
+      const profilePath = new URL(page.url()).pathname;
+      assert.equal(await page.locator('.legacy-workspace').count(), 0);
+      stage = `modern-contact-${index}-${type}`;
+      await page.getByRole('link', { name: 'İletişim', exact: true }).click();
+      await page.getByRole('button', { name: 'Düzenle', exact: true }).click();
       const contactForm = page.getByRole('region', { name: 'İletişim bilgilerini düzenleme' });
-      await contactForm.getByLabel('E-posta', { exact: true }).fill('updated@demo.invalid');
+      const email = `updated-${index}-${type.toLowerCase()}@demo.invalid`;
+      await contactForm.getByLabel('E-posta', { exact: true }).fill(email);
+      if (lostReply) {
+        // A real independent API update advances CAS while the inline draft stays open.
+        assert.equal(
+          await page.evaluate(async (path) => {
+            const current = await (await globalThis.fetch('/api' + path)).json();
+            const csrf = await (await globalThis.fetch('/api/csrf-token')).json();
+            return (
+              await globalThis.fetch('/api' + path, {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Token': csrf.data.token,
+                  'Idempotency-Key': globalThis.crypto.randomUUID(),
+                },
+                body: JSON.stringify({
+                  expectedVersion: current.data.version,
+                  address: 'Başka oturumun adresi',
+                }),
+              })
+            ).status;
+          }, profilePath),
+          200,
+        );
+      }
       await page.getByRole('button', { name: 'İletişim bilgilerini kaydet', exact: true }).click();
-      await page.getByText('updated@demo.invalid', { exact: true }).first().waitFor();
-      stage = 'customer-archive';
-      await page.getByRole('button', { name: 'Müşteriyi Arşivle', exact: true }).click();
-      stage = 'customer-archive-reason';
-      await page.getByLabel('Arşiv Nedeni', { exact: true }).fill('DEMO_CLOSED');
-      stage = 'customer-archive-save';
-      const [archiveResponse] = await Promise.all([
-        page.waitForResponse((response) => response.url().endsWith('/archive')),
-        page.getByRole('button', { name: 'Arşivlemeyi Onayla', exact: true }).click(),
-      ]);
-      assert.equal(archiveResponse.status(), 200);
-      assert.equal(Boolean((await archiveResponse.json()).data?.archivedAt), true);
-      stage = 'customer-archive-confirmation';
-      await page
-        .getByText('Bu müşteri arşivlenmiştir. Geçmiş kayıtları korunur.', { exact: true })
-        .waitFor();
-      await page.getByRole('button', { name: '✕', exact: true }).click();
-      await page.getByRole('link', { name: 'Modern müşteri profiline dön', exact: true }).click();
-      stage = 'customer-archived-profile';
-      await page.getByText('Arşivlenmiş müşteri', { exact: true }).waitFor();
+      if (lostReply) {
+        await page.getByRole('button', { name: 'Güncel bilgileri yükle', exact: true }).click();
+        await page.getByText('Başka oturumun adresi', { exact: true }).waitFor();
+        assert.equal(await contactForm.getByLabel('E-posta', { exact: true }).inputValue(), email);
+        await page
+          .getByRole('button', { name: 'Karşılaştırdım, iletişim bilgilerini kaydet', exact: true })
+          .click();
+      }
+      await page.getByText('İletişim bilgileri kaydedildi.', { exact: true }).waitFor();
+      await page.reload();
+      await page.getByText(email, { exact: true }).first().waitFor();
+      if (index === 0 && type === 'COMPANY') {
+        stage = 'legacy-archive-modern-denial';
+        await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
+        await page.getByRole('button', { name: 'Müşteriyi Arşivle', exact: true }).click();
+        await page.getByLabel('Arşiv Nedeni', { exact: true }).fill('DEMO_CLOSED');
+        await page.getByRole('button', { name: 'Arşivlemeyi Onayla', exact: true }).click();
+        await page
+          .getByText('Bu müşteri arşivlenmiştir. Geçmiş kayıtları korunur.', { exact: true })
+          .waitFor();
+        await page.getByRole('button', { name: '✕', exact: true }).click();
+        await page.getByRole('link', { name: 'Modern müşteri profiline dön', exact: true }).click();
+        await page.getByRole('link', { name: 'İletişim', exact: true }).click();
+        await page
+          .getByText('Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.', { exact: true })
+          .waitFor();
+        assert.equal(await page.getByRole('button', { name: 'Düzenle', exact: true }).count(), 0);
+      }
       await page.getByRole('link', { name: 'Müşteri listesine dön', exact: true }).click();
-      stage = `compatibility-${index}`;
     }
+    stage = `compatibility-${index}`;
     await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).click();
     await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
     assert.equal(new URL(page.url()).pathname, '/customers/demo-customer-0');
@@ -249,7 +323,7 @@ try {
     await context.close();
   }
   console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; 1440/768/360 customer list/profile/notes; direct refresh/history; legacy create/edit/archive/policy hand-off; private tasks; owner denial; logout/live profile revocation; CSP/runtime.',
+    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern individual/company creation + safe retry; inline contact CAS; 1440/768/360; list/profile/notes/history; legacy archive/policy hand-off; private tasks; owner denial; logout/live revocation; CSP/runtime.',
   );
 } catch {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.
