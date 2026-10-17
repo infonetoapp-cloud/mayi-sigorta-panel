@@ -25,6 +25,19 @@ Terminal sırasıyla üç hesabın parolasını iki kez ister:
 
 Her hesap için farklı, yalnız bu demo için kullanılan15–128 karakterlik güçlü parola seçin. Gerçek CRM/email parolanızı kullanmayın. Yazarken karakter/yıldız görünmez; yapıştırma desteklenir. Parolayı komut argümanına, ortam değişkenine, dosyaya veya bu sohbete yazmayın. Hazır/default parola yoktur; launcher parola veya verifier'ı terminale basmaz. CLI girişi yalnız interaktif TTY'dir; pipe/redirect kabul edilmez. Hatalı girişte demo başlamaz; tekrar `npm run demo` çalıştırın.
 
+### Windows Terminal / PowerShell girişinde takılma için açık alternatif
+
+Maskeli mod varsayılandır. Terminalinizde yazma/yapıştırma/Enter ilerlemiyorsa Ctrl+C ile durdurup PowerShell veya Windows Terminal'de şunu kullanın:
+
+```powershell
+Set-Location C:\Users\sinan\Desktop\panel
+npm run demo -- --visible-input
+```
+
+UYARI: Bu modda parolalar yerel terminalde GÖRÜNÜR. Yalnız bu geçici sentetik demo için ayrı parolalar girin; gerçek hesap parolası kullanmayın. Ekran paylaşımı, terminal/transcript kaydı veya başkası ekranı görürken kullanmayın. Parolalar launcher tarafından ayrıca loglanmaz veya dosyaya yazılmaz; görünen terminal girdisinin kayda alınmasını uygulama engelleyemez.
+
+Bu alternatif standart readline satır girişidir: raw mode veya özel keypress işleyicisi kullanmaz. Her girişten sonra Enter; her hesap için iki eşleşen giriş,15–128 karakter ve üç farklı parola zorunludur. Parolayı `--visible-input` yanına argüman olarak eklemeyin. URL yine https://localhost:8443; kurulum, gerçek auth ve izolasyon değişmez.
+
 Hazır mesajından sonra tarayıcıda tam bu adresi açın:
 
 https://localhost:8443
@@ -66,6 +79,8 @@ Eşzamanlı üç hesap denemek için ayrı browser profilleri veya ayrı tarayı
 Demo CMD penceresinde Ctrl+C. Veriler silinir. Tekrar `npm run demo` yeni izole dataset ve yeni seçtiğiniz parolalarla başlar. Eski browser cookie'si yeni süreçte geçersizdir; giriş ekranı gelmezse sayfayı yenileyin.
 
 ## Doğrulama kapsamı
+
+PowerShell visible-input düzeltmesi: CLI/input8 + mevcut gerçek D1/HTTPS demo1 =2 dosya9/9 PASS; typecheck, odaklı ESLint/Prettier ve diff-check PASS. Stream tabanlı testlerde CRLF/Unicode satırları, altı ardışık prompt, default masked seçimi, görünür uyarı, raw-mode çağrısının yokluğu, confirmation/minimum/distinct/EOF retleri doğrulandı. Gerçek launcher child-process argüman/TTY retleri ve `npm run demo -- --visible-input` npm aktarımı kontrol edildi. Kullanıcının Windows Terminal/PowerShell oturumu otomatik sürülmedi; manuel klavye/paste/Enter kabulü bu ortamda ayrıca kullanıcı tarafından denenmelidir. Parola/session/auth/deploy davranışı değişmedi; production veya Cloudflare işlemi yoktur.
 
 Bu dilimin son yerel gate'i:6 dosya39/39 PASS (`local-demo`, auth UI, TodayWork UI, müşteri notları UI, renewal workspace UI, task-statistics UI). Yeni entegrasyon testi gerçek canonical scrypt login ile üç hesabı, her çalışanın farklı beş görevini ve2/2/1 sayımını, ortak not yazarlarını ve OWNER ekip görünümünü doğruladı. Gerçek HTTPS listener'dan Vite HTML ve cookie'li login→me200, oturumsuz401 ve yabancı Host403 kontrol edildi. CLI bundle'ının doğrudan Node import'u3 hesap/openDemo export'u ile PASS. Lint/typecheck/format/client build/Worker yalnız dry-run/boundaries/diff-check PASS. Mevcut client chunk510,18kB ve Wrangler environment uyarıları sürer. Browser'da manuel sertifika onayı veya gerçek Windows CMD'de insanın gizli parola girişini otomasyonla yapılmış saymıyoruz; güvenli masked prompt kullanıcı çalıştırmasında kalır.
 

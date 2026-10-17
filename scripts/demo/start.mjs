@@ -7,6 +7,7 @@ import { emitKeypressEvents } from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { demoCertificate, serveDemo } from './https-server.mjs';
+import { parseDemoArguments, readDemoPasswords } from './input.mjs';
 
 function masked(prompt) {
   process.stdout.write(prompt);
@@ -50,7 +51,8 @@ function masked(prompt) {
   });
 }
 async function main() {
-  if (process.argv.length !== 2 || !process.stdin.isTTY || !process.stdout.isTTY)
+  const options = parseDemoArguments(process.argv.slice(2));
+  if (!process.stdin.isTTY || !process.stdout.isTTY)
     throw new Error('Yalnız etkileşimli yerel terminal: npm run demo');
   process.chdir(resolve(import.meta.dirname, '../..'));
   const buildResult = spawnSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], {
@@ -74,18 +76,13 @@ async function main() {
       logLevel: 'silent',
     });
     const application = await import(pathToFileURL(bundle).href);
-    emitKeypressEvents(process.stdin);
-    const passwords = [];
-    process.stdout.write(
-      '\nYalnız sentetik, geçici yerel demo. Gerçek hesap parolanızı KULLANMAYIN.\nHer hesap için en az 15 karakterlik ayrı bir demo parolası girin. Girdi görünmez.\n',
-    );
-    for (const user of application.DEMO_USERS) {
-      const value = await masked(`${user.name} (${user.email}) parolası: `);
-      const confirmation = await masked('Tekrar: ');
-      if (value !== confirmation) throw new Error('Parolalar eşleşmedi; baştan başlatın.');
-      passwords.push(value);
-    }
-    if (new Set(passwords).size !== 3) throw new Error('Üç farklı demo parolası kullanın.');
+    if (!options.visibleInput) emitKeypressEvents(process.stdin);
+    const passwords = await readDemoPasswords(application.DEMO_USERS, {
+      ...options,
+      input: process.stdin,
+      output: process.stdout,
+      masked,
+    });
     tls = await demoCertificate();
     process.stdout.write('Yerel D1 ve kurgusal kayıtlar hazırlanıyor…\n');
     demo = await application.openDemo(passwords);
@@ -113,12 +110,15 @@ main().catch((error) => {
     'Demo kurulumu iptal edildi.',
     'Parolalar eşleşmedi; baştan başlatın.',
     'Üç farklı demo parolası kullanın.',
+    'Parola 15–128 Unicode karakteri olmalıdır.',
     'OpenSSL bulunamadı. Git for Windows kurun; demo TLS sertifikası oluşturulamadı.',
   ]);
   process.stderr.write(
-    (safe.has(error?.message)
-      ? error.message
-      : 'Demo başlatılamadı. Node 24, bağımlılıklar, OpenSSL, boş 8443 portu ve 15–128 karakter güçlü parolaları kontrol edin.') +
+    (error?.message === 'DEMO_ARGUMENTS_INVALID'
+      ? 'Geçersiz seçenek. Kullanım: npm run demo [-- --visible-input]. Parola argümanı kabul edilmez.'
+      : safe.has(error?.message)
+        ? error.message
+        : 'Demo başlatılamadı. Node 24, bağımlılıklar, OpenSSL, boş 8443 portu ve 15–128 karakter güçlü parolaları kontrol edin.') +
       '\n',
   );
   process.exitCode = 1;
