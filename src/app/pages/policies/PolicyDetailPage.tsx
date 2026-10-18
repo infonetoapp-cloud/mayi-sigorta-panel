@@ -1,12 +1,8 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { useState } from 'react';
 import { PolicyPartiesSection } from './PolicyPartiesSection';
-import type {
-  PolicyDetailDto,
-  PolicyPartyDto,
-  PolicyAmendmentDto,
-  PolicyExternalReferenceDto,
-} from '../../../shared/types';
+import { PolicyAppendSection } from './PolicyAppendSection';
+import type { PolicyDetailDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -18,58 +14,7 @@ const sections = [
   ['amendments', 'Zeyiller'],
   ['external-references', 'Dış referanslar'],
 ] as const;
-type Related = 'parties' | 'amendments' | 'external-references';
-function RelatedSection({ id, section }: { id: string; section: Related }) {
-  const state = useCustomerResource<
-    Array<PolicyPartyDto | PolicyAmendmentDto | PolicyExternalReferenceDto>
-  >(`/api/policies/${encodeURIComponent(id)}/${section}`);
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{sections.find(([key]) => key === section)![1]}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <PolicyReadNotice {...state} />
-        {state.data && !state.data.length && <p>Bu bölümde kayıt bulunmuyor.</p>}
-        {state.data && (
-          <ul className="customer-related-list">
-            {state.data.map((item) => (
-              <li key={item.id}>
-                {'customerDisplayName' in item ? (
-                  <>
-                    <strong>{item.customerDisplayName}</strong>
-                    <span>
-                      {item.role === 'INSURED' ? 'Sigortalı' : 'Lehtar'} ·{' '}
-                      {item.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}
-                    </span>
-                  </>
-                ) : 'effectiveDate' in item ? (
-                  <>
-                    <strong>{item.externalReference}</strong>
-                    <span>{policyDate(item.effectiveDate)}</span>
-                    <p className="policy-history-text">{item.description}</p>
-                    <span>
-                      {item.premiumDifferenceMinor == null
-                        ? 'Prim farkı belirtilmedi'
-                        : item.currency
-                          ? policyMoney(item.premiumDifferenceMinor, item.currency)
-                          : 'Prim farkının para birimi belirtilmedi'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <strong>{item.sourceNamespace}</strong>
-                    <span>{item.externalKey}</span>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+
 function PolicyPage({ id }: { id: string }) {
   const location = useLocation();
   const [params] = useSearchParams();
@@ -203,11 +148,15 @@ function PolicyPage({ id }: { id: string }) {
           ) : section === 'parties' ? (
             <PolicyPartiesSection key={id} policy={policy} onUpdated={setRefreshed} />
           ) : (
-            <RelatedSection key={`${id}:${section}`} id={id} section={section as Related} />
+            <PolicyAppendSection
+              key={`${id}:${section}`}
+              kind={section as 'amendments' | 'external-references'}
+              policy={policy}
+              onUpdated={setRefreshed}
+            />
           )}
           <p className="customer-legacy-hint">
-            Atama, zeyil, referans, arşivleme ve güvenli onay işlemleri klasik çalışma alanında
-            korunur.
+            Atama, arşivleme ve güvenli onay işlemleri klasik çalışma alanında korunur.
           </p>
         </>
       )}
