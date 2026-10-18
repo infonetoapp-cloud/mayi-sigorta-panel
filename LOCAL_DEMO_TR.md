@@ -4,6 +4,8 @@ Bu demo gerçek React/Vite arayüzü, Hono API, migration0022, yerel D1 ve mevcu
 
 ## Windows CMD ile başlatma
 
+Phase4C: `/today-work` seçili görevinde “Yeni takip planını aç” ile yeni İstanbul tarih/saatini açıkça seçip tamamla+replacement işlemini onaylayın; fırsat kapanmaz. “Görev atama seçeneklerini aç” yalnız endpoint yetkili dizinini gösterir; hedef açık seçilir ve ayrı onaylanır. İletişim taslağı açıkken görev işlemi gönderilmez. Belirsiz task yazımı çözülene kadar liste/hedef değiştirilmez; exact retry veya confirmed-write sonrası GET-only recovery kullanılır. Conflict karşılaştırması sonraki sayfadaki görevi de özgün cursor URL'sinden okur. Ayrıntılı kanıt: `FRONTEND_PHASE4C.md`.
+
 Phase4B: `/today-work` içinde görev seçip “İletişim geçmişi”ni okuyun. “İletişim kaydı ekle” ile gerçek temas, yanıtsız deneme veya iç not kaydedilir; saat İstanbul'dur. Gerçek temas ayrı doğrulama, şirket kaydı açık yetkili seçimi ister. Not/yanıtsız arama/WhatsApp işlemi gerçek temas değildir; form mesaj göndermez. Başarı yetkili geçmiş okumasından sonra gösterilir. Belirsiz yanıtta yalnız aynı istek; yazım sonrası okuma hatasında yalnız GET tekrar edilir. Görevden ayrılmak sunucudaki yazımı iptal etmez; taslak/key yalnız açık bölümün belleğindedir. Teklif, WhatsApp önizleme/açma, tamamlama/atama ve yenileme sonucu `/today-work/legacy` içindedir. Ayrıntılı yerel kanıt: `FRONTEND_PHASE4B.md`.
 
 Önkoşullar: Node.js24, npm ve OpenSSL (Git for Windows kurulumu içindeki OpenSSL de otomatik bulunur). Mevcut projede Node24 doğrulandı. Internet yalnız bağımlılıkların ilk indirilmesi için gerekebilir; hazır node_modules ile demo tamamen yereldir.

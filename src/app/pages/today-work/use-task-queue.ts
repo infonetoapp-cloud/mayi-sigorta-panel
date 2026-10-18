@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TodayTasksResponseData } from '../../../shared/types';
+import type { TaskReadback } from './TaskOperationsSection';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 export type WorkQueue = 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
 interface Failure {
@@ -20,6 +21,7 @@ export function useTaskQueue(owner: boolean) {
     [state, setState] = useState(initial),
     [capabilities, setCapabilities] = useState({ unassigned: false, reassignment: false });
   const generation = useRef(0),
+    pages = useRef(new Map<string, string>()),
     controller = useRef<AbortController | null>(null),
     busy = useRef(false);
   const reassignment = view === 'REASSIGNMENT';
@@ -41,6 +43,7 @@ export function useTaskQueue(owner: boolean) {
         failures: { ...old.failures, [queue]: undefined },
         ...(!append ? { data: null, authority: old.authority + 1 } : {}),
       }));
+      if (!append) pages.current.clear();
       try {
         const raw = await readCustomerResource<TodayTasksResponseData>(url, c.signal);
         if (c.signal.aborted || request !== generation.current) return;
@@ -55,6 +58,8 @@ export function useTaskQueue(owner: boolean) {
           canSeeReassignment: owner && !!raw.canSeeReassignment,
           unassignedItems: owner && raw.canSeeUnassigned ? raw.unassignedItems : [],
         };
+        for (const item of [...fresh.items, ...fresh.unassignedItems])
+          if (!pages.current.has(item.taskId)) pages.current.set(item.taskId, url);
         setCapabilities({
           unassigned: fresh.canSeeUnassigned,
           reassignment: fresh.canSeeReassignment,
@@ -143,6 +148,80 @@ export function useTaskQueue(owner: boolean) {
     failure,
     canSeeUnassigned: owner && capabilities.unassigned,
     canSeeReassignment: owner && capabilities.reassignment,
+    async readOperation(taskId: string, signal: AbortSignal): Promise<TaskReadback> {
+      const original = pages.current.get(taskId),
+        request = generation.current,
+        authority = state.authority,
+        mode = view;
+      if (!original) throw new Error('PROVENANCE_MISSING');
+      const currentPage = await readCustomerResource<TodayTasksResponseData>(
+        original,
+        signal,
+      ).catch((error) => {
+        if (
+          !signal.aborted &&
+          request === generation.current &&
+          error instanceof CustomerReadError &&
+          [400, 401, 403, 404, 409].includes(error.status)
+        ) {
+          cancel();
+          pages.current.clear();
+          setState((old) => ({
+            ...old,
+            data: null,
+            authority: old.authority + 1,
+            failures: {},
+            loading: null,
+          }));
+          setCapabilities({ unassigned: false, reassignment: false });
+        }
+        throw error;
+      });
+      if (signal.aborted || request !== generation.current) throw new Error('STALE_CONTEXT');
+      if (
+        (mode === 'UNASSIGNED' && (!owner || !currentPage.canSeeUnassigned)) ||
+        (mode === 'REASSIGNMENT' && (!owner || !currentPage.canSeeReassignment))
+      ) {
+        cancel();
+        pages.current.clear();
+        setState((old) => ({
+          ...old,
+          data: null,
+          authority: old.authority + 1,
+          failures: {},
+          loading: null,
+        }));
+        setCapabilities({ unassigned: false, reassignment: false });
+        throw new CustomerReadError(403);
+      }
+      const list = mode === 'UNASSIGNED' ? currentPage.unassignedItems : currentPage.items;
+      return {
+        current: list.find((item) => item.taskId === taskId),
+        apply() {
+          if (signal.aborted || request !== generation.current) return;
+          cancel();
+          pages.current.clear();
+          for (const item of [...currentPage.items, ...currentPage.unassignedItems])
+            pages.current.set(item.taskId, original);
+          setState({
+            data: {
+              ...currentPage,
+              canSeeUnassigned: owner && currentPage.canSeeUnassigned,
+              canSeeReassignment: owner && !!currentPage.canSeeReassignment,
+              unassignedItems:
+                owner && currentPage.canSeeUnassigned ? currentPage.unassignedItems : [],
+            },
+            authority: authority + 1,
+            failures: {},
+            loading: null,
+          });
+          setCapabilities({
+            unassigned: owner && currentPage.canSeeUnassigned,
+            reassignment: owner && !!currentPage.canSeeReassignment,
+          });
+        },
+      };
+    },
     change(next: WorkQueue) {
       if (next === view) return;
       if (

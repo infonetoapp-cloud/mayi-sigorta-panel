@@ -190,3 +190,16 @@
   margin: 0.3rem;
   white-space: normal;
 }
+.task-interaction-boundary {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.today-overview .interaction-form > [data-slot='button'],
+.today-overview .renewal-interactions > [data-slot='button'] {
+  white-space: normal;
+  height: auto;
+  min-height: 2.5rem;
+  text-align: center;
+}

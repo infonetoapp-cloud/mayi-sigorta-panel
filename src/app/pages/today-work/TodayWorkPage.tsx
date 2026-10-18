@@ -8,6 +8,7 @@ import { TaskStatisticsPanel } from '../../components/TaskStatisticsPanel';
 import { useTaskQueue, type WorkQueue } from './use-task-queue';
 import { RenewalInteractionsSection } from './RenewalInteractionsSection';
 import type { InteractionRisk } from './interaction-model';
+import { TaskOperationsSection, type TaskOperationRisk } from './TaskOperationsSection';
 
 const states: Record<RenewalStateCode, string> = {
   CONTACT_PENDING: 'İletişim bekleniyor',
@@ -33,6 +34,9 @@ function due(value: string, timezone: string, dateOnly = false) {
 function Workspace({ owner }: { owner: boolean }) {
   const navigate = useNavigate();
   const [leave, setLeave] = useState<(() => void) | null>(null);
+  const [operationMessage, setOperationMessage] = useState(''),
+    [operationUnresolved, setOperationUnresolved] = useState(false);
+  const operationRisk = useRef<{ key: string; risk: TaskOperationRisk } | null>(null);
   const leaveHeading = useRef<HTMLHeadingElement>(null),
     activeInteraction = useRef<string | null>(null),
     interactionRisk = useRef<{ key: string; risk: InteractionRisk } | null>(null);
@@ -62,12 +66,21 @@ function Workspace({ owner }: { owner: boolean }) {
   useEffect(() => {
     setLeave(null);
     interactionRisk.current = null;
+    operationRisk.current = null;
+    setOperationUnresolved(false);
   }, [queue.authority, queue.view]);
   function guarded(action: () => void) {
+    if (operationRisk.current?.key === interactionKey && operationRisk.current.risk.unresolved) {
+      setOperationMessage(
+        'Görev işleminin sonucu çözülmeden liste veya hedef değiştirilemez. Aynı isteği ya da yalnız okumayı yeniden deneyin; işlem iptal edilmiş değildir.',
+      );
+      return;
+    }
     if (
       interactionKey &&
-      interactionRisk.current?.key === interactionKey &&
-      interactionRisk.current.risk !== 'clean'
+      ((interactionRisk.current?.key === interactionKey &&
+        interactionRisk.current.risk !== 'clean') ||
+        (operationRisk.current?.key === interactionKey && operationRisk.current.risk.dirty))
     )
       setLeave(() => action);
     else action();
@@ -75,8 +88,10 @@ function Workspace({ owner }: { owner: boolean }) {
   function classic(event: MouseEvent<HTMLAnchorElement>) {
     if (
       interactionKey &&
-      interactionRisk.current?.key === interactionKey &&
-      interactionRisk.current.risk !== 'clean'
+      ((interactionRisk.current?.key === interactionKey &&
+        interactionRisk.current.risk !== 'clean') ||
+        (operationRisk.current?.key === interactionKey &&
+          (operationRisk.current.risk.dirty || operationRisk.current.risk.unresolved)))
     ) {
       event.preventDefault();
       guarded(() => void navigate('/today-work/legacy'));
@@ -192,6 +207,14 @@ function Workspace({ owner }: { owner: boolean }) {
           <Button
             onClick={() => {
               const action = leave;
+              if (
+                operationRisk.current?.key === interactionKey &&
+                operationRisk.current.risk.unresolved
+              ) {
+                setLeave(null);
+                setOperationMessage('Önce görev işleminin belirsiz sonucunu doğrulayın.');
+                return;
+              }
               setLeave(null);
               action();
             }}
@@ -200,6 +223,7 @@ function Workspace({ owner }: { owner: boolean }) {
           </Button>
         </section>
       )}
+      {operationMessage && <p role="status">{operationMessage}</p>}
       {queue.loading && <p role="status">Görevler yükleniyor…</p>}
       {queue.failure && (
         <div role="alert">
@@ -284,7 +308,20 @@ function Workspace({ owner }: { owner: boolean }) {
                 ))}
                 {!items.length && <p>Bu kuyrukta gösterilecek takip bulunmuyor.</p>}
                 {hasMore && !queue.failure && (
-                  <Button variant="outline" disabled={!!queue.loading} onClick={queue.more}>
+                  <Button
+                    variant="outline"
+                    disabled={!!queue.loading}
+                    onClick={() => {
+                      if (
+                        operationRisk.current?.key === interactionKey &&
+                        operationRisk.current.risk.unresolved
+                      ) {
+                        setOperationMessage('Önce belirsiz görev işlemini doğrulayın.');
+                        return;
+                      }
+                      queue.more();
+                    }}
+                  >
                     Daha fazla iş yükle
                   </Button>
                 )}
@@ -352,18 +389,46 @@ function Workspace({ owner }: { owner: boolean }) {
                         Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik değiştirilmez.
                       </p>
                     )}
-                    <RenewalInteractionsSection
-                      key={interactionKey}
-                      renewalId={selected.renewalId}
-                      onRiskChange={(risk) => {
-                        if (activeInteraction.current === interactionKey)
-                          interactionRisk.current = { key: interactionKey!, risk };
+                    <fieldset disabled={operationUnresolved} className="task-interaction-boundary">
+                      <legend className="sr-only">İletişim bölümü</legend>
+                      <RenewalInteractionsSection
+                        key={interactionKey}
+                        renewalId={selected.renewalId}
+                        onRiskChange={(risk) => {
+                          if (activeInteraction.current === interactionKey)
+                            interactionRisk.current = { key: interactionKey!, risk };
+                        }}
+                      />
+                    </fieldset>
+                    <TaskOperationsSection
+                      key={'operations:' + interactionKey}
+                      task={selected}
+                      read={(signal) => queue.readOperation(selected.taskId, signal)}
+                      canOperate={() => {
+                        if (activeInteraction.current !== interactionKey) return false;
+                        if (
+                          interactionRisk.current?.key === interactionKey &&
+                          interactionRisk.current.risk !== 'clean'
+                        ) {
+                          setOperationMessage(
+                            'İletişim taslağını açıkça kapatın veya iletişim yazımını doğrulayın. Görev işlemi iletişim taslağını/anahtarını silmez.',
+                          );
+                          return false;
+                        }
+                        return true;
                       }}
+                      onRisk={(risk) => {
+                        if (activeInteraction.current === interactionKey) {
+                          operationRisk.current = { key: interactionKey!, risk };
+                          setOperationUnresolved(risk.unresolved);
+                        }
+                      }}
+                      onApplied={(message) => setOperationMessage(message)}
                     />
                     <p>
-                      Teklif, WhatsApp önizleme/açma, sonuçlandırma, görev tamamlama ve atama klasik
-                      çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik listeden
-                      yeniden seçmeniz gerekir.
+                      Teklif, WhatsApp önizleme/açma ve yenileme sonuçlandırma klasik çalışma
+                      alanındadır. Bağlantı bu görevi otomatik seçmez; klasik listeden yeniden
+                      seçmeniz gerekir.
                     </p>
                     <Button asChild>
                       <Link to="/today-work/legacy" onClick={classic}>

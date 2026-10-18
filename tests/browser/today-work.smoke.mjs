@@ -10,6 +10,7 @@ import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs';
 import { interactionWalkthrough } from './renewal-interactions.walkthrough.mjs';
+import { taskOperationsWalkthrough } from './task-operations.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
@@ -104,7 +105,14 @@ try {
     await page.goto('https://localhost:8443/');
     await page.getByLabel('E-posta', { exact: true }).fill(user.email);
     await page.getByLabel('Şifre', { exact: true }).fill(passwords[index]);
+    const loginResponse = page.waitForResponse(
+      (r) =>
+        new globalThis.URL(r.url()).pathname === '/api/auth/login' &&
+        r.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).click();
+    console.info('CANONICAL_LOGIN_STATUS', index, (await loginResponse).status());
+    mark('login-dashboard-' + index);
     await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
     if (!index) {
       await legacy(page, index);
@@ -252,6 +260,7 @@ try {
         0,
       );
     await interactionWalkthrough(page, index, mark);
+    await taskOperationsWalkthrough(page, index, mark, demo);
     mark('history-' + index);
     await page.reload();
     assert.equal(
@@ -296,7 +305,13 @@ try {
   console.info(
     'TODAY_QUEUE_BROWSER PASS: OWNER/Ahmet/Ayşe; private/agency queues; independent bounded cursors/exact page retry; authorized selection/keyboard; Istanbul/statistics; 1440/768/360; legacy completion/assignment/quote controls; reload/back-forward; revocation cleanup; CSP/runtime.',
   );
-} catch {
+} catch (error) {
+  console.error('BROWSER_FAILURE_KIND', error instanceof Error ? error.name : 'Unknown');
+  const location =
+    error instanceof Error
+      ? error.stack?.match(/task-operations\.walkthrough\.mjs:\d+:\d+/)?.[0]
+      : null;
+  if (location) console.error('BROWSER_FAILURE_LOCATION', location);
   console.error(`TODAY_QUEUE_BROWSER FAIL at ${stage}. No credentials or raw diagnostics logged.`);
   process.exitCode = 1;
 } finally {
