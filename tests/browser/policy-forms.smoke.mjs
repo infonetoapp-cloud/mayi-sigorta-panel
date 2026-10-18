@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs';
 import { verifyPolicyParties } from './policy-parties.walkthrough.mjs';
 import { verifyPolicyAppend } from './policy-append.walkthrough.mjs';
+import { verifyPolicyLifecycle } from './policy-lifecycle.walkthrough.mjs';
 const { URL } = globalThis;
 let stage = 'setup',
   browser,
@@ -320,6 +321,10 @@ try {
     stage = `append-${index}`;
     console.info('POLICY_FORM_STAGE', stage);
     await verifyPolicyAppend(page, createdId, index);
+    await verifyPolicyLifecycle(page, createdId, index, demo.db, (step) => {
+      stage = `lifecycle-${index}-${step}`;
+      console.info('POLICY_FORM_STAGE', stage);
+    });
     stage = `revocation-${index}`;
     await page.getByRole('link', { name: 'Poliçeyi düzenle', exact: true }).click();
     await page.getByLabel('Poliçe numarası', { exact: true }).waitFor();

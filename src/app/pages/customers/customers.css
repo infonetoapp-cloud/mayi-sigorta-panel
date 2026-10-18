@@ -1,6 +1,16 @@
 .customer-modern {
   min-width: 0;
 }
+.policy-management {
+  display: grid;
+  gap: 1.5rem;
+}
+.policy-danger {
+  border-color: #e3b0b7;
+}
+.policy-danger [data-slot='card-title'] {
+  color: #9f1239;
+}
 .policy-filters {
   padding: 1.5rem;
   border-bottom: 1px solid var(--border);

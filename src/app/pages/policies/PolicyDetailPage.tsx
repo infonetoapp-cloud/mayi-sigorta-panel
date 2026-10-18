@@ -2,6 +2,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { useState } from 'react';
 import { PolicyPartiesSection } from './PolicyPartiesSection';
 import { PolicyAppendSection } from './PolicyAppendSection';
+import { PolicyManagementSection } from './PolicyManagementSection';
 import type { PolicyDetailDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
@@ -13,6 +14,7 @@ const sections = [
   ['parties', 'Sigortalılar ve lehtarlar'],
   ['amendments', 'Zeyiller'],
   ['external-references', 'Dış referanslar'],
+  ['management', 'Sorumlu ve arşiv'],
 ] as const;
 
 function PolicyPage({ id }: { id: string }) {
@@ -23,7 +25,15 @@ function PolicyPage({ id }: { id: string }) {
     : 'general';
   const state = useCustomerResource<PolicyDetailDto>(`/api/policies/${encodeURIComponent(id)}`);
   const [refreshed, setRefreshed] = useState<PolicyDetailDto | null>(null);
-  const policy = state.data ? (refreshed ?? state.data) : undefined;
+  const policy = state.data
+    ? refreshed && refreshed.version >= state.data.version
+      ? refreshed
+      : state.data
+    : undefined;
+  function acceptUpdated(fresh: PolicyDetailDto) {
+    if (fresh.id !== id) return;
+    setRefreshed((previous) => (previous && previous.version > fresh.version ? previous : fresh));
+  }
   return (
     <div className="customer-modern policy-modern">
       <Link className="customer-back-link" to="/policies">
@@ -146,17 +156,19 @@ function PolicyPage({ id }: { id: string }) {
               </CardContent>
             </Card>
           ) : section === 'parties' ? (
-            <PolicyPartiesSection key={id} policy={policy} onUpdated={setRefreshed} />
+            <PolicyPartiesSection key={id} policy={policy} onUpdated={acceptUpdated} />
+          ) : section === 'management' ? (
+            <PolicyManagementSection key={id} policy={policy} onUpdated={acceptUpdated} />
           ) : (
             <PolicyAppendSection
               key={`${id}:${section}`}
               kind={section as 'amendments' | 'external-references'}
               policy={policy}
-              onUpdated={setRefreshed}
+              onUpdated={acceptUpdated}
             />
           )}
           <p className="customer-legacy-hint">
-            Atama, arşivleme ve güvenli onay işlemleri klasik çalışma alanında korunur.
+            Hassas kimlik-varyant onayı ve klasik ileri işlemler ayrı güvenli akışta korunur.
           </p>
         </>
       )}

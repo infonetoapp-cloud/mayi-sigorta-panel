@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import PolicyListPage from '../src/app/pages/policies/PolicyListPage';
 import PolicyDetailPage from '../src/app/pages/policies/PolicyDetailPage';
@@ -35,6 +35,78 @@ const response = (data: unknown, status = 200) =>
     }),
     { status },
   );
+it('does not reopen an archived policy when an earlier assignment readback arrives late on the same page', async () => {
+  let live: Omit<ReturnType<typeof policy>, 'archivedAt'> & {
+    version: number;
+    archivedAt: string | null;
+  } = { ...policy(), version: 3, assigneeMembershipId: 'm1' };
+  let resolveOld!: (r: Response) => void;
+  const oldRead = new Promise<Response>((resolve) => {
+    resolveOld = resolve;
+  });
+  let assignmentWritten = false,
+    held = false;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('csrf-token')) return response({ token: 'csrf' });
+      if (url.endsWith('/assignment-options'))
+        return response([
+          { membershipId: 'm1', label: 'Sorumlu Bir', membershipType: 'OWNER' },
+          { membershipId: 'm2', label: 'Sorumlu İki', membershipType: 'MEMBER' },
+        ]);
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        if (body.expectedVersion !== live.version) return response(null, 409);
+        if (url.endsWith('/assign')) {
+          live = { ...live, version: 4, assigneeMembershipId: 'm2' };
+          assignmentWritten = true;
+          return response(live);
+        }
+        live = { ...live, version: 5, archivedAt: '2026-10-18T00:00:00Z' };
+        return response(live);
+      }
+      if (url === '/api/policies/a') {
+        if (assignmentWritten && !held) {
+          held = true;
+          return oldRead;
+        }
+        return response(live);
+      }
+      return response([]);
+    }),
+  );
+  mount('/policies/a?section=management');
+  fireEvent.click(await screen.findByRole('button', { name: 'Sorumluyu değiştir' }));
+  fireEvent.change(screen.getByLabelText('Yeni poliçe sorumlusu'), { target: { value: 'm2' } });
+  fireEvent.click(screen.getByLabelText('Sorumlu değişikliğini onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi arşivle' }));
+  fireEvent.change(screen.getByLabelText('Arşiv gerekçe kodu'), {
+    target: { value: 'HISTORICAL_RECORD' },
+  });
+  fireEvent.click(screen.getByLabelText('Bu poliçeyi arşivlemek istediğimi onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Atamayı kaydet' }));
+  await waitFor(() => expect(held).toBe(true));
+  const earlier = { ...live };
+  fireEvent.click(screen.getByRole('button', { name: 'Arşivlemeyi onayla' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Güncel poliçeyi karşılaştır' }));
+  await screen.findByText('Karşılaştırılan poliçe sürümü: 4');
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText('Bu poliçeyi arşivlemek istediğimi onaylıyorum') as HTMLInputElement)
+        .checked,
+    ).toBe(false),
+  );
+  fireEvent.click(screen.getByLabelText('Bu poliçeyi arşivlemek istediğimi onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Karşılaştırdım, arşivlemeyi onayla' }));
+  await screen.findByText('Poliçe arşivlendi.');
+  await act(async () => resolveOld(response(earlier)));
+  await screen.findByText('Poliçe sorumlusu güncellendi.');
+  expect(screen.queryByRole('link', { name: 'Poliçeyi düzenle' })).toBeNull();
+  fireEvent.click(screen.getByRole('link', { name: 'Zeyiller' }));
+  await screen.findByText('Bu bölümde kayıt bulunmuyor.');
+  expect(screen.queryByRole('button', { name: 'Zeyil ekle' })).toBeNull();
+});
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

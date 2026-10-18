@@ -82,6 +82,10 @@ Belirsiz ağ yanıtında sayfayı yenilemek yerine “Aynı işlemi yeniden dene
 
 ### Modern poliçe gezintisi
 
+Detay → Sorumlu ve arşiv modern atama ve ayrı arşiv tehlike kartını açar. OWNER atama yapabilir; standart Ahmet/Ayşe hesaplarında AGENCY atama yetkisi yoksa dizin/seçici gizlenir. Personel bazlı gerçek sunucu izinleri geçerlidir; her çalışan atama/arşivleme yapamaz. Etkin sorumluyu açıkça seçin ve değişikliği checkbox ile onaylayın; eski devre dışı sorumlu yerine otomatik kişi atanmaz. Bu atama günlük kişisel görev/yenileme görevi/şirket yetkilisi değildir.
+
+Poliçeyi arşivle ilk tıkta yazmaz: sözleşme numarası/dönem/prim/status özetini inceleyin, büyük harf/rakam/alt çizgi gerekçe kodu girin (3–64 karakter, harfle başlamalı; örnek HISTORICAL_RECORD), son checkbox'ı işaretleyip onaylayın. Arşiv iptal, geçersiz kılma veya yenileme tamamlama değildir. OPEN_DEPENDENCIES409 açık yenileme/takip işi olduğunu belirtir; uygulama bunları kapatmaz veya kontrolü atlamaz. Önce yetkili iş akışından inceleme gerekir.409'da güncel poliçeyi karşılaştırın ve tekrar açık onay verin. Belirsiz sonuçta sayfayı yenilemeyin; Aynı işlemi yeniden dene original body/key ile çalışır. İşlem kaydedilmiş/okuma hatalıysa Kaydedilen poliçeyi yeniden oku yalnız GET yapar. Başarılı arşiv sonrası tüm modern ordinary yazımlar kapanır; tarihçe okunabilir.
+
 Poliçeler menüsü modern listeyi açar. Numara için tam/başlangıç eşleştirmesi, sözleşme durumu, bitiş aralığı ve mevcut sıralamaları kullanın. Bir poliçe numarasına basınca gerçek tam sayfa detay açılır; müşteri bağlantısı modern profile döner. Arşiv, sözleşme iptali veya geçersizliği ile aynı şey değildir.
 
 Zeyiller bölümünde Zeyil ekle ile dış referans, geçerlilik tarihi ve açıklama girin. Prim farkı isteğe bağlıdır; `12.34`, `-0.50` veya `0` biçiminde ve ISO para birimiyle birlikte girilir; ikisini de boş bırakabilirsiniz. Başta +, virgül/binlik ayırıcı veya ikiden fazla ondalık kullanmayın. Zeyil yeni poliçe dönemi/yenileme/iptal değildir ve özgün brüt primi değiştirmez. Dış referanslar bölümünde kaynak ad alanı+dış anahtar eklenebilir; otomatik dış sistem bağlantısı kurulmaz. Her iki bölüm yalnız yeni tarihsel kayıt ekler; güncelleme/silme yoktur.409'da güncel kayıtları karşılaştırıp yeniden onaylayın; duplicate referansı tekrar eklemeyin. Belirsiz yanıtta aynı işlem/key retry, yazım başarılı/okuma başarısızsa yalnız GET retry kullanılır. Arşivli poliçeler salt okunurdur.
@@ -92,7 +96,7 @@ Poliçeler → Yeni poliçe modern tam sayfa formu açar. Müşteri profilindeki
 
 Detay → Poliçeyi düzenle ile temel alanları güncelleyin; müşteri bağı değiştirilemez.409'da güncel poliçeyi karşılaştırıp taslağı yeniden onaylayın. Belirsiz POST/PATCH'te sayfayı yenilemeden Aynı işlemi yeniden dene kullanın; body/key yalnız açık sayfanın belleğindedir. Kayıt başarılı ama detay yüklenememişse Kaydedilen poliçeyi yeniden oku yalnız GET yapar.
 
-Atama, sigortalı/lehtar değişiklikleri, zeyil, dış referans, arşivleme ve güvenli onaylar “Poliçe işlemleri (klasik)” bağlantısında korunur; legacy create/edit ve İleri müşteri işlemleri → +Poliçe Ekle handoff'u da kaldırılmadı. Belge görüntüleyici veya belge aktivasyonu yoktur.
+Ordinary poliçe create/edit, taraf, zeyil/reference ve sorumlu/arşiv işlemleri moderndir. Hassas kimlik-varyant onayı ayrı güvenli klasik akışta kalır. “Poliçe işlemleri (klasik)” bağlantısı eski ileri işlemlerin doğrulanmış backstop'udur; legacy create/edit ve İleri müşteri işlemleri → +Poliçe Ekle handoff'u da kaldırılmadı. Belge görüntüleyici veya belge aktivasyonu yoktur.
 
 ## Kapatma ve tekrar başlatma
 
