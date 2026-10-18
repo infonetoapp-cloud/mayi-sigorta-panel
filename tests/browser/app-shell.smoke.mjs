@@ -393,13 +393,86 @@ try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('link', { name: 'Poliçeler ve yenilemeler', exact: true }).click();
     await page.getByRole('heading', { name: 'Mevcut poliçeler', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'DEMO-0', exact: true }).click();
+    await page.getByRole('heading', { name: 'DEMO-0', exact: true }).waitFor();
+    await page.goBack();
+    await page.getByRole('heading', { name: 'Mevcut poliçeler', exact: true }).waitFor();
     await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
     await page.getByText('Geçici klasik müşteri çalışma alanı', { exact: true }).waitFor();
     await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).waitFor();
     await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).click();
-    await page.waitForURL('**/policies');
+    await page.waitForURL('**/policies/legacy?customerId=demo-customer-0');
     // The legacy customer->policy hand-off must survive real route navigation.
     await page.getByRole('heading', { name: 'Yeni Poliçe', exact: true }).waitFor();
+    stage = `modern-policies-${index}`;
+    console.info('SMOKE_STAGE', stage);
+    await page
+      .getByRole('option', { name: 'Deniz Yılmaz', exact: true })
+      .waitFor({ state: 'attached' });
+    assert.equal(await page.getByLabel('Müşteri', { exact: true }).inputValue(), 'demo-customer-0');
+    const policyNumber = `MODERN-POL-${index}`;
+    await page.getByLabel('Poliçe Numarası', { exact: true }).fill(policyNumber);
+    await page.getByLabel('Başlangıç Tarihi', { exact: true }).fill('2027-01-01');
+    await page.getByLabel('Bitiş Tarihi', { exact: true }).fill('2027-12-31');
+    await page.getByLabel('Brüt Prim', { exact: true }).fill('1234.56');
+    const savedResponse = page.waitForResponse(
+      (res) => res.url().endsWith('/api/policies') && res.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Poliçeyi Kaydet', exact: true }).click();
+    const saved = await savedResponse;
+    assert.equal(saved.status(), 201);
+    const savedPolicy = (await saved.json()).data;
+    assert.equal(savedPolicy.customerId, 'demo-customer-0');
+    await page.getByRole('link', { name: 'Modern poliçe listesine dön', exact: true }).click();
+    await page.getByRole('heading', { name: 'Poliçeler', exact: true }).waitFor();
+    await page.getByLabel('Poliçe numarası', { exact: true }).fill(policyNumber);
+    await page.getByLabel('Eşleştirme', { exact: true }).selectOption('exact');
+    await page.getByRole('button', { name: 'Filtrele', exact: true }).click();
+    await page.getByRole('link', { name: policyNumber, exact: true }).waitFor();
+    for (const width of [1440, 768, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(
+        await page.evaluate(
+          () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+        ),
+        true,
+      );
+      assert.equal(
+        await page
+          .locator('.policy-table tr')
+          .last()
+          .evaluate((row) => globalThis.getComputedStyle(row).display),
+        width === 1440 ? 'table-row' : 'grid',
+      );
+    }
+    await page.getByRole('link', { name: policyNumber, exact: true }).click();
+    await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
+    await page.reload();
+    await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
+    await page.getByText('1.234,56 TRY', { exact: true }).waitFor();
+    for (const width of [1440, 768, 360]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const name of ['Sigortalılar ve lehtarlar', 'Zeyiller', 'Dış referanslar']) {
+        await page.getByRole('link', { name, exact: true }).click();
+        await page.getByRole('heading', { name, exact: true }).waitFor();
+        await page.getByText('Bu bölümde kayıt bulunmuyor.', { exact: true }).waitFor();
+        assert.equal(
+          await page.evaluate(
+            () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+          ),
+          true,
+        );
+      }
+      await page.getByRole('link', { name: 'Poliçe bilgileri', exact: true }).click();
+      await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    }
+    await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).click();
+    await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    await page.goBack();
+    await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
+    await page.goForward();
+    await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('link', { name: 'Bugünkü İşler', exact: true }).click();
     await page
       .getByRole('button', { name: 'Görev istatistiklerini göster', exact: true })
@@ -445,8 +518,8 @@ try {
     assert.equal(new URL(page.url()).pathname, '/');
     stage = `session-end-${index}`;
     if (index === 2) {
-      await page.goto('https://localhost:8443/customers/demo-customer-0');
-      await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+      await page.goto('https://localhost:8443/policies/' + savedPolicy.id);
+      await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
       // Revoke the real live session, then exercise the existing 401 event path.
       await demo.db
         .prepare(
@@ -454,16 +527,17 @@ try {
         )
         .bind(Math.floor(Date.now() / 1000), 'demo-user-' + user.id)
         .run();
-      await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
+      await page.getByRole('link', { name: 'Sigortalılar ve lehtarlar', exact: true }).click();
     } else await page.getByRole('button', { name: 'Çıkış Yap', exact: true }).click();
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: policyNumber, exact: true }).count(), 0);
     await page.goto('https://localhost:8443/customers');
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
     assert.equal(failures.length, 0);
     await context.close();
   }
   console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer and company-contact CRUD + exact retry + CAS; 1440/768/360; inactive/archive history; list/profile/notes/history; legacy policy hand-off; private tasks; owner denial; logout/live revocation; CSP/runtime.',
+    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer/company contacts; modern policy list/detail + filters + related reads; 1440/768/360; history/direct refresh/back-forward; legacy policy creation with correct originating customer; private tasks; owner denial; logout/live policy revocation cleanup; CSP/runtime.',
   );
 } catch {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.

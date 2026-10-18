@@ -25,7 +25,7 @@ const date = (value: string) =>
 function RelatedPolicies({ customerId }: { customerId: string }) {
   const [params, setParams] = useSearchParams();
   const cursor = params.get('after');
-  const query = new URLSearchParams({ customerId, limit: '20' });
+  const query = new URLSearchParams({ customerId, pageSize: '20' });
   if (cursor) query.set('cursor', cursor);
   const { data, error, loading, reload } = useCustomerResource<PolicyListResponseData>(
     `/api/policies?${query}`,
@@ -50,7 +50,9 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
           <ul className="customer-related-list">
             {data.items.map((policy) => (
               <li key={policy.id}>
-                <strong>{policy.policyNumber}</strong>
+                <Link className="customer-name" to={`/policies/${encodeURIComponent(policy.id)}`}>
+                  {policy.policyNumber}
+                </Link>
                 <span>
                   {policy.startDate ? date(policy.startDate) : 'Başlangıç belirtilmedi'} –{' '}
                   {date(policy.endDate)}

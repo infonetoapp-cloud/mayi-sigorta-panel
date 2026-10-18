@@ -30,8 +30,13 @@ export default function CompatibilityPage({
         page={page}
         initialCustomerId={customerMode === 'advanced' ? customerId : undefined}
         createCustomer={customerMode === 'new'}
+        onPolicyCreate={(customer) => {
+          void navigate(`/policies/legacy?customerId=${encodeURIComponent(customer.id)}`);
+        }}
         onNavigate={(tab) => {
-          void navigate(tab === 'overview' ? '/' : `/${tab}`);
+          void navigate(
+            tab === 'overview' ? '/' : tab === 'policies' ? '/policies/legacy' : `/${tab}`,
+          );
         }}
       />
     </>

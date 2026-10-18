@@ -23,7 +23,7 @@ export function Sidebar({
     <NavLink
       key={item.path}
       to={item.path}
-      end={item.path !== '/customers'}
+      end={item.path !== '/customers' && item.path !== '/policies'}
       aria-label={item.label}
       title={collapsed ? item.label : undefined}
       onClick={onClose}

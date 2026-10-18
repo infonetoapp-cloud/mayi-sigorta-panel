@@ -11,6 +11,9 @@ const CompatibilityPage = lazy(() => import('./pages/CompatibilityPage'));
 const CustomerListPage = lazy(() => import('./pages/customers/CustomerListPage'));
 const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfilePage'));
 const CustomerCreatePage = lazy(() => import('./pages/customers/CustomerCreatePage'));
+const PolicyListPage = lazy(() => import('./pages/policies/PolicyListPage'));
+const PolicyDetailPage = lazy(() => import('./pages/policies/PolicyDetailPage'));
+const PolicyLegacyPage = lazy(() => import('./pages/policies/PolicyLegacyPage'));
 const PersonnelPage = lazy(() =>
   import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
 );
@@ -133,8 +136,25 @@ export function AuthenticatedApp({
             }
           />
         ))}
+        {[
+          { path: '/policies', page: <PolicyListPage /> },
+          { path: '/policies/legacy', page: <PolicyLegacyPage /> },
+          { path: '/policies/:policyId', page: <PolicyDetailPage /> },
+        ].map(({ path, page }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <PageBoundary resetKey={path}>
+                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>{page}</Suspense>
+              </PageBoundary>
+            }
+          />
+        ))}
         {navigation
-          .filter((item) => item.path !== '/' && item.path !== '/customers')
+          .filter(
+            (item) => item.path !== '/' && item.path !== '/customers' && item.path !== '/policies',
+          )
           .map((item) => (
             <Route
               key={item.path}

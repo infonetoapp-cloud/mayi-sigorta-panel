@@ -80,6 +80,12 @@ Müşteriler → Yeni Müşteri → Kurumsal ile sentetik bir şirket oluşturun
 
 Belirsiz ağ yanıtında sayfayı yenilemek yerine “Aynı işlemi yeniden dene” kullanın; aynı key/body korunur.409'da güncel yetkilileri yükleyip taslağınızla karşılaştırın ve yeniden onaylayın. Taslak/key yalnız açık sayfanın belleğindedir. Arşivli şirketlerde geçmiş okunur, yeni yetkili işlemleri kapalıdır. İleri müşteri işlemleri ve klasik şirket-yetkilisi yolu kaldırılmadı.
 
+### Modern poliçe gezintisi
+
+Poliçeler menüsü modern listeyi açar. Numara için tam/başlangıç eşleştirmesi, sözleşme durumu, bitiş aralığı ve mevcut sıralamaları kullanın. Bir poliçe numarasına basınca gerçek tam sayfa detay açılır; müşteri bağlantısı modern profile döner. Sigortalılar/lehtarlar, zeyiller ve dış referanslar salt okunur bölümlerdir. Arşiv, sözleşme iptali veya geçersizliği ile aynı şey değildir.
+
+Yeni kayıt/düzenleme/atama ve diğer mutasyonlar “Poliçe işlemleri (klasik)” bağlantısındadır. Müşteri profilinin İleri müşteri işlemleri → +Poliçe Ekle akışı kaynak müşteriyi otomatik seçer; kayıt göndermeden önce seçili müşteriyi kontrol edin. Bu faz belge görüntüleyici veya belge aktivasyonu eklemez.
+
 ## Kapatma ve tekrar başlatma
 
 Demo CMD penceresinde Ctrl+C. Veriler silinir. Tekrar `npm run demo` yeni izole dataset ve yeni seçtiğiniz parolalarla başlar. Eski browser cookie'si yeni süreçte geçersizdir; giriş ekranı gelmezse sayfayı yenileyin.

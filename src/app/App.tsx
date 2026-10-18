@@ -341,9 +341,10 @@ export function parseAppError(
 export const App: React.FC<{
   page?: TabType;
   onNavigate?: (page: TabType) => void;
+  onPolicyCreate?: (customer: { id: string; displayName: string }) => void;
   initialCustomerId?: string;
   createCustomer?: boolean;
-}> = ({ page, onNavigate, initialCustomerId, createCustomer }) => {
+}> = ({ page, onNavigate, onPolicyCreate, initialCustomerId, createCustomer }) => {
   const [localTab, setLocalTab] = useState<TabType>('overview');
   const activeTab = page ?? localTab;
   const setActiveTab = onNavigate ?? setLocalTab;
@@ -1583,13 +1584,17 @@ export const App: React.FC<{
                       type="button"
                       style={STYLES.btnPrimary}
                       onClick={() => {
-                        setPolicyCustomer({
+                        const origin = {
                           id: selectedCustomer.id,
                           displayName: selectedCustomer.displayName,
-                        });
+                        };
                         setSelectedCustomerId(null);
                         setSelectedCustomer(null);
-                        setActiveTab('policies');
+                        if (onPolicyCreate) onPolicyCreate(origin);
+                        else {
+                          setPolicyCustomer(origin);
+                          setActiveTab('policies');
+                        }
                       }}
                     >
                       + Poliçe Ekle

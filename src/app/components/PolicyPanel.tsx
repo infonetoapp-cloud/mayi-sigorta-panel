@@ -255,6 +255,9 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
         if (customerResponse.ok && customerJson?.success) {
           setCustomers([...customerJson.data.items]);
           const availableIds = new Set(customerJson.data.items.map((customer) => customer.id));
+          // The authorized handoff may be outside the first server-paged options.
+          // Its dedicated option is already rendered below; do not select a different customer.
+          if (!search && initialCustomer) availableIds.add(initialCustomer.id);
           setFormCustomerId((value) =>
             availableIds.has(value)
               ? value
