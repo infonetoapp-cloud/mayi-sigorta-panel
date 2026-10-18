@@ -64,9 +64,14 @@ export default function PolicyListPage() {
         title="Poliçeler"
         description="Acente poliçelerini ve yetkili olduğunuz tarihsel kayıtları inceleyin."
         action={
-          <Button asChild variant="outline">
-            <Link to="/policies/legacy">Poliçe işlemleri (klasik)</Link>
-          </Button>
+          <div className="customer-form-actions">
+            <Button asChild>
+              <Link to="/policies/new">Yeni poliçe</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/policies/legacy">Poliçe işlemleri (klasik)</Link>
+            </Button>
+          </div>
         }
       />
       <Card className="customer-list-card">

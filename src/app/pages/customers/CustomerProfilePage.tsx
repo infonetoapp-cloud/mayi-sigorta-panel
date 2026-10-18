@@ -180,12 +180,21 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
         title={customer.displayName}
         description={customer.type === 'COMPANY' ? 'Kurumsal müşteri' : 'Bireysel müşteri'}
         action={
-          <Button asChild variant="outline">
-            <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
-              <Settings2 aria-hidden="true" />
-              İleri müşteri işlemleri
-            </Link>
-          </Button>
+          <div className="customer-form-actions">
+            {!customer.archivedAt && (
+              <Button asChild>
+                <Link to={`/policies/new?customerId=${encodeURIComponent(customer.id)}`}>
+                  Poliçe ekle
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="outline">
+              <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
+                <Settings2 aria-hidden="true" />
+                İleri müşteri işlemleri
+              </Link>
+            </Button>
+          </div>
         }
       />
       <div className="customer-profile-summary">

@@ -14,6 +14,7 @@ const CustomerCreatePage = lazy(() => import('./pages/customers/CustomerCreatePa
 const PolicyListPage = lazy(() => import('./pages/policies/PolicyListPage'));
 const PolicyDetailPage = lazy(() => import('./pages/policies/PolicyDetailPage'));
 const PolicyLegacyPage = lazy(() => import('./pages/policies/PolicyLegacyPage'));
+const PolicyFormPage = lazy(() => import('./pages/policies/PolicyFormPage'));
 const PersonnelPage = lazy(() =>
   import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
 );
@@ -139,6 +140,8 @@ export function AuthenticatedApp({
         {[
           { path: '/policies', page: <PolicyListPage /> },
           { path: '/policies/legacy', page: <PolicyLegacyPage /> },
+          { path: '/policies/new', page: <PolicyFormPage /> },
+          { path: '/policies/:policyId/edit', page: <PolicyFormPage /> },
           { path: '/policies/:policyId', page: <PolicyDetailPage /> },
         ].map(({ path, page }) => (
           <Route

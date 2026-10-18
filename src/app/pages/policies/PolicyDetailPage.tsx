@@ -1,4 +1,4 @@
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import type {
   PolicyDetailDto,
   PolicyPartyDto,
@@ -69,6 +69,7 @@ function RelatedSection({ id, section }: { id: string; section: Related }) {
   );
 }
 function PolicyPage({ id }: { id: string }) {
+  const location = useLocation();
   const [params] = useSearchParams();
   const section = sections.some(([key]) => key === params.get('section'))
     ? params.get('section')!
@@ -87,11 +88,23 @@ function PolicyPage({ id }: { id: string }) {
             title={policy.policyNumber}
             description="Poliçe ayrıntıları ve tarihsel kayıtlar"
             action={
-              <Button asChild variant="outline">
-                <Link to="/policies/legacy">Poliçe işlemleri (klasik)</Link>
-              </Button>
+              <div className="customer-form-actions">
+                {!policy.archivedAt && (
+                  <Button asChild>
+                    <Link to={`/policies/${encodeURIComponent(policy.id)}/edit`}>
+                      Poliçeyi düzenle
+                    </Link>
+                  </Button>
+                )}
+                <Button asChild variant="outline">
+                  <Link to="/policies/legacy">Poliçe işlemleri (klasik)</Link>
+                </Button>
+              </div>
             }
           />
+          {location.state?.policySaved === policy.id && (
+            <p role="status">Poliçe kaydedildi ve güncel detay doğrulandı.</p>
+          )}
           <div className="company-contact-badges">
             <span className="customer-badge">{policyStatusLabel[policy.status]}</span>
             <span className="customer-badge">

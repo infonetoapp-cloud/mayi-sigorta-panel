@@ -50,6 +50,36 @@
   padding: 0 0.75rem;
   color: var(--foreground);
 }
+.policy-contract-form {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.policy-contract-form fieldset {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.policy-contract-form label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.policy-contract-form select {
+  width: 100%;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--card);
+  color: var(--foreground);
+}
+.policy-contract-form input {
+  box-sizing: border-box;
+}
 .policy-history-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -84,7 +84,11 @@ Belirsiz ağ yanıtında sayfayı yenilemek yerine “Aynı işlemi yeniden dene
 
 Poliçeler menüsü modern listeyi açar. Numara için tam/başlangıç eşleştirmesi, sözleşme durumu, bitiş aralığı ve mevcut sıralamaları kullanın. Bir poliçe numarasına basınca gerçek tam sayfa detay açılır; müşteri bağlantısı modern profile döner. Sigortalılar/lehtarlar, zeyiller ve dış referanslar salt okunur bölümlerdir. Arşiv, sözleşme iptali veya geçersizliği ile aynı şey değildir.
 
-Yeni kayıt/düzenleme/atama ve diğer mutasyonlar “Poliçe işlemleri (klasik)” bağlantısındadır. Müşteri profilinin İleri müşteri işlemleri → +Poliçe Ekle akışı kaynak müşteriyi otomatik seçer; kayıt göndermeden önce seçili müşteriyi kontrol edin. Bu faz belge görüntüleyici veya belge aktivasyonu eklemez.
+Poliçeler → Yeni poliçe modern tam sayfa formu açar. Müşteri profilindeki Poliçe ekle kaynağı otomatik seçer; ilk20 arama sonucu dışında da doğru müşteri ayrıca doğrulanır. Sigortacı/branş/ürün ve ödeme yöntemini seçin; taksit yalnız destekleyen yöntemde istenir. Prim için `1234.56` gibi noktalı ondalık kullanın, binlik ayırıcı girmeyin. Her kayıt ayrı sözleşme dönemidir; yenileme için eski dönemin üzerine yazmayın.
+
+Detay → Poliçeyi düzenle ile temel alanları güncelleyin; müşteri bağı değiştirilemez.409'da güncel poliçeyi karşılaştırıp taslağı yeniden onaylayın. Belirsiz POST/PATCH'te sayfayı yenilemeden Aynı işlemi yeniden dene kullanın; body/key yalnız açık sayfanın belleğindedir. Kayıt başarılı ama detay yüklenememişse Kaydedilen poliçeyi yeniden oku yalnız GET yapar.
+
+Atama, sigortalı/lehtar değişiklikleri, zeyil, dış referans, arşivleme ve güvenli onaylar “Poliçe işlemleri (klasik)” bağlantısında korunur; legacy create/edit ve İleri müşteri işlemleri → +Poliçe Ekle handoff'u da kaldırılmadı. Belge görüntüleyici veya belge aktivasyonu yoktur.
 
 ## Kapatma ve tekrar başlatma
 
