@@ -82,7 +82,9 @@ Belirsiz ağ yanıtında sayfayı yenilemek yerine “Aynı işlemi yeniden dene
 
 ### Modern poliçe gezintisi
 
-Poliçeler menüsü modern listeyi açar. Numara için tam/başlangıç eşleştirmesi, sözleşme durumu, bitiş aralığı ve mevcut sıralamaları kullanın. Bir poliçe numarasına basınca gerçek tam sayfa detay açılır; müşteri bağlantısı modern profile döner. Sigortalılar/lehtarlar, zeyiller ve dış referanslar salt okunur bölümlerdir. Arşiv, sözleşme iptali veya geçersizliği ile aynı şey değildir.
+Poliçeler menüsü modern listeyi açar. Numara için tam/başlangıç eşleştirmesi, sözleşme durumu, bitiş aralığı ve mevcut sıralamaları kullanın. Bir poliçe numarasına basınca gerçek tam sayfa detay açılır; müşteri bağlantısı modern profile döner. Zeyiller ve dış referanslar salt okunur bölümlerdir. Arşiv, sözleşme iptali veya geçersizliği ile aynı şey değildir.
+
+Sigortalılar ve lehtarlar bölümünde Taraf ekle ile en fazla20 sonuçlu müşteri aramasını kullanın, müşteriyi ve rolü açıkça seçin. Müşteri yetkili API'den doğrulanmadan eklenmez. Aktif tarafı pasifleştirmek ayrı onay ister; pasif geçmiş silinmez. Bu ilişki kişinin tam müşteri profiline/diğer poliçelerine erişim hakkı vermez; müşteri arşivleme veya poliçe iptali değildir.409'da güncel tarafları karşılaştırıp yeniden onaylayın; belirsiz yazımda aynı işlemi yeniden deneyin. Yazım başarılı/okuma başarısızsa Kaydedilen tarafları yeniden oku yalnız GET yapar. Arşivli poliçe geçmişi salt okunurdur.
 
 Poliçeler → Yeni poliçe modern tam sayfa formu açar. Müşteri profilindeki Poliçe ekle kaynağı otomatik seçer; ilk20 arama sonucu dışında da doğru müşteri ayrıca doğrulanır. Sigortacı/branş/ürün ve ödeme yöntemini seçin; taksit yalnız destekleyen yöntemde istenir. Prim için `1234.56` gibi noktalı ondalık kullanın, binlik ayırıcı girmeyin. Her kayıt ayrı sözleşme dönemidir; yenileme için eski dönemin üzerine yazmayın.
 

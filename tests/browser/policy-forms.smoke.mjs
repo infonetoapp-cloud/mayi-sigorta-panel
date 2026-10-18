@@ -9,6 +9,7 @@ import console from 'node:console';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs';
+import { verifyPolicyParties } from './policy-parties.walkthrough.mjs';
 const { URL } = globalThis;
 let stage = 'setup',
   browser,
@@ -312,6 +313,9 @@ try {
     await page.getByLabel('Poliçe numarası', { exact: true }).fill(createdNumber);
     await page.getByRole('button', { name: 'Filtrele', exact: true }).click();
     await page.getByRole('link', { name: createdNumber, exact: true }).click();
+    stage = `parties-${index}`;
+    console.info('POLICY_FORM_STAGE', stage);
+    await verifyPolicyParties(page, createdId, index);
     stage = `revocation-${index}`;
     await page.getByRole('link', { name: 'Poliçeyi düzenle', exact: true }).click();
     await page.getByLabel('Poliçe numarası', { exact: true }).waitFor();
@@ -336,7 +340,7 @@ try {
     await context.close();
   }
   console.info(
-    'POLICY_FORM_BROWSER PASS: OWNER/Ahmet/Ayşe; individual/company origin; outside first20; modern create/edit/readback; POST/PATCH exact retry; CAS comparison; read-only retry;1440/768/360; legacy handoff; list/detail/back-forward; revocation cleanup; CSP/runtime.',
+    'POLICY_FORM_BROWSER PASS: OWNER/Ahmet/Ayşe; modern policy create/edit/handoff; insured+beneficiary create/deactivate/history; parent vs child CAS; exact retries and GET-only readback;1440/768/360; no party-profile navigation; list/detail/back-forward; revocation cleanup; CSP/runtime.',
   );
 } catch {
   console.error(`POLICY_FORM_BROWSER FAIL at ${stage}. No credentials or raw diagnostics logged.`);

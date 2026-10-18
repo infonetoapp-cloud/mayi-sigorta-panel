@@ -1,4 +1,6 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
+import { useState } from 'react';
+import { PolicyPartiesSection } from './PolicyPartiesSection';
 import type {
   PolicyDetailDto,
   PolicyPartyDto,
@@ -75,7 +77,8 @@ function PolicyPage({ id }: { id: string }) {
     ? params.get('section')!
     : 'general';
   const state = useCustomerResource<PolicyDetailDto>(`/api/policies/${encodeURIComponent(id)}`);
-  const policy = state.data;
+  const [refreshed, setRefreshed] = useState<PolicyDetailDto | null>(null);
+  const policy = state.data ? (refreshed ?? state.data) : undefined;
   return (
     <div className="customer-modern policy-modern">
       <Link className="customer-back-link" to="/policies">
@@ -197,12 +200,14 @@ function PolicyPage({ id }: { id: string }) {
                 </dl>
               </CardContent>
             </Card>
+          ) : section === 'parties' ? (
+            <PolicyPartiesSection key={id} policy={policy} onUpdated={setRefreshed} />
           ) : (
             <RelatedSection key={`${id}:${section}`} id={id} section={section as Related} />
           )}
           <p className="customer-legacy-hint">
-            Oluşturma, düzenleme, atama, sigortalı/lehtar, zeyil, referans, arşivleme ve güvenli
-            onay işlemleri klasik çalışma alanında korunur.
+            Atama, zeyil, referans, arşivleme ve güvenli onay işlemleri klasik çalışma alanında
+            korunur.
           </p>
         </>
       )}
