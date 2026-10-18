@@ -9,6 +9,7 @@ import console from 'node:console';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs';
+import { interactionWalkthrough } from './renewal-interactions.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
@@ -250,6 +251,7 @@ try {
         await statistics.getByRole('button', { name: 'Ekip özeti', exact: true }).count(),
         0,
       );
+    await interactionWalkthrough(page, index, mark);
     mark('history-' + index);
     await page.reload();
     assert.equal(
@@ -279,12 +281,15 @@ try {
       .bind(Date.now(), 'demo-user-' + user.id)
       .run();
     await page.getByRole('button', { name: 'Listeyi yenile', exact: true }).click();
+    mark('revocation-login-' + index);
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
     assert.equal(await page.locator('.today-task-row').count(), 0);
     assert.equal(
       await page.getByRole('region', { name: 'Seçili görev özeti', exact: true }).count(),
       0,
     );
+    mark('runtime-csp-' + index);
+    if (failures.length) console.info('BROWSER_FAILURE_CATEGORIES', failures.join(','));
     assert.equal(failures.length, 0);
     await context.close();
   }

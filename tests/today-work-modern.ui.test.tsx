@@ -5,6 +5,10 @@ import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { AuthenticatedApp } from '../src/app/AuthenticatedApp';
 import { Sidebar } from '../src/app/components/layout/Sidebar';
 import type { TodayTaskDto, TodayTasksResponseData } from '../src/shared/types';
+// Phase4A tests isolate browsing; the real operational child is covered by the4B suite.
+vi.mock('../src/app/pages/today-work/RenewalInteractionsSection', () => ({
+  RenewalInteractionsSection: () => null,
+}));
 const task = (id: string, bucket: TodayTaskDto['bucket'] = 'OVERDUE'): TodayTaskDto => ({
   taskId: id,
   renewalId: 'r-' + id,

@@ -110,3 +110,83 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.renewal-interactions {
+  border-top: 1px solid var(--border);
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  min-width: 0;
+}
+.interaction-timeline {
+  list-style: none;
+  padding: 0;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.interaction-timeline li {
+  border-left: 2px solid var(--border);
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.6rem;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.interaction-timeline time {
+  display: block;
+  color: var(--muted-foreground);
+  margin-top: 0.3rem;
+}
+.interaction-timeline p {
+  margin: 0.4rem 0;
+}
+.interaction-note {
+  white-space: pre-wrap;
+}
+.interaction-form {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+.interaction-form fieldset {
+  display: grid;
+  gap: 0.6rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.interaction-form select,
+.interaction-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--foreground);
+  background: var(--card);
+  font: inherit;
+}
+.interaction-form textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+.interaction-confirm {
+  display: flex;
+  align-items: start;
+  gap: 0.5rem;
+}
+.interaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.interaction-leave {
+  padding: 1rem;
+  border: 1px solid var(--primary);
+  border-radius: 0.6rem;
+  margin: 1rem 0;
+  background: var(--card);
+}
+.interaction-leave button {
+  margin: 0.3rem;
+  white-space: normal;
+}

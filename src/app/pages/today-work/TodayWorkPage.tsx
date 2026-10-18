@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 import type { RenewalStateCode, TodayTaskDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { TaskStatisticsPanel } from '../../components/TaskStatisticsPanel';
 import { useTaskQueue, type WorkQueue } from './use-task-queue';
+import { RenewalInteractionsSection } from './RenewalInteractionsSection';
+import type { InteractionRisk } from './interaction-model';
 
 const states: Record<RenewalStateCode, string> = {
   CONTACT_PENDING: 'İletişim bekleniyor',
@@ -29,6 +31,11 @@ function due(value: string, timezone: string, dateOnly = false) {
   }
 }
 function Workspace({ owner }: { owner: boolean }) {
+  const navigate = useNavigate();
+  const [leave, setLeave] = useState<(() => void) | null>(null);
+  const leaveHeading = useRef<HTMLHeadingElement>(null),
+    activeInteraction = useRef<string | null>(null),
+    interactionRisk = useRef<{ key: string; risk: InteractionRisk } | null>(null);
   const queue = useTaskQueue(owner),
     [selection, setSelection] = useState<{
       id: string;
@@ -48,6 +55,36 @@ function Workspace({ owner }: { owner: boolean }) {
     selection?.queue === queue.view && selection.authority === queue.authority
       ? items.find((task) => task.taskId === selection.id)
       : undefined;
+  const interactionKey = selected
+    ? `${queue.view}:${queue.authority}:${selected.taskId}:${selected.renewalId}`
+    : null;
+  activeInteraction.current = interactionKey;
+  useEffect(() => {
+    setLeave(null);
+    interactionRisk.current = null;
+  }, [queue.authority, queue.view]);
+  function guarded(action: () => void) {
+    if (
+      interactionKey &&
+      interactionRisk.current?.key === interactionKey &&
+      interactionRisk.current.risk !== 'clean'
+    )
+      setLeave(() => action);
+    else action();
+  }
+  function classic(event: MouseEvent<HTMLAnchorElement>) {
+    if (
+      interactionKey &&
+      interactionRisk.current?.key === interactionKey &&
+      interactionRisk.current.risk !== 'clean'
+    ) {
+      event.preventDefault();
+      guarded(() => void navigate('/today-work/legacy'));
+    }
+  }
+  useEffect(() => {
+    if (leave) leaveHeading.current?.focus();
+  }, [leave]);
   useEffect(() => {
     if (selected) overview.current?.focus();
     else if (returnFocus.current) {
@@ -57,8 +94,10 @@ function Workspace({ owner }: { owner: boolean }) {
   }, [selected]);
   function change(next: WorkQueue) {
     if (next !== queue.view) {
-      setSelection(null);
-      queue.change(next);
+      guarded(() => {
+        setSelection(null);
+        queue.change(next);
+      });
     }
   }
   function keyboard(event: KeyboardEvent<HTMLButtonElement>, task: TodayTaskDto) {
@@ -84,7 +123,7 @@ function Workspace({ owner }: { owner: boolean }) {
     <div className="today-modern">
       <PageHeader
         title="Bugünkü İşler"
-        description="Yetkili iş kuyruğunuzdan bir takip seçin. İşlemler klasik çalışma alanında sürer."
+        description="Yetkili kuyruktan bir takip seçin; iletişim geçmişini okuyun ve görüşme kaydedin. İleri işlemler klasik çalışma alanındadır."
       />
       <div className="today-toolbar">
         <nav aria-label="İş kuyrukları">
@@ -117,16 +156,50 @@ function Workspace({ owner }: { owner: boolean }) {
         <Button
           variant="outline"
           onClick={() => {
-            setSelection(null);
-            queue.refresh();
+            guarded(() => {
+              setSelection(null);
+              queue.refresh();
+            });
           }}
         >
           Listeyi yenile
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/today-work/legacy">Klasik çalışma alanı</Link>
+          <Link to="/today-work/legacy" onClick={classic}>
+            Klasik çalışma alanı
+          </Link>
         </Button>
       </div>
+      {leave && (
+        <section role="alert" className="interaction-leave">
+          <h3 ref={leaveHeading} tabIndex={-1}>
+            Hedefi değiştirmeden önce
+          </h3>
+          <p>
+            Kaydedilmemiş taslak veya doğrulanmamış bir işlem var. Ayrılmak sunucuya ulaşmış isteği
+            iptal etmez. Bu bölümün taslağı/anahtarı kaybolabilir; yeni kayıt göndermeden önce
+            geçmişi yetkili okuyup kontrol edin.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setLeave(null);
+              overview.current?.focus();
+            }}
+          >
+            Bu ekranda kal
+          </Button>
+          <Button
+            onClick={() => {
+              const action = leave;
+              setLeave(null);
+              action();
+            }}
+          >
+            Ayrılmayı onayla
+          </Button>
+        </section>
+      )}
       {queue.loading && <p role="status">Görevler yükleniyor…</p>}
       {queue.failure && (
         <div role="alert">
@@ -188,11 +261,13 @@ function Workspace({ owner }: { owner: boolean }) {
                               aria-pressed={selected?.taskId === task.taskId}
                               onKeyDown={(event) => keyboard(event, task)}
                               onClick={() =>
-                                setSelection({
-                                  id: task.taskId,
-                                  queue: queue.view,
-                                  authority: queue.authority,
-                                })
+                                guarded(() =>
+                                  setSelection({
+                                    id: task.taskId,
+                                    queue: queue.view,
+                                    authority: queue.authority,
+                                  }),
+                                )
                               }
                             >
                               <strong>{task.customerDisplayName}</strong>
@@ -229,8 +304,10 @@ function Workspace({ owner }: { owner: boolean }) {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        returnFocus.current = true;
-                        setSelection(null);
+                        guarded(() => {
+                          returnFocus.current = true;
+                          setSelection(null);
+                        });
                       }}
                     >
                       Görev listesine dön
@@ -275,13 +352,23 @@ function Workspace({ owner }: { owner: boolean }) {
                         Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik değiştirilmez.
                       </p>
                     )}
+                    <RenewalInteractionsSection
+                      key={interactionKey}
+                      renewalId={selected.renewalId}
+                      onRiskChange={(risk) => {
+                        if (activeInteraction.current === interactionKey)
+                          interactionRisk.current = { key: interactionKey!, risk };
+                      }}
+                    />
                     <p>
-                      Görüşme, iletişim kaydı, teklif, sonuçlandırma, görev tamamlama ve atama
-                      klasik çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik
-                      listeden yeniden seçmeniz gerekir.
+                      Teklif, WhatsApp önizleme/açma, sonuçlandırma, görev tamamlama ve atama klasik
+                      çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik listeden
+                      yeniden seçmeniz gerekir.
                     </p>
                     <Button asChild>
-                      <Link to="/today-work/legacy">Klasik iş akışını aç</Link>
+                      <Link to="/today-work/legacy" onClick={classic}>
+                        Klasik iş akışını aç
+                      </Link>
                     </Button>
                   </>
                 ) : (
