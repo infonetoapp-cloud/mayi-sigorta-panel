@@ -47,6 +47,7 @@ try {
       viewport: { width: 1440, height: 1000 },
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(15000);
     const failures = [];
     page.on('pageerror', () => failures.push('runtime'));
     page.on('console', (message) => {
@@ -190,6 +191,137 @@ try {
       await page.getByText('İletişim bilgileri kaydedildi.', { exact: true }).waitFor();
       await page.reload();
       await page.getByText(email, { exact: true }).first().waitFor();
+      if (type === 'COMPANY') {
+        stage = `company-contacts-${index}`;
+        console.info('SMOKE_STAGE', stage);
+        const section = page.getByRole('region', {
+          name: 'Şirket yetkilisi yönetimi',
+          exact: true,
+        });
+        await section.getByRole('heading', { name: 'Şirket yetkilileri', exact: true }).waitFor();
+        let attempts = 0;
+        const contactWrites = [];
+        if (index === 0)
+          await page.route('**/api/customers/*/contacts', async (route) => {
+            if (route.request().method() !== 'POST') return route.continue();
+            contactWrites.push({
+              body: route.request().postData(),
+              key: route.request().headers()['idempotency-key'],
+            });
+            if (++attempts === 1) {
+              const committed = await route.fetch();
+              assert.equal(committed.status(), 201);
+              return route.fulfill({
+                status: 503,
+                contentType: 'application/json',
+                body: JSON.stringify({ success: false }),
+              });
+            }
+            return route.continue();
+          });
+        for (const firstName of ['Birinci', 'İkinci']) {
+          await section.getByRole('button', { name: 'Yetkili ekle', exact: true }).click();
+          await section.getByLabel('Yetkili adı', { exact: true }).fill(firstName);
+          await section.getByLabel('Yetkili soyadı', { exact: true }).fill('Yetkili');
+          if (firstName === 'Birinci')
+            await section.getByLabel('Birincil yetkili olarak ata', { exact: true }).check();
+          for (const width of [1440, 768, 360]) {
+            await page.setViewportSize({ width, height: 900 });
+            assert.equal(
+              await page.evaluate(
+                () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+              ),
+              true,
+            );
+          }
+          await section.getByRole('button', { name: 'Yetkiliyi kaydet', exact: true }).click();
+          if (index === 0 && firstName === 'Birinci') {
+            await section
+              .getByRole('button', { name: 'Aynı işlemi yeniden dene', exact: true })
+              .waitFor();
+            assert.equal(
+              await section.getByLabel('Yetkili adı', { exact: true }).isDisabled(),
+              true,
+            );
+            await section
+              .getByRole('button', { name: 'Aynı işlemi yeniden dene', exact: true })
+              .click();
+          }
+          await section.getByText('Yetkili eklendi.', { exact: true }).waitFor();
+          if (index === 0 && firstName === 'Birinci') {
+            assert.deepEqual(contactWrites[0], contactWrites[1]);
+            await page.unroute('**/api/customers/*/contacts');
+          }
+        }
+        const second = section.getByRole('region', { name: 'İkinci Yetkili', exact: true });
+        await second.getByRole('button', { name: 'Yetkiliyi düzenle', exact: true }).click();
+        await section.getByLabel('Yetkili e-postası', { exact: true }).fill('contact@demo.invalid');
+        if (index === 0) {
+          assert.equal(
+            await page.evaluate(async (path) => {
+              const current = await (await globalThis.fetch('/api' + path)).json();
+              const target = current.data.contacts.find(
+                (contact) => contact.firstName === 'İkinci',
+              );
+              const csrf = await (await globalThis.fetch('/api/csrf-token')).json();
+              return (
+                await globalThis.fetch('/api' + path + '/contacts/' + target.id, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrf.data.token,
+                    'Idempotency-Key': globalThis.crypto.randomUUID(),
+                  },
+                  body: JSON.stringify({
+                    expectedVersion: target.version,
+                    role: 'Başka oturumun görevi',
+                  }),
+                })
+              ).status;
+            }, profilePath),
+            200,
+          );
+        }
+        await section.getByRole('button', { name: 'Değişiklikleri kaydet', exact: true }).click();
+        if (index === 0) {
+          await section
+            .getByRole('button', { name: 'Güncel yetkilileri yükle', exact: true })
+            .click();
+          await second.getByText('Başka oturumun görevi', { exact: true }).waitFor();
+          assert.equal(
+            await section.getByLabel('Yetkili e-postası', { exact: true }).inputValue(),
+            'contact@demo.invalid',
+          );
+          await section
+            .getByRole('button', { name: 'Karşılaştırdım, değişiklikleri kaydet', exact: true })
+            .click();
+        }
+        await section.getByText('Yetkili bilgileri güncellendi.', { exact: true }).waitFor();
+        await second.getByRole('button', { name: 'Birincil yap', exact: true }).click();
+        await section.getByRole('button', { name: 'Birincil yapmayı onayla', exact: true }).click();
+        await section.getByText('Birincil yetkili değiştirildi.', { exact: true }).waitFor();
+        await second.getByText('Birincil yetkili', { exact: true }).waitFor();
+        await second.getByRole('button', { name: 'Pasifleştir', exact: true }).click();
+        await section.getByRole('button', { name: 'Pasifleştirmeyi onayla', exact: true }).click();
+        await section.getByText('Yetkili pasifleştirildi.', { exact: true }).waitFor();
+        await second.getByText('Pasif', { exact: true }).waitFor();
+        assert.equal(
+          await second.getByRole('button', { name: 'Birincil yap', exact: true }).count(),
+          0,
+        );
+        assert.equal(
+          await page.evaluate(
+            () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
+          ),
+          true,
+        );
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.reload();
+        await page
+          .getByRole('region', { name: 'İkinci Yetkili', exact: true })
+          .getByText('Pasif', { exact: true })
+          .waitFor();
+      }
       if (index === 0 && type === 'COMPANY') {
         stage = 'legacy-archive-modern-denial';
         await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
@@ -206,6 +338,14 @@ try {
           .getByText('Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.', { exact: true })
           .waitFor();
         assert.equal(await page.getByRole('button', { name: 'Düzenle', exact: true }).count(), 0);
+        assert.equal(
+          await page.getByRole('button', { name: 'Yetkili ekle', exact: true }).count(),
+          0,
+        );
+        await page
+          .getByRole('region', { name: 'İkinci Yetkili', exact: true })
+          .getByText('Pasif', { exact: true })
+          .waitFor();
       }
       await page.getByRole('link', { name: 'Müşteri listesine dön', exact: true }).click();
     }
@@ -323,7 +463,7 @@ try {
     await context.close();
   }
   console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern individual/company creation + safe retry; inline contact CAS; 1440/768/360; list/profile/notes/history; legacy archive/policy hand-off; private tasks; owner denial; logout/live revocation; CSP/runtime.',
+    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer and company-contact CRUD + exact retry + CAS; 1440/768/360; inactive/archive history; list/profile/notes/history; legacy policy hand-off; private tasks; owner denial; logout/live revocation; CSP/runtime.',
   );
 } catch {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.

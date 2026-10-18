@@ -74,6 +74,12 @@ Queue/Cron çalıştırılmaz. Belge, belge jobs/cron ve renewal-continuation ba
 
 Eşzamanlı üç hesap denemek için ayrı browser profilleri veya ayrı tarayıcılar kullanın; aynı profilin normal sekmeleri cookie paylaşır. Tek profil içinde hesap değiştirirken önce çıkış yapın.
 
+### Modern şirket yetkilileri
+
+Müşteriler → Yeni Müşteri → Kurumsal ile sentetik bir şirket oluşturun. Profilin İletişim bölümünde Şirket yetkilileri alanından yetkili ekleyin; ad/soyad, görev/unvan, e-posta/telefon girin. Düzenleme, birincil yapma ve açık onayla pasifleştirme aynı sayfadadır. Pasif kayıt geçmişte görünmeye devam eder. Bu işlemler personel hesabı veya kişisel günlük görev ataması oluşturmaz.
+
+Belirsiz ağ yanıtında sayfayı yenilemek yerine “Aynı işlemi yeniden dene” kullanın; aynı key/body korunur.409'da güncel yetkilileri yükleyip taslağınızla karşılaştırın ve yeniden onaylayın. Taslak/key yalnız açık sayfanın belleğindedir. Arşivli şirketlerde geçmiş okunur, yeni yetkili işlemleri kapalıdır. İleri müşteri işlemleri ve klasik şirket-yetkilisi yolu kaldırılmadı.
+
 ## Kapatma ve tekrar başlatma
 
 Demo CMD penceresinde Ctrl+C. Veriler silinir. Tekrar `npm run demo` yeni izole dataset ve yeni seçtiğiniz parolalarla başlar. Eski browser cookie'si yeni süreçte geçersizdir; giriş ekranı gelmezse sayfayı yenileyin.

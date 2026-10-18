@@ -1,6 +1,97 @@
 .customer-modern {
   min-width: 0;
 }
+.company-contacts {
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  min-width: 0;
+}
+.company-contacts-heading,
+.company-contact-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.company-contacts-heading h3 {
+  margin: 0.35rem 0;
+  font-size: 1.1rem;
+}
+.company-contacts-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.25rem;
+}
+.company-contact-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.company-contact-row > div {
+  min-width: 0;
+}
+.company-contact-row h4,
+.company-contact-form h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+.company-contact-row p {
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  margin: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+.company-contact-actions,
+.company-contact-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.company-contact-badges {
+  margin-top: 0.75rem;
+}
+.company-contact-form {
+  border: 1px solid var(--border);
+  background: var(--background);
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  margin-top: 1rem;
+  min-width: 0;
+}
+.company-contact-comparison {
+  border-left: 3px solid var(--primary);
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.customer-edit-form .company-primary-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-weight: 400;
+}
+.company-contacts > [role='alert'] {
+  color: #9f1239;
+  font-size: 0.85rem;
+}
+.company-contacts > [role='status'] {
+  color: #16634c;
+  font-size: 0.85rem;
+}
+@media (max-width: 600px) {
+  .company-contact-row,
+  .company-contact-form {
+    padding: 1rem;
+  }
+  .company-contact-actions {
+    flex-basis: 100%;
+  }
+}
 .customer-edit-form fieldset {
   margin: 0;
   padding: 0;

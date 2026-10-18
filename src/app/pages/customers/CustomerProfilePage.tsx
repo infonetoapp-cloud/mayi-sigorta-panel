@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { CustomerNotesSection } from '../../components/CustomerNotesSection';
 import { CustomerContactSection } from '../../components/CustomerContactSection';
+import { CompanyContactsSection } from '../../components/CompanyContactsSection';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { useCustomerResource } from './customer-resource';
 const sections = [
@@ -234,8 +235,8 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
               </div>
             </dl>
             <p className="customer-legacy-hint">
-              E-posta, telefon ve adresi İletişim bölümünden düzenleyebilirsiniz. Atama, arşivleme,
-              şirket yetkilileri ve yetkili kimlik işlemleri “İleri müşteri işlemleri”
+              E-posta, telefon, adres ve şirket yetkililerini İletişim bölümünden yönetebilirsiniz.
+              Atama, arşivleme ve yetkili kimlik işlemleri “İleri müşteri işlemleri”
               bağlantısındadır.
             </p>
           </CardContent>
@@ -284,35 +285,20 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
               )}
             </div>
             {customer.type === 'COMPANY' && (
-              <p className="customer-legacy-hint">
-                Şirket yetkilisi ekleme, düzenleme, birincil yetkili ve pasifleştirme işlemleri ayrı
-                bir sonraki dilimdedir. Mevcut işlemler için{' '}
-                <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
-                  klasik şirket yetkilisi işlemlerini açın
-                </Link>
-                .
-              </p>
-            )}
-            {customer.contacts && (
               <>
-                <h3>Şirket yetkilileri</h3>
-                <ul className="customer-related-list">
-                  {customer.contacts.map((contact) => (
-                    <li key={contact.id}>
-                      <strong>
-                        {contact.firstName} {contact.lastName}
-                      </strong>
-                      <span>
-                        {contact.isPrimary ? 'Birincil yetkili · ' : ''}
-                        {contact.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}
-                      </span>
-                      <span>
-                        {contact.email || 'E-posta belirtilmedi'} ·{' '}
-                        {contact.phone || 'Telefon belirtilmedi'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <CompanyContactsSection
+                  key={customer.id}
+                  customer={customer}
+                  onUpdated={(current) =>
+                    setCustomer((previous) => (previous.id === current.id ? current : previous))
+                  }
+                />
+                <p className="customer-legacy-hint">
+                  <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
+                    Klasik şirket yetkilisi işlemlerini açın
+                  </Link>{' '}
+                  · Önceki çalışma alanı da korunmaktadır.
+                </p>
               </>
             )}
           </CardContent>
