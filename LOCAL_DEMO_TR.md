@@ -56,7 +56,7 @@ Her başlangıç sıfırdan yeni geçici D1 oluşturur, bütün güncel migratio
 
 - Bir OWNER; Ahmet ve Ayşe isimli iki aktif çalışan.
   -10 tamamen kurgusal müşteri; gerçek TCKN/VKN/telefon/belge yoktur. Email'ler teslim edilemeyen `.invalid` domain'indedir.
-  -10 örnek poliçe,10 yenileme,10 taslak teklif,11 müşteri notu ve iki çalışana beşer atanmış görev. Tarihler bugüne göre belirlenir; her çalışanda2geciken/2bugün/1yaklaşan görev bulunur.
+  -10 örnek poliçe,10 yenileme,10 taslak teklif,11 müşteri notu ve iki çalışana beşer atanmış görev. Tarihler bugüne göre belirlenir; takvim-günü istatistiği her çalışanda2geciken/2bugün/1yaklaşandır. İş listesi anlık vade kullanır; aynı günün geçmiş saatli takipleri de Geciken olabilir.
 - Deniz Yılmaz müşteri kartında hem Ahmet hem Ayşe adına sunucu kaynaklı not vardır.
 
 Mevcut `.wrangler`, geliştirme D1'i, production kaynakları, dotenv/credential dosyaları kullanılmaz. Browser oturumları uygulamanın gerçek login endpoint'inden oluşur; hazır session enjekte edilmez. CSRF secret rastgele ve süreç belleğindedir. D1, TLS ve derlenen CLI artefaktları geçicidir; normal Ctrl+C kapanışında silinir. Zorla process sonlandırılırsa geçici TLS/bundle kalıntıları OS temp veya ignored node_modules/.cache altında kalabilir; sonraki çalıştırma bunları reuse etmez. D1 uygulama verisi yeniden başlatmada korunmaz; bu bir yedekleme/production restore yöntemi değildir.
@@ -68,9 +68,9 @@ Queue/Cron çalıştırılmaz. Belge, belge jobs/cron ve renewal-continuation ba
 1. `ahmet@demo.invalid` ve terminalde kendiniz belirlediğiniz parolayla giriş yapın.
 2. “Müşteriler”den Deniz Yılmaz'ı açın. “Müşteri Notları”nda geçmişi gösterin: Ahmet ve Ayşe atıflarını kontrol edin. Yeni bir sentetik not ekleyebilirsiniz. Aynı müşteri kartı iki çalışan için de ortaktır.
 3. “Bugünkü İşler”de yalnız Ahmet'in beş işi görünür. “Görev istatistiklerini göster” ile2/2/1 açık iş sayımını kontrol edin. Ekip görünümü çalışan için açılmaz. İş listesi anlık gecikme, sayaç takvim günü hesabı kullanır; ekrandaki tanımlar farkı açıklar.
-4. Bir işte “İletişim, teklif ve sonuçları aç” seçin. Mevcut taslak Anadolu/Kasko teklifini ve teklif formunu açın. Yeni teklif/sürüm veya görüşme kaydedin; “Takibi tamamla ve yenisini planla” ile yeni tarih seçip çalışmayı sürdürebilirsiniz. Gerçek gönderim yapmayın.
+4. Modern kuyruktan bir takip seçin. Desktop solda liste/sağda özet, tablet/mobile tek kolon ve Görev listesine dön kontrolü vardır. Seçili özetten Klasik iş akışını aç genel `/today-work/legacy` listesine gider; seçtiğiniz görevi otomatik açmaz. Klasik listeden işi yeniden seçip “İletişim, teklif ve sonuçları aç” kullanın. Mevcut taslak Anadolu/Kasko teklifini/yeni sürüm formunu açın; görüşme veya teklif/sürüm kaydedin. “Takibi tamamla ve yenisini planla” mevcut yeni takip zamanıyla sürer. Gerçek gönderim yapmayın.
 5. “Çıkış Yap” deyip Ayşe hesabına girin. Aynı Deniz kartını/notları görür; iş listesi artık Ayşe'nin farklı beş görevini gösterir. Önceki Ahmet notunu değiştirme/silme özelliği yoktur.
-6. OWNER hesabına girin: Bugünkü İşler'de iki çalışanın işleri ve atama seçenekleri; istatistiklerde “Ekip özeti”, Ahmet/Ayşe satırları ve tüm ekip toplamını kontrol edin. Atama iş yükünü taşır; customer sahipliğini veya geçmiş not yazarını değiştirmez.
+6. OWNER hesabına girin: modern Bugünkü İşler'de authorized Açık işler/Atanmamış işler/Yeniden atama gerekenler kuyrukları, istatistiklerde Ekip özeti vardır. Satır sayısını tüm portföy toplamı sanmayın; Daha fazla iş yükle iki kuyruğun bağımsız cursor'ını kullanır. Atama/reassignment klasik çalışma alanındadır; otomatik yapılmaz. Atama iş yükünü taşır; customer sahipliğini veya geçmiş not yazarını değiştirmez.401/403/404 veya invalid cursor'da protected seçim temizlenir; Listeyi yenile baştan yetkili okur, geçici sayfa hatasında Aynı sayfayı yeniden dene aynı cursor'ı kullanır.
 
 Eşzamanlı üç hesap denemek için ayrı browser profilleri veya ayrı tarayıcılar kullanın; aynı profilin normal sekmeleri cookie paylaşır. Tek profil içinde hesap değiştirirken önce çıkış yapın.
 

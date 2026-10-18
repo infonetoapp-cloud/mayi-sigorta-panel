@@ -16,8 +16,8 @@ async function task(
 ) {
   await f.db
     .prepare(
-      `INSERT INTO tasks(id,agency_id,customer_id,kind,title,due_at,assignee_membership_id,status,completed_at,completed_by_membership_id,actor_kind)
-    VALUES(?,'agency-auth-test','stats-customer','GENERAL','Private task',?,?,?,?,?,'SYSTEM')`,
+      `INSERT INTO tasks(id,agency_id,customer_id,kind,title,due_at,assignee_membership_id,status,completed_at,completed_by_membership_id,actor_kind,created_at,updated_at)
+    VALUES(?,'agency-auth-test','stats-customer','GENERAL','Private task',?,?,?,?,?,'SYSTEM',?,?)`,
     )
     .bind(
       id,
@@ -26,6 +26,8 @@ async function task(
       completed ? 'COMPLETED' : 'OPEN',
       completed?.at ?? null,
       completed ? `membership-${completed.by}` : null,
+      now,
+      now,
     )
     .run();
 }
@@ -516,16 +518,21 @@ describe('Private operational statistics on local D1/API', () => {
         "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name) VALUES('stats-general-product','agency-auth-test','stats-insurer','stats-general','GENERAL','Synthetic')",
       ),
       f.db
-        .prepare(`INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency)
-        VALUES('stats-flow-policy','agency-auth-test','stats-customer','stats-insurer','stats-general-product','stats-general','stats-payment','membership-stats-a','STATS-F','STATSF','2026-01-01','2026-11-01',10000,'TRY')`),
-      f.db.prepare(
-        "INSERT INTO renewal_opportunities(id,agency_id,expiring_policy_id,assignee_membership_id,state) VALUES('stats-flow-renewal','agency-auth-test','stats-flow-policy','membership-stats-a','CONTACT_PENDING')",
-      ),
+        .prepare(
+          `INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,created_at,updated_at)
+        VALUES('stats-flow-policy','agency-auth-test','stats-customer','stats-insurer','stats-general-product','stats-general','stats-payment','membership-stats-a','STATS-F','STATSF','2026-01-01','2026-11-01',10000,'TRY',?,?)`,
+        )
+        .bind(now, now),
       f.db
         .prepare(
-          "INSERT INTO tasks(id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,actor_kind) VALUES('stats-flow-task','agency-auth-test','stats-customer','stats-flow-renewal','RENEWAL_FOLLOWUP','Synthetic',?,'membership-stats-a','SYSTEM')",
+          "INSERT INTO renewal_opportunities(id,agency_id,expiring_policy_id,assignee_membership_id,state,created_at,updated_at) VALUES('stats-flow-renewal','agency-auth-test','stats-flow-policy','membership-stats-a','CONTACT_PENDING',?,?)",
         )
-        .bind(now),
+        .bind(now, now),
+      f.db
+        .prepare(
+          "INSERT INTO tasks(id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,actor_kind,created_at,updated_at) VALUES('stats-flow-task','agency-auth-test','stats-customer','stats-flow-renewal','RENEWAL_FOLLOWUP','Synthetic',?,'membership-stats-a','SYSTEM',?,?)",
+        )
+        .bind(now, now, now),
     ]);
     const completedBefore = (await data(employeeCookie, '')).summary.completedLast30Days;
     const response = await f.request(

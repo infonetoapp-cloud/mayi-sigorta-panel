@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ApiResponse } from '../../shared/types';
+import { CustomerReadError, readCustomerResource } from '../pages/customers/customer-resource';
 import type { TaskStatisticsCounts, TaskStatisticsData } from '../../shared/task-statistics';
 
 function Counts({ counts }: { readonly counts: TaskStatisticsCounts }) {
@@ -29,46 +29,47 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
   const [error, setError] = useState<string | null>(null);
   const [failedCursor, setFailedCursor] = useState<string | null>(null);
   const generation = useRef(0);
+  const reader = useRef<AbortController | null>(null);
   const load = useCallback(
     async (cursor: string | null) => {
       const request = ++generation.current;
+      reader.current?.abort();
+      const controller = new AbortController();
+      reader.current = controller;
       setLoading(true);
       setError(null);
       setFailedCursor(cursor);
       if (!cursor) setData(null);
-      let status = 0;
       try {
         const parameters = new URLSearchParams();
         if (view === 'team') parameters.set('view', 'team');
         if (cursor) parameters.set('cursor', cursor);
         const query = parameters.toString();
-        const response = await fetch(`/api/tasks/statistics${query ? `?${query}` : ''}`, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-        status = response.status;
-        if (!response.ok) throw new Error('STATISTICS_UNAVAILABLE');
-        const body = (await response.json()) as ApiResponse<TaskStatisticsData>;
-        if (!body.success || body.data.view !== view) throw new Error('STATISTICS_UNAVAILABLE');
+        const fresh = await readCustomerResource<TaskStatisticsData>(
+          `/api/tasks/statistics${query ? `?${query}` : ''}`,
+          controller.signal,
+        );
+        if (fresh.view !== view) throw new Error('STATISTICS_UNAVAILABLE');
         if (request !== generation.current) return;
-        setCanSeeTeam(body.data.canSeeTeam);
+        setCanSeeTeam(fresh.canSeeTeam);
         setData((previous) =>
           cursor && previous?.view === view
             ? {
-                ...body.data,
+                ...fresh,
                 employees: [
                   ...previous.employees,
-                  ...body.data.employees.filter(
+                  ...fresh.employees.filter(
                     (row) =>
                       !previous.employees.some((old) => old.membershipId === row.membershipId),
                   ),
                 ],
               }
-            : body.data,
+            : fresh,
         );
         setFailedCursor(null);
-      } catch {
+      } catch (caught) {
         if (request !== generation.current) return;
+        const status = caught instanceof CustomerReadError ? caught.status : 0;
         const denied = [401, 403, 404].includes(status);
         if (!cursor || denied) setData(null);
         if (denied) {
@@ -88,6 +89,7 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
     void load(null);
     return () => {
       generation.current++;
+      reader.current?.abort();
     };
   }, [load, refreshKey]);
   const visible = data?.view === view ? data : null;

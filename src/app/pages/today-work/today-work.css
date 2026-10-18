@@ -1,0 +1,112 @@
+.today-modern {
+  min-width: 0;
+}
+.today-toolbar,
+.today-toolbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.today-clock {
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.today-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.4fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+.today-queue,
+.today-overview {
+  min-width: 0;
+}
+.today-queue > [data-slot='card-content'] {
+  max-height: 65vh;
+  overflow-y: auto;
+}
+.today-task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.today-queue h3 {
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  margin: 1rem 0 0.5rem;
+}
+.today-task-row {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.7rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.today-task-row time,
+.today-task-row small {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
+.today-task-row[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--muted);
+  box-shadow: inset 3px 0 var(--primary);
+}
+.today-task-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.today-task-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.today-task-facts dt {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+.today-task-facts dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+.today-overview p {
+  line-height: 1.6;
+}
+.today-overview [data-slot='button'] {
+  white-space: normal;
+  text-align: center;
+}
+.today-statistics {
+  margin-top: 1.25rem;
+}
+@media (max-width: 1000px) {
+  .today-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .today-workspace[data-selected='true'] .today-queue {
+    display: none;
+  }
+  .today-workspace[data-selected='false'] .today-overview {
+    display: none;
+  }
+  .today-queue > [data-slot='card-content'] {
+    max-height: none;
+  }
+}
+@media (max-width: 480px) {
+  .today-task-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -15,6 +15,7 @@ const PolicyListPage = lazy(() => import('./pages/policies/PolicyListPage'));
 const PolicyDetailPage = lazy(() => import('./pages/policies/PolicyDetailPage'));
 const PolicyLegacyPage = lazy(() => import('./pages/policies/PolicyLegacyPage'));
 const PolicyFormPage = lazy(() => import('./pages/policies/PolicyFormPage'));
+const TodayWorkPage = lazy(() => import('./pages/today-work/TodayWorkPage'));
 const PersonnelPage = lazy(() =>
   import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
 );
@@ -92,6 +93,36 @@ export function AuthenticatedApp({
       <Routes>
         <Route path="/" element={<OverviewPage owner={session.isOwner} />} />
         <Route
+          path="/today-work"
+          element={
+            <PageBoundary resetKey="today-work">
+              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                <TodayWorkPage
+                  key={`${session.email}:${session.isOwner}`}
+                  owner={session.isOwner}
+                />
+              </Suspense>
+            </PageBoundary>
+          }
+        />
+        <Route
+          path="/today-work/legacy"
+          element={
+            <>
+              <PageHeader title="Bugünkü İşler — klasik çalışma alanı" />
+              <p>
+                <Link to="/today-work">Modern iş kuyruğuna dön</Link>. Mevcut tamamlama, atama,
+                yenileme ve teklif işlemleri bu çalışma alanında korunur.
+              </p>
+              <PageBoundary resetKey="today-work-legacy">
+                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                  <CompatibilityPage key={session.email} page="today-work" />
+                </Suspense>
+              </PageBoundary>
+            </>
+          }
+        />
+        <Route
           path="/customers"
           element={
             <PageBoundary resetKey="customers">
@@ -156,7 +187,11 @@ export function AuthenticatedApp({
         ))}
         {navigation
           .filter(
-            (item) => item.path !== '/' && item.path !== '/customers' && item.path !== '/policies',
+            (item) =>
+              item.path !== '/' &&
+              item.path !== '/customers' &&
+              item.path !== '/policies' &&
+              item.path !== '/today-work',
           )
           .map((item) => (
             <Route
