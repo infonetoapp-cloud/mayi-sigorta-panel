@@ -238,3 +238,44 @@
   min-height: 2.5rem;
   text-align: center;
 }
+.today-outcomes {
+  margin-block: 1rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.today-outcomes [data-slot='button'] {
+  white-space: normal;
+  height: auto;
+  min-height: 2.5rem;
+  margin: 0.25rem;
+  max-width: 100%;
+}
+.today-outcome-form,
+.today-outcome-form fieldset {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.today-outcome-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+.today-outcome-form label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: flex-start;
+}
+.today-outcome-form select,
+.today-outcome-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.5rem;
+  background: var(--card);
+}
+.today-outcome-form textarea {
+  min-height: 5rem;
+  resize: vertical;
+}

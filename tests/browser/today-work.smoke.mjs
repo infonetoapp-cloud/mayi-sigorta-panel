@@ -13,6 +13,7 @@ import { interactionWalkthrough } from './renewal-interactions.walkthrough.mjs';
 import { taskOperationsWalkthrough } from './task-operations.walkthrough.mjs';
 import { quoteWalkthrough } from './renewal-quotes.walkthrough.mjs';
 import { quoteSentWalkthrough } from './quote-sent.walkthrough.mjs';
+import { terminalOutcomeWalkthrough } from './terminal-outcomes.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
@@ -23,6 +24,7 @@ let stage = 'setup',
 const accepted = [];
 const quotesOnly = process.argv.includes('--quotes-only');
 const sentOnly = process.argv.includes('--sent-only');
+const outcomesOnly = process.argv.includes('--outcomes-only');
 const passwords = Array.from({ length: 3 }, () => randomBytes(24).toString('hex'));
 const mark = (value) => {
   stage = value;
@@ -78,9 +80,11 @@ try {
   directory = await mkdtemp(resolve('node_modules/.cache/today-queue-smoke-'));
   evidence = await mkdtemp(
     resolve(
-      sentOnly
-        ? 'node_modules/.cache/phase4e-edge-acceptance-'
-        : 'node_modules/.cache/phase4d-edge-acceptance-',
+      outcomesOnly
+        ? 'node_modules/.cache/phase4f-edge-acceptance-'
+        : sentOnly
+          ? 'node_modules/.cache/phase4e-edge-acceptance-'
+          : 'node_modules/.cache/phase4d-edge-acceptance-',
     ),
   );
   const bundle = join(directory, 'fixture.mjs');
@@ -128,6 +132,15 @@ try {
     console.info('CANONICAL_LOGIN_STATUS', index, (await loginResponse).status());
     mark('login-dashboard-' + index);
     await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
+    if (outcomesOnly) {
+      await legacy(page, index);
+      if (!index) await application.seedTerminalTasks(demo.db);
+      const permissions = await terminalOutcomeWalkthrough(page, index, mark, demo, evidence);
+      assert.equal(failures.length, 0);
+      accepted.push({ actor: user.id, widths: [1440, 768, 360], permissions, result: 'PASS' });
+      await context.close();
+      continue;
+    }
     if (sentOnly) {
       await legacy(page, index);
       await quoteSentWalkthrough(page, index, mark, demo, evidence);
@@ -351,19 +364,32 @@ try {
     JSON.stringify(
       {
         browser: browser.version(),
-        scope: sentOnly
-          ? 'PHASE4E_SENT_ONLY'
-          : quotesOnly
-            ? 'PHASE4D_QUOTES_ONLY'
-            : 'TODAY_WORK_FULL',
+        scope: outcomesOnly
+          ? 'PHASE4F_LOST_VOIDED_ONLY'
+          : sentOnly
+            ? 'PHASE4E_SENT_ONLY'
+            : quotesOnly
+              ? 'PHASE4D_QUOTES_ONLY'
+              : 'TODAY_WORK_FULL',
         accepted,
       },
       null,
       2,
     ),
   );
-  console.info(sentOnly ? 'PHASE4E_EDGE_EVIDENCE' : 'PHASE4D_EDGE_EVIDENCE', evidence);
-  if (sentOnly)
+  console.info(
+    outcomesOnly
+      ? 'PHASE4F_EDGE_EVIDENCE'
+      : sentOnly
+        ? 'PHASE4E_EDGE_EVIDENCE'
+        : 'PHASE4D_EDGE_EVIDENCE',
+    evidence,
+  );
+  if (outcomesOnly)
+    console.info(
+      'PHASE4F_OUTCOMES_BROWSER PASS: OWNER/Ahmet/Ayşe x 1440/768/360; real LOST, OWNER canonical VOIDED, MEMBER VOID denied, exact replay, dual CAS, bounded authorized readback, GET-only recovery, later-page provenance, navigation, storage and live revocation. No WON or external messages.',
+    );
+  else if (sentOnly)
     console.info(
       'PHASE4E_SENT_BROWSER PASS: OWNER/Ahmet/Ayşe x 1440/768/360; actual DRAFT/READY SENT recording, CAS/version/event/receipt proof, lost-success exact retry, GET-only mismatch recovery, conflicting version comparison/reselection, later state, expiry, navigation/storage and live session cleanup. No external messages.',
     );
@@ -392,7 +418,7 @@ try {
   const location =
     error instanceof Error
       ? error.stack?.match(
-          /(?:(?:task-operations|renewal-quotes|quote-sent)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
+          /(?:(?:task-operations|renewal-quotes|quote-sent|terminal-outcomes)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
         )?.[0]
       : null;
   if (location) console.error('BROWSER_FAILURE_LOCATION', location);

@@ -351,6 +351,7 @@ it('rejects quote versions after an authorized terminal LOST renewal without cha
     );
   await data(
     await post(`/api/renewals/${t.renewalId}/close-lost`, {
+      expectedPrimaryTaskId: t.taskId,
       expectedRenewalVersion: t.renewalVersion,
       expectedTaskVersion: t.taskVersion,
       lossReasonId: 'qq-loss',
@@ -406,6 +407,7 @@ it('retains accepted quote evidence through the existing send/WON protocol and r
   );
   await data(
     await post(`/api/renewals/${t.renewalId}/close-won`, {
+      expectedPrimaryTaskId: t.taskId,
       expectedRenewalVersion: t.renewalVersion,
       expectedTaskVersion: t.taskVersion,
       acceptedQuoteVersionId: q.quoteVersionId,

@@ -508,6 +508,7 @@ it('rejects ACCEPTED but preserves the original SENT receipt after the existing 
     result = await data<Result>(await post(s.sendUrl, s.body, 'qs-owner', key), 201);
   await data(
     await post(`/api/renewals/${s.task.renewalId}/close-won`, {
+      expectedPrimaryTaskId: s.task.taskId,
       expectedRenewalVersion: s.task.renewalVersion,
       expectedTaskVersion: s.task.taskVersion,
       acceptedQuoteVersionId: s.created.quoteVersionId,

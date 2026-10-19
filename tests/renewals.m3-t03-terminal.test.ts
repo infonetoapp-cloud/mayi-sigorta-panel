@@ -2413,7 +2413,8 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         paymentMethodId: 'terminal-payment',
         startDate: '2026-10-25',
         endDate: '2027-10-24',
-        validUntil: '2026-09-30T00:00:00.000Z',
+        // SQLite's real clock is independent of the historical JS test clock.
+        validUntil: '2099-09-30T00:00:00.000Z',
         grossPremiumMinor: 10000,
         currency: 'TRY',
         installmentCount: null,
@@ -2767,7 +2768,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
           paymentMethodId: 'terminal-payment',
           startDate: '2026-10-25',
           endDate: '2027-10-24',
-          validUntil: '2026-09-30T00:00:00.000Z',
+          validUntil: '2099-09-30T00:00:00.000Z',
           grossPremiumMinor: 10000,
           currency: 'TRY',
           installmentCount: null,

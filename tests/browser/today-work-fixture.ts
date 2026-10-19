@@ -1,5 +1,25 @@
 export { openDemo, DEMO_USERS } from '../../scripts/demo/application';
 import { ensureRenewalForPolicy } from '../../src/server/renewals/generation';
+export async function seedTerminalTasks(db: D1Database) {
+  for (const actor of ['owner', 'ahmet', 'ayse'])
+    for (let n = 0; n < 26; n++) {
+      const id = `terminal-${actor}-${n}`,
+        number = `TERM-${actor}-${n}`;
+      await db
+        .prepare(
+          "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency) SELECT ?,agency_id,?,insurer_id,product_id,branch_id,payment_method_id,?,?,?,start_date,end_date,gross_premium_minor,currency FROM policies WHERE id='demo-policy-0'",
+        )
+        .bind(
+          id,
+          'demo-customer-' + (actor === 'owner' ? 0 : actor === 'ahmet' ? 1 : 2),
+          'demo-member-' + actor,
+          number,
+          number,
+        )
+        .run();
+      await ensureRenewalForPolicy(db, 'demo-agency', id);
+    }
+}
 export async function seedQuoteAlternatives(db: D1Database) {
   await db.batch([
     db.prepare(

@@ -426,7 +426,7 @@ const queue: TodayTasksResponseData = {
   now: '2026-10-18T00:00:00.000Z',
   todayLocalDate: '2026-10-18',
 };
-it('guards real task/queue navigation without implying cancellation and ignores a departed POST401', async () => {
+it('guards dirty navigation, retains submitted interaction attempts and ignores POST401 after unmount', async () => {
   let release!: (r: Response) => void;
   const deferred = new Promise<Response>((resolve) => {
     release = resolve;
@@ -443,7 +443,7 @@ it('guards real task/queue navigation without implying cancellation and ignores 
       }
       return undefined;
     });
-    render(
+    const mounted = render(
       <MemoryRouter>
         <TodayWorkPage owner />
       </MemoryRouter>,
@@ -457,18 +457,17 @@ it('guards real task/queue navigation without implying cancellation and ignores 
     fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydını kaydet' }));
     await waitFor(() => expect(posted).toBe(true));
     fireEvent.click(screen.getByRole('button', { name: /Kuyruk b/ }));
-    expect(screen.getByText(/Ayrılmak sunucuya ulaşmış isteği iptal etmez/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Ayrılmayı onayla' }));
-    await screen.findByRole('button', { name: 'İletişim kaydı ekle' });
+    expect(screen.getByText(/Sonuçlandırma\/iletişim işleminin sonucu doğrulanmadan/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Ayrılmayı onayla' })).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: 'Seçili görev özeti' })).getByText('Kuyruk a'),
+    ).toBeTruthy();
+    expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe('Taslak not');
+    fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
+    expect(screen.getByRole('region', { name: 'Yenileme iletişim geçmişi ve kaydı' })).toBeTruthy();
+    mounted.unmount();
     await act(async () => release(response(null, 401)));
     expect(ended).not.toHaveBeenCalled();
-    expect(
-      within(screen.getByRole('region', { name: 'Seçili görev özeti' })).getByText('Kuyruk b'),
-    ).toBeTruthy();
-    expect(screen.queryByText('Taslak not')).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
-    expect(screen.queryByRole('region', { name: 'Yenileme iletişim geçmişi ve kaydı' })).toBeNull();
   } finally {
     document.removeEventListener('mayi-session-ended', ended);
   }

@@ -321,6 +321,7 @@ it('replays exact historical receipts before mutable lifecycle/catalog checks an
   );
   await data(
     await post(`/api/renewals/${s.task.renewalId}/close-lost`, {
+      expectedPrimaryTaskId: s.task.taskId,
       expectedRenewalVersion: s.task.renewalVersion,
       expectedTaskVersion: s.task.taskVersion,
       lossReasonId: 'qi-loss',

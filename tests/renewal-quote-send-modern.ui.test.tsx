@@ -837,3 +837,47 @@ it('updates the displayed current state after a later authorized refresh without
   expect((await success()).textContent).toContain('güncel teklif durumu: Taslak');
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
 });
+it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
+  'preserves %s and blocks Phase4F terminal outcomes',
+  async (kind) => {
+    fixture(
+      (_u, i) => (kind === 'sent-unresolved' && i?.method ? response(null, 503) : undefined),
+      true,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+    await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' });
+    if (kind === 'quote-draft') {
+      fireEvent.click(screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }));
+      fireEvent.change(screen.getByLabelText('Teklif koşulları'), {
+        target: { value: 'Korunan Phase4F taslağı' },
+      });
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
+      fireEvent.change(
+        screen.getByLabelText('Gönderildi olarak kaydedilecek teklif ve güncel sürüm'),
+        { target: { value: 'q' } },
+      );
+      if (kind === 'sent-unresolved') {
+        submit();
+        await screen.findByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' });
+      }
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }));
+    await screen.findByText(/Önce iletişim\/görev\/teklif taslağını/);
+    expect(screen.queryByRole('form', { name: 'LOST sonuçlandırma' })).toBeNull();
+    if (kind === 'quote-draft')
+      expect((screen.getByLabelText('Teklif koşulları') as HTMLTextAreaElement).value).toBe(
+        'Korunan Phase4F taslağı',
+      );
+    else {
+      expect(screen.getByRole('form', { name: 'Gönderildi durum kaydı' }).textContent).toContain(
+        '123.45',
+      );
+      if (kind === 'sent-unresolved')
+        expect(
+          screen.getByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' }),
+        ).toBeTruthy();
+    }
+  },
+);
