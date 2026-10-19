@@ -12,6 +12,7 @@ import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs'
 import { interactionWalkthrough } from './renewal-interactions.walkthrough.mjs';
 import { taskOperationsWalkthrough } from './task-operations.walkthrough.mjs';
 import { quoteWalkthrough } from './renewal-quotes.walkthrough.mjs';
+import { quoteSentWalkthrough } from './quote-sent.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
@@ -21,6 +22,7 @@ let stage = 'setup',
   evidence;
 const accepted = [];
 const quotesOnly = process.argv.includes('--quotes-only');
+const sentOnly = process.argv.includes('--sent-only');
 const passwords = Array.from({ length: 3 }, () => randomBytes(24).toString('hex'));
 const mark = (value) => {
   stage = value;
@@ -74,7 +76,13 @@ async function legacy(page, index) {
 try {
   await mkdir('node_modules/.cache', { recursive: true });
   directory = await mkdtemp(resolve('node_modules/.cache/today-queue-smoke-'));
-  evidence = await mkdtemp(resolve('node_modules/.cache/phase4d-edge-acceptance-'));
+  evidence = await mkdtemp(
+    resolve(
+      sentOnly
+        ? 'node_modules/.cache/phase4e-edge-acceptance-'
+        : 'node_modules/.cache/phase4d-edge-acceptance-',
+    ),
+  );
   const bundle = join(directory, 'fixture.mjs');
   await build({
     entryPoints: ['tests/browser/today-work-fixture.ts'],
@@ -120,6 +128,14 @@ try {
     console.info('CANONICAL_LOGIN_STATUS', index, (await loginResponse).status());
     mark('login-dashboard-' + index);
     await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
+    if (sentOnly) {
+      await legacy(page, index);
+      await quoteSentWalkthrough(page, index, mark, demo, evidence);
+      assert.equal(failures.length, 0);
+      accepted.push({ actor: user.id, widths: [1440, 768, 360], result: 'PASS' });
+      await context.close();
+      continue;
+    }
     if (!index) {
       await legacy(page, index);
       mark('bounded-fixtures');
@@ -335,15 +351,23 @@ try {
     JSON.stringify(
       {
         browser: browser.version(),
-        scope: quotesOnly ? 'PHASE4D_QUOTES_ONLY' : 'TODAY_WORK_FULL',
+        scope: sentOnly
+          ? 'PHASE4E_SENT_ONLY'
+          : quotesOnly
+            ? 'PHASE4D_QUOTES_ONLY'
+            : 'TODAY_WORK_FULL',
         accepted,
       },
       null,
       2,
     ),
   );
-  console.info('PHASE4D_EDGE_EVIDENCE', evidence);
-  if (quotesOnly)
+  console.info(sentOnly ? 'PHASE4E_EDGE_EVIDENCE' : 'PHASE4D_EDGE_EVIDENCE', evidence);
+  if (sentOnly)
+    console.info(
+      'PHASE4E_SENT_BROWSER PASS: OWNER/Ahmet/Ayşe x 1440/768/360; actual DRAFT/READY SENT recording, CAS/version/event/receipt proof, lost-success exact retry, GET-only mismatch recovery, conflicting version comparison/reselection, later state, expiry, navigation/storage and live session cleanup. No external messages.',
+    );
+  else if (quotesOnly)
     console.info(
       'PHASE4D_QUOTES_BROWSER PASS: OWNER/Ahmet/Ayşe; 1440/768/360; new alternatives, immutable identity/version, exact retry, comparison/readback, navigation, storage, legacy handoff and live-session cleanup. Broader 4A-4C walkthroughs not rerun in this mode.',
     );
@@ -368,7 +392,7 @@ try {
   const location =
     error instanceof Error
       ? error.stack?.match(
-          /(?:(?:task-operations|renewal-quotes)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
+          /(?:(?:task-operations|renewal-quotes|quote-sent)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
         )?.[0]
       : null;
   if (location) console.error('BROWSER_FAILURE_LOCATION', location);

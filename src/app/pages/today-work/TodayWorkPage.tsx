@@ -578,9 +578,9 @@ function Workspace({ owner }: { owner: boolean }) {
                       }}
                     />
                     <p>
-                      Teklif gönderim/kabul/ret, WhatsApp önizleme/açma ve yenileme sonuçlandırma
-                      klasik çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik
-                      listeden yeniden seçmeniz gerekir.
+                      Teklif kabul/ret, WhatsApp önizleme/açma ve yenileme sonuçlandırma klasik
+                      çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik listeden
+                      yeniden seçmeniz gerekir.
                     </p>
                     <Button asChild>
                       <Link to="/today-work/legacy" onClick={classic}>

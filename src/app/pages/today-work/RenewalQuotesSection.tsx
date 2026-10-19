@@ -7,6 +7,7 @@ import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 import { premiumInput } from '../policies/policy-form-model';
 import { interactionTime } from './interaction-model';
+import { QuoteSentOperation } from './QuoteSentOperation';
 import {
   quoteDraft,
   quotePayload,
@@ -122,6 +123,8 @@ function QuoteWorkspace(props: Props) {
   const [createPending, setCreatePending] = useState<Attempt | null>(null),
     [versionPending, setVersionPending] = useState<Attempt | null>(null),
     [saved, setSaved] = useState<{ attempt: Attempt; result: Result } | null>(null);
+  const [sentRisk, setSentRisk] = useState<QuoteRisk>({ dirty: false, unresolved: false });
+  const sentRiskRef = useRef(sentRisk);
   const pending = createPending ?? versionPending,
     lock = useRef(false),
     epoch = useRef(0),
@@ -129,7 +132,10 @@ function QuoteWorkspace(props: Props) {
     controllers = useRef(new Set<AbortController>()),
     formHeading = useRef<HTMLHeadingElement>(null),
     historyHeading = useRef<HTMLHeadingElement>(null);
-  const risk: QuoteRisk = { dirty: !!form, unresolved: !!pending || !!saved || (busy && !!form) };
+  const risk: QuoteRisk = {
+    dirty: !!form || sentRisk.dirty,
+    unresolved: !!pending || !!saved || (busy && !!form) || sentRisk.unresolved,
+  };
   useEffect(() => {
     props.onRisk(risk);
   }, [risk.dirty, risk.unresolved, props.onRisk]);
@@ -304,6 +310,8 @@ function QuoteWorkspace(props: Props) {
       pending ||
       saved ||
       form ||
+      sentRiskRef.current.dirty ||
+      sentRiskRef.current.unresolved ||
       !props.renewalOpen ||
       !props.canOperate()
     )
@@ -426,6 +434,8 @@ function QuoteWorkspace(props: Props) {
       pending ||
       saved ||
       form.needsCompare ||
+      sentRiskRef.current.dirty ||
+      sentRiskRef.current.unresolved ||
       !form.eligible ||
       !props.canOperate()
     )
@@ -464,7 +474,7 @@ function QuoteWorkspace(props: Props) {
       payload,
     });
   }
-  const locked = busy || !!pending || !!saved;
+  const locked = busy || !!pending || !!saved || sentRisk.dirty || sentRisk.unresolved;
   const changed = (key: keyof QuoteDraft, value: string) =>
     setForm((old) =>
       old
@@ -531,9 +541,9 @@ function QuoteWorkspace(props: Props) {
       </h3>
       <p>
         Teklif okuma ve yönetme izinleri ayrı doğrulanır. Gönderildi durumu dış mesaj teslimatının
-        kanıtı değildir. Burada gönderim/kabul/ret veya yenileme sonucu işlemi yapılmaz. Farklı
-        sigorta şirketi veya ürün alternatifi için yeni teklif oluşturun; sürüm işlemi aynı teklifin
-        ilk kayıtlı şirket/ürün kimliğini korur.
+        kanıtı değildir. Burada mesaj/belge gönderilmez; kabul/ret veya yenileme sonucu işlemi
+        yapılmaz. Farklı sigorta şirketi veya ürün alternatifi için yeni teklif oluşturun; sürüm
+        işlemi aynı teklifin ilk kayıtlı şirket/ürün kimliğini korur.
       </p>
       {!opened ? (
         <Button
@@ -554,6 +564,30 @@ function QuoteWorkspace(props: Props) {
       {error && <p role="alert">{error}</p>}
       {success && <p role="status">{success}</p>}
       {catalogError && <p>{catalogError}</p>}
+      {opened && (
+        <QuoteSentOperation
+          renewalId={props.renewalId}
+          renewalOpen={props.renewalOpen}
+          history={data}
+          insurerNames={names}
+          blocked={busy || !!form || !!pending || !!saved}
+          canOperate={() => !lock.current && !form && !pending && !saved && props.canOperate()}
+          compareRenewal={props.compareRenewal}
+          onHistory={(history) => setData(history)}
+          onDenied={() => {
+            setData(null);
+            setCatalogs(null);
+            setNames({});
+          }}
+          onRisk={(next) => {
+            if (next.dirty && !sentRiskRef.current.dirty) setSuccess('');
+            sentRiskRef.current = next;
+            setSentRisk((old) =>
+              old.dirty === next.dirty && old.unresolved === next.unresolved ? old : next,
+            );
+          }}
+        />
+      )}
       {pending && (
         <Button disabled={busy} onClick={() => void send(pending)}>
           Aynı {pending.kind === 'create' ? 'teklif' : 'sürüm'} isteğini yeniden dene

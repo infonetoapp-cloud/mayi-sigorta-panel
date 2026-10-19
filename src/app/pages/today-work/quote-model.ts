@@ -29,7 +29,13 @@ export interface QuoteRecord {
   created_at?: string;
   updated_at?: string;
   versions: QuoteVersion[];
-  events: { id: string; quote_version_id: string | null; event: string; occurred_at: string }[];
+  events: {
+    id: string;
+    quote_version_id: string | null;
+    event: string;
+    occurred_at: string;
+    operation_receipt_id?: string | null;
+  }[];
 }
 export interface QuoteHistory {
   quotes: QuoteRecord[];
