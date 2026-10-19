@@ -3022,6 +3022,9 @@ async function assertWonReplay(
 
 function mapWonBatchError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('RENEWAL_POLICY_LINK_CYCLE')) {
+    throw new RenewalCommandError('RENEWAL_POLICY_LINK_CYCLE', 409);
+  }
   if (message.includes('RENEWAL_WON_CORRECTION_REQUIRED')) {
     throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
   }
