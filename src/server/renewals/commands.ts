@@ -2535,6 +2535,9 @@ function wonQuoteAcceptanceAssertion(
            AND l.new_policy_id=? AND l.status='ACTIVE'
          WHERE q.agency_id=? AND q.id=? AND q.renewal_id=? AND q.status='SENT'
            AND q.current_version_id=v.id AND q.version=? AND r.state='WON'
+           AND length(v.valid_until)=24
+           AND strftime('%Y-%m-%dT%H:%M:%fZ',v.valid_until)=v.valid_until COLLATE BINARY
+           AND v.valid_until COLLATE BINARY > strftime('%Y-%m-%dT%H:%M:%fZ','now')
            AND NOT EXISTS(SELECT 1 FROM renewal_quote_events accepted
              WHERE accepted.agency_id=q.agency_id AND accepted.quote_id=q.id AND accepted.event='ACCEPTED')
            AND EXISTS(SELECT 1 FROM operation_receipts receipt WHERE receipt.id=?
