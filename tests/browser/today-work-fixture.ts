@@ -1,5 +1,15 @@
 export { openDemo, DEMO_USERS } from '../../scripts/demo/application';
 import { ensureRenewalForPolicy } from '../../src/server/renewals/generation';
+export async function seedQuoteAlternatives(db: D1Database) {
+  await db.batch([
+    db.prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('edge-alternative-insurer','demo-agency','EDGE_ALT','Sentetik alternatif şirket')",
+    ),
+    db.prepare(
+      "INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name) VALUES('edge-alternative-product','demo-agency','edge-alternative-insurer','demo-branch','EDGE_ALT','Sentetik alternatif ürün'),('edge-sibling-product','demo-agency','demo-insurer','demo-branch','EDGE_SIB','Sentetik diğer ürün')",
+    ),
+  ]);
+}
 export async function seedQueuePages(db: D1Database) {
   for (const [kind, count] of [
     ['work', 16],

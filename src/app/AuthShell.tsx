@@ -6,6 +6,7 @@ import { Input } from './components/ui/input';
 
 import { authErrorMessage } from './auth-errors';
 import { normalizeBoundedPassword, PASSWORD_INPUT_MESSAGE } from '../shared/password-input';
+import { installQuotePopBoundary } from './pages/today-work/quote-navigation';
 
 export interface AuthSessionDto {
   state: 'NORMAL' | 'ACTIVATION';
@@ -223,6 +224,7 @@ export function AuthShell() {
     }
   }
   useEffect(() => {
+    const removeQuotePopBoundary = installQuotePopBoundary();
     void refresh();
     const ended = () => {
       setSession(null);
@@ -230,7 +232,10 @@ export function AuthShell() {
       setStandaloneReauth(false);
     };
     document.addEventListener('mayi-session-ended', ended);
-    return () => document.removeEventListener('mayi-session-ended', ended);
+    return () => {
+      document.removeEventListener('mayi-session-ended', ended);
+      removeQuotePopBoundary();
+    };
   }, []);
   const logout = async () => {
     setBusy(true);

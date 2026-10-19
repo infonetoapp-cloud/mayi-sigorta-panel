@@ -1,7 +1,7 @@
 // Focused real Edge gate; all credentials stay ephemeral and unlogged.
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import process from 'node:process';
@@ -11,12 +11,16 @@ import { chromium } from 'playwright';
 import { demoCertificate, serveDemo } from '../../scripts/demo/https-server.mjs';
 import { interactionWalkthrough } from './renewal-interactions.walkthrough.mjs';
 import { taskOperationsWalkthrough } from './task-operations.walkthrough.mjs';
+import { quoteWalkthrough } from './renewal-quotes.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
   tls,
   server,
-  directory;
+  directory,
+  evidence;
+const accepted = [];
+const quotesOnly = process.argv.includes('--quotes-only');
 const passwords = Array.from({ length: 3 }, () => randomBytes(24).toString('hex'));
 const mark = (value) => {
   stage = value;
@@ -70,6 +74,7 @@ async function legacy(page, index) {
 try {
   await mkdir('node_modules/.cache', { recursive: true });
   directory = await mkdtemp(resolve('node_modules/.cache/today-queue-smoke-'));
+  evidence = await mkdtemp(resolve('node_modules/.cache/phase4d-edge-acceptance-'));
   const bundle = join(directory, 'fixture.mjs');
   await build({
     entryPoints: ['tests/browser/today-work-fixture.ts'],
@@ -96,6 +101,7 @@ try {
       }),
       page = await context.newPage();
     page.setDefaultTimeout(30000);
+
     const failures = [];
     page.on('pageerror', () => failures.push('runtime'));
     page.on('console', (m) => {
@@ -117,7 +123,8 @@ try {
     if (!index) {
       await legacy(page, index);
       mark('bounded-fixtures');
-      await application.seedQueuePages(demo.db);
+      if (!quotesOnly) await application.seedQueuePages(demo.db);
+      await application.seedQuoteAlternatives(demo.db);
     } else await page.getByRole('link', { name: 'Bugünkü İşler', exact: true }).click();
     mark('modern-' + index);
     await page.goto('https://localhost:8443/today-work');
@@ -217,7 +224,7 @@ try {
       assert.ok((await page.locator('.today-task-row').count()) > 20);
       await page.unroute('**/api/tasks/today?*');
     }
-    if (!index) {
+    if (!index && !quotesOnly) {
       await page.getByRole('button', { name: 'Atanmamış işler', exact: true }).click();
       mark('paging-unassigned-' + index);
       await page.getByRole('button', { name: 'Daha fazla iş yükle', exact: true }).click();
@@ -231,36 +238,41 @@ try {
       await page.getByRole('button', { name: 'Açık işler', exact: true }).click();
       await page.locator('.today-task-row').first().waitFor();
     }
-    mark('statistics-' + index);
-    await page.getByRole('button', { name: 'Görev istatistiklerini göster', exact: true }).click();
-    const personal = await json(page, '/api/tasks/statistics');
-    const statistics = page.getByRole('region', { name: 'Görev istatistikleri', exact: true });
-    await statistics.getByText('Kendi görev özetim', { exact: true }).waitFor();
-    assert.equal(
-      Number(await statistics.locator('dl').first().locator('dd').first().innerText()),
-      personal.summary.overdue,
-    );
-    if (!index) {
-      await statistics.getByRole('button', { name: 'Ekip özeti', exact: true }).click();
-      const team = await json(page, '/api/tasks/statistics?view=team');
-      await statistics.getByText('Tüm ekip (atanmamış dahil)', { exact: true }).waitFor();
-      assert.deepEqual(
-        (await statistics.locator('dl').first().locator('dd').allTextContents()).map(Number),
-        [
-          team.summary.overdue,
-          team.summary.dueToday,
-          team.summary.upcoming,
-          team.summary.completedLast30Days,
-        ],
-      );
-      assert.ok(team.summary.overdue + team.summary.dueToday + team.summary.upcoming > 20);
-    } else
+    if (!quotesOnly) {
+      mark('statistics-' + index);
+      await page
+        .getByRole('button', { name: 'Görev istatistiklerini göster', exact: true })
+        .click();
+      const personal = await json(page, '/api/tasks/statistics');
+      const statistics = page.getByRole('region', { name: 'Görev istatistikleri', exact: true });
+      await statistics.getByText('Kendi görev özetim', { exact: true }).waitFor();
       assert.equal(
-        await statistics.getByRole('button', { name: 'Ekip özeti', exact: true }).count(),
-        0,
+        Number(await statistics.locator('dl').first().locator('dd').first().innerText()),
+        personal.summary.overdue,
       );
-    await interactionWalkthrough(page, index, mark);
-    await taskOperationsWalkthrough(page, index, mark, demo);
+      if (!index) {
+        await statistics.getByRole('button', { name: 'Ekip özeti', exact: true }).click();
+        const team = await json(page, '/api/tasks/statistics?view=team');
+        await statistics.getByText('Tüm ekip (atanmamış dahil)', { exact: true }).waitFor();
+        assert.deepEqual(
+          (await statistics.locator('dl').first().locator('dd').allTextContents()).map(Number),
+          [
+            team.summary.overdue,
+            team.summary.dueToday,
+            team.summary.upcoming,
+            team.summary.completedLast30Days,
+          ],
+        );
+        assert.ok(team.summary.overdue + team.summary.dueToday + team.summary.upcoming > 20);
+      } else
+        assert.equal(
+          await statistics.getByRole('button', { name: 'Ekip özeti', exact: true }).count(),
+          0,
+        );
+      await interactionWalkthrough(page, index, mark);
+      await taskOperationsWalkthrough(page, index, mark, demo);
+    }
+    await quoteWalkthrough(page, index, mark, evidence);
     mark('history-' + index);
     await page.reload();
     assert.equal(
@@ -285,6 +297,20 @@ try {
     await page.getByRole('link', { name: 'Modern iş kuyruğuna dön', exact: true }).click();
     await page.locator('.today-task-row').first().click();
     mark('revocation-' + index);
+    await page.getByRole('button', { name: 'Teklif geçmişini aç', exact: true }).click();
+    await page.getByRole('button', { name: 'Yeni teklif taslağı aç', exact: true }).waitFor();
+    if (!(await page.locator('.quote-record').count())) {
+      // Queue ordering can legitimately select a different renewal after follow-up replacement.
+      // Establish visible protected data explicitly instead of assuming this row has a quote.
+      mark('revocation-visible-quote-fixture-' + index);
+      await page.getByRole('button', { name: 'Yeni teklif taslağı aç', exact: true }).click();
+      await page.getByLabel('Yeni teklif kaydını oluşturmayı onaylıyorum', { exact: true }).check();
+      await page.getByRole('button', { name: 'Teklifi oluştur', exact: true }).click();
+      await page
+        .getByText('Teklif yetkili geçmiş okumasıyla doğrulandı.', { exact: true })
+        .waitFor();
+    }
+    await page.locator('.quote-record').first().waitFor();
     await demo.db
       .prepare('UPDATE local_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL')
       .bind(Date.now(), 'demo-user-' + user.id)
@@ -293,6 +319,7 @@ try {
     mark('revocation-login-' + index);
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
     assert.equal(await page.locator('.today-task-row').count(), 0);
+    assert.equal(await page.locator('.quote-record').count(), 0);
     assert.equal(
       await page.getByRole('region', { name: 'Seçili görev özeti', exact: true }).count(),
       0,
@@ -300,16 +327,49 @@ try {
     mark('runtime-csp-' + index);
     if (failures.length) console.info('BROWSER_FAILURE_CATEGORIES', failures.join(','));
     assert.equal(failures.length, 0);
+    accepted.push({ actor: user.id, widths: [1440, 768, 360], result: 'PASS' });
     await context.close();
   }
-  console.info(
-    'TODAY_QUEUE_BROWSER PASS: OWNER/Ahmet/Ayşe; private/agency queues; independent bounded cursors/exact page retry; authorized selection/keyboard; Istanbul/statistics; 1440/768/360; legacy completion/assignment/quote controls; reload/back-forward; revocation cleanup; CSP/runtime.',
+  await writeFile(
+    join(evidence, 'result.json'),
+    JSON.stringify(
+      {
+        browser: browser.version(),
+        scope: quotesOnly ? 'PHASE4D_QUOTES_ONLY' : 'TODAY_WORK_FULL',
+        accepted,
+      },
+      null,
+      2,
+    ),
   );
+  console.info('PHASE4D_EDGE_EVIDENCE', evidence);
+  if (quotesOnly)
+    console.info(
+      'PHASE4D_QUOTES_BROWSER PASS: OWNER/Ahmet/Ayşe; 1440/768/360; new alternatives, immutable identity/version, exact retry, comparison/readback, navigation, storage, legacy handoff and live-session cleanup. Broader 4A-4C walkthroughs not rerun in this mode.',
+    );
+  else
+    console.info(
+      'TODAY_QUEUE_BROWSER PASS: OWNER/Ahmet/Ayşe; private/agency queues; independent bounded cursors/exact page retry; authorized selection/keyboard; Istanbul/statistics; 1440/768/360; legacy completion/assignment/quote controls; reload/back-forward; revocation cleanup; CSP/runtime.',
+    );
 } catch (error) {
   console.error('BROWSER_FAILURE_KIND', error instanceof Error ? error.name : 'Unknown');
+  const failedPage = browser?.contexts().at(-1)?.pages().at(-1);
+  if (failedPage) {
+    const state = await failedPage
+      .evaluate(() => ({
+        modernRoute: globalThis.location.pathname === '/today-work',
+        taskRows: globalThis.document.querySelectorAll('.today-task-row').length,
+        quoteRecords: globalThis.document.querySelectorAll('.quote-record').length,
+        quoteForms: globalThis.document.querySelectorAll('.quote-form').length,
+      }))
+      .catch(() => null);
+    console.error('BROWSER_FAILURE_SAFE_STATE', JSON.stringify(state));
+  }
   const location =
     error instanceof Error
-      ? error.stack?.match(/task-operations\.walkthrough\.mjs:\d+:\d+/)?.[0]
+      ? error.stack?.match(
+          /(?:(?:task-operations|renewal-quotes)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
+        )?.[0]
       : null;
   if (location) console.error('BROWSER_FAILURE_LOCATION', location);
   console.error(`TODAY_QUEUE_BROWSER FAIL at ${stage}. No credentials or raw diagnostics logged.`);

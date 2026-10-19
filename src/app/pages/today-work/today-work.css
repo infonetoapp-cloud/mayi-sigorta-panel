@@ -196,6 +196,32 @@
   border: 0;
   min-width: 0;
 }
+.quote-history {
+  max-height: 32rem;
+  overflow: auto;
+  margin-block: 1rem;
+}
+.quote-record {
+  padding-block: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.quote-record details {
+  padding: 0.6rem 0;
+}
+.quote-record summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.quote-record summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.quote-record [data-slot='button'] {
+  white-space: normal;
+  height: auto;
+  min-height: 2.5rem;
+}
 .today-overview .interaction-form > [data-slot='button'],
 .today-overview .renewal-interactions > [data-slot='button'] {
   white-space: normal;

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { RenewalStateCode, TodayTaskDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
@@ -9,6 +15,8 @@ import { useTaskQueue, type WorkQueue } from './use-task-queue';
 import { RenewalInteractionsSection } from './RenewalInteractionsSection';
 import type { InteractionRisk } from './interaction-model';
 import { TaskOperationsSection, type TaskOperationRisk } from './TaskOperationsSection';
+import { RenewalQuotesSection, type QuoteRisk } from './RenewalQuotesSection';
+import { registerQuotePopGuard } from './quote-navigation';
 
 const states: Record<RenewalStateCode, string> = {
   CONTACT_PENDING: 'İletişim bekleniyor',
@@ -37,6 +45,8 @@ function Workspace({ owner }: { owner: boolean }) {
   const [operationMessage, setOperationMessage] = useState(''),
     [operationUnresolved, setOperationUnresolved] = useState(false);
   const operationRisk = useRef<{ key: string; risk: TaskOperationRisk } | null>(null);
+  const quoteRisk = useRef<{ key: string; risk: QuoteRisk } | null>(null);
+  const [quoteBlocking, setQuoteBlocking] = useState(false);
   const leaveHeading = useRef<HTMLHeadingElement>(null),
     activeInteraction = useRef<string | null>(null),
     interactionRisk = useRef<{ key: string; risk: InteractionRisk } | null>(null);
@@ -67,9 +77,17 @@ function Workspace({ owner }: { owner: boolean }) {
     setLeave(null);
     interactionRisk.current = null;
     operationRisk.current = null;
+    quoteRisk.current = null;
+    setQuoteBlocking(false);
     setOperationUnresolved(false);
   }, [queue.authority, queue.view]);
   function guarded(action: () => void) {
+    if (quoteRisk.current?.key === interactionKey && quoteRisk.current.risk.unresolved) {
+      setOperationMessage(
+        'Teklif işleminin belirsiz sonucu veya yazım sonrası okuması çözülmeden hedef/liste değiştirilemez. Özgün anahtar korunur; işlem iptal edilmiş değildir.',
+      );
+      return;
+    }
     if (operationRisk.current?.key === interactionKey && operationRisk.current.risk.unresolved) {
       setOperationMessage(
         'Görev işleminin sonucu çözülmeden liste veya hedef değiştirilemez. Aynı isteği ya da yalnız okumayı yeniden deneyin; işlem iptal edilmiş değildir.',
@@ -80,23 +98,92 @@ function Workspace({ owner }: { owner: boolean }) {
       interactionKey &&
       ((interactionRisk.current?.key === interactionKey &&
         interactionRisk.current.risk !== 'clean') ||
-        (operationRisk.current?.key === interactionKey && operationRisk.current.risk.dirty))
+        (operationRisk.current?.key === interactionKey && operationRisk.current.risk.dirty) ||
+        (quoteRisk.current?.key === interactionKey && quoteRisk.current.risk.dirty))
     )
       setLeave(() => action);
     else action();
   }
-  function classic(event: MouseEvent<HTMLAnchorElement>) {
+  function classic(event: ReactMouseEvent<HTMLAnchorElement>) {
     if (
       interactionKey &&
       ((interactionRisk.current?.key === interactionKey &&
         interactionRisk.current.risk !== 'clean') ||
         (operationRisk.current?.key === interactionKey &&
-          (operationRisk.current.risk.dirty || operationRisk.current.risk.unresolved)))
+          (operationRisk.current.risk.dirty || operationRisk.current.risk.unresolved)) ||
+        (quoteRisk.current?.key === interactionKey &&
+          (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved)))
     ) {
       event.preventDefault();
       guarded(() => void navigate('/today-work/legacy'));
     }
   }
+  useEffect(() => {
+    if (!interactionKey) return;
+    const index = history.state?.idx as unknown;
+    let restoring = false;
+    const quoteAtRisk = () =>
+      quoteRisk.current?.key === interactionKey &&
+      (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved);
+    const click = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (
+        !quoteAtRisk() ||
+        !(link instanceof HTMLAnchorElement) ||
+        event.button !== 0 ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.altKey ||
+        link.hasAttribute('download') ||
+        (link.target && link.target !== '_self') ||
+        link.href === location.href
+      )
+        return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (quoteRisk.current?.risk.unresolved) {
+        setOperationMessage(
+          'Teklif işleminin belirsiz sonucu çözülmeden başka sayfaya geçilemez. Özgün istek/anahtar bu ekranda korunur.',
+        );
+        return;
+      }
+      const url = new URL(link.href);
+      setLeave(() => () => {
+        if (url.origin === location.origin) void navigate(url.pathname + url.search + url.hash);
+        else location.assign(url.href);
+      });
+    };
+    const pop = (event: PopStateEvent) => {
+      if (restoring) {
+        restoring = false;
+        event.stopImmediatePropagation();
+        return;
+      }
+      const next = event.state?.idx as unknown;
+      if (
+        !quoteAtRisk() ||
+        !Number.isSafeInteger(index) ||
+        !Number.isSafeInteger(next) ||
+        next === index
+      )
+        return;
+      // The early AuthShell boundary invokes this before Router's native listener.
+      // Restore its same-document index without storing the draft/key in history.
+      event.stopImmediatePropagation();
+      restoring = true;
+      history.go((index as number) - (next as number));
+      setOperationMessage(
+        'Tarayıcı geri/ileri geçişi durduruldu. Önce teklif yazımını doğrulayın veya kaydedilmemiş teklif taslağını açıkça bırakın.',
+      );
+    };
+    document.addEventListener('click', click, true);
+    const removePopGuard = registerQuotePopGuard(pop);
+    return () => {
+      document.removeEventListener('click', click, true);
+      removePopGuard();
+    };
+  }, [interactionKey, navigate]);
   useEffect(() => {
     if (leave) leaveHeading.current?.focus();
   }, [leave]);
@@ -207,6 +294,11 @@ function Workspace({ owner }: { owner: boolean }) {
           <Button
             onClick={() => {
               const action = leave;
+              if (quoteRisk.current?.key === interactionKey && quoteRisk.current.risk.unresolved) {
+                setLeave(null);
+                setOperationMessage('Önce teklif işleminin belirsiz sonucunu doğrulayın.');
+                return;
+              }
               if (
                 operationRisk.current?.key === interactionKey &&
                 operationRisk.current.risk.unresolved
@@ -228,7 +320,11 @@ function Workspace({ owner }: { owner: boolean }) {
       {queue.failure && (
         <div role="alert">
           <p>{queue.failure.message}</p>
-          <Button variant="outline" disabled={!!queue.loading} onClick={queue.retry}>
+          <Button
+            variant="outline"
+            disabled={!!queue.loading}
+            onClick={() => guarded(() => queue.retry())}
+          >
             Aynı sayfayı yeniden dene
           </Button>
         </div>
@@ -319,6 +415,13 @@ function Workspace({ owner }: { owner: boolean }) {
                         setOperationMessage('Önce belirsiz görev işlemini doğrulayın.');
                         return;
                       }
+                      if (
+                        quoteRisk.current?.key === interactionKey &&
+                        quoteRisk.current.risk.unresolved
+                      ) {
+                        setOperationMessage('Önce belirsiz teklif işlemini doğrulayın.');
+                        return;
+                      }
                       queue.more();
                     }}
                   >
@@ -389,7 +492,10 @@ function Workspace({ owner }: { owner: boolean }) {
                         Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik değiştirilmez.
                       </p>
                     )}
-                    <fieldset disabled={operationUnresolved} className="task-interaction-boundary">
+                    <fieldset
+                      disabled={operationUnresolved || quoteBlocking}
+                      className="task-interaction-boundary"
+                    >
                       <legend className="sr-only">İletişim bölümü</legend>
                       <RenewalInteractionsSection
                         key={interactionKey}
@@ -400,18 +506,65 @@ function Workspace({ owner }: { owner: boolean }) {
                         }}
                       />
                     </fieldset>
-                    <TaskOperationsSection
-                      key={'operations:' + interactionKey}
-                      task={selected}
-                      read={(signal) => queue.readOperation(selected.taskId, signal)}
+                    <fieldset disabled={quoteBlocking} className="task-interaction-boundary">
+                      <legend className="sr-only">Görev işlemleri alanı</legend>
+                      <TaskOperationsSection
+                        key={'operations:' + interactionKey}
+                        task={selected}
+                        read={(signal) => queue.readOperation(selected.taskId, signal)}
+                        canOperate={() => {
+                          if (activeInteraction.current !== interactionKey) return false;
+                          if (
+                            quoteRisk.current?.key === interactionKey &&
+                            (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved)
+                          ) {
+                            setOperationMessage(
+                              'Önce teklif taslağını açıkça kapatın veya teklif yazımını doğrulayın.',
+                            );
+                            return false;
+                          }
+                          if (
+                            interactionRisk.current?.key === interactionKey &&
+                            interactionRisk.current.risk !== 'clean'
+                          ) {
+                            setOperationMessage(
+                              'İletişim taslağını açıkça kapatın veya iletişim yazımını doğrulayın. Görev işlemi iletişim taslağını/anahtarını silmez.',
+                            );
+                            return false;
+                          }
+                          return true;
+                        }}
+                        onRisk={(risk) => {
+                          if (activeInteraction.current === interactionKey) {
+                            operationRisk.current = { key: interactionKey!, risk };
+                            setOperationUnresolved(risk.unresolved);
+                          }
+                        }}
+                        onApplied={(message) => setOperationMessage(message)}
+                      />
+                    </fieldset>
+                    <RenewalQuotesSection
+                      key={'quotes:' + interactionKey}
+                      renewalId={selected.renewalId}
+                      renewalVersion={selected.renewalVersion}
+                      renewalOpen={!['WON', 'LOST', 'VOIDED'].includes(selected.renewalState)}
+                      compareRenewal={async (signal) => {
+                        const fresh = await queue.readOperation(selected.taskId, signal);
+                        return fresh.current?.renewalId === selected.renewalId
+                          ? fresh.current.renewalVersion
+                          : null;
+                      }}
                       canOperate={() => {
                         if (activeInteraction.current !== interactionKey) return false;
                         if (
-                          interactionRisk.current?.key === interactionKey &&
-                          interactionRisk.current.risk !== 'clean'
+                          (interactionRisk.current?.key === interactionKey &&
+                            interactionRisk.current.risk !== 'clean') ||
+                          (operationRisk.current?.key === interactionKey &&
+                            (operationRisk.current.risk.dirty ||
+                              operationRisk.current.risk.unresolved))
                         ) {
                           setOperationMessage(
-                            'İletişim taslağını açıkça kapatın veya iletişim yazımını doğrulayın. Görev işlemi iletişim taslağını/anahtarını silmez.',
+                            'İletişim/görev taslağını açıkça kapatın veya önceki yazımı doğrulayın. Teklif işlemi mevcut taslağı/anahtarı silmez.',
                           );
                           return false;
                         }
@@ -419,16 +572,15 @@ function Workspace({ owner }: { owner: boolean }) {
                       }}
                       onRisk={(risk) => {
                         if (activeInteraction.current === interactionKey) {
-                          operationRisk.current = { key: interactionKey!, risk };
-                          setOperationUnresolved(risk.unresolved);
+                          quoteRisk.current = { key: interactionKey!, risk };
+                          setQuoteBlocking(risk.dirty || risk.unresolved);
                         }
                       }}
-                      onApplied={(message) => setOperationMessage(message)}
                     />
                     <p>
-                      Teklif, WhatsApp önizleme/açma ve yenileme sonuçlandırma klasik çalışma
-                      alanındadır. Bağlantı bu görevi otomatik seçmez; klasik listeden yeniden
-                      seçmeniz gerekir.
+                      Teklif gönderim/kabul/ret, WhatsApp önizleme/açma ve yenileme sonuçlandırma
+                      klasik çalışma alanındadır. Bağlantı bu görevi otomatik seçmez; klasik
+                      listeden yeniden seçmeniz gerekir.
                     </p>
                     <Button asChild>
                       <Link to="/today-work/legacy" onClick={classic}>
