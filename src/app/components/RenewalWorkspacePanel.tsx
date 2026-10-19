@@ -516,6 +516,7 @@ export function RenewalWorkspacePanel({
       const payload =
         terminalAction === 'WON'
           ? {
+              expectedPrimaryTaskId: taskId,
               expectedRenewalVersion: versions.renewalVersion,
               expectedTaskVersion: versions.taskVersion,
               result: {
@@ -532,6 +533,7 @@ export function RenewalWorkspacePanel({
             }
           : terminalAction === 'LOST'
             ? {
+                expectedPrimaryTaskId: taskId,
                 expectedRenewalVersion: versions.renewalVersion,
                 expectedTaskVersion: versions.taskVersion,
                 lossReasonId,
@@ -539,6 +541,7 @@ export function RenewalWorkspacePanel({
                   selectedLossReason?.code === 'OTHER' ? lossReasonNotes.trim() : null,
               }
             : {
+                expectedPrimaryTaskId: taskId,
                 expectedRenewalVersion: renewalVersion,
                 expectedTaskVersion: taskVersion,
                 voidReasonCode,

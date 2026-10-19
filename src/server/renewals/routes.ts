@@ -18,10 +18,10 @@ import {
 import { correctWonRenewal, issueWonRenewalCorrectionGrant } from './won-correction';
 import { closeRenewalWonGroup, issueRenewalWonGroupGrant } from './won-group-atomic';
 import {
-  closeRenewalLostSchema,
+  closeRenewalLostRequestSchema,
   closeRenewalWonGroupSchema,
   closeRenewalWonGroupGrantSchema,
-  closeRenewalWonSchema,
+  closeRenewalWonRequestSchema,
   correctWonRenewalSchema,
   createRenewalInteractionSchema,
   previewRenewalWhatsAppSchema,
@@ -30,7 +30,7 @@ import {
   createRenewalQuoteVersionSchema,
   reopenRenewalSchema,
   sendRenewalQuoteSchema,
-  voidRenewalSchema,
+  voidRenewalRequestSchema,
   wonRenewalCorrectionGrantSchema,
 } from './validation';
 import { allocateRenewalPolicyLinks, issueRenewalPolicyLinksGrant } from './policy-links';
@@ -161,7 +161,7 @@ export function registerRenewalCommandRoutes(
     let raw: unknown;
     try {
       raw = await c.req.json();
-      closeRenewalLostSchema.parse(raw);
+      closeRenewalLostRequestSchema.parse(raw);
     } catch (error) {
       if (error instanceof z.ZodError || error instanceof SyntaxError) {
         return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
@@ -231,7 +231,7 @@ export function registerRenewalCommandRoutes(
     let raw: unknown;
     try {
       raw = await c.req.json();
-      closeRenewalWonSchema.parse(raw);
+      closeRenewalWonRequestSchema.parse(raw);
     } catch {
       return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
     }
@@ -298,7 +298,7 @@ export function registerRenewalCommandRoutes(
     let raw: unknown;
     try {
       raw = await c.req.json();
-      voidRenewalSchema.parse(raw);
+      voidRenewalRequestSchema.parse(raw);
     } catch (error) {
       if (error instanceof z.ZodError || error instanceof SyntaxError) {
         return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');

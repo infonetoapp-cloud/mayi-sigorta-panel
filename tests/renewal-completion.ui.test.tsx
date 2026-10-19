@@ -51,14 +51,15 @@ function fixture(
     if (url.endsWith('/catalogs/selectable')) return response({ lossReasons: reasons });
     if (url.includes('/api/policies?')) return response(page);
     if (url.endsWith('/api/policies/new-policy')) return response(policy);
-    if (url.includes('/close-')) return response({ data: { operationId: 'op' } }, 201);
+    if (url.includes('/close-') || url.endsWith('/void'))
+      return response({ data: { operationId: 'op' } }, 201);
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal('fetch', fetcher);
   return fetcher;
 }
 async function open(
-  action: 'WON' | 'LOST',
+  action: 'WON' | 'LOST' | 'VOIDED',
   refreshCompletionVersions?: () => Promise<{ renewalVersion: number; taskVersion: number }>,
 ) {
   const onTerminalOutcome = vi.fn();
@@ -93,6 +94,21 @@ afterEach(() => {
 });
 
 describe('Employee renewal completion', () => {
+  it('pins the already selected task identity in the legacy VOIDED payload', async () => {
+    const fetcher = fixture();
+    const completed = await open('VOIDED');
+    fireEvent.click(screen.getByRole('button', { name: 'VOIDED sonucunu kaydet: Deneme' }));
+    await waitFor(() => expect(completed).toHaveBeenCalledOnce());
+    const call = fetcher.mock.calls.find(
+      ([url, init]) => String(url).endsWith('/void') && init?.method === 'POST',
+    );
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      expectedPrimaryTaskId: 'task',
+      expectedRenewalVersion: 4,
+      expectedTaskVersion: 3,
+      voidReasonCode: 'TECHNICAL_ERROR',
+    });
+  });
   it('uses authorized policy detail version/premium/currency rather than quote defaults or list values', async () => {
     const fetcher = fixture((url) =>
       url.includes('/api/policies?')
@@ -112,6 +128,7 @@ describe('Employee renewal completion', () => {
     await waitFor(() => expect(completed).toHaveBeenCalledOnce());
     const request = posts(fetcher)[0]![1]!;
     expect(JSON.parse(String(request.body))).toEqual({
+      expectedPrimaryTaskId: 'task',
       expectedRenewalVersion: 4,
       expectedTaskVersion: 3,
       result: {
@@ -149,6 +166,7 @@ describe('Employee renewal completion', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Kaybedildi sonucunu kaydet: Deneme' }));
       await waitFor(() => expect(completed).toHaveBeenCalledOnce());
       expect(JSON.parse(String(posts(fetcher)[0]![1]!.body))).toEqual({
+        expectedPrimaryTaskId: 'task',
         expectedRenewalVersion: 4,
         expectedTaskVersion: 3,
         lossReasonId: reason,

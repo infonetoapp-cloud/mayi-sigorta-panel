@@ -5,17 +5,25 @@ import { evaluateAuthorization, type EffectiveScope } from '../auth/authorizatio
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { parsePolicyCreateInput } from '../policies/validation';
 import {
-  closeRenewalWonSchema,
-  closeRenewalLostSchema,
-  type CloseRenewalWonInput,
-  type CloseRenewalLostInput,
+  closeRenewalWonRequestSchema,
+  closeRenewalLostRequestSchema,
+  type CloseRenewalWonInput as NewCloseRenewalWonInput,
+  type CloseRenewalLostInput as NewCloseRenewalLostInput,
   reopenRenewalSchema,
   type ReopenRenewalInput,
-  type VoidRenewalInput,
-  voidRenewalSchema,
+  type VoidRenewalInput as NewVoidRenewalInput,
+  voidRenewalRequestSchema,
   wonRenewalCorrectionGrantSchema,
   type WonRenewalCorrectionInput,
 } from './validation';
+
+type ReplayCompatible<T extends { expectedPrimaryTaskId: string }> = Omit<
+  T,
+  'expectedPrimaryTaskId'
+> & { expectedPrimaryTaskId?: string };
+type CloseRenewalLostInput = ReplayCompatible<NewCloseRenewalLostInput>;
+type CloseRenewalWonInput = ReplayCompatible<NewCloseRenewalWonInput>;
+type VoidRenewalInput = ReplayCompatible<NewVoidRenewalInput>;
 
 const CLOSE_LOST_ACTION = 'renewal.close_lost';
 const CLOSE_WON_ACTION = 'renewal.close_won';
@@ -343,6 +351,24 @@ export function receiptTaskId(receipt: ReceiptRow | null): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function terminalTaskId(
+  expectedPrimaryTaskId: string | undefined,
+  receipt: ReceiptRow | null,
+  sameReceiptTarget: boolean,
+  action: string,
+): string {
+  if (receipt) {
+    if (receipt.action !== action || !sameReceiptTarget)
+      throw new RenewalCommandError('IDEMPOTENCY_CONFLICT', 409);
+    const original = receiptTaskId(receipt);
+    if (!original) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    // Reauthorize the receipt's original task; the fingerprint rejects changed IDs.
+    return original;
+  }
+  if (!expectedPrimaryTaskId) throw new RenewalCommandError('PRIMARY_TASK_ID_REQUIRED', 400);
+  return expectedPrimaryTaskId;
 }
 
 export function isCanonicalTimestamp(value: unknown): value is string {
@@ -940,7 +966,7 @@ export async function closeRenewalLost(
   rawIdempotencyKey: string,
 ): Promise<{ data: RenewalLostResult; replayed: boolean }> {
   const active = activeMembership(context);
-  const input = closeRenewalLostSchema.parse(rawInput);
+  const input = closeRenewalLostRequestSchema.parse(rawInput);
   const idempotencyKey = rawIdempotencyKey.trim();
   if (!idempotencyKey || idempotencyKey.length > 128) {
     throw new RenewalCommandError('IDEMPOTENCY_KEY_INVALID', 400);
@@ -957,12 +983,18 @@ export async function closeRenewalLost(
     }
   })();
   const isSameReceiptTarget = receiptRenewalId === renewalId;
-  const targetTaskId = isSameReceiptTarget ? receiptTaskId(receipt) : undefined;
+  const targetTaskId = terminalTaskId(
+    input.expectedPrimaryTaskId,
+    receipt,
+    isSameReceiptTarget,
+    CLOSE_LOST_ACTION,
+  );
   const row = await loadRenewalTask(db, active.agencyId, renewalId, targetTaskId);
   if (!row) throw new RenewalCommandError('NOT_FOUND', 404);
   let scopes: AuthorizationScopes;
   try {
     scopes = await authorizeCurrentTarget(db, context, row);
+    // The loaded row is used by both the live authority assertion and row-scoped CAS.
   } catch (error) {
     if (receipt) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
     throw error;
@@ -1052,6 +1084,7 @@ export async function closeRenewalLost(
       const racedReceipt = await readReceipt(db, active, context.userId, idempotencyKey);
       if (racedReceipt) {
         const racedTaskId = receiptTaskId(racedReceipt);
+        if (!racedTaskId) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
         const racedRow = await loadRenewalTask(db, active.agencyId, renewalId, racedTaskId);
         if (!racedRow) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
         let racedScopes: AuthorizationScopes;
@@ -1338,7 +1371,7 @@ export async function voidRenewal(
   rawIdempotencyKey: string,
 ): Promise<{ data: RenewalVoidResult; replayed: boolean }> {
   const active = activeMembership(context);
-  const input = voidRenewalSchema.parse(rawInput);
+  const input = voidRenewalRequestSchema.parse(rawInput);
   const idempotencyKey = rawIdempotencyKey.trim();
   if (!idempotencyKey || idempotencyKey.length > 128) {
     throw new RenewalCommandError('IDEMPOTENCY_KEY_INVALID', 400);
@@ -1355,7 +1388,12 @@ export async function voidRenewal(
     }
   })();
   const isSameReceiptTarget = receiptRenewalId === renewalId;
-  const targetTaskId = isSameReceiptTarget ? receiptTaskId(receipt) : undefined;
+  const targetTaskId = terminalTaskId(
+    input.expectedPrimaryTaskId,
+    receipt,
+    isSameReceiptTarget,
+    VOID_ACTION,
+  );
   const row = await loadRenewalTask(db, active.agencyId, renewalId, targetTaskId);
   if (!row) throw new RenewalCommandError('NOT_FOUND', 404);
   let scopes: AuthorizationScopes;
@@ -1444,6 +1482,7 @@ export async function voidRenewal(
       const racedReceipt = await readReceipt(db, active, context.userId, idempotencyKey);
       if (racedReceipt) {
         const racedTaskId = receiptTaskId(racedReceipt);
+        if (!racedTaskId) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
         const racedRow = await loadRenewalTask(db, active.agencyId, renewalId, racedTaskId);
         if (!racedRow) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
         let racedScopes: AuthorizationScopes;
@@ -3009,7 +3048,7 @@ export async function closeRenewalWon(
   rawIdempotencyKey: string,
 ): Promise<{ data: RenewalWonResult; replayed: boolean; status: 200 | 201 }> {
   const active = activeMembership(context);
-  const input = closeRenewalWonSchema.parse(rawInput);
+  const input = closeRenewalWonRequestSchema.parse(rawInput);
   const idempotencyKey = rawIdempotencyKey.trim();
   if (!idempotencyKey || idempotencyKey.length > 128) {
     throw new RenewalCommandError('IDEMPOTENCY_KEY_INVALID', 400);
@@ -3034,7 +3073,13 @@ export async function closeRenewalWon(
     }
   }
   const sameTarget = receiptRenewalId === renewalId;
-  const row = await loadRenewalTask(db, active.agencyId, renewalId);
+  const targetTaskId = terminalTaskId(
+    input.expectedPrimaryTaskId,
+    receipt,
+    sameTarget,
+    CLOSE_WON_ACTION,
+  );
+  const row = await loadRenewalTask(db, active.agencyId, renewalId, targetTaskId);
   if (!row) throw new RenewalCommandError('NOT_FOUND', 404);
   let scopes: AuthorizationScopes;
   try {
@@ -3636,12 +3681,9 @@ export async function closeRenewalWon(
         if (racedReceipt.action !== CLOSE_WON_ACTION) {
           throw new RenewalCommandError('IDEMPOTENCY_CONFLICT', 409);
         }
-        const racedRow = await loadRenewalTask(
-          db,
-          active.agencyId,
-          renewalId,
-          receiptTaskId(racedReceipt),
-        );
+        const racedTaskId = receiptTaskId(racedReceipt);
+        if (!racedTaskId) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+        const racedRow = await loadRenewalTask(db, active.agencyId, renewalId, racedTaskId);
         if (!racedRow) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
         const racedScopes = await authorizeCurrentTarget(db, context, racedRow, CLOSE_WON_ACTION);
         const replay = parseWonReceipt(

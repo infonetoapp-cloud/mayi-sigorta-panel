@@ -397,6 +397,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
   it('closes an open renewal as LOST with its primary Task, history, audit and receipt atomically', async () => {
     const payload = {
+      expectedPrimaryTaskId: 'terminal-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       lossReasonId: 'terminal-loss-other',
@@ -599,6 +600,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
   it('rechecks current identity in the same query that proves an exact LOST replay', async () => {
     const payload = {
+      expectedPrimaryTaskId: 'terminal-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       lossReasonId: 'terminal-loss-other',
@@ -637,6 +639,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         db,
         'terminal-renewal',
         {
+          expectedPrimaryTaskId: 'terminal-primary-task',
           expectedRenewalVersion: 1,
           expectedTaskVersion: 1,
           lossReasonId: 'terminal-loss-other',
@@ -901,6 +904,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db,
       'terminal-renewal',
       {
+        expectedPrimaryTaskId: 'terminal-primary-task',
         expectedRenewalVersion: 1,
         expectedTaskVersion: 1,
         lossReasonId: 'terminal-loss-other',
@@ -919,6 +923,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
   it('converges concurrent identical LOST retries on one result, receipt, history and audit', async () => {
     const payload = {
+      expectedPrimaryTaskId: 'terminal-race-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       lossReasonId: 'terminal-loss-price',
@@ -959,6 +964,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
   it('closes an open renewal as VOIDED without classifying it as commercial loss', async () => {
     const payload = {
+      expectedPrimaryTaskId: 'terminal-void-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       voidReasonCode: 'TECHNICAL_ERROR' as const,
@@ -1155,6 +1161,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       )
       .run();
     const payload = {
+      expectedPrimaryTaskId: 'terminal-scope-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       lossReasonId: 'terminal-loss-price',
@@ -1216,12 +1223,14 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
   it('allows only one competing LOST/VOIDED terminal command to commit', async () => {
     const lostPayload = {
+      expectedPrimaryTaskId: 'terminal-cross-race-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       lossReasonId: 'terminal-loss-price',
       lossReasonNotes: null,
     };
     const voidPayload = {
+      expectedPrimaryTaskId: 'terminal-cross-race-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       voidReasonCode: 'DUPLICATE' as const,
@@ -1304,6 +1313,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
             'Idempotency-Key': 'terminal-close-lost-key',
           },
           body: JSON.stringify({
+            expectedPrimaryTaskId: 'terminal-primary-task',
             expectedRenewalVersion: 1,
             expectedTaskVersion: 1,
             lossReasonId: 'terminal-loss-other',
@@ -1373,6 +1383,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       ),
     ]);
     const payload = {
+      expectedPrimaryTaskId: 'won-create-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       result: {
@@ -1593,6 +1604,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
             'Idempotency-Key': key,
           },
           body: JSON.stringify({
+            expectedPrimaryTaskId: 'won-only-race-task',
             expectedRenewalVersion: 1,
             expectedTaskVersion: 1,
             result: { kind: 'CREATE_POLICY', policy: policyInput(policyNumber) },
@@ -1724,6 +1736,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         env,
       );
     const payload = {
+      expectedPrimaryTaskId: 'won-race-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       result: { kind: 'CREATE_POLICY', policy },
@@ -1732,6 +1745,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       post('/api/renewals/won-race-renewal/close-won', 'won-race-key-a', payload),
       post('/api/renewals/won-race-renewal/close-won', 'won-race-key-b', payload),
       post('/api/renewals/won-race-renewal/close-lost', 'won-race-lost-key', {
+        expectedPrimaryTaskId: 'won-race-primary-task',
         expectedRenewalVersion: 1,
         expectedTaskVersion: 1,
         lossReasonId: 'terminal-loss-price',
@@ -1834,6 +1848,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     );
     const wonCsrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const payload = {
+      expectedPrimaryTaskId: 'won-split-primary-task',
       expectedRenewalVersion: 2,
       expectedTaskVersion: 2,
       result: { kind: 'EXISTING_LINKS' },
@@ -1940,6 +1955,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     );
     const wonCsrf = ((await csrfResponse.json()) as { data: { token: string } }).data.token;
     const payload = {
+      expectedPrimaryTaskId: 'won-link-primary-task',
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       result: {
@@ -2463,6 +2479,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
 
       const wonKey = `${input.prefix}-won-key`;
       const wonPayload = {
+        expectedPrimaryTaskId: primaryTaskId,
         expectedRenewalVersion: 1,
         expectedTaskVersion: 1,
         acceptedQuoteVersionId: secondVersionResult.data.quoteVersionId,
@@ -2773,6 +2790,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       db,
       'owner-implicit-engagement-renewal',
       {
+        expectedPrimaryTaskId: 'owner-implicit-task',
         expectedRenewalVersion: 1,
         expectedTaskVersion: 1,
         acceptedQuoteVersionId: quoteData.data.quoteVersionId,
@@ -4030,6 +4048,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         lostBarrier.database,
         lostRaceFixture.renewalA,
         {
+          expectedPrimaryTaskId: lostRaceFixture.taskA,
           expectedRenewalVersion: 1,
           expectedTaskVersion: 1,
           lossReasonId: 'terminal-loss-price',
@@ -4096,6 +4115,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     };
     const wonBarrier = createBatchBarrier();
     const individualWonPayload = {
+      expectedPrimaryTaskId: wonRaceFixture.taskA,
       expectedRenewalVersion: 1,
       expectedTaskVersion: 1,
       result: {

@@ -4,9 +4,15 @@ const version = z.number().int().min(1).max(1_000_000_000);
 const membershipOrEntityId = z.string().trim().min(1).max(128);
 const note = z.string().trim().min(1).max(500).nullable();
 const quoteDifferenceReasonCode = z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/);
+const primaryTaskId = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine((value) => value === value.trim());
 
 export const closeRenewalLostSchema = z
   .object({
+    expectedPrimaryTaskId: primaryTaskId,
     expectedRenewalVersion: version,
     expectedTaskVersion: version,
     lossReasonId: membershipOrEntityId,
@@ -32,6 +38,7 @@ const renewalWonPolicyResultSchema = z.discriminatedUnion('kind', [
 
 export const closeRenewalWonSchema = z
   .object({
+    expectedPrimaryTaskId: primaryTaskId,
     expectedRenewalVersion: version,
     expectedTaskVersion: version,
     result: renewalWonPolicyResultSchema,
@@ -44,6 +51,7 @@ export type CloseRenewalWonInput = z.infer<typeof closeRenewalWonSchema>;
 
 export const voidRenewalSchema = z
   .object({
+    expectedPrimaryTaskId: primaryTaskId,
     expectedRenewalVersion: version,
     expectedTaskVersion: version,
     voidReasonCode: z.enum([
@@ -55,6 +63,16 @@ export const voidRenewalSchema = z
   .strict();
 
 export type VoidRenewalInput = z.infer<typeof voidRenewalSchema>;
+
+// Missing identity is transport-compatible only for proven historical receipts.
+// Commands must reject id-less NEW writes before resolving a task.
+export const closeRenewalLostRequestSchema = closeRenewalLostSchema.partial({
+  expectedPrimaryTaskId: true,
+});
+export const closeRenewalWonRequestSchema = closeRenewalWonSchema.partial({
+  expectedPrimaryTaskId: true,
+});
+export const voidRenewalRequestSchema = voidRenewalSchema.partial({ expectedPrimaryTaskId: true });
 
 export const reopenRenewalSchema = z
   .object({
