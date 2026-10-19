@@ -724,6 +724,19 @@ export async function createRenewalQuoteVersion(
     throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
   if (quote.status === 'ACCEPTED')
     throw new RenewalCommandError('RENEWAL_QUOTE_ACCEPTED_IMMUTABLE', 409);
+  const original = await db
+    .prepare(
+      `SELECT insurer_id,product_id FROM renewal_quote_versions
+       WHERE agency_id=? AND quote_id=? AND version_number=1`,
+    )
+    .bind(active.agencyId, quoteId)
+    .first<{ insurer_id: string; product_id: string }>();
+  if (
+    !original ||
+    original.insurer_id !== input.version.insurerId ||
+    original.product_id !== input.version.productId
+  )
+    throw new RenewalCommandError('RENEWAL_QUOTE_IDENTITY_CONFLICT', 409);
   validateVersionPayload(input.version);
   if (Date.parse(input.version.validUntil) <= Date.now())
     throw new RenewalCommandError('QUOTE_VALID_UNTIL_INVALID', 409);
@@ -761,6 +774,25 @@ export async function createRenewalQuoteVersion(
         201,
         now,
       ),
+      // Keep receipt race reconciliation first; an identity failure rolls it back too.
+      db
+        .prepare(
+          `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+           SELECT ?,1,CASE WHEN EXISTS(
+             SELECT 1 FROM renewal_quotes q JOIN renewal_quote_versions original
+               ON original.agency_id=q.agency_id AND original.quote_id=q.id
+             WHERE q.agency_id=? AND q.renewal_id=? AND q.id=?
+               AND original.version_number=1 AND original.insurer_id=? AND original.product_id=?
+           ) THEN 1 ELSE 0 END,'RENEWAL_QUOTE_IDENTITY_CONFLICT'`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          active.agencyId,
+          renewalId,
+          quoteId,
+          input.version.insurerId,
+          input.version.productId,
+        ),
       db
         .prepare(
           `INSERT INTO renewal_quote_versions
