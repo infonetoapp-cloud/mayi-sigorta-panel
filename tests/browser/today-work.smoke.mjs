@@ -15,6 +15,7 @@ import { quoteWalkthrough } from './renewal-quotes.walkthrough.mjs';
 import { quoteSentWalkthrough } from './quote-sent.walkthrough.mjs';
 import { terminalOutcomeWalkthrough } from './terminal-outcomes.walkthrough.mjs';
 import { wonPolicyWalkthrough } from './won-policy.walkthrough.mjs';
+import { wonCreateWalkthrough } from './won-create.walkthrough.mjs';
 let stage = 'setup',
   browser,
   demo,
@@ -27,6 +28,7 @@ const quotesOnly = process.argv.includes('--quotes-only');
 const sentOnly = process.argv.includes('--sent-only');
 const outcomesOnly = process.argv.includes('--outcomes-only');
 const wonOnly = process.argv.includes('--won-only');
+const createOnly = process.argv.includes('--create-only');
 const passwords = Array.from({ length: 3 }, () => randomBytes(24).toString('hex'));
 const mark = (value) => {
   stage = value;
@@ -82,13 +84,15 @@ try {
   directory = await mkdtemp(resolve('node_modules/.cache/today-queue-smoke-'));
   evidence = await mkdtemp(
     resolve(
-      wonOnly
-        ? 'node_modules/.cache/phase4ga-edge-acceptance-'
-        : outcomesOnly
-          ? 'node_modules/.cache/phase4f-edge-acceptance-'
-          : sentOnly
-            ? 'node_modules/.cache/phase4e-edge-acceptance-'
-            : 'node_modules/.cache/phase4d-edge-acceptance-',
+      createOnly
+        ? 'node_modules/.cache/phase4gb-edge-acceptance-'
+        : wonOnly
+          ? 'node_modules/.cache/phase4ga-edge-acceptance-'
+          : outcomesOnly
+            ? 'node_modules/.cache/phase4f-edge-acceptance-'
+            : sentOnly
+              ? 'node_modules/.cache/phase4e-edge-acceptance-'
+              : 'node_modules/.cache/phase4d-edge-acceptance-',
     ),
   );
   const bundle = join(directory, 'fixture.mjs');
@@ -136,6 +140,15 @@ try {
     console.info('CANONICAL_LOGIN_STATUS', index, (await loginResponse).status());
     mark('login-dashboard-' + index);
     await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
+    if (createOnly) {
+      await legacy(page, index);
+      if (!index) await application.seedTerminalTasks(demo.db);
+      const permissions = await wonCreateWalkthrough(page, index, mark, demo, evidence);
+      assert.equal(failures.length, 0);
+      accepted.push({ actor: user.id, widths: [1440, 768, 360], permissions, result: 'PASS' });
+      await context.close();
+      continue;
+    }
     if (wonOnly) {
       await legacy(page, index);
       if (!index) await application.seedTerminalTasks(demo.db);
@@ -377,15 +390,17 @@ try {
     JSON.stringify(
       {
         browser: browser.version(),
-        scope: wonOnly
-          ? 'PHASE4GA_LINK_POLICY_ONLY'
-          : outcomesOnly
-            ? 'PHASE4F_LOST_VOIDED_ONLY'
-            : sentOnly
-              ? 'PHASE4E_SENT_ONLY'
-              : quotesOnly
-                ? 'PHASE4D_QUOTES_ONLY'
-                : 'TODAY_WORK_FULL',
+        scope: createOnly
+          ? 'PHASE4GB_CREATE_POLICY_ONLY'
+          : wonOnly
+            ? 'PHASE4GA_LINK_POLICY_ONLY'
+            : outcomesOnly
+              ? 'PHASE4F_LOST_VOIDED_ONLY'
+              : sentOnly
+                ? 'PHASE4E_SENT_ONLY'
+                : quotesOnly
+                  ? 'PHASE4D_QUOTES_ONLY'
+                  : 'TODAY_WORK_FULL',
         accepted,
       },
       null,
@@ -393,16 +408,22 @@ try {
     ),
   );
   console.info(
-    wonOnly
-      ? 'PHASE4GA_EDGE_EVIDENCE'
-      : outcomesOnly
-        ? 'PHASE4F_EDGE_EVIDENCE'
-        : sentOnly
-          ? 'PHASE4E_EDGE_EVIDENCE'
-          : 'PHASE4D_EDGE_EVIDENCE',
+    createOnly
+      ? 'PHASE4GB_EDGE_EVIDENCE'
+      : wonOnly
+        ? 'PHASE4GA_EDGE_EVIDENCE'
+        : outcomesOnly
+          ? 'PHASE4F_EDGE_EVIDENCE'
+          : sentOnly
+            ? 'PHASE4E_EDGE_EVIDENCE'
+            : 'PHASE4D_EDGE_EVIDENCE',
     evidence,
   );
-  if (wonOnly)
+  if (createOnly)
+    console.info(
+      'PHASE4GB_CREATE_BROWSER PASS: OWNER/Ahmet/Ayşe x 1440/768/360; atomic CREATE_POLICY; no standalone create POST; decimal premium; exact replay/GET-only; real authority/session denial.',
+    );
+  else if (wonOnly)
     console.info(
       'PHASE4GA_WON_BROWSER PASS: OWNER/Ahmet/Ayşe x 1440/768/360; LINK_POLICY only; explicit full allocation, quote association, cycle409, stale primary-task, exact retry, GET-only recovery, navigation and live revocation.',
     );
@@ -439,7 +460,7 @@ try {
   const location =
     error instanceof Error
       ? error.stack?.match(
-          /(?:(?:task-operations|renewal-quotes|quote-sent|terminal-outcomes|won-policy)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
+          /(?:(?:task-operations|renewal-quotes|quote-sent|terminal-outcomes|won-policy|won-create)\.walkthrough|today-work\.smoke)\.mjs:\d+:\d+/,
         )?.[0]
       : null;
   if (location) console.error('BROWSER_FAILURE_LOCATION', location);

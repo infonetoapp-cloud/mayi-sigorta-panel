@@ -310,7 +310,7 @@ it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDE
         : undefined,
   );
   await select();
-  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
   await screen.findByRole('combobox', { name: 'Bağlanacak mevcut poliçe' });
   await waitFor(() =>
     expect(screen.queryByText('WON işlemi veya yetkili okuma sürüyor…')).toBeNull(),
@@ -352,7 +352,7 @@ it.each(['communication', 'task', 'LOST', 'VOIDED'])(
       });
     } else if (kind === 'LOST') await open();
     else fireEvent.click(screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
     expect(screen.queryByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeNull();
     if (kind === 'communication')
       expect((screen.getByLabelText('İç not') as unknown as HTMLInputElement).value).toBe(
@@ -360,3 +360,41 @@ it.each(['communication', 'task', 'LOST', 'VOIDED'])(
       );
   },
 );
+it('keeps CREATE draft exclusive with LINK_POLICY and other terminal branches through refresh guard', async () => {
+  fixture((u) =>
+    u === '/api/catalogs/selectable'
+      ? response({
+          insurers: [{ id: 'i', name: 'I', status: 'ACTIVE', agencyId: 'a', version: 1 }],
+          products: [],
+          branches: [],
+          paymentMethods: [],
+          lossReasons: [],
+        })
+      : undefined,
+  );
+  await select();
+  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur' }));
+  await screen.findByRole('option', { name: 'I' });
+  await act(async () => {
+    await Promise.resolve();
+  });
+  fireEvent.change(screen.getByLabelText('Yeni poliçe numarası'), {
+    target: { value: 'DRAFT-ONLY' },
+  });
+  expect(
+    screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }).matches(':disabled'),
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }).matches(':disabled'),
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
+  await screen.findByText('Hedefi değiştirmeden önce');
+  fireEvent.click(screen.getByRole('button', { name: 'Bu ekranda kal' }));
+  expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
+    'DRAFT-ONLY',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçe WON taslağını açıkça kapat' }));
+  expect(
+    screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }).matches(':disabled'),
+  ).toBe(false);
+});

@@ -611,6 +611,8 @@ export function RenewalOutcomesSection(props: Props) {
     voidRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false }),
     wonRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false });
   const [won, setWon] = useState<TaskOperationRisk>({ dirty: false, unresolved: false });
+  const createRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false });
+  const [created, setCreated] = useState<TaskOperationRisk>({ dirty: false, unresolved: false });
   const lost = useOutcome(
       'LOST',
       props,
@@ -618,7 +620,9 @@ export function RenewalOutcomesSection(props: Props) {
         voidRisk.current.dirty ||
         voidRisk.current.unresolved ||
         wonRisk.current.dirty ||
-        wonRisk.current.unresolved,
+        wonRisk.current.unresolved ||
+        createRisk.current.dirty ||
+        createRisk.current.unresolved,
     ),
     voided = useOutcome(
       'VOIDED',
@@ -627,12 +631,15 @@ export function RenewalOutcomesSection(props: Props) {
         lostRisk.current.dirty ||
         lostRisk.current.unresolved ||
         wonRisk.current.dirty ||
-        wonRisk.current.unresolved,
+        wonRisk.current.unresolved ||
+        createRisk.current.dirty ||
+        createRisk.current.unresolved,
     );
   lostRisk.current = lost.risk;
   voidRisk.current = voided.risk;
-  const dirty = lost.risk.dirty || voided.risk.dirty || won.dirty,
-    unresolved = lost.risk.unresolved || voided.risk.unresolved || won.unresolved;
+  const dirty = lost.risk.dirty || voided.risk.dirty || won.dirty || created.dirty,
+    unresolved =
+      lost.risk.unresolved || voided.risk.unresolved || won.unresolved || created.unresolved;
   useEffect(() => {
     props.onRisk({ dirty, unresolved });
   }, [dirty, unresolved, props.onRisk]);
@@ -651,11 +658,33 @@ export function RenewalOutcomesSection(props: Props) {
           lostRisk.current.dirty ||
           lostRisk.current.unresolved ||
           voidRisk.current.dirty ||
-          voidRisk.current.unresolved
+          voidRisk.current.unresolved ||
+          createRisk.current.dirty ||
+          createRisk.current.unresolved
         }
         onRisk={(risk) => {
           wonRisk.current = risk;
           setWon((previous) =>
+            previous.dirty === risk.dirty && previous.unresolved === risk.unresolved
+              ? previous
+              : risk,
+          );
+        }}
+      />
+      <WonPolicyOperation
+        {...props}
+        mode="CREATE_POLICY"
+        blocked={() =>
+          lostRisk.current.dirty ||
+          lostRisk.current.unresolved ||
+          voidRisk.current.dirty ||
+          voidRisk.current.unresolved ||
+          wonRisk.current.dirty ||
+          wonRisk.current.unresolved
+        }
+        onRisk={(risk) => {
+          createRisk.current = risk;
+          setCreated((previous) =>
             previous.dirty === risk.dirty && previous.unresolved === risk.unresolved
               ? previous
               : risk,

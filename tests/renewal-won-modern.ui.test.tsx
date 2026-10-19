@@ -114,7 +114,7 @@ function fixture(
   return { fetcher, applied, risk, read, view };
 }
 async function choose() {
-  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
   await screen.findByRole('option', { name: /NEW/ });
   fireEvent.change(screen.getByLabelText('Bağlanacak mevcut poliçe'), { target: { value: 'new' } });
   await screen.findByText(/Poliçe sürümü: 4/);
@@ -218,7 +218,7 @@ it.each(['customer', 'self', 'archived', 'inactive', 'agency', 'version'])(
           })
         : undefined,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
     await screen.findByRole('option', { name: /NEW/ });
     fireEvent.change(screen.getByLabelText('Bağlanacak mevcut poliçe'), {
       target: { value: 'new' },
@@ -427,7 +427,7 @@ it.each([401, 200])(
       resolve = r;
     });
     const f = fixture((u) => (u === '/api/policies/new' ? deferred : undefined));
-    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
     await screen.findByRole('option', { name: /NEW/ });
     fireEvent.change(screen.getByLabelText('Bağlanacak mevcut poliçe'), {
       target: { value: 'new' },

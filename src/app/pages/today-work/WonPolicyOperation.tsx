@@ -12,7 +12,10 @@ import { parseAppError } from '../../App';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 import type { TaskOperationRisk, TaskReadback } from './TaskOperationsSection';
 import type { QuoteRecord, QuoteVersion } from './quote-model';
+import { WonCreatePolicyForm, type CreateReview } from './WonCreatePolicyForm';
+import { premiumMinor } from '../policies/policy-form-model';
 interface Props {
+  mode?: 'LINK_POLICY' | 'CREATE_POLICY';
   task: TodayTaskDto;
   read: (signal: AbortSignal) => Promise<TaskReadback>;
   canOperate: () => boolean;
@@ -31,7 +34,8 @@ interface SelectedQuote {
 }
 interface Attempt {
   readonly target: TodayTaskDto;
-  readonly policy: PolicyDetailDto;
+  readonly policy: PolicyDetailDto | null;
+  readonly create?: CreateReview;
   readonly quote: SelectedQuote | null;
   readonly url: string;
   readonly method: 'POST';
@@ -46,7 +50,7 @@ interface WonResult {
   renewalVersion: number;
   taskVersion: number;
   closedAt: string;
-  createdPolicyId: null;
+  createdPolicyId: string | null;
   acceptedQuoteVersionId: string | null;
   acceptedPolicyId: string | null;
   newPolicyIds: string[];
@@ -110,6 +114,22 @@ function samePolicy(a: PolicyDetailDto, b: PolicyDetailDto) {
     'archivedAt',
   ].every((k) => a[k as keyof PolicyDetailDto] === b[k as keyof PolicyDetailDto]);
 }
+function createdPolicyMatches(p: PolicyDetailDto, id: string, c: CreateReview) {
+  return (
+    p?.id === id &&
+    p.agencyId === c.agencyId &&
+    p.customer?.id === c.policy.customerId &&
+    p.archivedAt === null &&
+    p.version === 1 &&
+    p.insurer?.id === c.policy.insurerId &&
+    p.product?.id === c.policy.productId &&
+    Number.isSafeInteger(p.grossPremiumMinor) &&
+    BigInt(p.grossPremiumMinor) === premiumMinor(c.policy.grossPremium) &&
+    Object.entries(c.policy).every(
+      ([k, v]) => k === 'grossPremium' || p[k as keyof PolicyDetailDto] === v,
+    )
+  );
+}
 function eligible(q: Quote): SelectedQuote | null {
   if (
     !q?.id ||
@@ -143,8 +163,22 @@ const differences = (p: PolicyDetailDto, q: SelectedQuote) =>
 function proof(value: unknown, a: Attempt): value is WonResult {
   if (!value || typeof value !== 'object') return false;
   const r = value as WonResult,
-    p = a.policy,
+    p = a.create
+      ? {
+          id: r.createdPolicyId,
+          grossPremiumMinor: Number(premiumMinor(a.create.policy.grossPremium)),
+          currency: a.create.policy.currency,
+        }
+      : a.policy,
     t = a.target;
+  if (
+    !p ||
+    (a.create &&
+      (typeof r.createdPolicyId !== 'string' ||
+        !/^[A-Za-z0-9_.:-]{1,128}$/.test(r.createdPolicyId) ||
+        r.createdPolicyId === t.policyId))
+  )
+    return false;
   return (
     r.renewalId === t.renewalId &&
     r.primaryTaskId === t.taskId &&
@@ -153,7 +187,7 @@ function proof(value: unknown, a: Attempt): value is WonResult {
     r.renewalVersion === t.renewalVersion + 1 &&
     r.taskVersion === t.taskVersion + 1 &&
     canonical(r.closedAt) &&
-    r.createdPolicyId === null &&
+    (a.create ? r.createdPolicyId === p.id : r.createdPolicyId === null) &&
     r.acceptedQuoteVersionId === (a.quote?.version.id ?? null) &&
     r.acceptedPolicyId === (a.quote ? p.id : null) &&
     Array.isArray(r.newPolicyIds) &&
@@ -210,6 +244,10 @@ async function renewal(a: Attempt, signal: AbortSignal) {
   throw Error('BOUND');
 }
 export function WonPolicyOperation(props: Props) {
+  const creating = props.mode === 'CREATE_POLICY';
+  const [formBusy, setFormBusy] = useState(false),
+    [lastCreate, setLastCreate] = useState<CreateReview | null>(null),
+    [createComparison, setCreateComparison] = useState<TodayTaskDto | null>(null);
   const [target, setTarget] = useState<TodayTaskDto | null>(null),
     [original, setOriginal] = useState<PolicyDetailDto | null>(null),
     [policy, setPolicy] = useState<PolicyDetailDto | null>(null),
@@ -246,7 +284,7 @@ export function WonPolicyOperation(props: Props) {
   useEffect(() => {
     if (target) heading.current?.focus();
   }, [target]);
-  const unresolved = busy || !!pending || !!accepted;
+  const unresolved = busy || formBusy || !!pending || !!accepted;
   useEffect(
     () => props.onRisk({ dirty: !!target, unresolved }),
     [target, unresolved, props.onRisk],
@@ -324,6 +362,7 @@ export function WonPolicyOperation(props: Props) {
     const t = { ...props.task };
     setTarget(t);
     setError('');
+    if (creating) return;
     await job(async (e, c) => {
       try {
         const p = await readCustomerResource<PolicyDetailDto>(
@@ -394,11 +433,13 @@ export function WonPolicyOperation(props: Props) {
     try {
       const a = saved.attempt,
         r = saved.result,
-        row = await renewal(a, c.signal),
-        p = await readCustomerResource<PolicyDetailDto>(
-          `/api/policies/${encodeURIComponent(a.policy.id)}`,
-          c.signal,
-        );
+        row = await renewal(a, c.signal);
+      const policyId = a.create ? r?.createdPolicyId : a.policy?.id;
+      if (!policyId) throw Error('UNVERIFIED');
+      const p = await readCustomerResource<PolicyDetailDto>(
+        `/api/policies/${encodeURIComponent(policyId)}`,
+        c.signal,
+      );
       let quoteVerified = true;
       if (a.quote) {
         const rows = await history(a.target, c.signal),
@@ -407,7 +448,7 @@ export function WonPolicyOperation(props: Props) {
           !!q &&
           q.status === 'ACCEPTED' &&
           q.accepted_version_id === a.quote.version.id &&
-          q.accepted_policy_id === a.policy.id &&
+          q.accepted_policy_id === a.policy!.id &&
           q.versions.some(
             (v) =>
               v.id === a.quote!.version.id &&
@@ -417,7 +458,7 @@ export function WonPolicyOperation(props: Props) {
             (ev) =>
               ev.event === 'ACCEPTED' &&
               ev.quote_version_id === a.quote!.version.id &&
-              ev.accepted_policy_id === a.policy.id &&
+              ev.accepted_policy_id === a.policy!.id &&
               canonical(ev.occurred_at) &&
               ev.occurred_at === r?.closedAt,
           );
@@ -427,8 +468,11 @@ export function WonPolicyOperation(props: Props) {
         !r ||
         row.state !== 'WON' ||
         row.version !== r.renewalVersion ||
-        !validPolicy(p, a.policy.id, a.target.customerId, a.policy.agencyId) ||
-        !samePolicy(p, a.policy) ||
+        !(a.create
+          ? createdPolicyMatches(p, policyId, a.create)
+          : !!a.policy &&
+            validPolicy(p, a.policy.id, a.target.customerId, a.policy.agencyId) &&
+            samePolicy(p, a.policy)) ||
         !quoteVerified
       )
         throw Error('UNVERIFIED');
@@ -441,7 +485,10 @@ export function WonPolicyOperation(props: Props) {
       props.onApplied(
         'WON: POST hedef/link/tutar kanıtı ve bağımsız yetkili yenileme/poliçe' +
           (a.quote ? '/ACCEPTED teklif olayı' : '') +
-          ' okumaları doğrulandı. Yeni poliçe oluşturulmadı. Bu GET tamamlanan Task veya policy-link satırlarını bağımsız kanıtlamaz; sunucu atomik kapanışı bildirir.',
+          (a.create
+            ? ' okumaları doğrulandı. Yeni ACTIVE poliçe tek atomik komutla oluşturuldu. '
+            : ' okumaları doğrulandı. Yeni poliçe oluşturulmadı. ') +
+          'Bu GET tamamlanan Task veya policy-link satırlarını bağımsız kanıtlamaz; sunucu atomik kapanışı bildirir.',
       );
     } catch (cause) {
       if (alive(e, c)) {
@@ -471,7 +518,8 @@ export function WonPolicyOperation(props: Props) {
             'idempotency-key': a.key,
           },
         });
-        const d = (await r.json().catch(() => null)) as ApiResponse<unknown> | null;
+        const d = (await r.json().catch(() => null)) as
+          (ApiResponse<unknown> & { replayed?: boolean }) | null;
         if (!alive(e, c)) return;
         if (!r.ok) {
           if (r.status >= 500 || [408, 429].includes(r.status)) throw Error('UNCERTAIN');
@@ -488,12 +536,22 @@ export function WonPolicyOperation(props: Props) {
           }
           setError(
             r.status === 409
-              ? 'WON çakıştı. Poliçe önceden tahsis edilmiş, hedef veya sürüm değişmiş ya da teklif süresi dolmuş olabilir. Tam primin tamamı dışında tahsis desteklenmez. Taslak korunur; yetkili karşılaştırma, açık yeniden seçim ve onay gerekir.'
+              ? creating
+                ? 'WON çakıştı. Aynı poliçe numarası zaten kayıtlı olabilir veya özgün Task/sürümler değişmiştir. Oluşturma taslağı korunur; numara otomatik değiştirilmez ve LINK_POLICY dalına geçilmez. Yetkili karşılaştırıp taslağı yeniden inceleyin.'
+                : 'WON çakıştı. Poliçe önceden tahsis edilmiş, hedef veya sürüm değişmiş ya da teklif süresi dolmuş olabilir. Tam primin tamamı dışında tahsis desteklenmez. Taslak korunur; yetkili karşılaştırma, açık yeniden seçim ve onay gerekir.'
               : 'WON izni veya hedef doğrulanamadı. Korunan ayrıntılar gizlendi; yetkili karşılaştırma gerekir.',
           );
           return;
         }
-        const saved = { attempt: a, result: d?.success && proof(d.data, a) ? d.data : null };
+        const saved = {
+          attempt: a,
+          result:
+            d?.success &&
+            (!a.create || r.status === 201 || (r.status === 200 && d.replayed === true)) &&
+            proof(d.data, a)
+              ? d.data
+              : null,
+        };
         setPending(null);
         setAccepted(saved);
         await verify(saved, e, c);
@@ -659,8 +717,162 @@ export function WonPolicyOperation(props: Props) {
     setComparison(null);
     setMasked(false);
     setError('');
+    setLastCreate(null);
+    setCreateComparison(null);
+    setFormBusy(false);
   }
   const diff = policy && quote ? differences(policy, quote) : [];
+  async function compareCreate() {
+    if (
+      !target ||
+      !lastCreate ||
+      lock.current ||
+      pending ||
+      accepted ||
+      props.blocked() ||
+      !props.canOperate()
+    )
+      return;
+    setCreateComparison(null);
+    await job(async (e, c) => {
+      try {
+        const fresh = await props.read(c.signal);
+        const query = new URLSearchParams({
+          customerId: target.customerId,
+          search: lastCreate.policy.policyNumber,
+          searchMode: 'exact',
+          pageSize: '25',
+          status: 'ACTIVE',
+        });
+        const listed = await readCustomerResource<PolicyListResponseData>(
+          '/api/policies?' + query,
+          c.signal,
+        );
+        if (!alive(e, c)) return;
+        if (
+          !fresh.current ||
+          !sameTask(target, fresh.current) ||
+          !open(fresh.current) ||
+          !Array.isArray(listed.items) ||
+          listed.items.some((p) => p.customerId !== target.customerId)
+        ) {
+          setError(
+            'Özgün Task artık uygun değil; replacement Task benimsenmedi. Eski taslağı açıkça kapatıp yeni görevi ayrıca seçin.',
+          );
+          return;
+        }
+        setMasked(false);
+        setCreateComparison(fresh.current);
+        setError(
+          `Yetkili aynı-numara poliçe aramasında ${listed.items.length} kayıt bu sayfada bulundu. Otomatik LINK_POLICY veya numara değişikliği yapılmaz; taslağı kontrol edip açıkça yeniden inceleyin.`,
+        );
+      } catch (cause) {
+        if (alive(e, c)) fail(cause);
+      }
+    });
+  }
+  if (creating)
+    return (
+      <>
+        <Button
+          variant="outline"
+          disabled={!!target || unresolved || props.blocked()}
+          onClick={() => void start()}
+        >
+          Kazanıldı — yeni poliçe oluştur
+        </Button>
+        {target && (
+          <section aria-label="WON yeni poliçe oluşturma" className="today-outcome-form">
+            <h4 ref={heading} tabIndex={-1}>
+              WON — yeni poliçe oluştur
+            </h4>
+            {!masked && (
+              <p>
+                Müşteri: {target.customerDisplayName}; eski poliçe {target.policyNumber}; yenileme{' '}
+                {target.renewalId}; Task {target.taskId}; yenileme/görev CAS {target.renewalVersion}
+                /{target.taskVersion}.
+              </p>
+            )}
+            <WonCreatePolicyForm
+              task={target}
+              masked={masked}
+              disabled={busy || !!pending || !!accepted || conflict}
+              onBusy={setFormBusy}
+              onSubmit={(review) => {
+                if (
+                  lock.current ||
+                  pending ||
+                  accepted ||
+                  conflict ||
+                  masked ||
+                  props.blocked() ||
+                  !props.canOperate()
+                )
+                  return;
+                setLastCreate(structuredClone(review));
+                void transmit({
+                  target: structuredClone(target),
+                  policy: null,
+                  create: structuredClone(review),
+                  quote: null,
+                  url: `/api/renewals/${encodeURIComponent(target.renewalId)}/close-won`,
+                  method: 'POST',
+                  key: crypto.randomUUID(),
+                  body: JSON.stringify({
+                    expectedPrimaryTaskId: target.taskId,
+                    expectedRenewalVersion: target.renewalVersion,
+                    expectedTaskVersion: target.taskVersion,
+                    result: { kind: 'CREATE_POLICY', policy: review.policy },
+                  }),
+                });
+              }}
+            />
+            {masked && <p>Yetkili bağlam doğrulanamadı; korunan oluşturma taslağı gizlendi.</p>}
+            {error && <p role="alert">{error}</p>}
+            {pending && (
+              <Button disabled={busy} onClick={() => void transmit(pending)}>
+                Aynı CREATE_POLICY isteğini yeniden dene
+              </Button>
+            )}
+            {accepted && (
+              <Button disabled={busy} onClick={() => void job((e, c) => verify(accepted, e, c))}>
+                Yalnız oluşturulan poliçe okumalarını yeniden dene
+              </Button>
+            )}
+            {conflict && !pending && !accepted && (
+              <Button disabled={unresolved} onClick={() => void compareCreate()}>
+                CREATE_POLICY hedefini yetkili karşılaştır
+              </Button>
+            )}
+            {createComparison && !masked && (
+              <>
+                <p>
+                  Aynı Task {createComparison.taskId}; eski/güncel CAS {target.renewalVersion}/
+                  {target.taskVersion} → {createComparison.renewalVersion}/
+                  {createComparison.taskVersion}.
+                </p>
+                <Button
+                  disabled={unresolved}
+                  onClick={() => {
+                    setTarget({ ...createComparison });
+                    setCreateComparison(null);
+                    setConflict(false);
+                    setError(
+                      'Aynı Task açıkça benimsendi. Korunan poliçe taslağını yeniden inceleyip ayrı onay verin.',
+                    );
+                  }}
+                >
+                  Aynı Task ile oluşturma taslağını yeniden incele
+                </Button>
+              </>
+            )}
+            <Button variant="outline" disabled={unresolved} onClick={reset}>
+              Yeni poliçe WON taslağını açıkça kapat
+            </Button>
+          </section>
+        )}
+      </>
+    );
   return (
     <>
       <Button
@@ -668,7 +880,7 @@ export function WonPolicyOperation(props: Props) {
         disabled={!!target || unresolved || props.blocked()}
         onClick={() => void start()}
       >
-        Kazanıldı — yeni poliçeyi bağla
+        Kazanıldı — mevcut poliçeyi bağla
       </Button>
       {target && (
         <form

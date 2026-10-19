@@ -38,7 +38,7 @@ async function selectTask(page) {
     .first()
     .click();
   await page
-    .getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla', exact: true })
+    .getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla', exact: true })
     .waitFor();
   return task;
 }
@@ -66,7 +66,9 @@ async function policyFor(page, t, label) {
   return { policy: await read(page, '/api/policies/' + p.data.id), defaults: h.defaultVersion };
 }
 async function choose(page, p) {
-  await page.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla', exact: true })
+    .click();
   const search = page.getByLabel('Poliçe numarasıyla ara', { exact: true });
   await search.fill(p.policyNumber);
   await page.getByRole('button', { name: 'Poliçeleri ara', exact: true }).click();

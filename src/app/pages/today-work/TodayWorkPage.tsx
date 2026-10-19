@@ -692,9 +692,9 @@ function Workspace({ owner }: { owner: boolean }) {
                       }}
                     />
                     <p>
-                      WON mevcut poliçe bağlama bu alandadır. Diğer WON dalları, teklif ret ve
-                      WhatsApp önizleme/açma klasik çalışma alanındadır. Bağlantı bu görevi otomatik
-                      seçmez; klasik listeden yeniden seçmeniz gerekir.
+                      WON mevcut poliçe bağlama ve yeni poliçe oluşturma bu alandadır. Diğer WON
+                      dalları, teklif ret ve WhatsApp önizleme/açma klasik çalışma alanındadır.
+                      Bağlantı bu görevi otomatik seçmez; klasik listeden yeniden seçmeniz gerekir.
                     </p>
                     <Button asChild>
                       <Link to="/today-work/legacy" onClick={classic}>
