@@ -933,6 +933,19 @@ export async function sendRenewalQuote(
       ),
       db
         .prepare(
+          `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+           SELECT ?,1,CASE WHEN EXISTS(
+             SELECT 1 FROM renewal_quotes q JOIN renewal_quote_versions v
+               ON v.agency_id=q.agency_id AND v.quote_id=q.id AND v.id=q.current_version_id
+             WHERE q.agency_id=? AND q.renewal_id=? AND q.id=? AND v.id=?
+               AND length(v.valid_until)=24
+               AND strftime('%Y-%m-%dT%H:%M:%fZ',v.valid_until)=v.valid_until COLLATE BINARY
+               AND v.valid_until COLLATE BINARY > strftime('%Y-%m-%dT%H:%M:%fZ','now')
+           ) THEN 1 ELSE 0 END,'RENEWAL_QUOTE_EXPIRED'`,
+        )
+        .bind(crypto.randomUUID(), active.agencyId, renewalId, quoteId, input.quoteVersionId),
+      db
+        .prepare(
           `INSERT INTO renewal_quote_events
            (id,agency_id,quote_id,quote_version_id,event,operation_receipt_id,accepted_policy_id,
             actor_user_id,actor_membership_id,occurred_at)
