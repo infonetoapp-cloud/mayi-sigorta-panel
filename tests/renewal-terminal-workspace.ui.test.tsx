@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { installQuotePopBoundary } from '../src/app/pages/today-work/quote-navigation';
@@ -284,3 +284,79 @@ it('does not present an old terminal success banner as evidence for a newly sele
     screen.queryByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/),
   ).toBeNull();
 });
+it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDED/task/quote operations', async () => {
+  fixture((u) =>
+    u === '/api/policies/p'
+      ? response({
+          id: 'p',
+          agencyId: 'a',
+          customerId: 'c',
+          customer: { id: 'c' },
+          insurerId: 'i',
+          insurer: { id: 'i' },
+          productId: 'product',
+          product: { id: 'product' },
+          status: 'ACTIVE',
+          archivedAt: null,
+          version: 1,
+          grossPremiumMinor: 1000,
+          currency: 'TRY',
+          policyNumber: 'P-1',
+          startDate: '2026-01-01',
+          endDate: '2026-10-25',
+        })
+      : u.startsWith('/api/policies?')
+        ? response({ items: [], nextCursor: null, hasMore: false })
+        : undefined,
+  );
+  await select();
+  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+  await screen.findByRole('combobox', { name: 'Bağlanacak mevcut poliçe' });
+  await waitFor(() =>
+    expect(screen.queryByText('WON işlemi veya yetkili okuma sürüyor…')).toBeNull(),
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(
+    screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }).matches(':disabled'),
+  ).toBe(true);
+  expect(
+    screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }).matches(':disabled'),
+  ).toBe(true);
+  expect(screen.getByRole('button', { name: 'Yeni takip planını aç' }).matches(':disabled')).toBe(
+    true,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
+  await screen.findByText('Hedefi değiştirmeden önce');
+  fireEvent.click(screen.getByRole('button', { name: 'Bu ekranda kal' }));
+  expect(screen.getByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'WON taslağını açıkça kapat' }));
+  expect(
+    screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }).matches(':disabled'),
+  ).toBe(false);
+});
+it.each(['communication', 'task', 'LOST', 'VOIDED'])(
+  'opening WON never discards existing %s draft',
+  async (kind) => {
+    fixture();
+    await select();
+    if (kind === 'communication') {
+      fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydı ekle' }));
+      fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
+      fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Korunan taslak' } });
+    } else if (kind === 'task') {
+      fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
+      fireEvent.change(screen.getByLabelText('Yeni takip zamanı (İstanbul)'), {
+        target: { value: '2099-01-01T12:00' },
+      });
+    } else if (kind === 'LOST') await open();
+    else fireEvent.click(screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçeyi bağla' }));
+    expect(screen.queryByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeNull();
+    if (kind === 'communication')
+      expect((screen.getByLabelText('İç not') as unknown as HTMLInputElement).value).toBe(
+        'Korunan taslak',
+      );
+  },
+);

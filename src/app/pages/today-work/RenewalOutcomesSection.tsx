@@ -5,6 +5,7 @@ import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 import type { TaskOperationRisk, TaskReadback } from './TaskOperationsSection';
+import { WonPolicyOperation } from './WonPolicyOperation';
 
 interface Props {
   task: TodayTaskDto;
@@ -607,21 +608,31 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
 }
 export function RenewalOutcomesSection(props: Props) {
   const lostRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false }),
-    voidRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false });
+    voidRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false }),
+    wonRisk = useRef<TaskOperationRisk>({ dirty: false, unresolved: false });
+  const [won, setWon] = useState<TaskOperationRisk>({ dirty: false, unresolved: false });
   const lost = useOutcome(
       'LOST',
       props,
-      () => voidRisk.current.dirty || voidRisk.current.unresolved,
+      () =>
+        voidRisk.current.dirty ||
+        voidRisk.current.unresolved ||
+        wonRisk.current.dirty ||
+        wonRisk.current.unresolved,
     ),
     voided = useOutcome(
       'VOIDED',
       props,
-      () => lostRisk.current.dirty || lostRisk.current.unresolved,
+      () =>
+        lostRisk.current.dirty ||
+        lostRisk.current.unresolved ||
+        wonRisk.current.dirty ||
+        wonRisk.current.unresolved,
     );
   lostRisk.current = lost.risk;
   voidRisk.current = voided.risk;
-  const dirty = lost.risk.dirty || voided.risk.dirty,
-    unresolved = lost.risk.unresolved || voided.risk.unresolved;
+  const dirty = lost.risk.dirty || voided.risk.dirty || won.dirty,
+    unresolved = lost.risk.unresolved || voided.risk.unresolved || won.unresolved;
   useEffect(() => {
     props.onRisk({ dirty, unresolved });
   }, [dirty, unresolved, props.onRisk]);
@@ -634,6 +645,23 @@ export function RenewalOutcomesSection(props: Props) {
       </p>
       {lost.panel()}
       {voided.panel()}
+      <WonPolicyOperation
+        {...props}
+        blocked={() =>
+          lostRisk.current.dirty ||
+          lostRisk.current.unresolved ||
+          voidRisk.current.dirty ||
+          voidRisk.current.unresolved
+        }
+        onRisk={(risk) => {
+          wonRisk.current = risk;
+          setWon((previous) =>
+            previous.dirty === risk.dirty && previous.unresolved === risk.unresolved
+              ? previous
+              : risk,
+          );
+        }}
+      />
     </section>
   );
 }
