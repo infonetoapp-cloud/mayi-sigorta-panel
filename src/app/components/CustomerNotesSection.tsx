@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import type { ApiResponse, CustomerNoteDto, CustomerNotesPage } from '../../shared/types';
 
 interface Props {
+  onRiskChange?: (risk: { dirty: boolean; unresolved: boolean }) => void;
   presentation?: 'page';
   customerId: string;
   archived: boolean;
@@ -21,6 +22,7 @@ const formatter = new Intl.DateTimeFormat('tr-TR', {
 
 // The customer-keyed mount in App prevents drafts and pending results crossing profiles.
 export function CustomerNotesSection({
+  onRiskChange,
   presentation,
   customerId,
   archived,
@@ -43,6 +45,11 @@ export function CustomerNotesSection({
     saving = useRef(false),
     generation = useRef(0),
     readRequest = useRef(0);
+  const riskCallback = useRef(onRiskChange);
+  riskCallback.current = onRiskChange;
+  useEffect(() => {
+    riskCallback.current?.({ dirty: draft.length > 0, unresolved: busy || retry !== null });
+  }, [draft, busy, retry]);
   useEffect(
     () => () => {
       generation.current++;
@@ -174,6 +181,7 @@ export function CustomerNotesSection({
   }
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (retry || saving.current) return;
     const content = draft.trim();
     if (!content || content.length > 2000 || archived || !canCreate) return;
     const body = JSON.stringify({ content });
@@ -221,9 +229,10 @@ export function CustomerNotesSection({
             value={draft}
             maxLength={2000}
             required
-            disabled={busy}
+            disabled={busy || retry !== null}
             rows={4}
             onChange={(event) => {
+              if (saving.current || retry) return;
               setDraft(event.target.value);
               setSaved(false);
               setRetry(null);
@@ -233,9 +242,26 @@ export function CustomerNotesSection({
           <small>
             {draft.length}/2000 karakter · Kaydedilen not değiştirilemez veya silinemez.
           </small>
-          <button type="submit" disabled={busy || !draft.trim() || draft.length > 2000}>
+          <button
+            type="submit"
+            disabled={busy || retry !== null || !draft.trim() || draft.length > 2000}
+          >
             {busy ? 'Kaydediliyor…' : 'Notu kaydet'}
           </button>
+          {draft.length > 0 && (
+            <button
+              type="button"
+              disabled={busy || retry !== null}
+              onClick={() => {
+                attempt.current = null;
+                setDraft('');
+                setWriteError('');
+                setSaved(false);
+              }}
+            >
+              Not taslağını iptal et
+            </button>
+          )}
           {retry && (
             <button type="button" disabled={busy} onClick={() => void send(retry)}>
               Aynı notu yeniden dene

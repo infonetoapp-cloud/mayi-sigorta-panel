@@ -1,15 +1,15 @@
 import { Link, useParams, useSearchParams } from 'react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ArrowLeft, Settings2, Mail, Phone, MapPin } from 'lucide-react';
 import type { CustomerDetailDto, PolicyListResponseData } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
-import { CustomerNotesSection } from '../../components/CustomerNotesSection';
+import { CustomerNoteWorkspace } from './CustomerNoteWorkspace';
 import { CustomerContactSection } from '../../components/CustomerContactSection';
 import { CompanyContactsSection } from '../../components/CompanyContactsSection';
-import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
+
 import { useCustomerResource } from './customer-resource';
 const sections = [
   ['general', 'Genel bilgiler'],
@@ -170,6 +170,10 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
   const section = sections.some(([key]) => key === params.get('section'))
     ? params.get('section')!
     : 'general';
+  const [notesVisited, setNotesVisited] = useState(section === 'notes');
+  useEffect(() => {
+    if (section === 'notes') setNotesVisited(true);
+  }, [section]);
   return (
     <div className="customer-modern">
       <Link className="customer-back" to="/customers">
@@ -215,6 +219,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           <Link
             key={key}
             to={`?section=${key}`}
+
             aria-current={key === section ? 'page' : undefined}
           >
             {label}
@@ -315,14 +320,12 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           </CardContent>
         </Card>
       )}
-      {section === 'notes' && (
-        <CustomerNotesSection
+      {(notesVisited || section === 'notes') && (
+        <CustomerNoteWorkspace
           key={customer.id}
           customerId={customer.id}
           archived={customer.archivedAt != null}
-          presentation="page"
-          getCsrfToken={getCsrfToken}
-          invalidateCsrfToken={invalidateCsrfToken}
+          visible={section === 'notes'}
         />
       )}
       {section === 'policies' && (
