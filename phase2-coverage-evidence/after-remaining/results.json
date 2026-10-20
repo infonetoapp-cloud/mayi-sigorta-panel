@@ -1,0 +1,84 @@
+{
+  "browser": "155.0.4283.62",
+  "sourceRoot": "C:\\Users\\sinan\\AppData\\Local\\Temp\\mayi-phase2-acceptance-20261020-v4",
+  "mode": "after",
+  "selectedCells": ["ahmet:768", "ahmet:360", "ayse:1440", "ayse:768", "ayse:360"],
+  "expectedActiveCount": 28,
+  "rows": [
+    {
+      "actor": "ahmet",
+      "width": 768,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-768-customer-list.png", "ahmet-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 360,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-360-customer-list.png", "ahmet-360-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 1440,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-1440-customer-list.png", "ayse-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 768,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-768-customer-list.png", "ayse-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 360,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-360-customer-list.png", "ayse-360-customer-profile.png"],
+      "runtimeErrors": 0
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "mode": "before",
+  "rows": [
+    {
+      "actor": "owner",
+      "width": 1440,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["owner-1440-customer-list.png", "owner-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "owner",
+      "width": 768,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["owner-768-customer-list.png", "owner-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "owner",
+      "width": 360,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["owner-360-customer-list.png", "owner-360-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 1440,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ahmet-1440-customer-list.png", "ahmet-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 768,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ahmet-768-customer-list.png", "ahmet-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 360,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ahmet-360-customer-list.png", "ahmet-360-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 1440,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ayse-1440-customer-list.png", "ayse-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 768,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ayse-768-customer-list.png", "ayse-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 360,
+      "mode": "before",
+      "checks": ["accepted-main-before-capture-only"],
+      "screenshots": ["ayse-360-customer-list.png", "ayse-360-customer-profile.png"],
+      "runtimeErrors": 0
+    }
+  ]
+}

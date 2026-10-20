@@ -1,0 +1,32 @@
+
+ RUN  v5.0.1 C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-acceptance-v2
+
+ ✓ tests/customer-coverage.api.test.ts (14 tests) 56947ms
+   ✓ projects exact authorized coverage beyond a policy page with real display names and a bounded preview 868ms
+   ✓ distinguishes zero from denied, and status from expired, scheduled and archived periods 1907ms
+   ✓ groups repeated types, shows only three labels and counts additional authorized types exactly 1196ms
+   ✓ keeps historical inactive catalog display names instead of IDs or selectable-only lookups 1104ms
+   ✓ keeps the complete named policy history paginated, independently of the compact summary 814ms
+   ✓ does not disclose HEALTH counts, types or previews even to OWNER without the explicit grant 2708ms
+   ✓ does not turn absent policy permission into a false zero-policy claim 1097ms
+   ✓ denies cross-agency and customized customer scope without a record-existence hint 4537ms
+   ✓ paginates summaries only for the authorized current customer page, preserving the original opt-out contract 6344ms
+   ✓ uses one indexed aggregate query for either one or twenty customers, never N+1 policy reads 3968ms
+   ✓ honors ASSIGNED policy scope without hiding a shared customer 4260ms
+   ✓ does not count an insured relationship as a customer-owned policy 992ms
+   ✓ rechecks current customer assignment at the final disclosure boundary 1906ms
+   ✓ rechecks live session at the aggregate boundary without returning a stale summary 1249ms
+ ✓ tests/policy-browsing.api.test.ts (6 tests) 80223ms
+   ✓ rejects the reproduced wrong limit parameter and accepts canonical customer pageSize=20 1026ms
+   ✓ preserves server end-date ordering, opaque cursor pages and exact/prefix/status/date filters 3653ms
+   ✓ supports existing creation, insured parties, endorsements and references through unchanged domain APIs 14799ms
+   ✓ preserves archived history independently from cancellation or void status 7002ms
+   ✓ excludes a synthetic HEALTH fixture from ordinary lists and denies every detail section without explicit sensitive permission 14211ms
+   ✓ denies foreign, ungranted and revoked actors without policy fields on every read endpoint 5806ms
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Start at  23:01:54
+   Duration  139.99s (tests 98%, import 1%, transform 1%)
+
+JSON report written to C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-final-api.json

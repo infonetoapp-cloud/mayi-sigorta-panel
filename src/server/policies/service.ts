@@ -1176,15 +1176,27 @@ export async function listPolicies(
   values.push(query.pageSize + 1);
   const result = await db
     .prepare(
-      `SELECT p.* FROM policies p
+      `SELECT p.* ${query.includeLabels ? ',b.name AS branch_name,pr.name AS product_name,i.name AS insurer_name' : ''} FROM policies p
     JOIN customers c ON c.agency_id=p.agency_id AND c.id=p.customer_id
     JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
+    ${query.includeLabels ? 'JOIN insurance_products pr ON pr.agency_id=p.agency_id AND pr.id=p.product_id JOIN insurers i ON i.agency_id=p.agency_id AND i.id=p.insurer_id' : ''}
     WHERE ${where.join(' AND ')} ORDER BY ${sortColumn} ${desc ? 'DESC' : 'ASC'},p.id ${desc ? 'DESC' : 'ASC'} LIMIT ?`,
     )
     .bind(...values)
-    .all<Row>();
+    .all<Row & { branch_name: string; product_name: string; insurer_name: string }>();
   const hasMore = result.results.length > query.pageSize,
-    items = result.results.slice(0, query.pageSize).map(toDto),
+    items = result.results.slice(0, query.pageSize).map((row) => ({
+      ...toDto(row),
+      ...(query.includeLabels
+        ? {
+            labels: {
+              branchName: row.branch_name,
+              productName: row.product_name,
+              insurerName: row.insurer_name,
+            },
+          }
+        : {}),
+    })),
     last = items.at(-1);
   const cursorValue = query.sort === 'created_at_desc' ? last?.createdAt : last?.endDate;
   return {

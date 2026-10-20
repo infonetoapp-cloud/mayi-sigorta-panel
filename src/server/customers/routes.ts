@@ -51,6 +51,7 @@ import { parseIdentityCryptoConfig } from '../security/identity-crypto';
 import type { AppDependencies, Env } from '../index';
 import { createCustomerNote, listCustomerNotes, CustomerNoteError } from './notes';
 import { AuthHttpError, readBoundedJson } from '../auth/routes';
+import { CustomerCoverageError, readCustomerCoverage } from './coverage';
 
 type CustomerRouteEnv = { Bindings: Env };
 
@@ -205,6 +206,26 @@ export function registerCustomerRoutes(
 
   // Ortak hata yakalama ve dönüştürme yardımcısı
   function handleError(c: Context<CustomerRouteEnv>, err: unknown) {
+    if (err instanceof CustomerCoverageError)
+      return c.json(
+        {
+          success: false,
+          error: {
+            code:
+              err.status === 404
+                ? 'NOT_FOUND'
+                : err.status === 400
+                  ? 'VALIDATION_ERROR'
+                  : 'SERVICE_UNAVAILABLE',
+            message:
+              err.status === 404
+                ? 'Kayıt kullanılamıyor veya erişiminiz yok.'
+                : 'Poliçe özeti şu anda alınamıyor.',
+          },
+          timestamp: new Date().toISOString(),
+        },
+        err.status,
+      );
     if (err instanceof AuthHttpError)
       return c.json(
         {
@@ -331,8 +352,23 @@ export function registerCustomerRoutes(
     if (auth.error) return auth.error;
 
     try {
+      const include = c.req.query('include');
+      if (include !== undefined && include !== 'coverage') throw new CustomerCoverageError(400);
+      if (include) {
+        const params = new URL(c.req.url).searchParams;
+        if (
+          [...params.keys()].some(
+            (key) =>
+              !['include', 'limit', 'cursor', 'sort', 'order', 'type', 'search'].includes(key) ||
+              params.getAll(key).length !== 1,
+          )
+        )
+          throw new CustomerCoverageError(400);
+        const limit = c.req.query('limit') ?? '20';
+        if (!/^(?:[1-9]|1[0-9]|20)$/.test(limit)) throw new CustomerCoverageError(400);
+      }
       const query: ListCustomersQuery = {
-        limit: c.req.query('limit') ? Number(c.req.query('limit')) : undefined,
+        limit: c.req.query('limit') ? Number(c.req.query('limit')) : include ? 20 : undefined,
         cursor: c.req.query('cursor') || undefined,
         sort: c.req.query('sort') as ListCustomersQuery['sort'],
         order: c.req.query('order') as ListCustomersQuery['order'],
@@ -341,16 +377,45 @@ export function registerCustomerRoutes(
       };
 
       const result = await listCustomers(c.env.DB, auth.context, query);
+      const summaries = include
+        ? await readCustomerCoverage(
+            c.env.DB,
+            auth.context,
+            result.items.map((item) => item.id),
+          )
+        : null;
       return c.json(
         {
           success: true,
-          data: result,
+          data: summaries
+            ? {
+                ...result,
+                items: result.items.map((item) => ({ ...item, coverage: summaries.get(item.id) })),
+              }
+            : result,
           timestamp: new Date().toISOString(),
         },
         200,
       );
     } catch (err) {
       return handleError(c, err);
+    }
+  });
+
+  app.get(`${API_PREFIX}/customers/:id/coverage`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      if (new URL(c.req.url).search) throw new CustomerCoverageError(400);
+      const id = c.req.param('id');
+      const summaries = await readCustomerCoverage(c.env.DB, auth.context, [id]);
+      return c.json(
+        { success: true, data: summaries.get(id), timestamp: new Date().toISOString() },
+        200,
+      );
+    } catch (error) {
+      return handleError(c, error);
     }
   });
 

@@ -1,0 +1,47 @@
+
+ RUN  v5.0.1 C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4
+
+ ✓ tests/customer-coverage.ui.test.tsx (8 tests) 1052ms
+   ✓ restores private search, customer filter and cursor after returning from a profile in the same SPA session 581ms
+ ✓ tests/customer-contact-edit.ui.test.tsx (11 tests) 5077ms
+   ✓ Customer contact editing (11)
+     ✓ edits email from the real detail screen using scoped PATCH and refreshes displayed data 696ms
+     ✓ keeps the draft on 409 and writes only edited fields after explicit comparison 655ms
+     ✓ keeps saving blocked and retains the draft when conflict refresh fails 500ms
+     ✓ retains invalid values and server validation errors without disclosing raw messages 418ms
+     ✓ clears empty fields as null and safely replays a failed request with the same key/body 545ms
+     ✓ uses a new key for edited payload after an ambiguous failure 590ms
+     ✓ does not resend a committed PATCH when the detail refresh fails 407ms
+     ✓ keeps the draft but blocks writing after permission/access denial 403 333ms
+     ✓ keeps the draft but blocks writing after permission/access denial 404 361ms
+     ✓ hides edit for archived customers and blocks a customer archived during conflict 465ms
+ ✓ tests/policy-forms.ui.test.tsx (23 tests) 2140ms
+   ✓ preselects the exact authorized origin outside bounded search results and creates with canonical fields 305ms
+ ✓ tests/task-operations-modern.ui.test.tsx (19 tests) 1825ms
+   ✓ integrates the interaction draft guard and holds the operation key against queue refresh while unresolved 650ms
+ ✓ tests/policy-pages.ui.test.tsx (17 tests) 1242ms
+   ✓ does not reopen an archived policy when an earlier assignment readback arrives late on the same page 394ms
+ ✓ tests/customer-create-navigation.ui.test.tsx (5 tests) 1055ms
+   ✓ keeps all private draft fields on Stay through sidebar 465ms
+ ✓ tests/task-navigation.ui.test.tsx (7 tests) 1532ms
+   ✓ restores exactly Task A after customer navigation and browser Back 946ms
+ ✓ tests/customer-note-navigation.ui.test.tsx (5 tests) 887ms
+   ✓ keeps the exact note input and draft across profile sections without writes 315ms
+ ✓ tests/customer-pages.ui.test.tsx (12 tests) 961ms
+ ✓ tests/ux-navigation.ui.test.tsx (1 test) 829ms
+   ✓ closes the mobile drawer before the dirty navigation decision and keeps the draft on stay 826ms
+ ✓ tests/customer-create.ui.test.tsx (5 tests) 433ms
+ ✓ tests/customer-notes.ui.test.tsx (4 tests) 554ms
+ ✓ tests/customer-shared-renewals.ui.test.tsx (3 tests) 395ms
+ ✓ tests/ux-customer-orientation.ui.test.tsx (1 test) 173ms
+
+ Test Files  14 passed (14)
+      Tests  121 passed (121)
+   Start at  23:11:43
+   Duration  47.46s (tests 40%, environment 40%, import 17%, transform 3%)
+
+Environment  jsdom was created 14 times · 18.14s total, 40% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+JSON report written to C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-final-ui.json

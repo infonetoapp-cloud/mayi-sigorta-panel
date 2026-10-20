@@ -117,13 +117,13 @@ it('retries the exact failed cursor and restarts filtering without old page reco
   fireEvent.click(await screen.findByRole('button', { name: 'Yeniden dene' }));
   await screen.findByRole('link', { name: 'Ayşe Müşteri' });
   expect(requests.slice(-2)).toEqual([
-    '/api/customers?limit=20&cursor=next',
-    '/api/customers?limit=20&cursor=next',
+    '/api/customers?limit=20&include=coverage&cursor=next',
+    '/api/customers?limit=20&include=coverage&cursor=next',
   ]);
   expect(screen.queryByRole('link', { name: 'Ahmet Müşteri' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Ara' }));
   await screen.findByRole('link', { name: 'Ahmet Müşteri' });
-  expect(requests.at(-1)).toBe('/api/customers?limit=20');
+  expect(requests.at(-1)).toBe('/api/customers?limit=20&include=coverage');
 });
 it('shows empty and permission-denied lists without reflecting server diagnostics', async () => {
   const fetcher = vi.fn(async () => reply({ items: [], nextCursor: null, hasMore: false }));

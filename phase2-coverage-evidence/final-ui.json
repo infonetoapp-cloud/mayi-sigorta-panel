@@ -1,0 +1,1488 @@
+{
+  "numTotalTestSuites": 17,
+  "numPassedTestSuites": 17,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 121,
+  "numPassedTests": 121,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1792527103724,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing edits email from the real detail screen using scoped PATCH and refreshes displayed data",
+          "status": "passed",
+          "title": "edits email from the real detail screen using scoped PATCH and refreshes displayed data",
+          "duration": 696.1845000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing keeps the draft on 409 and writes only edited fields after explicit comparison",
+          "status": "passed",
+          "title": "keeps the draft on 409 and writes only edited fields after explicit comparison",
+          "duration": 655.1188999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing keeps saving blocked and retains the draft when conflict refresh fails",
+          "status": "passed",
+          "title": "keeps saving blocked and retains the draft when conflict refresh fails",
+          "duration": 500.40999999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing retains invalid values and server validation errors without disclosing raw messages",
+          "status": "passed",
+          "title": "retains invalid values and server validation errors without disclosing raw messages",
+          "duration": 417.6644000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing clears empty fields as null and safely replays a failed request with the same key/body",
+          "status": "passed",
+          "title": "clears empty fields as null and safely replays a failed request with the same key/body",
+          "duration": 545.0609999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing uses a new key for edited payload after an ambiguous failure",
+          "status": "passed",
+          "title": "uses a new key for edited payload after an ambiguous failure",
+          "duration": 590.2893999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing does not resend a committed PATCH when the detail refresh fails",
+          "status": "passed",
+          "title": "does not resend a committed PATCH when the detail refresh fails",
+          "duration": 407.1189999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing keeps the draft but blocks writing after permission/access denial 403",
+          "status": "passed",
+          "title": "keeps the draft but blocks writing after permission/access denial 403",
+          "duration": 333.3008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing keeps the draft but blocks writing after permission/access denial 404",
+          "status": "passed",
+          "title": "keeps the draft but blocks writing after permission/access denial 404",
+          "duration": 360.8042999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing hides edit for archived customers and blocks a customer archived during conflict",
+          "status": "passed",
+          "title": "hides edit for archived customers and blocks a customer archived during conflict",
+          "duration": 464.6719000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer contact editing"],
+          "fullName": "Customer contact editing ignores late responses after navigating to another customer",
+          "status": "passed",
+          "title": "ignores late responses after navigating to another customer",
+          "duration": 101.29809999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527108976,
+      "endTime": 1792527114048.298,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-contact-edit.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "shows compact real types and exact count in a customer row without per-row policy reads",
+          "status": "passed",
+          "title": "shows compact real types and exact count in a customer row without per-row policy reads",
+          "duration": 217.09439999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows linked named policies immediately in the profile, before choosing a section",
+          "status": "passed",
+          "title": "shows linked named policies immediately in the profile, before choosing a section",
+          "duration": 42.32979999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "distinguishes unavailable policy authority from an authorized empty portfolio (false)",
+          "status": "passed",
+          "title": "distinguishes unavailable policy authority from an authorized empty portfolio (false)",
+          "duration": 16.80619999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "distinguishes unavailable policy authority from an authorized empty portfolio (true)",
+          "status": "passed",
+          "title": "distinguishes unavailable policy authority from an authorized empty portfolio (true)",
+          "duration": 21.121900000000096,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not label a failed summary as zero coverage and retries only its read",
+          "status": "passed",
+          "title": "does not label a failed summary as zero coverage and retries only its read",
+          "duration": 47.801000000000386,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never renders a late coverage summary for a previously selected customer",
+          "status": "passed",
+          "title": "never renders a late coverage summary for a previously selected customer",
+          "duration": 56.56700000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the Phase1 Task return through complete related policy pagination",
+          "status": "passed",
+          "title": "keeps the Phase1 Task return through complete related policy pagination",
+          "duration": 66.86070000000018,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "restores private search, customer filter and cursor after returning from a profile in the same SPA session",
+          "status": "passed",
+          "title": "restores private search, customer filter and cursor after returning from a profile in the same SPA session",
+          "duration": 580.6749,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527106150,
+      "endTime": 1792527107199.6748,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-coverage.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through sidebar",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through sidebar",
+          "duration": 465.2295999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through cancel",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through cancel",
+          "duration": 117.72849999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through list link",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through list link",
+          "duration": 115.97460000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "leaves only after explicit draft discard and warns on unload",
+          "status": "passed",
+          "title": "leaves only after explicit draft discard and warns on unload",
+          "duration": 106.01110000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins a pending request then retries the identical uncertain body/key once and navigates after success",
+          "status": "passed",
+          "title": "pins a pending request then retries the identical uncertain body/key once and navigates after success",
+          "duration": 246.81359999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527127172,
+      "endTime": 1792527128223.8137,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-create-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "ends the protected session when the CSRF request discovers revocation",
+          "status": "passed",
+          "title": "ends the protected session when the CSRF request discovers revocation",
+          "duration": 218.9176,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "validates inline without requests then creates an individual with server-owned authority",
+          "status": "passed",
+          "title": "validates inline without requests then creates an individual with server-owned authority",
+          "duration": 69.55570000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps ambiguous creation locked and retries the exact key/body without a duplicate operation",
+          "status": "passed",
+          "title": "keeps ambiguous creation locked and retries the exact key/body without a duplicate operation",
+          "duration": 66.07239999999979,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates a company without hidden individual fields and keeps safe duplicate/permission feedback",
+          "status": "passed",
+          "title": "creates a company without hidden individual fields and keeps safe duplicate/permission feedback",
+          "duration": 48.94869999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not navigate after an unmounted creation resolves",
+          "status": "passed",
+          "title": "does not navigate after an unmounted creation resolves",
+          "duration": 26.325300000000425,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527143664,
+      "endTime": 1792527144094.3252,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-create.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the exact note input and draft across profile sections without writes",
+          "status": "passed",
+          "title": "keeps the exact note input and draft across profile sections without writes",
+          "duration": 315.2111000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requires an explicit decision before a note can leave its customer",
+          "status": "passed",
+          "title": "requires an explicit decision before a note can leave its customer",
+          "duration": 172.4373999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps a pending request mounted through sections, blocks customer changes and writes once",
+          "status": "passed",
+          "title": "keeps a pending request mounted through sections, blocks customer changes and writes once",
+          "duration": 199.50109999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retains an uncertain frozen note and retries only the original body/key after section switching",
+          "status": "passed",
+          "title": "retains an uncertain frozen note and retries only the original body/key after section switching",
+          "duration": 99.57150000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves a rejected draft and recovers an accepted write using GET only",
+          "status": "passed",
+          "title": "preserves a rejected draft and recovers an accepted write using GET only",
+          "duration": 94.23169999999982,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527135252,
+      "endTime": 1792527136133.2317,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-note-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI shows readable historical author, Istanbul time and safe text independent of renewal records",
+          "status": "passed",
+          "title": "shows readable historical author, Istanbul time and safe text independent of renewal records",
+          "duration": 261.13300000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI preserves a draft and reuses exact body/key after an uncertain write",
+          "status": "passed",
+          "title": "preserves a draft and reuses exact body/key after an uncertain write",
+          "duration": 135.0947000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI retries the exact failed history page without discarding earlier notes or drafts",
+          "status": "passed",
+          "title": "retries the exact failed history page without discarding earlier notes or drafts",
+          "duration": 109.9951000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI suppresses stale customer responses after profile navigation",
+          "status": "passed",
+          "title": "suppresses stale customer responses after profile navigation",
+          "duration": 44.046299999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527146007,
+      "endTime": 1792527146558.0464,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-notes.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "edits contact fields inline and refreshes the profile header only after confirmed readback",
+          "status": "passed",
+          "title": "edits contact fields inline and refreshes the profile header only after confirmed readback",
+          "duration": 281.9322000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not offer modern contact editing on archived customers",
+          "status": "passed",
+          "title": "does not offer modern contact editing on archived customers",
+          "duration": 44.278999999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "hides an already loaded profile immediately while the next profile loads",
+          "status": "passed",
+          "title": "hides an already loaded profile immediately while the next profile loads",
+          "duration": 98.62570000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retries the exact failed cursor and restarts filtering without old page records",
+          "status": "passed",
+          "title": "retries the exact failed cursor and restarts filtering without old page records",
+          "duration": 201.39059999999972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows empty and permission-denied lists without reflecting server diagnostics",
+          "status": "passed",
+          "title": "shows empty and permission-denied lists without reflecting server diagnostics",
+          "duration": 61.241799999999785,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses the same notes mutation key/body on an uncertain write in the full-page workspace",
+          "status": "passed",
+          "title": "uses the same notes mutation key/body on an uncertain write in the full-page workspace",
+          "duration": 94.99239999999963,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows bounded server-paged customers with profile links and server search/type filtering",
+          "status": "passed",
+          "title": "shows bounded server-paged customers with profile links and server search/type filtering",
+          "duration": 86.05009999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never renders prior customer data while switching or after a late response",
+          "status": "passed",
+          "title": "never renders prior customer data while switching or after a late response",
+          "duration": 33.45430000000033,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 403 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 403 without sensitive fields",
+          "duration": 13.9371000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 404 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 404 without sensitive fields",
+          "duration": 11.10570000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 500 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 500 without sensitive fields",
+          "duration": 22.4059000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "dispatches session end on unauthorized profile reads",
+          "status": "passed",
+          "title": "dispatches session end on unauthorized profile reads",
+          "duration": 7.612599999999929,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527138272,
+      "endTime": 1792527139229.6125,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-pages.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Customer shared renewal workspace"],
+          "fullName": "Customer shared renewal workspace reads attributed renewal notes from the customer profile without fetching private tasks or personnel",
+          "status": "passed",
+          "title": "reads attributed renewal notes from the customer profile without fetching private tasks or personnel",
+          "duration": 291.4522000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer shared renewal workspace"],
+          "fullName": "Customer shared renewal workspace retries the exact failed customer page, keeping previous rows",
+          "status": "passed",
+          "title": "retries the exact failed customer page, keeping previous rows",
+          "duration": 84.90459999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer shared renewal workspace"],
+          "fullName": "Customer shared renewal workspace fails closed on denied shared-record access",
+          "status": "passed",
+          "title": "fails closed on denied shared-record access",
+          "duration": 15.308700000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527148434,
+      "endTime": 1792527148825.3086,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/customer-shared-renewals.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "preselects the exact authorized origin outside bounded search results and creates with canonical fields",
+          "status": "passed",
+          "title": "preselects the exact authorized origin outside bounded search results and creates with canonical fields",
+          "duration": 305.3532,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "validates exact decimal premium, ISO currency and dependent product without making a write",
+          "status": "passed",
+          "title": "validates exact decimal premium, ISO currency and dependent product without making a write",
+          "duration": 153.45550000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "supports only the selected payment installment limits and resets installments explicitly for a cash change",
+          "status": "passed",
+          "title": "supports only the selected payment installment limits and resets installments explicitly for a cash change",
+          "duration": 174.67790000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "edits using a field-only PATCH plus the loaded CAS and cannot change its customer",
+          "status": "passed",
+          "title": "edits using a field-only PATCH plus the loaded CAS and cannot change its customer",
+          "duration": 51.57500000000027,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the original immutable body/key on lost POST response and blocks duplicate submits or changing the customer",
+          "status": "passed",
+          "title": "keeps the original immutable body/key on lost POST response and blocks duplicate submits or changing the customer",
+          "duration": 218.8071,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never repeats a successful write when authorized readback failed",
+          "status": "passed",
+          "title": "never repeats a successful write when authorized readback failed",
+          "duration": 152.46320000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requires explicit 409 comparison and sends only originally changed fields at the compared version",
+          "status": "passed",
+          "title": "requires explicit 409 comparison and sends only originally changed fields at the compared version",
+          "duration": 110.22700000000032,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves missing/inactive historical catalog values and installments on an unrelated basic edit",
+          "status": "passed",
+          "title": "preserves missing/inactive historical catalog values and installments on an unrelated basic edit",
+          "duration": 46.28839999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never substitutes another customer or mounts fields for an inaccessible origin 403",
+          "status": "passed",
+          "title": "never substitutes another customer or mounts fields for an inaccessible origin 403",
+          "duration": 16.985200000000077,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never substitutes another customer or mounts fields for an inaccessible origin 404",
+          "status": "passed",
+          "title": "never substitutes another customer or mounts fields for an inaccessible origin 404",
+          "duration": 14.897199999999884,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not mount editable fields for an archived policy",
+          "status": "passed",
+          "title": "does not mount editable fields for an archived policy",
+          "duration": 15.297599999999875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not mount editable fields for an archived customer",
+          "status": "passed",
+          "title": "does not mount editable fields for an archived customer",
+          "duration": 16.029899999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears editable policy data after a live write permission/session denial 401",
+          "status": "passed",
+          "title": "clears editable policy data after a live write permission/session denial 401",
+          "duration": 48.42599999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears editable policy data after a live write permission/session denial 403",
+          "status": "passed",
+          "title": "clears editable policy data after a live write permission/session denial 403",
+          "duration": 49.19869999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not start a new create attempt after a definitive duplicate-contract conflict",
+          "status": "passed",
+          "title": "does not start a new create attempt after a definitive duplicate-contract conflict",
+          "duration": 109.75659999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "searches a bounded server customer page and requires explicit authorized selection",
+          "status": "passed",
+          "title": "searches a bounded server customer page and requires explicit authorized selection",
+          "duration": 56.12890000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retries the exact PATCH after an ambiguous committed response",
+          "status": "passed",
+          "title": "retries the exact PATCH after an ambiguous committed response",
+          "duration": 76.88059999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "blocks a preserved conflict draft when comparison discovers archive",
+          "status": "passed",
+          "title": "blocks a preserved conflict draft when comparison discovers archive",
+          "duration": 85.0335,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores a late csrf after switching keyed edit pages",
+          "status": "passed",
+          "title": "ignores a late csrf after switching keyed edit pages",
+          "duration": 73.40869999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores a late csrf-401 after switching keyed edit pages",
+          "status": "passed",
+          "title": "ignores a late csrf-401 after switching keyed edit pages",
+          "duration": 66.41210000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores a late mutation after switching keyed edit pages",
+          "status": "passed",
+          "title": "ignores a late mutation after switching keyed edit pages",
+          "duration": 155.0260000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores a late readback after switching keyed edit pages",
+          "status": "passed",
+          "title": "ignores a late readback after switching keyed edit pages",
+          "duration": 63.27689999999984,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores a late readback-401 after switching keyed edit pages",
+          "status": "passed",
+          "title": "ignores a late readback-401 after switching keyed edit pages",
+          "duration": 76.69250000000011,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527115932,
+      "endTime": 1792527118068.6924,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/policy-forms.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "does not reopen an archived policy when an earlier assignment readback arrives late on the same page",
+          "status": "passed",
+          "title": "does not reopen an archived policy when an earlier assignment readback arrives late on the same page",
+          "duration": 394.02030000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the policy sidebar active at /policies/a",
+          "status": "passed",
+          "title": "keeps the policy sidebar active at /policies/a",
+          "duration": 21.18809999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the policy sidebar active at /policies/legacy",
+          "status": "passed",
+          "title": "keeps the policy sidebar active at /policies/legacy",
+          "duration": 18.20069999999987,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requests strict pageSize and default end-date order; renders only list DTO fields with exact minor money",
+          "status": "passed",
+          "title": "requests strict pageSize and default end-date order; renders only list DTO fields with exact minor money",
+          "duration": 75.78620000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retries the exact failed cursor and resets it when applying search/status/date/sort filters",
+          "status": "passed",
+          "title": "retries the exact failed cursor and resets it when applying search/status/date/sort filters",
+          "duration": 135.91349999999966,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows full authorized historical detail without identity/health/personnel data or document viewer",
+          "status": "passed",
+          "title": "shows full authorized historical detail without identity/health/personnel data or document viewer",
+          "duration": 34.06909999999971,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "loads read-only related sections on demand and formats negative endorsement minor amounts exactly",
+          "status": "passed",
+          "title": "loads read-only related sections on demand and formats negative endorsement minor amounts exactly",
+          "duration": 128.76470000000018,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "suppresses late detail data after rapid policy switching and hides the old page immediately",
+          "status": "passed",
+          "title": "suppresses late detail data after rapid policy switching and hides the old page immediately",
+          "duration": 20.286599999999908,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "suppresses a late related response/status 200 when the loaded policy is replaced",
+          "status": "passed",
+          "title": "suppresses a late related response/status 200 when the loaded policy is replaced",
+          "duration": 62.815000000000055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "suppresses a late related response/status 401 when the loaded policy is replaced",
+          "status": "passed",
+          "title": "suppresses a late related response/status 401 when the loaded policy is replaced",
+          "duration": 60.21860000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows an empty collection and rejects inverted dates without issuing another query",
+          "status": "passed",
+          "title": "shows an empty collection and rejects inverted dates without issuing another query",
+          "duration": 54.53749999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "cleans protected detail content for denied status 401 without raw diagnostics",
+          "status": "passed",
+          "title": "cleans protected detail content for denied status 401 without raw diagnostics",
+          "duration": 8.296100000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "cleans protected detail content for denied status 403 without raw diagnostics",
+          "status": "passed",
+          "title": "cleans protected detail content for denied status 403 without raw diagnostics",
+          "duration": 15.777399999999943,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "cleans protected detail content for denied status 404 without raw diagnostics",
+          "status": "passed",
+          "title": "cleans protected detail content for denied status 404 without raw diagnostics",
+          "duration": 15.884599999999864,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the authorized originating customer selected even outside the legacy first customer page",
+          "status": "passed",
+          "title": "keeps the authorized originating customer selected even outside the legacy first customer page",
+          "duration": 131.46039999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not mount legacy mutation forms when the customer handoff is denied",
+          "status": "passed",
+          "title": "does not mount legacy mutation forms when the customer handoff is denied",
+          "duration": 10.865700000000288,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses pageSize=20 for customer-profile policies and links each entry to modern policy detail",
+          "status": "passed",
+          "title": "uses pageSize=20 for customer-profile policies and links each entry to modern policy detail",
+          "duration": 50.278499999999894,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527124051,
+      "endTime": 1792527125290.2786,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/policy-pages.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "restores exactly Task A after customer navigation and browser Back",
+          "status": "passed",
+          "title": "restores exactly Task A after customer navigation and browser Back",
+          "duration": 946.1442999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "supports a direct link and a fresh authorized read instead of first-row selection",
+          "status": "passed",
+          "title": "supports a direct link and a fresh authorized read instead of first-row selection",
+          "duration": 58.84439999999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps accepted-write readback GET-only when a restored Task disappears from the open context endpoint",
+          "status": "passed",
+          "title": "keeps accepted-write readback GET-only when a restored Task disappears from the open context endpoint",
+          "duration": 82.9399999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "opens the relevant section from a nonsensitive reload/deep-link hint",
+          "status": "passed",
+          "title": "opens the relevant section from a nonsensitive reload/deep-link hint",
+          "duration": 97.6866,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retries a temporary exact-context failure without losing the original Task identity",
+          "status": "passed",
+          "title": "retries a temporary exact-context failure without losing the original Task identity",
+          "duration": 56.199399999999514,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows unavailable when exact A is closed or unauthorized without selecting B",
+          "status": "passed",
+          "title": "shows unavailable when exact A is closed or unauthorized without selecting B",
+          "duration": 25.12239999999929,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "restores open workspace sections through explicit return and supports browser Forward",
+          "status": "passed",
+          "title": "restores open workspace sections through explicit return and supports browser Forward",
+          "duration": 257.5607,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527131695,
+      "endTime": 1792527133220.5608,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/task-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects invalid calendar dates and ambiguous Istanbul fall-back local times",
+          "status": "passed",
+          "title": "rejects invalid calendar dates and ambiguous Istanbul fall-back local times",
+          "duration": 4.219299999999976,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requires explicit replacement/confirmation and posts only opening dual CAS with canonical Istanbul date",
+          "status": "passed",
+          "title": "requires explicit replacement/confirmation and posts only opening dual CAS with canonical Istanbul date",
+          "duration": 213.26919999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins both original versions even if props are refreshed while the plan stays open",
+          "status": "passed",
+          "title": "pins both original versions even if props are refreshed while the plan stays open",
+          "duration": 36.40909999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "freezes original timestamp/body/key and blocks double submits after uncertain 503",
+          "status": "passed",
+          "title": "freezes original timestamp/body/key and blocks double submits after uncertain 503",
+          "duration": 72.22109999999975,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "freezes original timestamp/body/key and blocks double submits after uncertain 429",
+          "status": "passed",
+          "title": "freezes original timestamp/body/key and blocks double submits after uncertain 429",
+          "duration": 56.9041000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps GET-only recovery after confirmed completion; does not repeat the write",
+          "status": "passed",
+          "title": "keeps GET-only recovery after confirmed completion; does not repeat the write",
+          "duration": 76.91739999999982,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not infer success from a missing task when the POST response is malformed",
+          "status": "passed",
+          "title": "does not infer success from a missing task when the POST response is malformed",
+          "duration": 31.89579999999978,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "compares the authorized current state after409, preserving date and requiring fresh confirmation",
+          "status": "passed",
+          "title": "compares the authorized current state after409, preserving date and requiring fresh confirmation",
+          "duration": 92.86920000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not substitute first-page versions if a conflicting task is no longer in its original authorized page",
+          "status": "passed",
+          "title": "does not substitute first-page versions if a conflicting task is no longer in its original authorized page",
+          "duration": 51.296100000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses only authorized assignment options with explicit selection and confirmation",
+          "status": "passed",
+          "title": "uses only authorized assignment options with explicit selection and confirmation",
+          "duration": 41.373099999999795,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "hides denied assignment directory without an alternative personnel fetch",
+          "status": "passed",
+          "title": "hides denied assignment directory without an alternative personnel fetch",
+          "duration": 18.2190999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves suspended historical association without offering null reassignment or silently selecting an active person",
+          "status": "passed",
+          "title": "preserves suspended historical association without offering null reassignment or silently selecting an active person",
+          "duration": 36.458300000000236,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not send task operations while a communication draft/pending write blocks them",
+          "status": "passed",
+          "title": "does not send task operations while a communication draft/pending write blocks them",
+          "duration": 26.51150000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps workflow drafts independent and prevents a sibling operation discarding an open draft",
+          "status": "passed",
+          "title": "keeps workflow drafts independent and prevents a sibling operation discarding an open draft",
+          "duration": 34.1241,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores delayed POST401 after task/session context unmount",
+          "status": "passed",
+          "title": "ignores delayed POST401 after task/session context unmount",
+          "duration": 89.75700000000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "re-reads the exact original later WORK cursor provenance, not the first page or a fictional task GET",
+          "status": "passed",
+          "title": "re-reads the exact original later WORK cursor provenance, not the first page or a fictional task GET",
+          "duration": 143.13520000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not apply an old assignment queue snapshot after a newer completion refresh",
+          "status": "passed",
+          "title": "does not apply an old assignment queue snapshot after a newer completion refresh",
+          "duration": 72.0313000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "cleans protected queue details when authorized readback loses permission",
+          "status": "passed",
+          "title": "cleans protected queue details when authorized readback loses permission",
+          "duration": 74.9694999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "integrates the interaction draft guard and holds the operation key against queue refresh while unresolved",
+          "status": "passed",
+          "title": "integrates the interaction draft guard and holds the operation key against queue refresh while unresolved",
+          "duration": 649.5431999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527120088,
+      "endTime": 1792527121910.5432,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/task-operations-modern.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "orients advanced customer operations without replacing the existing engine or losing the profile return",
+          "status": "passed",
+          "title": "orients advanced customer operations without replacing the existing engine or losing the profile return",
+          "duration": 169.7561999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527151045,
+      "endTime": 1792527151214.756,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/ux-customer-orientation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "closes the mobile drawer before the dirty navigation decision and keeps the draft on stay",
+          "status": "passed",
+          "title": "closes the mobile drawer before the dirty navigation decision and keeps the draft on stay",
+          "duration": 826.0808000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792527141060,
+      "endTime": 1792527141886.0808,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/AppData/Local/Temp/mayi-phase2-acceptance-20261020-v4/tests/ux-navigation.ui.test.tsx"
+    }
+  ]
+}

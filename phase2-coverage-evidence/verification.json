@@ -1,0 +1,168 @@
+{
+  "base": "e66e49b4ccbac8b74511bd07916cc93d37ed58ad",
+  "decision": "LOCAL_GO",
+  "independentReview": {
+    "verdict": "GO",
+    "blockingFindings": 0,
+    "importantFindings": 0,
+    "mode": "read-only source and existing artifact review; no new reviewer-run tests",
+    "evidence": "independent-review.md"
+  },
+  "preservation": {
+    "compared": 212,
+    "mismatches": [],
+    "protectedSHA256": "f272a14efce57f2ef47d960c2ac387e11cdaeda96aa6fda71db8585844e28930"
+  },
+  "sourceAllowlist": [
+    "src/server/customers/coverage.ts",
+    "src/server/customers/routes.ts",
+    "src/server/policies/service.ts",
+    "src/server/policies/validation.ts",
+    "src/shared/types.ts",
+    "src/shared/customer-coverage.ts",
+    "src/app/AuthenticatedApp.tsx",
+    "src/app/pages/customers/CustomerListPage.tsx",
+    "src/app/pages/customers/CustomerProfilePage.tsx",
+    "src/app/pages/customers/CustomerCoverage.tsx",
+    "src/app/pages/customers/customer-coverage.css",
+    "src/app/pages/customers/customer-list-context.tsx",
+    "tests/customer-coverage.api.test.ts",
+    "tests/customer-coverage.ui.test.tsx",
+    "tests/support/customer-coverage-fixture.ts",
+    "tests/customer-pages.ui.test.tsx",
+    "tests/customer-note-navigation.ui.test.tsx",
+    "tests/browser/customer-coverage.smoke.mjs",
+    "index.html"
+  ],
+  "finalBrowserHarnessSHA256": "ad91e9719ae268d1b8548260db5f6046543aa0ae8a54709ef3a223d5c880513d",
+  "finalProductionSourceMatchesAcceptanceTree": true,
+  "focusedFiles": {
+    "tests/customer-coverage.api.test.ts": {
+      "tests": 14,
+      "passed": 14,
+      "source": "phase2-final-api.json"
+    },
+    "tests/policy-browsing.api.test.ts": {
+      "tests": 6,
+      "passed": 6,
+      "source": "phase2-final-api.json"
+    },
+    "tests/customer-contact-edit.ui.test.tsx": {
+      "tests": 11,
+      "passed": 11,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-coverage.ui.test.tsx": {
+      "tests": 8,
+      "passed": 8,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-create-navigation.ui.test.tsx": {
+      "tests": 5,
+      "passed": 5,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-create.ui.test.tsx": {
+      "tests": 5,
+      "passed": 5,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-note-navigation.ui.test.tsx": {
+      "tests": 5,
+      "passed": 5,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-notes.ui.test.tsx": {
+      "tests": 4,
+      "passed": 4,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-pages.ui.test.tsx": {
+      "tests": 12,
+      "passed": 12,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customer-shared-renewals.ui.test.tsx": {
+      "tests": 3,
+      "passed": 3,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/policy-forms.ui.test.tsx": {
+      "tests": 23,
+      "passed": 23,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/policy-pages.ui.test.tsx": {
+      "tests": 17,
+      "passed": 17,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/task-navigation.ui.test.tsx": {
+      "tests": 7,
+      "passed": 7,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/task-operations-modern.ui.test.tsx": {
+      "tests": 19,
+      "passed": 19,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/ux-customer-orientation.ui.test.tsx": {
+      "tests": 1,
+      "passed": 1,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/ux-navigation.ui.test.tsx": {
+      "tests": 1,
+      "passed": 1,
+      "source": "phase2-final-ui.json"
+    },
+    "tests/customers.identity.auth.test.ts": {
+      "tests": 11,
+      "passed": 11,
+      "source": "initial-neighbors.json: completed API files only"
+    },
+    "tests/task-context.api.test.ts": {
+      "tests": 8,
+      "passed": 8,
+      "source": "initial-neighbors.json: completed API files only"
+    },
+    "tests/task-operations-modern.api.test.ts": {
+      "tests": 10,
+      "passed": 10,
+      "source": "initial-aggregate-timeout.log: completed shard only; not aggregate success"
+    },
+    "tests/customer-notes.api.test.ts": {
+      "tests": 14,
+      "passed": 14,
+      "source": "initial-aggregate-timeout.log: completed shard only; not aggregate success"
+    },
+    "tests/customer-everyday.api.test.ts": {
+      "tests": 4,
+      "passed": 4,
+      "source": "initial-aggregate-timeout.log: completed shard only; not aggregate success"
+    }
+  },
+  "uniqueFocusedFiles": 21,
+  "uniquePassedTests": 188,
+  "allSourceMatchesExceptBrowserHarnessSelectionOnly": true,
+  "notRun": [
+    "full repository test suite",
+    "15000-policy performance benchmark",
+    "production operations"
+  ],
+  "caveats": [
+    "Initial aggregate hit outer timeout; only completed shard passes retained.",
+    "Initial new UI assertion used synchronous selector on loading state; fixed and all affected UI files rerun green.",
+    "Policy denial diagnostic expected404 but existing canonical detail route returns403; fixture expectation corrected; no backend authorization weakening.",
+    "Original isolation under node_modules blocked native TS stripping; final quality/build/boundary checks ran outside node_modules.",
+    "CSS import failed strict boundary checker; corrected to established index.html stylesheet link, then full quality gates passed."
+  ],
+  "edge": {
+    "before": 9,
+    "after": 9,
+    "required": 9,
+    "screenshots": 36,
+    "allCompletedChecks": true
+  }
+}

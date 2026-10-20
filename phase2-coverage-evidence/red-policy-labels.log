@@ -1,0 +1,32 @@
+
+ RUN  v5.0.1 C:/Users/sinan/Desktop/panel
+
+ ❯ tests/customer-coverage.api.test.ts (11 tests | 1 failed | 10 skipped) 25324ms
+   × keeps the complete named policy history paginated, independently of the compact summary 467ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/customer-coverage.api.test.ts > keeps the complete named policy history paginated, independently of the compact summary
+AssertionError: expected 400 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 400
+
+ ❯ tests/customer-coverage.api.test.ts:43:19
+     41| it('keeps the complete named policy history paginated, independently o…
+     42|  const r=await f.request('/api/policies?customerId=coverage-many&pageS…
+     43|  expect(r.status).toBe(200);
+       |                   ^
+     44|  const page=((await r.json()) as {data:{items:Array<{labels:{branchNam…
+     45|  expect(page.items).toHaveLength(20);expect(page.hasMore).toBe(true);e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 skipped (11)
+   Start at  22:06:00
+   Duration  27.16s (tests 94%, transform 3%, import 3%)

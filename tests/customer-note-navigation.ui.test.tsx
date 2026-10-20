@@ -81,7 +81,9 @@ it('keeps a pending request mounted through sections, blocks customer changes an
   );
   fireEvent.click(screen.getByRole('link', { name: 'Genel bilgiler' }));
   fireEvent.click(screen.getByRole('link', { name: 'Başka müşteri' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('Not isteğinin sonucu');
+  expect(
+    (await screen.findByText(/^Not isteğinin sonucu henüz doğrulanmadı/)).getAttribute('role'),
+  ).toBe('alert');
   fireEvent.click(screen.getByRole('link', { name: 'Müşteri notları' }));
   expect(screen.getByLabelText('Yeni müşteri notu')).toBe(input);
   expect(input.disabled).toBe(true);

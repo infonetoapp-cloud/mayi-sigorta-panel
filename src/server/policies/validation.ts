@@ -160,6 +160,7 @@ export const policyListQuerySchema = z
     sort: z.enum(['end_date_asc', 'end_date_desc', 'created_at_desc']).default('end_date_asc'),
     cursor: z.string().max(512).optional(),
     pageSize: z.coerce.number().int().min(1).max(100).default(50),
+    includeLabels: z.literal('true').optional(),
   })
   .strict();
 

@@ -59,6 +59,7 @@ export type CustomerType = 'INDIVIDUAL' | 'COMPANY';
 export type CompanyContactStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface CustomerDto {
+  readonly coverage?: import('./customer-coverage').CustomerCoverageSummary;
   readonly id: string;
   readonly agencyId: string;
   readonly type: CustomerType;
@@ -213,6 +214,11 @@ export interface SelectableCatalogsDto {
 
 export type PolicyStatus = 'ACTIVE' | 'CANCELLED' | 'VOIDED';
 export interface PolicyDto {
+  readonly labels?: {
+    readonly branchName: string;
+    readonly productName: string;
+    readonly insurerName: string;
+  };
   readonly id: string;
   readonly agencyId: string;
   readonly customerId: string;

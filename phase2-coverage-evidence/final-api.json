@@ -1,0 +1,269 @@
+{
+  "numTotalTestSuites": 2,
+  "numPassedTestSuites": 2,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 20,
+  "numPassedTests": 20,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1792526514135,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "projects exact authorized coverage beyond a policy page with real display names and a bounded preview",
+          "status": "passed",
+          "title": "projects exact authorized coverage beyond a policy page with real display names and a bounded preview",
+          "duration": 868.2893999999978,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "distinguishes zero from denied, and status from expired, scheduled and archived periods",
+          "status": "passed",
+          "title": "distinguishes zero from denied, and status from expired, scheduled and archived periods",
+          "duration": 1906.6038000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "groups repeated types, shows only three labels and counts additional authorized types exactly",
+          "status": "passed",
+          "title": "groups repeated types, shows only three labels and counts additional authorized types exactly",
+          "duration": 1196.0959999999977,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps historical inactive catalog display names instead of IDs or selectable-only lookups",
+          "status": "passed",
+          "title": "keeps historical inactive catalog display names instead of IDs or selectable-only lookups",
+          "duration": 1104.3676000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the complete named policy history paginated, independently of the compact summary",
+          "status": "passed",
+          "title": "keeps the complete named policy history paginated, independently of the compact summary",
+          "duration": 813.5397999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not disclose HEALTH counts, types or previews even to OWNER without the explicit grant",
+          "status": "passed",
+          "title": "does not disclose HEALTH counts, types or previews even to OWNER without the explicit grant",
+          "duration": 2707.5535999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not turn absent policy permission into a false zero-policy claim",
+          "status": "passed",
+          "title": "does not turn absent policy permission into a false zero-policy claim",
+          "duration": 1096.6133000000045,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "denies cross-agency and customized customer scope without a record-existence hint",
+          "status": "passed",
+          "title": "denies cross-agency and customized customer scope without a record-existence hint",
+          "duration": 4537.347999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "paginates summaries only for the authorized current customer page, preserving the original opt-out contract",
+          "status": "passed",
+          "title": "paginates summaries only for the authorized current customer page, preserving the original opt-out contract",
+          "duration": 6344.248999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses one indexed aggregate query for either one or twenty customers, never N+1 policy reads",
+          "status": "passed",
+          "title": "uses one indexed aggregate query for either one or twenty customers, never N+1 policy reads",
+          "duration": 3968.3390999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "honors ASSIGNED policy scope without hiding a shared customer",
+          "status": "passed",
+          "title": "honors ASSIGNED policy scope without hiding a shared customer",
+          "duration": 4260.3747,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not count an insured relationship as a customer-owned policy",
+          "status": "passed",
+          "title": "does not count an insured relationship as a customer-owned policy",
+          "duration": 991.6762000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rechecks current customer assignment at the final disclosure boundary",
+          "status": "passed",
+          "title": "rechecks current customer assignment at the final disclosure boundary",
+          "duration": 1905.9586999999956,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rechecks live session at the aggregate boundary without returning a stale summary",
+          "status": "passed",
+          "title": "rechecks live session at the aggregate boundary without returning a stale summary",
+          "duration": 1248.9241000000038,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792526539973,
+      "endTime": 1792526572924.924,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-acceptance-v2/tests/customer-coverage.api.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects the reproduced wrong limit parameter and accepts canonical customer pageSize=20",
+          "status": "passed",
+          "title": "rejects the reproduced wrong limit parameter and accepts canonical customer pageSize=20",
+          "duration": 1025.7987000000066,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves server end-date ordering, opaque cursor pages and exact/prefix/status/date filters",
+          "status": "passed",
+          "title": "preserves server end-date ordering, opaque cursor pages and exact/prefix/status/date filters",
+          "duration": 3652.7550000000047,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "supports existing creation, insured parties, endorsements and references through unchanged domain APIs",
+          "status": "passed",
+          "title": "supports existing creation, insured parties, endorsements and references through unchanged domain APIs",
+          "duration": 14799.200800000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves archived history independently from cancellation or void status",
+          "status": "passed",
+          "title": "preserves archived history independently from cancellation or void status",
+          "duration": 7002.3871,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "excludes a synthetic HEALTH fixture from ordinary lists and denies every detail section without explicit sensitive permission",
+          "status": "passed",
+          "title": "excludes a synthetic HEALTH fixture from ordinary lists and denies every detail section without explicit sensitive permission",
+          "duration": 14211.202100000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "denies foreign, ungranted and revoked actors without policy fields on every read endpoint",
+          "status": "passed",
+          "title": "denies foreign, ungranted and revoked actors without policy fields on every read endpoint",
+          "duration": 5806.204599999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792526607557,
+      "endTime": 1792526654059.2046,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-acceptance-v2/tests/policy-browsing.api.test.ts"
+    }
+  ]
+}

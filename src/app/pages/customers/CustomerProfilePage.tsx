@@ -12,6 +12,7 @@ import { CompanyContactsSection } from '../../components/CompanyContactsSection'
 
 import { useCustomerResource } from './customer-resource';
 import { ReturnToWork } from '../today-work/work-navigation';
+import { CustomerCoverage } from './CustomerCoverage';
 const sections = [
   ['general', 'Genel bilgiler'],
   ['contact', 'İletişim'],
@@ -27,7 +28,7 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
   const route = useLocation();
   const [params, setParams] = useSearchParams();
   const cursor = params.get('after');
-  const query = new URLSearchParams({ customerId, pageSize: '20' });
+  const query = new URLSearchParams({ customerId, pageSize: '20', includeLabels: 'true' });
   if (cursor) query.set('cursor', cursor);
   const { data, error, loading, reload } = useCustomerResource<PolicyListResponseData>(
     `/api/policies?${query}`,
@@ -59,16 +60,24 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
                 >
                   {policy.policyNumber}
                 </Link>
+                {policy.labels && (
+                  <span>
+                    {policy.labels.productName} · {policy.labels.insurerName} ·{' '}
+                    {policy.labels.branchName}
+                  </span>
+                )}
                 <span>
                   {policy.startDate ? date(policy.startDate) : 'Başlangıç belirtilmedi'} –{' '}
                   {date(policy.endDate)}
                 </span>
                 <span>
+                  Kayıt durumu:{' '}
                   {policy.status === 'ACTIVE'
                     ? 'Aktif'
                     : policy.status === 'CANCELLED'
                       ? 'İptal'
                       : 'Geçersiz'}
+                  {policy.archivedAt ? ' · Arşivlenmiş' : ''}
                 </span>
               </li>
             ))}
@@ -78,7 +87,7 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
           <Button
             variant="outline"
             disabled={!cursor || loading}
-            onClick={() => setParams({ section: 'policies' })}
+            onClick={() => setParams({ section: 'policies' }, { state: route.state })}
           >
             İlk sayfa
           </Button>
@@ -86,7 +95,8 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
             variant="outline"
             disabled={loading || !data?.hasMore || !data.nextCursor}
             onClick={() => {
-              if (data?.nextCursor) setParams({ section: 'policies', after: data.nextCursor });
+              if (data?.nextCursor)
+                setParams({ section: 'policies', after: data.nextCursor }, { state: route.state });
             }}
           >
             Sonraki poliçeler
@@ -105,6 +115,7 @@ interface RenewalPage {
   nextCursor: string | null;
 }
 function RelatedRenewals({ customerId }: { customerId: string }) {
+  const route = useLocation();
   const [params, setParams] = useSearchParams();
   const cursor = params.get('renewalsAfter');
   const { data, error, loading, reload } = useCustomerResource<RenewalPage>(
@@ -151,7 +162,7 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
           <Button
             variant="outline"
             disabled={!cursor || loading}
-            onClick={() => setParams({ section: 'policies' })}
+            onClick={() => setParams({ section: 'policies' }, { state: route.state })}
           >
             İlk yenilemeler
           </Button>
@@ -160,7 +171,10 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
             disabled={loading || !data?.nextCursor}
             onClick={() => {
               if (data?.nextCursor)
-                setParams({ section: 'policies', renewalsAfter: data.nextCursor });
+                setParams(
+                  { section: 'policies', renewalsAfter: data.nextCursor },
+                  { state: route.state },
+                );
             }}
           >
             Sonraki yenilemeler
@@ -222,6 +236,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           {customer.phone || 'Telefon belirtilmedi'}
         </span>
       </div>
+      <CustomerCoverage customerId={customer.id} />
       <nav className="customer-section-nav" aria-label="Müşteri bölümleri">
         {sections.map(([key, label]) => (
           <Link

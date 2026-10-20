@@ -1,0 +1,83 @@
+.coverage-summary {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--card);
+  overflow-wrap: anywhere;
+}
+.coverage-summary h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+.coverage-brief {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.coverage-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.coverage-types .customer-badge {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.coverage-policies {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  list-style: none;
+}
+.coverage-policies li {
+  display: grid;
+  gap: 0.2rem;
+}
+.coverage-scope {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  margin-bottom: 0;
+}
+.coverage-cell {
+  max-width: 19rem;
+}
+@media (max-width: 900px) {
+  .customer-table.customer-table-with-coverage,
+  .customer-table.customer-table-with-coverage tbody {
+    display: block;
+  }
+  .customer-table.customer-table-with-coverage thead {
+    display: none;
+  }
+  .customer-table.customer-table-with-coverage tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .customer-table.customer-table-with-coverage td {
+    display: block;
+    border: 0;
+    padding: 0.35rem 0;
+  }
+  .customer-table.customer-table-with-coverage td:not(:last-child) {
+    grid-column: 1;
+  }
+  .customer-table.customer-table-with-coverage td:last-child {
+    grid-column: 2;
+    grid-row: 1 / 6;
+    align-self: center;
+  }
+}
+@media (max-width: 767px) {
+  .coverage-cell {
+    max-width: none;
+  }
+  .coverage-summary {
+    padding: 0.85rem;
+  }
+}

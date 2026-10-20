@@ -1,0 +1,53 @@
+
+ RUN  v5.0.1 C:/Users/sinan/Desktop/panel
+
+ ❯ tests/customer-coverage.ui.test.tsx (3 tests | 2 failed) 824ms
+   × shows linked named policies immediately in the profile, before choosing a section 22ms
+   × restores private search, customer filter and cursor after returning from a profile in the same SPA session 590ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/customer-coverage.ui.test.tsx > shows linked named policies immediately in the profile, before choosing a section
+TestingLibraryElementError: Unable to find an element with the text: 25 yürürlükte poliçe. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<section[39m
+  [33maria-label[39m=[32m"Sigorta özeti"[39m
+  [33mclass[39m=[32m"coverage-summary"[39m
+[36m>[39m
+  [36m<h2>[39m
+    [0mSigorta özeti[0m
+  [36m</h2>[39m
+  [36m<p[39m
+    [33mrole[39m=[32m"status"[39m
+  [36m>[39m
+    [0mPoliçe özeti yükleniyor…[0m
+  [36m</p>[39m
+[36m</section>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ tests/customer-coverage.ui.test.tsx:25:25
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/customer-coverage.ui.test.tsx > restores private search, customer filter and cursor after returning from a profile in the same SPA session
+AssertionError: expected '' to be 'sentetik@example.invalid' // Object.is equality
+
+- Expected
++ Received
+
+- sentetik@example.invalid
+
+ ❯ tests/customer-coverage.ui.test.tsx:37:82
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  22:02:47
+   Duration  2.92s (environment 35%, tests 30%, transform 19%, import 17%)

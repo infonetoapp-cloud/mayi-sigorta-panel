@@ -1,0 +1,57 @@
+
+ RUN  v5.0.1 C:/Users/sinan/Desktop/panel/node_modules/.cache/phase2-acceptance-tree
+
+ ✓ tests/task-operations-modern.api.test.ts (10 tests) 148044ms
+   ✓ completes tc-owner follow-up atomically with exactly one inherited replacement and exact replay 11677ms
+   ✓ completes tc-ahmet follow-up atomically with exactly one inherited replacement and exact replay 13132ms
+   ✓ completes tc-ayse follow-up atomically with exactly one inherited replacement and exact replay 12811ms
+   ✓ rejects stale renewal and task CAS and noncanonical or impossible date input without effects 10582ms
+   ✓ authorizes only the endpoint directory and transfers responsibility to an explicit eligible active member 12088ms
+   ✓ supports server-null assignment and rejects suspended/inactive targets until explicitly repaired with an eligible member 29218ms
+   ✓ denies member directory/assignment, other private work and cross-agency commands without evidence 10230ms
+   ✓ denies HEALTH without explicit grant and revoked permissions/session under live authorization 7930ms
+   ✓ serializes two simultaneous completions at the real atomic batch with one replacement 8208ms
+   ✓ serializes competing responsibility-transfer vs completion without duplicate open primary tasks 7644ms
+ ✓ tests/customer-notes.api.test.ts (14 tests) 68323ms
+   ✓ Shared customer notes on real local D1/API (14)
+     ✓ creates an independent note shared with another employee and attributes it from authenticated identity 2970ms
+     ✓ retries sequentially and concurrently without duplicate notes, receipts or audit 5922ms
+     ✓ rejects forged authors, invalid content, missing CSRF and non-JSON or oversized bodies 2816ms
+     ✓ denies actual cross-agency readers and writers without revealing notes 1583ms
+     ✓ keeps historical author names after suspension, inactivation and a later display-name change 2238ms
+     ✓ rolls back note and receipt if audit fails and permits a clean same-key retry 2588ms
+     ✓ paginates by timestamp and ID with no duplicates and binds cursors to customer and reader 8279ms
+     ✓ denies new writes and completed replay after write permission revocation, while read-only history remains accessible 4081ms
+     ✓ does not let a customized ASSIGNED customer reader access notes owned by another employee 1568ms
+     ✓ fails closed on corrupted receipt output and preserves immutable note content 5260ms
+     ✓ rechecks permission loss inside the atomic batch and commits no note, receipt or audit 1425ms
+     ✓ denies list disclosure when the current session is revoked immediately before the final note read 2270ms
+     ✓ denies replay disclosure when the current session is revoked immediately before the final note read 2483ms
+     ✓ allows archived history and exact completed retry but no new archived-customer writes 4229ms
+ ✓ tests/policy-browsing.api.test.ts (6 tests) 73161ms
+   ✓ rejects the reproduced wrong limit parameter and accepts canonical customer pageSize=20 1160ms
+   ✓ preserves server end-date ordering, opaque cursor pages and exact/prefix/status/date filters 3937ms
+   ✓ supports existing creation, insured parties, endorsements and references through unchanged domain APIs 14382ms
+   ✓ preserves archived history independently from cancellation or void status 6122ms
+   ✓ excludes a synthetic HEALTH fixture from ordinary lists and denies every detail section without explicit sensitive permission 11931ms
+   ✓ denies foreign, ungranted and revoked actors without policy fields on every read endpoint 4313ms
+ ✓ tests/customer-everyday.api.test.ts (4 tests) 47372ms
+   ✓ holds PATCH after all preflights while a real archive commits, then rolls back all PATCH evidence 4964ms
+   ✓ creates both customer types with exact replay and rejects changed-key payload reuse 6486ms
+   ✓ preserves CAS conflict, exact PATCH replay, and archive mutation denial 13587ms
+   ✓ rejects create/update without grants and client-supplied authority fields 2846ms
+ ❯ tests/customer-coverage.api.test.ts (14 tests | 1 failed) 53418ms
+   ✓ projects exact authorized coverage beyond a policy page with real display names and a bounded preview 1027ms
+   ✓ distinguishes zero from denied, and status from expired, scheduled and archived periods 2350ms
+   ✓ groups repeated types, shows only three labels and counts additional authorized types exactly 1051ms
+   ✓ keeps historical inactive catalog display names instead of IDs or selectable-only lookups 1143ms
+   ✓ keeps the complete named policy history paginated, independently of the compact summary 943ms
+   ✓ does not disclose HEALTH counts, types or previews even to OWNER without the explicit grant 3225ms
+   ✓ does not turn absent policy permission into a false zero-policy claim 1037ms
+   ✓ denies cross-agency and customized customer scope without a record-existence hint 3693ms
+   ✓ paginates summaries only for the authorized current customer page, preserving the original opt-out contract 5096ms
+   ✓ uses one indexed aggregate query for either one or twenty customers, never N+1 policy reads 3327ms
+   × honors ASSIGNED policy scope without hiding a shared customer 3188ms
+   ✓ does not count an insured relationship as a customer-owned policy 941ms
+   ✓ rechecks current customer assignment at the final disclosure boundary 1835ms
+   ✓ rechecks live session at the aggregate boundary without returning a stale summary 1018ms

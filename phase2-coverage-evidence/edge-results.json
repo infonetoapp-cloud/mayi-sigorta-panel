@@ -1,0 +1,336 @@
+{
+  "channel": "msedge",
+  "headless": false,
+  "versionFromCompletedRun": "155.0.4283.62",
+  "beforeCells": 9,
+  "afterCells": 9,
+  "requiredCells": 9,
+  "rows": [
+    {
+      "actor": "owner",
+      "width": 1440,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["owner-1440-customer-list.png", "owner-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "owner",
+      "width": 768,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["owner-768-customer-list.png", "owner-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "owner",
+      "width": 360,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["owner-360-customer-list.png", "owner-360-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 1440,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-1440-customer-list.png", "ahmet-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 768,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-768-customer-list.png", "ahmet-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 360,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-360-customer-list.png", "ahmet-360-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 1440,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-1440-customer-list.png", "ayse-1440-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 768,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-768-customer-list.png", "ayse-768-customer-profile.png"],
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ayse",
+      "width": 360,
+      "mode": "after",
+      "checks": [
+        "bounded-page-summary-real-catalog-count-no-policy-fanout",
+        "profile-nearest-real-policy-keyboard-link-status-versus-period",
+        "spa-only-search-filter-cursor-scroll-return",
+        "complete-named-paginated-history-and-exact-Task-A-return",
+        "mounted-note-draft-section-POP-stay-cancel",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ayse-360-customer-list.png", "ayse-360-customer-profile.png"],
+      "runtimeErrors": 0
+    }
+  ],
+  "runs": {
+    "before": "before-attempt1/results.json",
+    "afterFirst": "after-attempt1/progress.json",
+    "afterRemaining": "after-remaining/results.json"
+  },
+  "initialAfterRun": "240s timeout after four fully completed cells; not nine-cell success",
+  "screenshots": [
+    {
+      "file": "before-attempt1/owner-1440-customer-list.png",
+      "bytes": 164722,
+      "sha256": "1c6236f39b8e7e16622eced8427e620d1ce0e684f944913ffc8e3e35d6939eba"
+    },
+    {
+      "file": "before-attempt1/owner-1440-customer-profile.png",
+      "bytes": 76464,
+      "sha256": "17c3f91ae274854d2840a93cbef18e159f8895537ca49f6d34a7df6618f3bc15"
+    },
+    {
+      "file": "before-attempt1/owner-768-customer-list.png",
+      "bytes": 136405,
+      "sha256": "7463269d23e5f81daa05d992576c6744f64d61bfd055793f9272da7bb27751da"
+    },
+    {
+      "file": "before-attempt1/owner-768-customer-profile.png",
+      "bytes": 53289,
+      "sha256": "7b9e8ef0f1afd412b591c7b756c9aff677d3527501207f89a0973244261d41da"
+    },
+    {
+      "file": "before-attempt1/owner-360-customer-list.png",
+      "bytes": 136108,
+      "sha256": "bfd6811a2d7b46b95d854ff23ef9fff78e6ee0d2aa2321be4af408b97f9ee6e0"
+    },
+    {
+      "file": "before-attempt1/owner-360-customer-profile.png",
+      "bytes": 50409,
+      "sha256": "16b069a83495326c4ae3bdae363730524e5e4ebf1272303b0302f8c9a292a343"
+    },
+    {
+      "file": "before-attempt1/ahmet-1440-customer-list.png",
+      "bytes": 161485,
+      "sha256": "3484f572b926de5a7c51f5f4967048a2269737caeb56f92974e29bb2788d953e"
+    },
+    {
+      "file": "before-attempt1/ahmet-1440-customer-profile.png",
+      "bytes": 73272,
+      "sha256": "03a3cad6475d1068ef4cada87c63c0b436345c3dd4a9d532b77b1665de8c458c"
+    },
+    {
+      "file": "before-attempt1/ahmet-768-customer-list.png",
+      "bytes": 135965,
+      "sha256": "7930060d04c8196655205ddeb299c863103466603ef7285a3e2794172ff09cf0"
+    },
+    {
+      "file": "before-attempt1/ahmet-768-customer-profile.png",
+      "bytes": 52842,
+      "sha256": "ccdb9dfe610d54da49da431ecc130908a575bc56853209d12eea448b9b311e88"
+    },
+    {
+      "file": "before-attempt1/ahmet-360-customer-list.png",
+      "bytes": 135599,
+      "sha256": "c6ef4eb5797e07d416e4e06a30c60967a5810eb93e6b2d7600107a2f09095d2d"
+    },
+    {
+      "file": "before-attempt1/ahmet-360-customer-profile.png",
+      "bytes": 49932,
+      "sha256": "0a09b8dea7d3b3839340cbd6f7ede51957b7316f335a9ac5e0eab3ea0f7e1c65"
+    },
+    {
+      "file": "before-attempt1/ayse-1440-customer-list.png",
+      "bytes": 161540,
+      "sha256": "2488f4311aa090d66744c20cfa0f0bd3f0415c13e9c3e2213ebaca42288fed7e"
+    },
+    {
+      "file": "before-attempt1/ayse-1440-customer-profile.png",
+      "bytes": 73323,
+      "sha256": "4cab49c888b5ed031fba25e209436368c7a14e9e5d4aae0db51dee587122f91b"
+    },
+    {
+      "file": "before-attempt1/ayse-768-customer-list.png",
+      "bytes": 136029,
+      "sha256": "7ad1f94a3d2a9587361e2226001cc7a7935015b7a7cf30af45448f1a087bb939"
+    },
+    {
+      "file": "before-attempt1/ayse-768-customer-profile.png",
+      "bytes": 52900,
+      "sha256": "56b5d9d4114bcff6aa7c22c41f56dc5b3c7ad934cfc245fe4b604ed8e94c81bb"
+    },
+    {
+      "file": "before-attempt1/ayse-360-customer-list.png",
+      "bytes": 135674,
+      "sha256": "91a9aef1f9de3820b48f0b210ab3604b1ff704cd7d84d4dd6fee844049fc6cbe"
+    },
+    {
+      "file": "before-attempt1/ayse-360-customer-profile.png",
+      "bytes": 49996,
+      "sha256": "1e8f659b37b499168820f6b488a4a3a212ff171ea465128719f7ae3e11322402"
+    },
+    {
+      "file": "after-attempt1/owner-1440-customer-list.png",
+      "bytes": 221193,
+      "sha256": "8f081bdeed0007c53fb17b9b7319f90854175baa445a1a1e570e62fa5e2cad5a"
+    },
+    {
+      "file": "after-attempt1/owner-1440-customer-profile.png",
+      "bytes": 121820,
+      "sha256": "1650d5fa3a6135096c14cb6833f187aae6f724bf83d9d3ad0b96b820a1281457"
+    },
+    {
+      "file": "after-attempt1/owner-768-customer-list.png",
+      "bytes": 205366,
+      "sha256": "d3ae44297f19ece5925bfdbb9e4bfd34f11aa071b8a8f6a1dbb3c195d27f7ded"
+    },
+    {
+      "file": "after-attempt1/owner-768-customer-profile.png",
+      "bytes": 97896,
+      "sha256": "4fed0f9ee0e6de87994d05462b76360f09a0fff9e372c87635a8c7e90049439b"
+    },
+    {
+      "file": "after-attempt1/owner-360-customer-list.png",
+      "bytes": 193512,
+      "sha256": "44cb8100ead5758b7789ad79f08ae234e105aa8059a0530bdc9ba63f3d934214"
+    },
+    {
+      "file": "after-attempt1/owner-360-customer-profile.png",
+      "bytes": 94374,
+      "sha256": "d9b1a184f40d4b6242c365bda449a23bc09e0da70cd52808bdf6da9209c58b83"
+    },
+    {
+      "file": "after-attempt1/ahmet-1440-customer-list.png",
+      "bytes": 218074,
+      "sha256": "02be2ae3ec79f09a15388f9ddeb65bdb62cf56c41353219ee03c5a04cefc3f4d"
+    },
+    {
+      "file": "after-attempt1/ahmet-1440-customer-profile.png",
+      "bytes": 118570,
+      "sha256": "9c143f9ffbe141e78898df13617a575b56fec906cabba8f1d0b4493a680e9082"
+    },
+    {
+      "file": "after-remaining/ahmet-768-customer-list.png",
+      "bytes": 204925,
+      "sha256": "09216aa136cbdfca8fea85396d876fae663bde9e71a8fee0a2ed0f02a93d00b7"
+    },
+    {
+      "file": "after-remaining/ahmet-768-customer-profile.png",
+      "bytes": 97470,
+      "sha256": "5f17217d70e76343385b3b8b5f2173d1bd32b38f35755a8650b602bc66f15da5"
+    },
+    {
+      "file": "after-remaining/ahmet-360-customer-list.png",
+      "bytes": 193006,
+      "sha256": "03c11cd37ae5f63110eb3145f7f49c568fba41913c5b03a67331ddc3418d496c"
+    },
+    {
+      "file": "after-remaining/ahmet-360-customer-profile.png",
+      "bytes": 93881,
+      "sha256": "c1198c1ffd0ee079f0863db7ec576c0e9f9e9539924bff0443e2a88c790584b8"
+    },
+    {
+      "file": "after-remaining/ayse-1440-customer-list.png",
+      "bytes": 218126,
+      "sha256": "14a01c8a4b152eef182743de2013bbac8dd3935f5336399d62c53c69e85059f0"
+    },
+    {
+      "file": "after-remaining/ayse-1440-customer-profile.png",
+      "bytes": 118623,
+      "sha256": "81a49163dac73fb0acee4ef921a6b46f1e6c106833c6191fed5867f3d502082b"
+    },
+    {
+      "file": "after-remaining/ayse-768-customer-list.png",
+      "bytes": 204988,
+      "sha256": "62209fe41557f868a0cadbde3ae04407bc136aa46140d2f692088c19ff050e87"
+    },
+    {
+      "file": "after-remaining/ayse-768-customer-profile.png",
+      "bytes": 97535,
+      "sha256": "7b3df02427324506bd9e88277059ece4b6f6c1fadef95680bcdd8e84cc117db9"
+    },
+    {
+      "file": "after-remaining/ayse-360-customer-list.png",
+      "bytes": 193068,
+      "sha256": "29de972cacf1d642943cd090f9a17ea860a122b4ac133b3ad948cffb619be436"
+    },
+    {
+      "file": "after-remaining/ayse-360-customer-profile.png",
+      "bytes": 93943,
+      "sha256": "62cd88f2d05ef3dbcd4207cd637b4bd2ad29f055a669d3ed14a8a8b04a9040b4"
+    }
+  ],
+  "screenshotCount": 36,
+  "checksPerAfterCell": 6,
+  "portfolioBenchmark": false
+}
