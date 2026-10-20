@@ -145,7 +145,7 @@ export function RenewalInteractionsSection({
         setNeedsRead(false);
         setOpened(false);
         setComparison(false);
-        setSuccess('İletişim kaydı yetkili okumayla doğrulandı.');
+        setSuccess('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
         restoreFocus.current = true;
         onRiskChange('clean');
       } else if (mode === 'refresh' && opened) {
@@ -164,7 +164,7 @@ export function RenewalInteractionsSection({
       }
       setError(
         completed.current
-          ? 'Yazım kaydedildi; yetkili geçmiş okuması doğrulanamadı. Yalnız GET yeniden denenecek.'
+          ? 'Kayıt kabul edildi; iletişim geçmişi henüz doğrulanamadı. Yalnız sonucu kontrol edin; kayıt yeniden gönderilmeyecek.'
           : denied
             ? 'İletişim bilgilerine erişilemiyor. Taslak güvenli olduğu sürece yalnız bu ekranın belleğinde korunur; güncel yetkili okuma olmadan yeniden gönderilemez.'
             : 'İletişim geçmişi yüklenemedi. Yeniden okuyun.',
@@ -308,8 +308,7 @@ export function RenewalInteractionsSection({
       <details className="workspace-help">
         <summary>İletişim kayıtları hakkında</summary>
         <p className="today-clock">
-          İzin bu bölümün kendi endpoint'inde doğrulanır; kuyruk veya teklif izni iletişim izni
-          yerine geçmez. Saatler Europe/Istanbul'dur.
+          İletişim kayıtları için ayrıca yetki gerekir. Saatler İstanbul saatidir.
         </p>
       </details>
       {busy && <p role="status">İletişim bilgileri işleniyor…</p>}
@@ -400,8 +399,8 @@ export function RenewalInteractionsSection({
               </h4>
               <p>
                 Yanıtsız arama, WhatsApp işlemi veya yazılı not gerçek müşteri temasının kanıtı
-                değildir. Bu form mesaj göndermez ve WhatsApp açmaz; WHATSAPP_OPENED yalnız ayrı
-                önizleme/açma protokolündedir.
+                değildir. Bu form mesaj göndermez ve WhatsApp açmaz; WhatsApp açıldı kaydı yalnız
+                ayrı önizleme/açma protokolündedir.
               </p>
               <fieldset disabled={locked}>
                 <label htmlFor="interaction-outcome">Görüşme sonucu</label>

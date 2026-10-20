@@ -175,7 +175,7 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
       setMustCompare(!current.current);
       if (!current.current)
         setError(
-          'Görev özgün yetkili sayfada bulunamadı. Başka ilk sayfa veya sahte tekil GET ile sürüm türetilmez. Yeni yazım kapalı; listeyi açıkça yenileyin.',
+          'Seçtiğiniz takip güncel iş listenizde bulunamadı. Başka bir takip otomatik seçilmez. Yeni kayıt gönderilmez; listeyi yenileyin.',
         );
     } catch {
       if (e === epoch.current && !c.signal.aborted) {
@@ -211,14 +211,14 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
         throw new Error('INCONSISTENT_READBACK');
       props.onApplied(
         kind === 'complete'
-          ? 'Takip tamamlandı; yeni takip atomik sunucu sonucu ve yetkili kuyruk okumasıyla doğrulandı. Yenileme fırsatı kapatılmadı.'
-          : 'Görev/yenileme sorumlusu sunucu sonucu ve yetkili kuyruk okumasıyla doğrulandı.',
+          ? 'Takip tamamlandı ve yeni takip oluşturuldu. İş listeniz güncellendi. Yenileme henüz sonuçlandırılmadı.'
+          : 'Görev ve yenileme sorumlusu değiştirildi. İş listeniz güncellendi.',
       );
       fresh.apply();
     } catch {
       if (e === epoch.current && !c.signal.aborted)
         setError(
-          'Yazım doğrulandı ancak yetkili kuyruk okuması tamamlanamadı. Yalnız okumayı yeniden deneyin; tekrar POST gönderilmeyecek.',
+          'Kayıt kabul edildi; iş listeniz henüz güncellenemedi. Yalnız listeyi yeniden kontrol edin; kayıt tekrar gönderilmeyecek.',
         );
     } finally {
       controllers.current.delete(c);
@@ -306,7 +306,7 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
     }
     const chosen = compared ? comparison : snapshot;
     if (!chosen) {
-      setError('Güncel yetkili snapshot yok.');
+      setError('Güncel takip bilgileri bulunamadı.');
       return;
     }
     const base = {
@@ -447,8 +447,8 @@ export function TaskOperationsSection(props: Props) {
             </h3>
             <p>
               {kind === 'complete'
-                ? 'Tamamlama ve yeni takip oluşturma tek atomik işlemdir; yenileme fırsatı WON/LOST/VOIDED olmaz. Yeni takip mevcut sunucu atama kurallarını devralır.'
-                : 'Dizin ve atama izni sunucuda renewal.read, task.read, renewal.assign, task.assign AGENCY kapsamlarıyla doğrulanır. Müşteri/poliçe sahipliği ve not yazarı değişmez.'}
+                ? 'Mevcut takip tamamlanır ve yerine yeni takip açılır. Bu işlem yenilemeyi kazanıldı, yenilenmedi veya geçersiz olarak sonuçlandırmaz. Yeni takip mevcut atama kurallarına göre atanır.'
+                : 'Atama yetkiniz ayrıca kontrol edilir. Müşteri ve poliçe sorumlusu ile not yazarı değişmez.'}
             </p>
             <p>
               Mevcut takip: {interactionTime(props.task.dueAt) ?? 'Tarih bilgisi yok'} ·{' '}
@@ -478,7 +478,7 @@ export function TaskOperationsSection(props: Props) {
             {op.opened && (
               <>
                 <p>
-                  İlk snapshot: yenileme v{op.snapshot?.renewalVersion} / görev v
+                  İlk kayıt: yenileme v{op.snapshot?.renewalVersion} / görev v
                   {op.snapshot?.taskVersion}. Yeni sürümler taslağa sessizce geçirilmez.
                 </p>
                 {(op.mustCompare || op.compared) && (
@@ -494,7 +494,7 @@ export function TaskOperationsSection(props: Props) {
                       <p role="status">
                         Karşılaştırılan: yenileme v{op.comparison.renewalVersion} / görev v
                         {op.comparison.taskVersion}, takip {interactionTime(op.comparison.dueAt)}.
-                        Aşağıdaki onay bu güncel snapshot ile yeni istek içindir.
+                        Aşağıdaki onay bu güncel bilgilerle yeni istek içindir.
                       </p>
                     )}
                   </>

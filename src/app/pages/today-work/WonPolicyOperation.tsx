@@ -483,19 +483,19 @@ export function WonPolicyOperation(props: Props) {
       setOriginal(null);
       setConfirmed(false);
       props.onApplied(
-        'WON: POST hedef/link/tutar kanıtı ve bağımsız yetkili yenileme/poliçe' +
-          (a.quote ? '/ACCEPTED teklif olayı' : '') +
+        'Yenileme kazanıldı olarak kaydedildi; poliçe ve yenileme kontrol edildi. ' +
+          (a.quote ? 'Seçili teklif kabul edildi. ' : 'Teklif kabulü kaydedilmedi. ') +
           (a.create
-            ? ' okumaları doğrulandı. Yeni ACTIVE poliçe tek atomik komutla oluşturuldu. '
-            : ' okumaları doğrulandı. Yeni poliçe oluşturulmadı. ') +
-          'Bu GET tamamlanan Task veya policy-link satırlarını bağımsız kanıtlamaz; sunucu atomik kapanışı bildirir.',
+            ? 'Yeni aktif poliçe oluşturuldu. '
+            : 'Mevcut poliçe bağlandı; yeni poliçe oluşturulmadı. ') +
+          'Birincil takibin kapatıldığı sunucu tarafından bildirildi.',
       );
     } catch (cause) {
       if (alive(e, c)) {
         if (cause instanceof CustomerReadError && [401, 403, 404].includes(cause.status))
           setMasked(true);
         setError(
-          'POST kabul edildi; bağımsız yetkili okumalar eksik veya çelişkili. Başarı doğrulanmadı. Yalnız GET ile yeniden kontrol edin; ikinci POST yapılmaz.',
+          'Kayıt kabul edildi; poliçe veya yenilemenin sonucu henüz doğrulanamadı. Başarı henüz doğrulanmadı. Yalnız sonucu kontrol edin; ikinci kayıt gönderilmeyecek.',
         );
       }
     }
@@ -537,9 +537,9 @@ export function WonPolicyOperation(props: Props) {
           setError(
             r.status === 409
               ? creating
-                ? 'WON çakıştı. Aynı poliçe numarası zaten kayıtlı olabilir veya özgün Task/sürümler değişmiştir. Oluşturma taslağı korunur; numara otomatik değiştirilmez ve LINK_POLICY dalına geçilmez. Yetkili karşılaştırıp taslağı yeniden inceleyin.'
-                : 'WON çakıştı. Poliçe önceden tahsis edilmiş, hedef veya sürüm değişmiş ya da teklif süresi dolmuş olabilir. Tam primin tamamı dışında tahsis desteklenmez. Taslak korunur; yetkili karşılaştırma, açık yeniden seçim ve onay gerekir.'
-              : 'WON izni veya hedef doğrulanamadı. Korunan ayrıntılar gizlendi; yetkili karşılaştırma gerekir.',
+                ? 'Kazanıldı kaydı çakıştı. Aynı poliçe numarası zaten kayıtlı olabilir veya özgün takip veya kayıt sürümleri değişmiştir. Oluşturma taslağı korunur; numara otomatik değiştirilmez ve mevcut poliçeyi bağlama seçeneğine geçilmez. Yetkili karşılaştırıp taslağı yeniden inceleyin.'
+                : 'Kazanıldı kaydı çakıştı. Poliçe önceden tahsis edilmiş, hedef veya sürüm değişmiş ya da teklif süresi dolmuş olabilir. Tam primin tamamı dışında tahsis desteklenmez. Taslak korunur; yetkili karşılaştırma, açık yeniden seçim ve onay gerekir.'
+              : 'Kazanıldı işlemi için yetki veya seçili kayıt doğrulanamadı. Korunan ayrıntılar gizlendi; yetkili karşılaştırma gerekir.',
           );
           return;
         }
@@ -580,7 +580,7 @@ export function WonPolicyOperation(props: Props) {
     )
       return;
     if (!allocation || !confirmed) {
-      setError('Tam prim tahsisini ve ayrı WON son onayını açıkça doğrulayın.');
+      setError('Primin tamamının tahsisini ve kazanıldı son onayını ayrı ayrı doğrulayın.');
       return;
     }
     if (
@@ -784,14 +784,17 @@ export function WonPolicyOperation(props: Props) {
         {target && (
           <section aria-label="WON yeni poliçe oluşturma" className="today-outcome-form">
             <h4 ref={heading} tabIndex={-1}>
-              WON — yeni poliçe oluştur
+              Kazanıldı — yeni poliçe oluştur
             </h4>
             {!masked && (
-              <p>
-                Müşteri: {target.customerDisplayName}; eski poliçe {target.policyNumber}; yenileme{' '}
-                {target.renewalId}; Task {target.taskId}; yenileme/görev CAS {target.renewalVersion}
-                /{target.taskVersion}.
-              </p>
+              <details>
+                <summary>Destek ayrıntıları</summary>
+                <p>
+                  Müşteri: {target.customerDisplayName}; eski poliçe {target.policyNumber}; yenileme{' '}
+                  {target.renewalId}; Task {target.taskId}; yenileme/görev CAS{' '}
+                  {target.renewalVersion}/{target.taskVersion}.
+                </p>
+              </details>
             )}
             <WonCreatePolicyForm
               task={target}
@@ -831,7 +834,7 @@ export function WonPolicyOperation(props: Props) {
             {error && <p role="alert">{error}</p>}
             {pending && (
               <Button disabled={busy} onClick={() => void transmit(pending)}>
-                Aynı CREATE_POLICY isteğini yeniden dene
+                Aynı poliçe oluşturma isteğini yeniden dene
               </Button>
             )}
             {accepted && (
@@ -841,7 +844,7 @@ export function WonPolicyOperation(props: Props) {
             )}
             {conflict && !pending && !accepted && (
               <Button disabled={unresolved} onClick={() => void compareCreate()}>
-                CREATE_POLICY hedefini yetkili karşılaştır
+                Poliçe oluşturma bilgilerini karşılaştır
               </Button>
             )}
             {createComparison && !masked && (
@@ -858,16 +861,16 @@ export function WonPolicyOperation(props: Props) {
                     setCreateComparison(null);
                     setConflict(false);
                     setError(
-                      'Aynı Task açıkça benimsendi. Korunan poliçe taslağını yeniden inceleyip ayrı onay verin.',
+                      'Aynı takip açıkça benimsendi. Korunan poliçe taslağını yeniden inceleyip ayrı onay verin.',
                     );
                   }}
                 >
-                  Aynı Task ile oluşturma taslağını yeniden incele
+                  Aynı takip ile oluşturma taslağını yeniden incele
                 </Button>
               </>
             )}
             <Button variant="outline" disabled={unresolved} onClick={reset}>
-              Yeni poliçe WON taslağını açıkça kapat
+              Yeni poliçeyle kazanma taslağını açıkça kapat
             </Button>
           </section>
         )}
@@ -889,11 +892,12 @@ export function WonPolicyOperation(props: Props) {
           onSubmit={(e) => void submit(e)}
         >
           <h4 ref={heading} tabIndex={-1}>
-            WON — mevcut yeni dönem poliçesi
+            Kazanıldı — mevcut yeni dönem poliçesi
           </h4>
           <p>
             Bu işlem yeni poliçe oluşturmaz. Seçtiğiniz mevcut poliçeye izin verilen ilişkiyi kurar,
-            yenilemeyi WON kapatır ve özgün birincil Task'ı tamamlar. Yerine görev oluşturmaz.
+            yenilemeyi kazanıldı olarak kapatır ve seçili birincil takibi tamamlar. Yerine görev
+            oluşturmaz.
           </p>
           {!masked && (
             <>
@@ -976,13 +980,13 @@ export function WonPolicyOperation(props: Props) {
                       {policy.version}.
                     </p>
                     <p>
-                      Mevcut tahsislerin yetkili toplamı bu poliçe DTO'sunda yoktur. Burada yalnız
-                      primin tamamı ({policy.grossPremiumMinor} minor {policy.currency}) tahsis
-                      edilir. Önceki tahsis varsa sunucu409 ile reddeder; kısmi/paylaşımlı tahsis
+                      Bu poliçenin önceki tahsis toplamı burada gösterilmiyor. Burada yalnız primin
+                      tamamı ({completionMoney(policy.grossPremiumMinor, policy.currency)}) tahsis
+                      edilir. Önceki tahsis varsa kayıt reddedilir; kısmi/paylaşımlı tahsis
                       desteklenmez.
                     </p>
                     <Button type="button" onClick={() => void loadQuotes()}>
-                      İsteğe bağlı SENT teklifleri oku
+                      İsteğe bağlı gönderildi kayıtlı teklifleri oku
                     </Button>
                     {quotes && (
                       <label>
@@ -1012,14 +1016,14 @@ export function WonPolicyOperation(props: Props) {
                     {quote ? (
                       <>
                         <p>
-                          Seçili SENT sürümü: {quote.version.id}; ürün: {quote.version.product_id};
-                          prim:{' '}
+                          Seçili gönderildi kayıtlı teklif sürümü: {quote.version.id}; ürün:{' '}
+                          {quote.version.product_id}; prim:{' '}
                           {completionMoney(
                             quote.version.gross_premium_minor,
                             quote.version.currency,
                           )}
-                          ; geçerlilik: {quote.version.valid_until}. SENT gerçek mesaj teslimi
-                          kanıtı değildir.
+                          ; geçerlilik: {quote.version.valid_until}. Gönderildi kaydı gerçek mesaj
+                          teslimi kanıtı değildir.
                         </p>
                         {diff.length > 0 && (
                           <>
@@ -1043,7 +1047,10 @@ export function WonPolicyOperation(props: Props) {
                         )}
                       </>
                     ) : (
-                      <p>Teklif seçilmedi; WON hiçbir teklifin kabul edildiğini ima etmez.</p>
+                      <p>
+                        Teklif seçilmedi; kazanıldı sonucu hiçbir teklifin kabul edildiği anlamına
+                        gelmez.
+                      </p>
                     )}
                     <label>
                       <input
@@ -1062,9 +1069,9 @@ export function WonPolicyOperation(props: Props) {
                         checked={confirmed}
                         onChange={(e) => setConfirmed(e.target.checked)}
                       />
-                      WON sonucunu ve sabit hedefleri onaylıyorum
+                      Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum
                     </label>
-                    <Button type="submit">WON kaydını onayla</Button>
+                    <Button type="submit">Yenilemeyi kazanıldı olarak kaydet</Button>
                   </>
                 )}
               </fieldset>
@@ -1076,10 +1083,10 @@ export function WonPolicyOperation(props: Props) {
             </p>
           )}
           {error && <p role="alert">{error}</p>}
-          {busy && <p role="status">WON işlemi veya yetkili okuma sürüyor…</p>}
+          {busy && <p role="status">Kazanıldı işlemi veya sonuç kontrolü sürüyor…</p>}
           {conflict && !pending && !accepted && (
             <Button type="button" disabled={busy} onClick={() => void compare()}>
-              WON hedeflerini yetkili karşılaştır
+              Kazanılacak yenilemenin kayıtlarını karşılaştır
             </Button>
           )}
           {comparison && !masked && (
@@ -1104,7 +1111,7 @@ export function WonPolicyOperation(props: Props) {
                   setAllocation(false);
                   setConflict(false);
                   setError(
-                    'Aynı Task açıkça benimsendi. Poliçeyi ve teklifi yeniden seçip tüm onayları verin.',
+                    'Aynı takip açıkça benimsendi. Poliçeyi ve teklifi yeniden seçip tüm onayları verin.',
                   );
                 }}
               >
@@ -1114,7 +1121,7 @@ export function WonPolicyOperation(props: Props) {
           )}
           {pending && (
             <Button type="button" disabled={busy} onClick={() => void transmit(pending)}>
-              Aynı WON isteğini yeniden dene
+              Aynı kazanıldı isteğini yeniden dene
             </Button>
           )}
           {accepted && (
@@ -1123,11 +1130,11 @@ export function WonPolicyOperation(props: Props) {
               disabled={busy}
               onClick={() => void job((e, c) => verify(accepted, e, c))}
             >
-              Yalnız WON okumalarını yeniden dene
+              Yalnız kazanıldı sonucunu kontrol et
             </Button>
           )}
           <Button type="button" variant="outline" disabled={unresolved} onClick={reset}>
-            WON taslağını açıkça kapat
+            Kazanıldı taslağını açıkça kapat
           </Button>
         </form>
       )}

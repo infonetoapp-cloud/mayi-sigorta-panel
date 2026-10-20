@@ -171,8 +171,8 @@ export function WonCreatePolicyForm({
       <h4>Yeni ACTIVE poliçe bilgileri</h4>
       <p>
         Müşteri sabit: {task.customerDisplayName}. Bu CRM kayıt işlemidir; sigortacıdan gerçek
-        poliçe düzenlemez veya müşteriye mesaj göndermez. Tek atomik WON komutu poliçeyi oluşturur,
-        priminin tamamını bağlar ve özgün takibi kapatır.
+        poliçe düzenlemez veya müşteriye mesaj göndermez. Tek işlem poliçeyi oluşturur, priminin
+        tamamını bağlar ve özgün takibi kapatır.
       </p>
       <p>
         Bu dalda isteğe bağlı teklif kabulü desteklenmez. Teklif seçilmez ve kabul edilmiş sayılmaz.
@@ -338,18 +338,24 @@ export function WonCreatePolicyForm({
               {catalogs?.branches.find((r) => r.id === review.policy.branchId)?.name}; ödeme{' '}
               {catalogs?.paymentMethods.find((r) => r.id === review.policy.paymentMethodId)?.name};{' '}
               {review.policy.startDate} → {review.policy.endDate}; prim {review.policy.grossPremium}{' '}
-              {review.policy.currency} ({String(premiumMinor(review.policy.grossPremium))} minor);
-              taksit {review.policy.installmentCount ?? 'yok'}; sorumlu{' '}
-              {review.policy.assigneeMembershipId}. Müşteri {review.policy.customerId}; Task{' '}
-              {task.taskId}; yenileme/görev CAS {task.renewalVersion}/{task.taskVersion}.
+              {review.policy.currency}; taksit {review.policy.installmentCount ?? 'yok'}; sorumlu{' '}
+              {review.policy.assigneeMembershipId}.
             </p>
+            <details>
+              <summary>Destek ayrıntıları</summary>
+              <p>
+                Prim: {String(premiumMinor(review.policy.grossPremium))} minor; müşteri{' '}
+                {review.policy.customerId}; Task {task.taskId}; yenileme/görev CAS{' '}
+                {task.renewalVersion}/{task.taskVersion}.
+              </p>
+            </details>
             <label>
               <input
                 type="checkbox"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
               />
-              Yeni poliçe oluşturulmasını ve WON sonucunu onaylıyorum
+              Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum
             </label>
             <Button
               type="button"
@@ -377,7 +383,7 @@ export function WonCreatePolicyForm({
                 });
               }}
             >
-              Yeni poliçe oluştur ve WON kaydet
+              Yeni poliçe oluştur ve kazanıldı kaydet
             </Button>
           </>
         )}

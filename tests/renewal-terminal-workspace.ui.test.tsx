@@ -110,8 +110,8 @@ async function open() {
 }
 function submit() {
   fireEvent.change(screen.getByLabelText('Kayıp nedeni'), { target: { value: 'price' } });
-  fireEvent.click(screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
 }
 it('preserves a terminal draft through refresh prompt and blocks other workspace writes', async () => {
   fixture();
@@ -249,7 +249,7 @@ it('refreshes queue after verified closure, removes the old selected task and do
   await select();
   await open();
   submit();
-  await screen.findByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/);
+  await screen.findByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/);
   await screen.findByText('Bu kuyrukta gösterilecek takip bulunmuyor.');
   expect(screen.queryByRole('form', { name: 'LOST sonuçlandırma' })).toBeNull();
   expect(
@@ -280,11 +280,9 @@ it('does not present an old terminal success banner as evidence for a newly sele
   await select();
   await open();
   submit();
-  await screen.findByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/);
+  await screen.findByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/);
   fireEvent.click(await screen.findByRole('button', { name: /Sonraki Müşteri/ }));
-  expect(
-    screen.queryByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/),
-  ).toBeNull();
+  expect(screen.queryByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/)).toBeNull();
 });
 it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDED/task/quote operations', async () => {
   fixture((u) =>
@@ -333,7 +331,7 @@ it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDE
   await screen.findByText('Hedefi değiştirmeden önce');
   fireEvent.click(screen.getByRole('button', { name: 'Bu ekranda kal' }));
   expect(screen.getByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'WON taslağını açıkça kapat' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat' }));
   expect(
     screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }).matches(':disabled'),
   ).toBe(false);
@@ -395,7 +393,9 @@ it('keeps CREATE draft exclusive with LINK_POLICY and other terminal branches th
   expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
     'DRAFT-ONLY',
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçe WON taslağını açıkça kapat' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Yeni poliçeyle kazanma taslağını açıkça kapat' }),
+  );
   expect(
     screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }).matches(':disabled'),
   ).toBe(false);

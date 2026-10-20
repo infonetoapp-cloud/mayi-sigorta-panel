@@ -310,7 +310,7 @@ it('loads quote history only on demand and creates an explicitly confirmed draft
   fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
   fireEvent.click(await screen.findByLabelText('Yeni teklif kaydını oluşturmayı onaylıyorum'));
   fireEvent.click(screen.getByRole('button', { name: 'Teklifi oluştur' }));
-  await screen.findByText('Teklif yetkili geçmiş okumasıyla doğrulandı.');
+  await screen.findByText('Teklif kaydedildi ve geçmiş güncellendi.');
   expect(JSON.parse(String(fetcher.mock.calls.find(([, i]) => i?.method)![1]!.body))).toEqual({
     expectedRenewalVersion: 3,
     version: defaults,
@@ -446,7 +446,7 @@ function submit(mode = 'create') {
     }),
   );
 }
-const success = () => screen.findByText('Teklif yetkili geçmiş okumasıyla doğrulandı.');
+const success = () => screen.findByText('Teklif kaydedildi ve geçmiş güncellendi.');
 it('locks insurer/product identity in immutable version mode; alternatives require a new quote', async () => {
   const expanded = {
     ...catalogs,
@@ -602,7 +602,7 @@ it.each([
     const retry = await screen.findByRole('button', {
       name: 'Yalnız teklif geçmişini yeniden oku',
     });
-    expect(screen.queryByText('Teklif yetkili geçmiş okumasıyla doğrulandı.')).toBeNull();
+    expect(screen.queryByText('Teklif kaydedildi ve geçmiş güncellendi.')).toBeNull();
     fireEvent.click(retry);
     await success();
     expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
@@ -626,7 +626,7 @@ it('rejects a different quote ID in version POST evidence as uncertain instead o
   await open('version');
   submit('version');
   await screen.findByRole('button', { name: 'Aynı sürüm isteğini yeniden dene' });
-  expect(screen.queryByText('Teklif yetkili geçmiş okumasıyla doğrulandı.')).toBeNull();
+  expect(screen.queryByText('Teklif kaydedildi ve geçmiş güncellendi.')).toBeNull();
   expect(
     view.fetcher.mock.calls.filter(([u, i]) => u === '/api/renewals/r/quotes' && !i?.method),
   ).toHaveLength(1);

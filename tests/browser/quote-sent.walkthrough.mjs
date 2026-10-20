@@ -41,7 +41,7 @@ async function submit(page) {
   await page.getByLabel(confirmLabel, { exact: true }).check();
   await page.getByRole('button', { name: 'Gönderildi kaydını onayla', exact: true }).click();
 }
-const success = (page) => page.getByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/);
+const success = (page) => page.getByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/);
 async function refresh(page) {
   const button = page.getByRole('button', {
     name: 'Teklif geçmişini ve katalogları yeniden oku',

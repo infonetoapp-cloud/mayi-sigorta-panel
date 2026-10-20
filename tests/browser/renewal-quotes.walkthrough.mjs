@@ -205,7 +205,7 @@ export async function quoteWalkthrough(page, index, mark, evidence) {
       await page
         .getByRole('button', { name: 'Yalnız teklif geçmişini yeniden oku', exact: true })
         .click();
-    await page.getByText('Teklif yetkili geçmiş okumasıyla doğrulandı.', { exact: true }).waitFor();
+    await page.getByText('Teklif kaydedildi ve geçmiş güncellendi.', { exact: true }).waitFor();
     const createAttempts = writes.filter((w) => new globalThis.URL(w.url).pathname === endpoint);
     assert.equal(createAttempts.length, index === 0 ? 2 : 1);
     if (!index)
@@ -303,7 +303,7 @@ export async function quoteWalkthrough(page, index, mark, evidence) {
       await page
         .getByRole('button', { name: 'Aynı sürüm isteğini yeniden dene', exact: true })
         .click();
-    await page.getByText('Teklif yetkili geçmiş okumasıyla doğrulandı.', { exact: true }).waitFor();
+    await page.getByText('Teklif kaydedildi ve geçmiş güncellendi.', { exact: true }).waitFor();
     const versions = writes.filter((w) => new globalThis.URL(w.url).pathname === versionEndpoint),
       last = versions.at(-1);
     if (index === 2)

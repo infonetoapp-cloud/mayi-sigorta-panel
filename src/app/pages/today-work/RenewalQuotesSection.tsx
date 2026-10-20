@@ -230,7 +230,7 @@ function QuoteWorkspace(props: Props) {
         setData(h);
         setSaved(null);
         setForm(null);
-        setSuccess('Teklif yetkili geçmiş okumasıyla doğrulandı.');
+        setSuccess('Teklif kaydedildi ve geçmiş güncellendi.');
         historyHeading.current?.focus();
         return;
       }
@@ -292,7 +292,7 @@ function QuoteWorkspace(props: Props) {
       }
       setError(
         proof
-          ? 'Yazım doğrulandı, ancak teklif geçmişindeki kimlik/sürüm/içerik kanıtı okunamadı. Yalnız GET yeniden denenecek.'
+          ? 'Teklif kaydı kabul edildi; geçmişteki sonucu henüz doğrulayamadık. Yalnız sonucu kontrol edin; teklif yeniden oluşturulmayacak.'
           : denied
             ? 'Teklif geçmişine erişilemiyor. İletişim ve görev izinleri ayrıdır. Taslak varsa yalnız bu bölümün belleğinde korunur.'
             : 'Teklif geçmişi yüklenemedi. Yetkili okumayı yeniden deneyin.',
@@ -609,8 +609,8 @@ function QuoteWorkspace(props: Props) {
           <p>
             Taslak yalnız bellektedir.{' '}
             {form.kind === 'create'
-              ? `İlk yenileme v${form.openingRenewalVersion}; gönderim snapshot v${form.renewalVersion}`
-              : `Sabit hedef teklif; ilk quote CAS v${form.openingQuoteVersion}, gönderim CAS v${form.quoteVersion}; önerilen yeni değişmez sürüm ${form.nextNumber}`}
+              ? `İlk yenileme v${form.openingRenewalVersion}; gönderim kayıt sürümü ${form.renewalVersion}`
+              : `Aynı teklif düzenleniyor; ilk kayıt sürümü ${form.openingQuoteVersion}, güncel kayıt sürümü ${form.quoteVersion}; yeni teklif sürümü ${form.nextNumber}`}
             . Kayıtlı sürümler düzenlenmez.
             {form.kind === 'version' &&
               ' Şirket/ürün kimliği sabittir; farklı alternatif için ayrı yeni teklif oluşturun.'}

@@ -54,10 +54,10 @@ async function fill(page, t, number) {
 }
 async function submit(page) {
   await page
-    .getByLabel('Yeni poliçe oluşturulmasını ve WON sonucunu onaylıyorum', { exact: true })
+    .getByLabel('Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum', { exact: true })
     .check();
   await page
-    .getByRole('button', { name: 'Yeni poliçe oluştur ve WON kaydet', exact: true })
+    .getByRole('button', { name: 'Yeni poliçe oluştur ve kazanıldı kaydet', exact: true })
     .click();
 }
 export async function wonCreateWalkthrough(page, index, mark, demo, evidence) {
@@ -148,11 +148,11 @@ export async function wonCreateWalkthrough(page, index, mark, demo, evidence) {
         assert.equal(new globalThis.URL(page.url()).pathname, '/today-work');
         await page.setViewportSize({ width, height: 1000 });
         await page
-          .getByRole('button', { name: 'Aynı CREATE_POLICY isteğini yeniden dene', exact: true })
+          .getByRole('button', { name: 'Aynı poliçe oluşturma isteğini yeniden dene', exact: true })
           .click();
       }
       if (width === 360) {
-        await page.getByText(/Başarı doğrulanmadı/).waitFor();
+        await page.getByText(/Başarı henüz doğrulanmadı/).waitFor();
         blockRead = false;
         await page
           .getByRole('button', {
@@ -261,7 +261,7 @@ export async function wonCreateWalkthrough(page, index, mark, demo, evidence) {
           .run();
       }
       await page
-        .getByRole('button', { name: 'Yeni poliçe WON taslağını açıkça kapat', exact: true })
+        .getByRole('button', { name: 'Yeni poliçeyle kazanma taslağını açıkça kapat', exact: true })
         .click();
     }
     mark(`create-${actor}-session`);

@@ -195,7 +195,7 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
       const r = saved.result;
       if (!r || row.state !== r.state || row.version !== r.renewalVersion) {
         setError(
-          `POST kabul edildi ancak kanıt eksik veya güncel yenileme durumu/sürümü çelişkili. Başarı doğrulanmadı; yalnız GET ile tekrar kontrol edin. Yeniden POST yapılmaz.`,
+          `Kayıt kabul edildi ancak sonuç bilgileri eksik veya tutarsız. Başarı henüz doğrulanmadı. Yalnız sonucu kontrol edin; kayıt yeniden gönderilmeyecek.`,
         );
         return;
       }
@@ -205,14 +205,14 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
       setReason('');
       setNotes('');
       props.onApplied(
-        `${kind} sonucu: POST yanıtı ve yetkili yenileme state/sürüm okuması doğrulandı. Sunucu yanıtı birincil görevin atomik kapanışını bildirir; bu GET tamamlanan görev ayrıntısı sağlamaz. İş listesi ve istatistikler yenileniyor.`,
+        `${kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucu kaydedildi ve yenileme kaydı kontrol edildi. Birincil takibin kapatıldığı sunucu tarafından bildirildi. İş listesi ve istatistikler yenileniyor.`,
       );
     } catch (cause) {
       if (!alive(e, c)) return;
       if (cause instanceof CustomerReadError && [401, 403, 404].includes(cause.status))
         setMasked(true);
       setError(
-        'POST kabul edildi; bağımsız yetkili yenileme okuması doğrulanamadı (izin, bağlantı veya sınırlı sayfalama). Başarı doğrulanmadı. Yalnız GET okumasını yeniden deneyin; POST tekrarlanmaz.',
+        'Kayıt kabul edildi; yenilemenin güncel sonucu henüz okunamadı. Başarı henüz doğrulanmadı. Yalnız sonucu kontrol edin; kayıt tekrar gönderilmeyecek.',
       );
     }
   }
@@ -436,12 +436,12 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
             className="today-outcome-form"
           >
             <h4 ref={heading} tabIndex={-1}>
-              {kind} sonucu
+              {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucu
             </h4>
             <p>
               {kind === 'LOST'
                 ? 'Bu sonuç yenilemenin kazanılmadığını kaydeder; mevcut poliçeyi arşivlemez veya geçersiz kılmaz.'
-                : 'VOIDED yalnız hatalı veya uygun olmayan yenileme kaydı içindir. Geçerli bir teklifi müşterinin reddetmesi LOST olarak kaydedilir.'}
+                : 'Geçersiz sonucu yalnız hatalı veya uygun olmayan yenileme kaydı içindir. Müşteri geçerli bir teklifi reddettiyse Yenilenmedi sonucunu seçin.'}
             </p>
             <p>
               Bu işlem yenilemeyi kapatır ve birincil takibini atomik olarak tamamlar. Yerine yeni
@@ -521,12 +521,13 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                         />
                       </label>
                       <p id="lost-outcome-note-help">
-                        Trim sonrası 1–500 karakter. Hassas bilgi yazmayın.
+                        Başındaki ve sonundaki boşluklar hariç 1–500 karakter. Hassas bilgi
+                        yazmayın.
                       </p>
                     </>
                   )}
                   <p>
-                    Seçili sonuç: {kind}; neden:{' '}
+                    Seçili sonuç: {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'}; neden:{' '}
                     {kind === 'LOST'
                       ? (chosen?.name ?? 'Seçilmedi')
                       : (voidReasons[reason as keyof typeof voidReasons] ?? 'Seçilmedi')}
@@ -537,10 +538,11 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                       checked={confirmed}
                       onChange={(e) => setConfirmed(e.target.checked)}
                     />
-                    {kind} sonucunu ve seçili nedeni onaylıyorum
+                    {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucunu ve seçili nedeni
+                    onaylıyorum
                   </label>
                   <Button type="submit" disabled={kind === 'LOST' && !reasons}>
-                    {kind} kaydını onayla
+                    {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} olarak kaydet
                   </Button>
                 </fieldset>
               </>
@@ -647,8 +649,8 @@ export function RenewalOutcomesSection(props: Props) {
     <section aria-label="Yenileme sonuçlandırma" className="today-outcomes">
       <h3>Yenileme sonuçlandırma</h3>
       <p>
-        LOST ve VOIDED farklı sonuçlardır. Görünen seçenekler yetki vermez; canlı sunucu izinleri ve
-        görev kapsamı her yazımda denetlenir.
+        Yenilenmedi ve Geçersiz farklı sonuçlardır. Görünen seçenekler yetki vermez; canlı sunucu
+        izinleri ve görev kapsamı her yazımda denetlenir.
       </p>
       {lost.panel()}
       {voided.panel()}

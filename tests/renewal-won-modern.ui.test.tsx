@@ -123,15 +123,15 @@ function confirm() {
   fireEvent.click(
     screen.getByLabelText('Seçilen poliçenin priminin tamamını bu yenilemeye tahsis ediyorum'),
   );
-  fireEvent.click(screen.getByLabelText('WON sonucunu ve sabit hedefleri onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'WON kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilemeyi kazanıldı olarak kaydet' }));
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
 it('requires independent full allocation and final confirmations; freezes exact task, dual CAS and full policy CAS then verifies authorized GETs', async () => {
   const f = fixture();
   await choose();
-  fireEvent.click(screen.getByRole('button', { name: 'WON kaydını onayla' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilemeyi kazanıldı olarak kaydet' }));
   expect(writes(f)).toHaveLength(0);
   confirm();
   await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
@@ -156,7 +156,7 @@ it('retries an ambiguous POST with exact body URL and key', async () => {
   await choose();
   confirm();
   await screen.findByText(/Sonuç belirsiz/);
-  fireEvent.click(screen.getByRole('button', { name: 'Aynı WON isteğini yeniden dene' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Aynı kazanıldı isteğini yeniden dene' }));
   await waitFor(() => expect(f.applied).toHaveBeenCalled());
   expect(writes(f)).toHaveLength(2);
   expect(writes(f)[0]![0]).toBe(writes(f)[1]![0]);
@@ -172,10 +172,10 @@ it('does GET-only recovery after confirmed POST and an unreadable policy detail'
   });
   await choose();
   confirm();
-  await screen.findByText(/Başarı doğrulanmadı/);
+  await screen.findByText(/Başarı henüz doğrulanmadı/);
   expect(f.applied).not.toHaveBeenCalled();
   fail = false;
-  fireEvent.click(screen.getByRole('button', { name: 'Yalnız WON okumalarını yeniden dene' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Yalnız kazanıldı sonucunu kontrol et' }));
   await waitFor(() => expect(f.applied).toHaveBeenCalled());
   expect(writes(f)).toHaveLength(1);
 });
@@ -187,12 +187,14 @@ it.each([408, 429, 500, 503])(
     confirm();
     await screen.findByText(/Sonuç belirsiz/);
     expect(
-      screen.queryByRole('button', { name: 'WON hedeflerini yetkili karşılaştır' }),
+      screen.queryByRole('button', { name: 'Kazanılacak yenilemenin kayıtlarını karşılaştır' }),
     ).toBeNull();
     expect(
-      screen.getByRole('button', { name: 'WON taslağını açıkça kapat' }).hasAttribute('disabled'),
+      screen
+        .getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat' })
+        .hasAttribute('disabled'),
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Aynı WON isteğini yeniden dene' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Aynı kazanıldı isteğini yeniden dene' }));
     await waitFor(() => expect(writes(f)).toHaveLength(2));
     expect(writes(f)[1]![1]!.body).toBe(writes(f)[0]![1]!.body);
   },
@@ -258,9 +260,9 @@ it.each(['task', 'renewal', 'policy', 'created', 'amount', 'currency', 'version'
     const f = fixture((_u, i) => (i?.method === 'POST' ? response(altered) : undefined));
     await choose();
     confirm();
-    await screen.findByText(/Başarı doğrulanmadı/);
+    await screen.findByText(/Başarı henüz doğrulanmadı/);
     expect(f.applied).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Yalnız WON okumalarını yeniden dene' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Yalnız kazanıldı sonucunu kontrol et' }));
     await waitFor(() => expect(writes(f)).toHaveLength(1));
   },
 );
@@ -269,8 +271,10 @@ it('does not silently adopt replacement Task B after409 even with equal numeric 
   f.read.mockResolvedValue({ current: { ...task, taskId: 'B' }, apply: vi.fn() });
   await choose();
   confirm();
-  await screen.findByText(/WON çakıştı/);
-  fireEvent.click(screen.getByRole('button', { name: 'WON hedeflerini yetkili karşılaştır' }));
+  await screen.findByText(/Kazanıldı kaydı çakıştı/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Kazanılacak yenilemenin kayıtlarını karşılaştır' }),
+  );
   await screen.findByText(/Başka primary Task benimsenmedi/);
   expect(screen.queryByRole('button', { name: 'Aynı Task ile poliçeyi yeniden seç' })).toBeNull();
   expect(JSON.parse(writes(f)[0]![1]!.body as string).expectedPrimaryTaskId).toBe('t');
@@ -280,11 +284,15 @@ it('requires explicit same Task adoption then fresh policy selection and separat
   const f = fixture((_u, i) => (i?.method === 'POST' && conflict ? response({}, 409) : undefined));
   await choose();
   confirm();
-  await screen.findByText(/WON çakıştı/);
-  fireEvent.click(screen.getByRole('button', { name: 'WON hedeflerini yetkili karşılaştır' }));
+  await screen.findByText(/Kazanıldı kaydı çakıştı/);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Kazanılacak yenilemenin kayıtlarını karşılaştır' }),
+  );
   await screen.findByRole('button', { name: 'Aynı Task ile poliçeyi yeniden seç' });
   fireEvent.click(screen.getByRole('button', { name: 'Aynı Task ile poliçeyi yeniden seç' }));
-  expect(screen.queryByLabelText('WON sonucunu ve sabit hedefleri onaylıyorum')).toBeNull();
+  expect(
+    screen.queryByLabelText('Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum'),
+  ).toBeNull();
   fireEvent.change(screen.getByLabelText('Bağlanacak mevcut poliçe'), { target: { value: 'new' } });
   await screen.findByText(/Poliçe sürümü: 4/);
   conflict = false;
@@ -357,7 +365,9 @@ it.each([false, true])(
         });
     });
     await choose();
-    fireEvent.click(screen.getByRole('button', { name: 'İsteğe bağlı SENT teklifleri oku' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'İsteğe bağlı gönderildi kayıtlı teklifleri oku' }),
+    );
     await screen.findByRole('option', { name: /q \/ v1/ });
     expect(
       (screen.getByLabelText('İsteğe bağlı kabul edilecek teklif') as unknown as HTMLSelectElement)
@@ -373,8 +383,10 @@ it.each([false, true])(
       fireEvent.change(screen.getByLabelText('Teklif farkı neden kodu'), {
         target: { value: 'CUSTOMER_CONFIRMED' },
       });
-      fireEvent.click(screen.getByLabelText('WON sonucunu ve sabit hedefleri onaylıyorum'));
-      fireEvent.click(screen.getByRole('button', { name: 'WON kaydını onayla' }));
+      fireEvent.click(
+        screen.getByLabelText('Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum'),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Yenilemeyi kazanıldı olarak kaydet' }));
     } else confirm();
     await waitFor(() => expect(f.applied).toHaveBeenCalled());
     const b = JSON.parse(writes(f)[0]![1]!.body as string);
@@ -387,7 +399,9 @@ it('does not use an expired or noncurrent quote automatically', async () => {
   q.versions[0]!.valid_until = '2020-01-01T00:00:00.000Z';
   const f = fixture((u) => (u.endsWith('/quotes') ? response({ quotes: [q] }) : undefined));
   await choose();
-  fireEvent.click(screen.getByRole('button', { name: 'İsteğe bağlı SENT teklifleri oku' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'İsteğe bağlı gönderildi kayıtlı teklifleri oku' }),
+  );
   await screen.findByLabelText('İsteğe bağlı kabul edilecek teklif');
   expect(screen.queryByRole('option', { name: /q \/ v1/ })).toBeNull();
   confirm();
@@ -449,7 +463,9 @@ it('ends the active session on a live WON401 without interpreting it as an uncer
     confirm();
     await waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
     expect(writes(f)).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: 'Aynı WON isteğini yeniden dene' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Aynı kazanıldı isteğini yeniden dene' }),
+    ).toBeNull();
   } finally {
     document.removeEventListener('mayi-session-ended', ended);
   }

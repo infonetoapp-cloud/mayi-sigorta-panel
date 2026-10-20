@@ -181,7 +181,7 @@ try {
         await button('Görev işlemleri').click();
         assert.equal(await button('Yeni takip planını aç').isDisabled(), true);
         await shot('create-draft-pinned');
-        await button('Yeni poliçe WON taslağını açıkça kapat').click();
+        await button('Yeni poliçeyle kazanma taslağını açıkça kapat').click();
         await button('Görev işlemleri').click();
         row.checks.push('create-policy-draft-visible-and-cross-operation-guard');
         if (width !== 1440) {
@@ -194,7 +194,7 @@ try {
             .getByRole('combobox', { name: 'Kayıp nedeni', exact: true })
             .selectOption('demo-loss-price');
           await page
-            .getByLabel('LOST sonucunu ve seçili nedeni onaylıyorum', { exact: true })
+            .getByLabel('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum', { exact: true })
             .check();
           const path = `/api/renewals/${task.renewalId}/close-lost`;
           const attempts = [];
@@ -221,7 +221,7 @@ try {
                   })
                 : route.continue(),
             );
-          await button('LOST kaydını onayla').click();
+          await button('Yenilenmedi olarak kaydet').click();
           if (width === 768) await button('Aynı LOST isteğini yeniden dene').waitFor();
           else await button('Yalnız yenileme okumasını yeniden dene').waitFor();
           await cannotCollapse(page, 'Yenileme sonucu');
@@ -234,9 +234,7 @@ try {
             blockRead = false;
             await button('Yalnız yenileme okumasını yeniden dene').click();
           }
-          await page
-            .getByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/)
-            .waitFor();
+          await page.getByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/).waitFor();
           assert.equal(attempts.length, width === 768 ? 2 : 1);
           assert.ok(attempts[0].key);
           assert.equal(JSON.parse(attempts[0].body).expectedPrimaryTaskId, task.taskId);

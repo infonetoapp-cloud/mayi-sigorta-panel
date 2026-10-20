@@ -98,8 +98,7 @@ async function submit(page, kind = 'LOST') {
   await page.getByLabel(`${kind} sonucunu ve seçili nedeni onaylıyorum`, { exact: true }).check();
   await page.getByRole('button', { name: `${kind} kaydını onayla`, exact: true }).click();
 }
-const success = (page) =>
-  page.getByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/);
+const success = (page) => page.getByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/);
 async function effects(db, task) {
   return {
     renewal: await db
@@ -302,7 +301,9 @@ export async function terminalOutcomeWalkthrough(page, index, mark, demo, direct
           .getByRole('button', { name: 'Yalnız yenileme okumasını yeniden dene', exact: true })
           .waitFor();
         await page
-          .getByText(/POST kabul edildi; bağımsız yetkili yenileme okuması doğrulanamadı/)
+          .getByText(
+            /Kayıt kabul edildi; yenilemenin güncel sonucu yetkili yenileme okuması doğrulanamadı/,
+          )
           .waitFor();
         assert.equal(attempts.length, 1);
         if (deleted)

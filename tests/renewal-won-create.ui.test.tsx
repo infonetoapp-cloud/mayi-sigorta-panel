@@ -136,8 +136,10 @@ async function fill() {
   await screen.findByText(/İncelenen yeni poliçe/);
 }
 function submit() {
-  fireEvent.click(screen.getByLabelText('Yeni poliçe oluşturulmasını ve WON sonucunu onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçe oluştur ve WON kaydet' }));
+  fireEvent.click(
+    screen.getByLabelText('Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum'),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçe oluştur ve kazanıldı kaydet' }));
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
@@ -184,11 +186,11 @@ it.each([408, 429, 500, 503])(
     await screen.findByText(/Sonuç belirsiz/);
     expect(
       screen
-        .getByRole('button', { name: 'Yeni poliçe WON taslağını açıkça kapat' })
+        .getByRole('button', { name: 'Yeni poliçeyle kazanma taslağını açıkça kapat' })
         .hasAttribute('disabled'),
     ).toBe(true);
     fireEvent.click(
-      screen.getByRole('button', { name: 'Aynı CREATE_POLICY isteğini yeniden dene' }),
+      screen.getByRole('button', { name: 'Aynı poliçe oluşturma isteğini yeniden dene' }),
     );
     await waitFor(() => expect(f.applied).toHaveBeenCalled());
     expect(writes(f)).toHaveLength(2);
@@ -204,7 +206,7 @@ it('keeps confirmed creation GET-only when policy readback is temporarily unavai
   );
   await fill();
   submit();
-  await screen.findByText(/Başarı doğrulanmadı/);
+  await screen.findByText(/Başarı henüz doğrulanmadı/);
   failed = false;
   fireEvent.click(
     screen.getByRole('button', { name: 'Yalnız oluşturulan poliçe okumalarını yeniden dene' }),
@@ -230,7 +232,7 @@ it.each([
   );
   await fill();
   submit();
-  await screen.findByText(/Başarı doğrulanmadı/);
+  await screen.findByText(/Başarı henüz doğrulanmadı/);
   expect(f.applied).not.toHaveBeenCalled();
   expect(writes(f)).toHaveLength(1);
 });
@@ -244,7 +246,7 @@ it.each(['createdPolicyId', 'primaryTaskId', 'allocatedNewPremiumMinor'])(
     const f = fixture((_u, i) => (i?.method === 'POST' ? response(r, 201) : undefined));
     await fill();
     submit();
-    await screen.findByText(/Başarı doğrulanmadı/);
+    await screen.findByText(/Başarı henüz doğrulanmadı/);
     expect(f.applied).not.toHaveBeenCalled();
     expect(writes(f)).toHaveLength(1);
   },
@@ -287,30 +289,28 @@ it('keeps duplicate409 definitive, preserves number, compares original target, a
   );
   await fill();
   submit();
-  await screen.findByText(/WON çakıştı/);
+  await screen.findByText(/Kazanıldı kaydı çakıştı/);
   expect(
-    screen.queryByRole('button', { name: 'Aynı CREATE_POLICY isteğini yeniden dene' }),
+    screen.queryByRole('button', { name: 'Aynı poliçe oluşturma isteğini yeniden dene' }),
   ).toBeNull();
   await waitFor(() =>
     expect(
       screen
-        .getByRole('button', { name: 'CREATE_POLICY hedefini yetkili karşılaştır' })
+        .getByRole('button', { name: 'Poliçe oluşturma bilgilerini karşılaştır' })
         .hasAttribute('disabled'),
     ).toBe(false),
   );
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçe oluşturma bilgilerini karşılaştır' }));
+  await screen.findByRole('button', { name: 'Aynı takip ile oluşturma taslağını yeniden incele' });
   fireEvent.click(
-    screen.getByRole('button', { name: 'CREATE_POLICY hedefini yetkili karşılaştır' }),
-  );
-  await screen.findByRole('button', { name: 'Aynı Task ile oluşturma taslağını yeniden incele' });
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Aynı Task ile oluşturma taslağını yeniden incele' }),
+    screen.getByRole('button', { name: 'Aynı takip ile oluşturma taslağını yeniden incele' }),
   );
   expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
     'NEW-1',
   );
   expect(
     screen.queryByRole('checkbox', {
-      name: 'Yeni poliçe oluşturulmasını ve WON sonucunu onaylıyorum',
+      name: 'Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum',
     }),
   ).toBeNull();
   expect(writes(f)).toHaveLength(1);
@@ -326,17 +326,15 @@ it('never adopts replacement Task B after CREATE409', async () => {
   f.read.mockResolvedValue({ current: { ...task, taskId: 'B' }, apply: vi.fn() });
   await fill();
   submit();
-  await screen.findByText(/WON çakıştı/);
+  await screen.findByText(/Kazanıldı kaydı çakıştı/);
   await waitFor(() =>
     expect(
       screen
-        .getByRole('button', { name: 'CREATE_POLICY hedefini yetkili karşılaştır' })
+        .getByRole('button', { name: 'Poliçe oluşturma bilgilerini karşılaştır' })
         .hasAttribute('disabled'),
     ).toBe(false),
   );
-  fireEvent.click(
-    screen.getByRole('button', { name: 'CREATE_POLICY hedefini yetkili karşılaştır' }),
-  );
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçe oluşturma bilgilerini karşılaştır' }));
   await screen.findByText(/replacement Task benimsenmedi/);
   expect(writes(f)).toHaveLength(1);
 });

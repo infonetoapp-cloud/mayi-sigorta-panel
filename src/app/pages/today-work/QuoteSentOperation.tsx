@@ -196,7 +196,7 @@ export function QuoteSentOperation(props: Props) {
       if (!alive(e, c)) return;
       if (cause instanceof CustomerReadError && [401, 403, 404].includes(cause.status)) denied();
       setError(
-        'POST yanıtı alındı; ancak doğru sürüm/işlem/SENT olayı yetkili geçmişte doğrulanamadı. Yalnız GET yeniden denenecek.',
+        'Gönderildi kaydı kabul edildi; seçili teklif sürümünün geçmişteki sonucu henüz doğrulanamadı. Yalnız sonucu kontrol edin; kayıt yeniden gönderilmeyecek.',
       );
     }
   }
@@ -240,7 +240,7 @@ export function QuoteSentOperation(props: Props) {
         setNeedsCompare([403, 404, 409].includes(r.status));
         setError(
           r.status === 409
-            ? 'Gönderildi kaydı çakıştı. Seçim korundu; önceki ve güncel teklifi yetkili okuyup karşılaştırın. Yeniden onay olmadan POST yapılmaz.'
+            ? 'Gönderildi kaydı çakıştı. Seçiminiz korundu; önceki ve güncel teklifi karşılaştırın. Yeniden onaylamadan kayıt gönderilmez.'
             : parseAppError(r.status, result && !result.success ? result.error : undefined).message,
         );
         return;
@@ -253,7 +253,7 @@ export function QuoteSentOperation(props: Props) {
     } catch {
       if (alive(e, c))
         setError(
-          'Gönderildi kaydının sonucu belirsiz. Seçili Quote/sürüm, CAS ve özgün URL/body/anahtar sabittir; yalnız aynı isteği yeniden deneyin. Ayrılmak sunucudaki işlemi iptal etmez.',
+          'Gönderildi kaydının sonucu belirsiz. Seçtiğiniz teklif ve kayıt isteği korunuyor; yalnız aynı isteği yeniden deneyin. Sayfadan ayrılmak işlemi iptal etmez. Bu kayıt müşteriye teslimat kanıtı değildir.',
         );
     } finally {
       controllers.current.delete(c);
@@ -409,7 +409,7 @@ export function QuoteSentOperation(props: Props) {
       {error && <p role="alert">{error}</p>}
       {verified && verifiedCurrent && (
         <p role="status">
-          Gönderildi beyanı yetkili SENT olayıyla doğrulandı. Kaydedilen sürüm{' '}
+          Gönderildi kaydı kaydedildi ve geçmişte doğrulandı. Kaydedilen sürüm{' '}
           {verified.result.versionNumber}; güncel teklif durumu:{' '}
           {quoteStatuses[verifiedCurrent.status]}.{' '}
           {verifiedCurrent.version > verified.attempt.target.cas + 1
@@ -464,15 +464,13 @@ export function QuoteSentOperation(props: Props) {
             Seçili teklif için gönderildi beyanı
           </h4>
           <p>{explanation}</p>
-          <p>
-            Quote okuma izni yönetme izni değildir; güncel işlem yetkisi sunucuda ayrıca doğrulanır.
-          </p>
+          <p>Teklifi görebilmek değiştirme yetkisi vermez; işlem yetkiniz ayrıca kontrol edilir.</p>
           {visible ? (
             <>
               <p>
                 {target.label} · Güncel olarak seçilen sürüm {target.version.version_number} · İlk
-                CAS v{target.openingCas}, gönderim CAS v{target.cas}. Bu seçim kendiliğinden başka
-                Quote veya sürüme geçmez.
+                Kayıt sürümü {target.openingCas}, gönderim sürümü {target.cas}. Bu seçim
+                kendiliğinden başka teklif veya sürüme geçmez.
               </p>
               {summary(target.version)}
             </>
@@ -485,8 +483,9 @@ export function QuoteSentOperation(props: Props) {
           {comparison && visible && (
             <aside aria-label="Önceki ve güncel teklif karşılaştırması">
               <p>
-                Önceki seçim: sürüm {target.version.version_number}, CAS v{target.openingCas}.
-                Güncel teklif: {quoteStatuses[comparison.status] ?? 'Bilinmeyen durum'}, CAS v
+                Önceki seçim: sürüm {target.version.version_number}, kayıt sürümü{' '}
+                {target.openingCas}. Güncel teklif:{' '}
+                {quoteStatuses[comparison.status] ?? 'Bilinmeyen durum'}, kayıt sürümü
                 {comparison.version}, güncel sürüm{' '}
                 {current(comparison)?.version_number ?? 'mevcut değil'}.
               </p>

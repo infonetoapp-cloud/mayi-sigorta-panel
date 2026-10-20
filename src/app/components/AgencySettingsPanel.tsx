@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId } from 'react';
 import type { AgencySettingsDto, SelectableCatalogsDto, ApiResponse } from '../../shared/types';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
 
@@ -18,6 +18,8 @@ function isValidIanaTimezone(tz: string): boolean {
 }
 
 export const AgencySettingsPanel: React.FC = () => {
+  const formId = useId();
+  const [invalidField, setInvalidField] = useState<'days' | 'timezone' | null>(null);
   const [settings, setSettings] = useState<AgencySettingsDto | null>(null);
   const [selectable, setSelectable] = useState<SelectableCatalogsDto | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -148,9 +150,11 @@ export const AgencySettingsPanel: React.FC = () => {
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!settings) return;
+    setInvalidField(null);
 
     const days = parseInt(renewalWindowDays, 10);
     if (isNaN(days) || days < 1 || days > 120) {
+      setInvalidField('days');
       setMutationError({
         message: 'Girdi doğrulama hatası: Yenileme penceresi en az 1, en fazla 120 gün olabilir.',
         isRetryable: false,
@@ -160,6 +164,7 @@ export const AgencySettingsPanel: React.FC = () => {
     }
 
     if (!timezone.trim() || !isValidIanaTimezone(timezone.trim())) {
+      setInvalidField('timezone');
       setMutationError({
         message:
           'Girdi doğrulama hatası: Geçerli bir IANA zaman dilimi girilmelidir (Örn: Europe/Istanbul).',
@@ -249,6 +254,8 @@ export const AgencySettingsPanel: React.FC = () => {
 
       {mutationError && (
         <div
+          id={`${formId}-error`}
+          role="alert"
           style={{
             color: '#dc2626',
             padding: '0.75rem',
@@ -296,10 +303,12 @@ export const AgencySettingsPanel: React.FC = () => {
               color: '#334155',
               marginBottom: '0.375rem',
             }}
+            htmlFor={`${formId}-insurer`}
           >
             Varsayılan Sigorta Şirketi
           </label>
           <select
+            id={`${formId}-insurer`}
             value={defaultInsurerId}
             onChange={(e) => setDefaultInsurerId(e.target.value)}
             style={{
@@ -331,11 +340,16 @@ export const AgencySettingsPanel: React.FC = () => {
               color: '#334155',
               marginBottom: '0.375rem',
             }}
+            htmlFor={`${formId}-timezone`}
           >
             Operasyonel Zaman Dilimi (IANA)
           </label>
           <input
             type="text"
+            id={`${formId}-timezone`}
+            required
+            aria-invalid={invalidField === 'timezone'}
+            aria-describedby={invalidField === 'timezone' ? `${formId}-error` : undefined}
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
             placeholder="Europe/Istanbul"
@@ -359,11 +373,16 @@ export const AgencySettingsPanel: React.FC = () => {
               color: '#334155',
               marginBottom: '0.375rem',
             }}
+            htmlFor={`${formId}-days`}
           >
             Yenileme Bildirim Penceresi (Gün: 1 - 120)
           </label>
           <input
             type="number"
+            id={`${formId}-days`}
+            required
+            aria-invalid={invalidField === 'days'}
+            aria-describedby={invalidField === 'days' ? `${formId}-error` : undefined}
             min={1}
             max={120}
             value={renewalWindowDays}

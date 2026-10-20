@@ -87,8 +87,12 @@ async function submit(page) {
       exact: true,
     })
     .check();
-  await page.getByLabel('WON sonucunu ve sabit hedefleri onaylıyorum', { exact: true }).check();
-  await page.getByRole('button', { name: 'WON kaydını onayla', exact: true }).click();
+  await page
+    .getByLabel('Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum', { exact: true })
+    .check();
+  await page
+    .getByRole('button', { name: 'Yenilemeyi kazanıldı olarak kaydet', exact: true })
+    .click();
 }
 const success = (page) => page.getByText(/WON: POST hedef\/link\/tutar kanıtı/);
 async function snapshot(db, t) {
@@ -210,7 +214,10 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
       await page.getByRole('button', { name: 'Bu ekranda kal', exact: true }).click();
       assert.ok(page.url().endsWith('/today-work'));
       await page
-        .getByRole('button', { name: 'İsteğe bağlı SENT teklifleri oku', exact: true })
+        .getByRole('button', {
+          name: 'İsteğe bağlı gönderildi kayıtlı teklifleri oku',
+          exact: true,
+        })
         .click();
       const select = page.getByRole('combobox', {
         name: 'İsteğe bağlı kabul edilecek teklif',
@@ -263,7 +270,7 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
       await page.getByText(/Sonuç belirsiz/).waitFor();
       assert.equal(
         await page
-          .getByRole('button', { name: 'WON taslağını açıkça kapat', exact: true })
+          .getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat', exact: true })
           .isDisabled(),
         true,
       );
@@ -280,14 +287,14 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
       assert.equal(new globalThis.URL(page.url()).pathname, '/today-work');
       await page.setViewportSize({ width, height: 1000 });
       await page
-        .getByRole('button', { name: 'Aynı WON isteğini yeniden dene', exact: true })
+        .getByRole('button', { name: 'Aynı kazanıldı isteğini yeniden dene', exact: true })
         .click();
     }
     if (width === 360) {
-      await page.getByText(/Başarı doğrulanmadı/).waitFor();
+      await page.getByText(/Başarı henüz doğrulanmadı/).waitFor();
       blockRead = false;
       await page
-        .getByRole('button', { name: 'Yalnız WON okumalarını yeniden dene', exact: true })
+        .getByRole('button', { name: 'Yalnız kazanıldı sonucunu kontrol et', exact: true })
         .click();
     }
     await success(page).waitFor();
@@ -329,10 +336,10 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
   assert.equal(replacement.data.replacementTaskVersion, a.taskVersion);
   const before = await snapshot(demo.db, a);
   await submit(page);
-  await page.getByText(/WON çakıştı/).waitFor();
+  await page.getByText(/Kazanıldı kaydı çakıştı/).waitFor();
   assert.equal(await snapshot(demo.db, a), before);
   await page
-    .getByRole('button', { name: 'WON hedeflerini yetkili karşılaştır', exact: true })
+    .getByRole('button', { name: 'Kazanılacak yenilemenin kayıtlarını karşılaştır', exact: true })
     .click();
   await page.getByText(/Başka primary Task benimsenmedi/).waitFor();
   assert.equal(
@@ -341,7 +348,7 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
       .count(),
     0,
   );
-  await page.getByRole('button', { name: 'WON taslağını açıkça kapat', exact: true }).click();
+  await page.getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat', exact: true }).click();
   mark(`won-${actor}-cycle409`);
   const t = await selectTask(page),
     pair = await policyFor(page, t, actor + '-cycle'),
@@ -392,9 +399,9 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
     );
   await submit(page);
   assert.equal((await cycle).status(), 409);
-  await page.getByText(/WON çakıştı/).waitFor();
+  await page.getByText(/Kazanıldı kaydı çakıştı/).waitFor();
   assert.equal(await snapshot(demo.db, t), cycleBefore);
-  await page.getByRole('button', { name: 'WON taslağını açıkça kapat', exact: true }).click();
+  await page.getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat', exact: true }).click();
   if (index) {
     mark(`won-${actor}-private-deny`);
     const other = await demo.db
@@ -440,7 +447,9 @@ export async function wonPolicyWalkthrough(page, index, mark, demo, evidence) {
         .bind(grant.id, grant.membership_id, grant.permission_code, grant.scope)
         .run();
     }
-    await page.getByRole('button', { name: 'WON taslağını açıkça kapat', exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat', exact: true })
+      .click();
   }
   mark(`won-${actor}-session`);
   const last = await selectTask(page),

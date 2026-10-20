@@ -124,7 +124,7 @@ it('creates a note with OTHER/null contact, no invented CAS, then verifies autho
   mount('r', risk);
   await draft();
   fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydını kaydet' }));
-  await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+  await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
   await waitFor(() => expect(risk).toHaveBeenLastCalledWith('clean'));
   const request = f.mock.calls.find(([, i]) => i?.method === 'POST')!;
   expect(JSON.parse(String(request[1]!.body))).toEqual({
@@ -148,7 +148,7 @@ it.each([
   await draft(outcome, channel);
   expect(screen.queryByRole('option', { name: 'WhatsApp açıldı' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydını kaydet' }));
-  await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+  await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
   const sent = JSON.parse(String(f.mock.calls.find(([, i]) => i?.method === 'POST')![1]!.body));
   expect(sent).toMatchObject({ outcome, channel, note: null, companyContactId: null });
   expect(f.mock.calls.some(([u]) => u.includes('whatsapp'))).toBe(false);
@@ -178,7 +178,7 @@ it('requires an explicit authorized company contact and never selects the first 
   expect(f.mock.calls.some(([, i]) => i?.method)).toBe(false);
   fireEvent.change(screen.getByLabelText('Şirket yetkilisi'), { target: { value: 'contact' } });
   fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydını kaydet' }));
-  await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+  await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
   expect(
     JSON.parse(String(f.mock.calls.find(([, i]) => i?.method)![1]!.body)).companyContactId,
   ).toBe('contact');
@@ -201,7 +201,7 @@ it.each([503, 429])(
       screen.getByRole('button', { name: 'İletişim kaydını kaydet' }).hasAttribute('disabled'),
     ).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Aynı iletişim isteğini yeniden dene' }));
-    await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+    await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
     const attempts = f.mock.calls.filter(([, i]) => i?.method === 'POST');
     expect(attempts).toHaveLength(2);
     expect(attempts[0]![0] === attempts[1]![0]).toBe(true);
@@ -222,7 +222,7 @@ it('retries GET only when a successful write has failed authorized readback', as
   fireEvent.click(
     await screen.findByRole('button', { name: 'Kaydedilen iletişim geçmişini yeniden oku' }),
   );
-  await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+  await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
   expect(f.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1);
 });
 it.each(['id', 'note'])(
@@ -253,9 +253,9 @@ it.each(['id', 'note'])(
     const retry = await screen.findByRole('button', {
       name: 'Kaydedilen iletişim geçmişini yeniden oku',
     });
-    expect(screen.queryByText('İletişim kaydı yetkili okumayla doğrulandı.')).toBeNull();
+    expect(screen.queryByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.')).toBeNull();
     fireEvent.click(retry);
-    await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+    await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
     expect(f.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1);
   },
 );
@@ -278,7 +278,7 @@ it('preserves a conflicting draft, refreshes authorized history and requires a n
     screen.getByLabelText('Güncel bilgileri inceledim, taslağı yeniden göndermek istiyorum'),
   );
   fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydını kaydet' }));
-  await screen.findByText('İletişim kaydı yetkili okumayla doğrulandı.');
+  await screen.findByText('İletişim kaydı kaydedildi ve geçmiş güncellendi.');
   const attempts = f.mock.calls.filter(([, i]) => i?.method);
   expect(attempts[0]![1]!.body === attempts[1]![1]!.body).toBe(true);
   expect(

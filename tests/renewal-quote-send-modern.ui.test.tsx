@@ -205,7 +205,7 @@ function submit() {
   );
   fireEvent.click(screen.getByRole('button', { name: 'Gönderildi kaydını onayla' }));
 }
-const success = () => screen.findByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/);
+const success = () => screen.findByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/);
 const task: TodayTaskDto = {
   taskId: 't',
   renewalId: 'r',
@@ -444,7 +444,7 @@ it.each([
     const retry = await screen.findByRole('button', {
       name: 'Yalnız gönderildi kanıtını yeniden oku',
     });
-    expect(screen.queryByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/)).toBeNull();
+    expect(screen.queryByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/)).toBeNull();
     expect(
       screen.queryByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' }),
     ).toBeNull();
@@ -524,7 +524,7 @@ it('checks a well-formed returned operationId against the persisted event receip
   await open();
   submit();
   await screen.findByRole('button', { name: 'Yalnız gönderildi kanıtını yeniden oku' });
-  expect(screen.queryByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/)).toBeNull();
+  expect(screen.queryByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/)).toBeNull();
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
 });
 it('compares the pinned target after409 and requires explicit reconfirmation for a fresh same-version operation', async () => {
@@ -662,7 +662,7 @@ it('clears previously displayed SENT proof details when quote history authority 
   await waitFor(() => expect(refresh.hasAttribute('disabled')).toBe(false));
   fireEvent.click(refresh);
   await screen.findByText(/Teklif geçmişine erişilemiyor/);
-  expect(screen.queryByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/)).toBeNull();
+  expect(screen.queryByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/)).toBeNull();
 });
 it('preserves communication/task drafts and pins an unresolved SENT attempt through queue, sidebar and POP navigation', async () => {
   const removeBoundary = installQuotePopBoundary(),
@@ -813,7 +813,7 @@ it.each(['post', 'readback'])(
         ),
       ),
     );
-    expect(screen.queryByText(/Gönderildi beyanı yetkili SENT olayıyla doğrulandı/)).toBeNull();
+    expect(screen.queryByText(/Gönderildi kaydı kaydedildi ve geçmişte doğrulandı/)).toBeNull();
     expect(screen.queryByRole('form')).toBeNull();
   },
 );

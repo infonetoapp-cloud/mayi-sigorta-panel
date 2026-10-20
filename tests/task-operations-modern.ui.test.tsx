@@ -223,7 +223,7 @@ it('does not substitute first-page versions if a conflicting task is no longer i
   fireEvent.click(
     await screen.findByRole('button', { name: 'Güncel tamamlama durumunu karşılaştır' }),
   );
-  await screen.findByText(/Görev özgün yetkili sayfada bulunamadı/);
+  await screen.findByText(/Seçtiğiniz takip güncel iş listenizde bulunamadı/);
   expect(
     screen.getByRole('button', { name: 'Takibi tamamla ve planla' }).hasAttribute('disabled'),
   ).toBe(true);

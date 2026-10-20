@@ -253,7 +253,7 @@ try {
           .getByRole('combobox', { name: 'Kayıp nedeni', exact: true })
           .selectOption('demo-loss-price');
         await page
-          .getByLabel('LOST sonucunu ve seçili nedeni onaylıyorum', { exact: true })
+          .getByLabel('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum', { exact: true })
           .check();
         const attempts = [];
         let first = true;
@@ -268,7 +268,7 @@ try {
           }
           return route.fulfill({ response: r });
         });
-        await button('LOST kaydını onayla').click();
+        await button('Yenilenmedi olarak kaydet').click();
         await button('Aynı LOST isteğini yeniden dene').waitFor();
         if (width < 901) await button('Menüyü aç').click();
         await page.getByRole('link', { name: 'Müşteriler', exact: true }).click();
@@ -276,9 +276,7 @@ try {
         assert.equal(await button('Ayrılmayı onayla').count(), 0);
         assert.equal(new URL(page.url()).pathname, '/today-work');
         await button('Aynı LOST isteğini yeniden dene').click();
-        await page
-          .getByText(/POST yanıtı ve yetkili yenileme state\/sürüm okuması doğrulandı/)
-          .waitFor();
+        await page.getByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/).waitFor();
         assert.equal(attempts.length, 2);
         assert.equal(attempts[0].body, attempts[1].body);
         assert.equal(attempts[0].key, attempts[1].key);

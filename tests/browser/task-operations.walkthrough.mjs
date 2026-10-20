@@ -145,7 +145,7 @@ export async function taskOperationsWalkthrough(page, index, mark, demo) {
       await page
         .getByRole('button', { name: 'Yalnız tamamlama kuyruğunu yeniden oku', exact: true })
         .click();
-    await page.getByText(/Takip tamamlandı; yeni takip atomik sunucu sonucu/).waitFor();
+    await page.getByText(/Takip tamamlandı ve yeni takip atomik sunucu sonucu/).waitFor();
     assert.equal(reads.at(-1), original);
     const rows = (
       await demo.db

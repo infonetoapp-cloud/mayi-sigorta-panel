@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId } from 'react';
 import type { SelectableCatalogsDto, ApiResponse } from '../../shared/types';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
 
@@ -22,6 +22,7 @@ interface MutationSnapshot {
 }
 
 export const CatalogsPanel: React.FC = () => {
+  const formId = useId();
   const [activeCatalog, setActiveCatalog] = useState<CatalogType>('insurers');
   const [includeInactive, setIncludeInactive] = useState<boolean>(false);
   const [items, setItems] = useState<GenericCatalogItem[]>([]);
@@ -606,11 +607,15 @@ export const CatalogsPanel: React.FC = () => {
                         color: '#334155',
                         marginBottom: '0.25rem',
                       }}
+                      htmlFor={`${formId}-create-insurer`}
                     >
                       Sigorta Şirketi
                     </label>
                     <select
                       data-testid="product-insurer-select"
+                      id={`${formId}-create-insurer`}
+                      required
+                      aria-describedby={mutationError ? `${formId}-error` : undefined}
                       value={createInsurerId}
                       onChange={(e) => setCreateInsurerId(e.target.value)}
                       style={{
@@ -637,11 +642,15 @@ export const CatalogsPanel: React.FC = () => {
                         color: '#334155',
                         marginBottom: '0.25rem',
                       }}
+                      htmlFor={`${formId}-create-branch`}
                     >
                       Sigorta Branşı
                     </label>
                     <select
                       data-testid="product-branch-select"
+                      id={`${formId}-create-branch`}
+                      required
+                      aria-describedby={mutationError ? `${formId}-error` : undefined}
                       value={createBranchId}
                       onChange={(e) => setCreateBranchId(e.target.value)}
                       style={{
@@ -671,11 +680,16 @@ export const CatalogsPanel: React.FC = () => {
                     color: '#334155',
                     marginBottom: '0.25rem',
                   }}
+                  htmlFor={`${formId}-create-code`}
                 >
                   Kod (Semantik Değer - Değiştirilemez)
                 </label>
                 <input
                   type="text"
+                  id={`${formId}-create-code`}
+                  required
+                  aria-invalid={mutationError?.category === 'VALIDATION' && !createCode.trim()}
+                  aria-describedby={mutationError ? `${formId}-error` : undefined}
                   value={createCode}
                   onChange={(e) => setCreateCode(e.target.value.toUpperCase())}
                   placeholder="Kod (Örn: AKSIGORTA)"
@@ -699,11 +713,16 @@ export const CatalogsPanel: React.FC = () => {
                     color: '#334155',
                     marginBottom: '0.25rem',
                   }}
+                  htmlFor={`${formId}-create-name`}
                 >
                   İsim / Tanım
                 </label>
                 <input
                   type="text"
+                  id={`${formId}-create-name`}
+                  required
+                  aria-invalid={mutationError?.category === 'VALIDATION' && !createName.trim()}
+                  aria-describedby={mutationError ? `${formId}-error` : undefined}
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="İsim (Örn: Aksigorta)"
@@ -719,7 +738,11 @@ export const CatalogsPanel: React.FC = () => {
               </div>
 
               {mutationError && (
-                <div style={{ color: '#dc2626', fontSize: '0.8125rem' }}>
+                <div
+                  id={`${formId}-error`}
+                  role="alert"
+                  style={{ color: '#dc2626', fontSize: '0.8125rem' }}
+                >
                   {mutationError.message}
                   {mutationError.isRetryable && (
                     <button
@@ -840,11 +863,13 @@ export const CatalogsPanel: React.FC = () => {
                     color: '#334155',
                     marginBottom: '0.25rem',
                   }}
+                  htmlFor={`${formId}-edit-code`}
                 >
                   Kod (Değiştirilemez)
                 </label>
                 <input
                   type="text"
+                  id={`${formId}-edit-code`}
                   value={editingItem.code}
                   readOnly
                   disabled
@@ -870,11 +895,16 @@ export const CatalogsPanel: React.FC = () => {
                     color: '#334155',
                     marginBottom: '0.25rem',
                   }}
+                  htmlFor={`${formId}-edit-name`}
                 >
                   İsim / Tanım
                 </label>
                 <input
                   type="text"
+                  id={`${formId}-edit-name`}
+                  required
+                  aria-invalid={mutationError?.category === 'VALIDATION' && !editName.trim()}
+                  aria-describedby={mutationError ? `${formId}-error` : undefined}
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   style={{
@@ -898,10 +928,12 @@ export const CatalogsPanel: React.FC = () => {
                       color: '#334155',
                       marginBottom: '0.25rem',
                     }}
+                    htmlFor={`${formId}-edit-branch`}
                   >
                     Sigorta Branşı
                   </label>
                   <select
+                    id={`${formId}-edit-branch`}
                     value={editBranchId}
                     onChange={(e) => setEditBranchId(e.target.value)}
                     style={{
@@ -922,7 +954,11 @@ export const CatalogsPanel: React.FC = () => {
               )}
 
               {mutationError && (
-                <div style={{ color: '#dc2626', fontSize: '0.8125rem' }}>
+                <div
+                  id={`${formId}-error`}
+                  role="alert"
+                  style={{ color: '#dc2626', fontSize: '0.8125rem' }}
+                >
                   {mutationError.message}
                   {mutationError.isRetryable && (
                     <button

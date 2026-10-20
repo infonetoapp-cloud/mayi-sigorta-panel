@@ -1,0 +1,743 @@
+{
+  "baseCommit": "f24c3279c90b0830b758912666758b34259aff05",
+  "scope": "LOCAL frontend only; no production acceptance",
+  "ui": {
+    "passed": 609,
+    "failed": 0,
+    "skipped": 0,
+    "files": 47,
+    "perFile": [
+      {
+        "path": "airy-disclosure.ui.test.tsx",
+        "status": "passed",
+        "cases": 5
+      },
+      {
+        "path": "app-shell.ui.test.tsx",
+        "status": "passed",
+        "cases": 7
+      },
+      {
+        "path": "app.m2-batch-b-ui.test.tsx",
+        "status": "passed",
+        "cases": 20
+      },
+      {
+        "path": "app.m2-t02-ui.test.tsx",
+        "status": "passed",
+        "cases": 10
+      },
+      {
+        "path": "app.m2-t03-ui.test.tsx",
+        "status": "passed",
+        "cases": 12
+      },
+      {
+        "path": "app.test.tsx",
+        "status": "passed",
+        "cases": 10
+      },
+      {
+        "path": "auth.standalone-reauth.test.tsx",
+        "status": "passed",
+        "cases": 4
+      },
+      {
+        "path": "auth.ui-password-boundaries.test.tsx",
+        "status": "passed",
+        "cases": 9
+      },
+      {
+        "path": "auth.ui.test.tsx",
+        "status": "passed",
+        "cases": 8
+      },
+      {
+        "path": "company-contacts.ui.test.tsx",
+        "status": "passed",
+        "cases": 16
+      },
+      {
+        "path": "customer-contact-edit.ui.test.tsx",
+        "status": "passed",
+        "cases": 11
+      },
+      {
+        "path": "customer-create-navigation.ui.test.tsx",
+        "status": "passed",
+        "cases": 5
+      },
+      {
+        "path": "customer-create.ui.test.tsx",
+        "status": "passed",
+        "cases": 5
+      },
+      {
+        "path": "customer-notes.ui.test.tsx",
+        "status": "passed",
+        "cases": 4
+      },
+      {
+        "path": "customer-pages.ui.test.tsx",
+        "status": "passed",
+        "cases": 12
+      },
+      {
+        "path": "customer-shared-renewals.ui.test.tsx",
+        "status": "passed",
+        "cases": 3
+      },
+      {
+        "path": "documents.employee-ui.test.tsx",
+        "status": "passed",
+        "cases": 5
+      },
+      {
+        "path": "documents.sensitive-ui.test.tsx",
+        "status": "passed",
+        "cases": 2
+      },
+      {
+        "path": "personnel-collaboration.ui.test.tsx",
+        "status": "passed",
+        "cases": 1
+      },
+      {
+        "path": "policy-append.ui.test.tsx",
+        "status": "passed",
+        "cases": 32
+      },
+      {
+        "path": "policy-forms.ui.test.tsx",
+        "status": "passed",
+        "cases": 23
+      },
+      {
+        "path": "policy-lifecycle.ui.test.tsx",
+        "status": "passed",
+        "cases": 23
+      },
+      {
+        "path": "policy-pages.ui.test.tsx",
+        "status": "passed",
+        "cases": 17
+      },
+      {
+        "path": "policy-parties.ui.test.tsx",
+        "status": "passed",
+        "cases": 21
+      },
+      {
+        "path": "quote-navigation.ui.test.tsx",
+        "status": "passed",
+        "cases": 2
+      },
+      {
+        "path": "renewal-completion.ui.test.tsx",
+        "status": "passed",
+        "cases": 13
+      },
+      {
+        "path": "renewal-interaction-history.ui.test.tsx",
+        "status": "passed",
+        "cases": 6
+      },
+      {
+        "path": "renewal-interactions-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 23
+      },
+      {
+        "path": "renewal-quote-send-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 60
+      },
+      {
+        "path": "renewal-quotes-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 35
+      },
+      {
+        "path": "renewal-quotes.ui.test.tsx",
+        "status": "passed",
+        "cases": 14
+      },
+      {
+        "path": "renewal-terminal-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 37
+      },
+      {
+        "path": "renewal-terminal-workspace.ui.test.tsx",
+        "status": "passed",
+        "cases": 13
+      },
+      {
+        "path": "renewal-won-create.ui.test.tsx",
+        "status": "passed",
+        "cases": 26
+      },
+      {
+        "path": "renewal-won-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 30
+      },
+      {
+        "path": "renewal-workspace.m3-ui.test.tsx",
+        "status": "passed",
+        "cases": 6
+      },
+      {
+        "path": "settings-catalog-accessibility.ui.test.tsx",
+        "status": "passed",
+        "cases": 3
+      },
+      {
+        "path": "task-operations-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 19
+      },
+      {
+        "path": "task-reassignment.ui.test.tsx",
+        "status": "passed",
+        "cases": 7
+      },
+      {
+        "path": "task-statistics.ui.test.tsx",
+        "status": "passed",
+        "cases": 6
+      },
+      {
+        "path": "today-work-modern.ui.test.tsx",
+        "status": "passed",
+        "cases": 18
+      },
+      {
+        "path": "today-work.m3-t02-ui.test.tsx",
+        "status": "passed",
+        "cases": 14
+      },
+      {
+        "path": "ux-advanced-layout.ui.test.tsx",
+        "status": "passed",
+        "cases": 1
+      },
+      {
+        "path": "ux-customer-orientation.ui.test.tsx",
+        "status": "passed",
+        "cases": 1
+      },
+      {
+        "path": "ux-navigation.ui.test.tsx",
+        "status": "passed",
+        "cases": 1
+      },
+      {
+        "path": "ux-visual-foundation.test.ts",
+        "status": "passed",
+        "cases": 2
+      },
+      {
+        "path": "whatsapp.m4-ui.test.tsx",
+        "status": "passed",
+        "cases": 7
+      }
+    ]
+  },
+  "api": {
+    "passed": 56,
+    "failed": 0,
+    "skipped": 0,
+    "files": 6,
+    "perFile": [
+      {
+        "path": "catalogs.m2-t03-api.test.ts",
+        "status": "passed",
+        "cases": 11
+      },
+      {
+        "path": "company-contacts.api.test.ts",
+        "status": "passed",
+        "cases": 4
+      },
+      {
+        "path": "customer-everyday.api.test.ts",
+        "status": "passed",
+        "cases": 4
+      },
+      {
+        "path": "renewal-interactions-modern.api.test.ts",
+        "status": "passed",
+        "cases": 9
+      },
+      {
+        "path": "renewal-quote-send-modern.api.test.ts",
+        "status": "passed",
+        "cases": 18
+      },
+      {
+        "path": "task-operations-modern.api.test.ts",
+        "status": "passed",
+        "cases": 10
+      }
+    ]
+  },
+  "customerEdge": {
+    "red": false,
+    "browser": "155.0.4283.45",
+    "visible": true,
+    "rows": [
+      {
+        "actor": "owner",
+        "width": 1440,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "owner",
+        "width": 768,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "owner",
+        "width": 360,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ahmet",
+        "width": 1440,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ahmet",
+        "width": 768,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ahmet",
+        "width": 360,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ayse",
+        "width": 1440,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ayse",
+        "width": 768,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      },
+      {
+        "actor": "ayse",
+        "width": 360,
+        "draftStay": true,
+        "backForwardStay": true,
+        "pendingNavigationBlocked": true,
+        "uncertainExactReplay": true,
+        "customerRows": 1,
+        "customerPosts": 2,
+        "companyCreated": true,
+        "labelsChecked": 5
+      }
+    ],
+    "clientIndexSha256": "b4e5c81bed272576191599c290f18bccb2567dcd915f9dbe23cd15f1a415567d"
+  },
+  "workspaceEdge": {
+    "baseline": false,
+    "previewOnly": false,
+    "browser": "155.0.4283.45",
+    "visible": true,
+    "rows": [
+      {
+        "actor": "owner",
+        "width": 1440,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-1440-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-1440-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-1440-create-draft-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 723,
+          "documentWidth": 1425,
+          "viewport": 1440
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "owner",
+        "width": 768,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "uncertain-exact-retry-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-768-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-768-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-768-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-768-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 723,
+          "documentWidth": 753,
+          "viewport": 768
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "owner",
+        "width": 360,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "accepted-write-get-only-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-360-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-360-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-360-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\owner-360-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1324,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 726,
+          "documentWidth": 345,
+          "viewport": 360
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ahmet",
+        "width": 1440,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-1440-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-1440-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-1440-create-draft-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 725,
+          "documentWidth": 1425,
+          "viewport": 1440
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ahmet",
+        "width": 768,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "uncertain-exact-retry-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-768-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-768-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-768-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-768-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 725,
+          "documentWidth": 753,
+          "viewport": 768
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ahmet",
+        "width": 360,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "accepted-write-get-only-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-360-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-360-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-360-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ahmet-360-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1324,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 727,
+          "documentWidth": 345,
+          "viewport": 360
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ayse",
+        "width": 1440,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-1440-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-1440-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-1440-create-draft-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 726,
+          "documentWidth": 1425,
+          "viewport": 1440
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ayse",
+        "width": 768,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "uncertain-exact-retry-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-768-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-768-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-768-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-768-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1238,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 726,
+          "documentWidth": 753,
+          "viewport": 768
+        },
+        "runtimeErrors": 0
+      },
+      {
+        "actor": "ayse",
+        "width": 360,
+        "passed": true,
+        "checks": [
+          "three-secondary-groups-initially-collapsed",
+          "draft-pinned-and-sidebar-escape-keeps-content",
+          "keyboard-disclosure-history-mounted-no-refetch",
+          "create-policy-draft-visible-and-cross-operation-guard",
+          "accepted-write-get-only-cannot-be-hidden",
+          "all-actions-preserved-no-horizontal-overflow"
+        ],
+        "screenshots": [
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-360-after.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-360-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-360-create-draft-pinned.png",
+          "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\airy-review-sOHKpB\\ayse-360-pending-proof-pinned.png"
+        ],
+        "initial": {
+          "panelHeight": 1324,
+          "visibleButtons": 10,
+          "visibleSummaries": 3,
+          "visibleTextLength": 722,
+          "documentWidth": 345,
+          "viewport": 360
+        },
+        "runtimeErrors": 0
+      }
+    ]
+  },
+  "sourceTestHashes": {
+    "src/app/components/AgencySettingsPanel.tsx": "f7a27b412de3d63f19effba301b8899a1b4212f4321d9c338bec2d93c493425e",
+    "src/app/components/CatalogsPanel.tsx": "507c2e6ae6e4acb0f4e503c78f429d6fe4848a7b6dd498f1adca18b7b1e69d09",
+    "src/app/pages/customers/CustomerCreatePage.tsx": "0fc4d2831c31111b646fff4e6947baac508cfc94b85c2c608f059f82020932ed",
+    "src/app/pages/today-work/QuoteSentOperation.tsx": "57a859eee944942830640ee9e26c765a6e62be86cbebeba08febf779872458cd",
+    "src/app/pages/today-work/RenewalInteractionsSection.tsx": "0e559b9deb359e49e3c35da2c5d78594c594b3b5a998842c99cbb1fe044e99ce",
+    "src/app/pages/today-work/RenewalOutcomesSection.tsx": "f878edece016436f5a138ca414f33a78ac4e931c313953ac61b7fab77b663e42",
+    "src/app/pages/today-work/RenewalQuotesSection.tsx": "15c472e70505ed280092114a6a9c0550c835ad573872c7a0089786c939755950",
+    "src/app/pages/today-work/TaskOperationsSection.tsx": "c092e36b4707c7fe9a08ecc30d4e91222453c0ddba0ad20cc7f9e9956935bd00",
+    "src/app/pages/today-work/WonCreatePolicyForm.tsx": "33149c1d917463ae8c668bd49dfe5ce899c15494c577e9c112b4491671f0c652",
+    "src/app/pages/today-work/WonPolicyOperation.tsx": "9bc2075a926a9466e0858c9f2458247965db8b141188e9aefd6be4fabdd7d47d",
+    "tests/browser/airy-workspace.smoke.mjs": "398008d5586a84b219e47132d64241282d100d4e9c4686149dbefa8ee2db0ff7",
+    "tests/browser/quote-sent.walkthrough.mjs": "6b191845e9fce164a184e9202dc784f71d056d60b7dcfb53918a3cc9c3b5368f",
+    "tests/browser/renewal-quotes.walkthrough.mjs": "0c557fe1d4444ae3ad95ef20d2c293a2c081c1251bd22b26e6edfc637b279daa",
+    "tests/browser/task-operations.walkthrough.mjs": "8dd5e0934562576b3ecf4103eff06ddf9768dc4e712fefb6b8281d56a3ae3359",
+    "tests/browser/terminal-outcomes.walkthrough.mjs": "f7e9bf9774a4b22c694a01c4edffa9d0f1ceb716692775fc8d959151852340ba",
+    "tests/browser/ux-quality.smoke.mjs": "42baf0397dc0e5791e48785899b52a17cc5af555daad6455c243962dcd22f6a8",
+    "tests/browser/won-create.walkthrough.mjs": "54fbd681d2af38c3101a5578f83b9700af9af8c4665bf8026067a69bfde71678",
+    "tests/browser/won-policy.walkthrough.mjs": "2b314cfcd8371e5a86879eed0f3dda1fd9a7b96c1951753cf48aa0d8d6f6dd61",
+    "tests/renewal-interactions-modern.ui.test.tsx": "881bc9b870cdc99b4a976839a55ec7e7529878fac3c421a7dcf2bd9fd1e69f0e",
+    "tests/renewal-quote-send-modern.ui.test.tsx": "145f6403771499635aa30e38c6e66d4794b8268dd3be7891e7012659972f4439",
+    "tests/renewal-quotes-modern.ui.test.tsx": "8487306636aa4acf08fc7baaae1b6905a622d5700ffcd860834d046ff283c1fa",
+    "tests/renewal-terminal-modern.ui.test.tsx": "ac571073fb37f6151bcf301664d68f586f136fde929c114791806bd615998235",
+    "tests/renewal-terminal-workspace.ui.test.tsx": "041a0fa784a87fc80c044ed3ec71b508f4de3661398fa5cd0b2a776a0419027a",
+    "tests/renewal-won-create.ui.test.tsx": "931854304bbd22f8ae9656b15e316fc011d237c86109827e6a2fedec1789bf15",
+    "tests/renewal-won-modern.ui.test.tsx": "af264375613497561b5f8422f664a646de5d6573cff200c877ecb0cc093a4358",
+    "tests/task-operations-modern.ui.test.tsx": "9bdfea58a21dd553c4decf066a481a59e30e13d8b44a4e97b0407cc5d0a1684d",
+    "tests/browser/audit-ux.smoke.mjs": "5038ab4017a88000f907235efbe2e932ebb2a7edcbfe29fcf632b00d6f83e949",
+    "tests/customer-create-navigation.ui.test.tsx": "85b3d2949963a08a5d71867cd8620ffc1113334057b12be73b63873ee9b46961",
+    "tests/settings-catalog-accessibility.ui.test.tsx": "64ccfd467227c941f181544a364a93424cb4c6bd19395c0ef8c1f442472dde74"
+  },
+  "clientAssetHashes": {
+    "index.html": "b4e5c81bed272576191599c290f18bccb2567dcd915f9dbe23cd15f1a415567d",
+    "assets/App-CpIhSfta.js": "d04ef67a49057b5d237a924166835d10b985cbb8b148d8d62f8cd56196091bac",
+    "assets/CompatibilityPage-DFJvxlXG.js": "76adec94e340571053514262653bccf02b5b15b75509ed96b97a7999e644ccda",
+    "assets/customer-resource-DXQtitmm.js": "fe88f53c2ebab4864e25761cd10d15ad2b20cc7b9d3986b5373dc2875b1fe2f7",
+    "assets/CustomerCreatePage-bAqmFmiy.js": "9ea6112154374a772802fd7d7d3cf6316c756083d356d9575149af5d1978f494",
+    "assets/CustomerListPage-BKLq0Eru.js": "b8bff80bcd7f9d51ffa0d2adcf9ea9aa373b34f02b541b597c2cd707e15a3123",
+    "assets/CustomerProfilePage-uDqK2Eei.js": "af03f205dbfcfb580b1e17407144361fa8a2bbffaf0b9467d8da1751b542e309",
+    "assets/index-B-Z-nJxm.js": "33a4ab20b59d5b1961e631a9889bcf1c015c113a923b4e527c3c6313868a3895",
+    "assets/index-DN4TnIs_.css": "76d97e8f6f9236ab1f9929487b4627b8ee5ddee812115fe59decf859e4b1427f",
+    "assets/input-Bm1nB_vm.js": "8b934aba5b912068b2da6c7c267115fa3cd6471bc92fd8fa5e81d5b4063ea57e",
+    "assets/NavigationDecision-DU50E5ya.js": "37ecb7be7dedac7216684a042b99c984fc3c0ce0d4705c0e79416c3be42a70e7",
+    "assets/PersonnelPanel-CliwQLBE.js": "2286fa0fc4bfb00bc422270b5b6e9335ddef12d84cc6ba9ebca72023dca928ee",
+    "assets/policy-display-DoyTe8rK.js": "107893bef673eede769aae197dfd888799e74c760bc82a6cabeef8ba0a96982a",
+    "assets/policy-form-model-DR-XPB13.js": "83778e0721f93613acc541165e611ea63993bca8778e36ba341d454a53be19c8",
+    "assets/PolicyDetailPage-Crm-Rdst.js": "418e06c67c9fc4250a159c5d48af2316faf09fb5292aaf2c3fa70524bd05beaf",
+    "assets/PolicyFormPage-BcXocQnE.js": "289c6149f54dc349f0cec816c26073e6bb659adce248633bd83bd971c669854a",
+    "assets/PolicyLegacyPage-C7MysuAV.js": "9bc51f279a83c1d35b597396f421ed35391e0ce4027a3f7c1b07ac661589e1df",
+    "assets/PolicyListPage-B7ouVZBJ.js": "1be774fbf30e0785e2556119fc88ac0c6978a9990e26ed16453be961db010c83",
+    "assets/TodayWorkPage-CoX26OJl.js": "1b60b8a327a0e7143b2b8b2526e3a26112bb5a6bb78c3c5c53edf10def5d3fb3"
+  },
+  "protectedDocumentSha256": "f272a14efce57f2ef47d960c2ac387e11cdaeda96aa6fda71db8585844e28930",
+  "independentAuditSha256": "c9c787dcf31131cc79bc844c54ac4e96de6a01237a2319a67dd72a03828810c0",
+  "preservation": {
+    "excludedWorktreeFiles": 101,
+    "originalScreenshotHashesVerified": 72,
+    "originalAuditManifestArtifactsVerified": 92
+  },
+  "redEvidence": {
+    "customerNavigation": {
+      "passed": 0,
+      "failed": 5
+    },
+    "labels": {
+      "passed": 0,
+      "failed": 2
+    },
+    "staffConfirmation": {
+      "selectedFailed": 1,
+      "otherCasesNotExecuted": true
+    },
+    "edgeCustomerLoss": "node_modules/.cache/audit-ux-likXGq/result.json"
+  },
+  "notAcceptance": [
+    "First navigation GREEN checkpoint: disabled property assertion corrected to native :disabled semantics.",
+    "First accessibility typecheck rejected Testing Library ByRole exact option; removed test-only option.",
+    "Message-only expectation checkpoints: 208/37 then 240/5; protocol assertions retained.",
+    "First consolidated UI: 605/3 because duplicate hidden catalog error text; fixed product association to the existing visible error, not the assertions.",
+    "Edge 3f9pqJ and IqUikd: company field timeout; 6CnBWu: company select assertion. Outgoing customer-list filter shared the same name; destination heading and form scope now required.",
+    "Earlier successful Edge checkpoints EN4GiO, IjMVUp and vvBiM2 are not added to final matrix totals."
+  ],
+  "limits": [
+    "Desktop Edge viewport emulation, not physical phones or screen reader/WCAG certification.",
+    "No new full 9-cell WON transaction matrix; current WON UI regressions and Phase0 unchanged D1 terminal gates are separate evidence.",
+    "Phase0 96 API cases not added to Phase1 56 API cases.",
+    "No production restore, natural long session expiry, load benchmark, external delivery, insurer issuance or real customer data."
+  ]
+}

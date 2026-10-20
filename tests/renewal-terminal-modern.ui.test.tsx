@@ -91,16 +91,24 @@ async function open() {
 }
 function submit(id = 'price') {
   fireEvent.change(within(form()).getByLabelText('Kayıp nedeni'), { target: { value: id } });
-  fireEvent.click(within(form()).getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(within(form()).getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(
+    within(form()).getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'),
+  );
+  fireEvent.click(within(form()).getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
+it('uses staff-facing Turkish for the loss confirmation while preserving exact internal targets', async () => {
+  fixture();
+  await open();
+  expect(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' })).toBeTruthy();
+  expect(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum')).toBeTruthy();
+});
 it('opens without writes and requires a reason and separate confirmation, pins both CAS and verifies authorized renewal state', async () => {
   const f = fixture();
   await open();
   expect(writes(f)).toHaveLength(0);
-  fireEvent.click(within(form()).getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(within(form()).getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
   expect(writes(f)).toHaveLength(0);
   expect(form().textContent).toContain('P-1');
   expect(form().textContent).toContain('Görev sürümü: 7');
@@ -116,7 +124,7 @@ it('opens without writes and requires a reason and separate confirmation, pins b
     lossReasonId: 'price',
     lossReasonNotes: null,
   });
-  expect(f.applied.mock.calls[0]![0]).toContain('görev ayrıntısı sağlamaz');
+  expect(f.applied.mock.calls[0]![0]).toContain('sunucu tarafından bildirildi');
 });
 it('requires OTHER trimmed note and caps 500', async () => {
   const f = fixture((_url, init) =>
@@ -129,8 +137,8 @@ it('requires OTHER trimmed note and caps 500', async () => {
   fireEvent.change(screen.getByLabelText('Diğer kayıp açıklaması'), {
     target: { value: '  Açık neden  ' },
   });
-  fireEvent.click(screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
   await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
   expect(JSON.parse(writes(f)[0]![1]!.body as string).lossReasonNotes).toBe('Açık neden');
 });
@@ -147,10 +155,10 @@ it.each(['TECHNICAL_ERROR', 'DUPLICATE', 'NOT_ELIGIBLE_AFTER_CANCELLATION_OR_RES
     fireEvent.click(screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }));
     const p = screen.getByRole('form', { name: 'VOIDED sonuçlandırma' });
     expect(within(p).queryByRole('textbox')).toBeNull();
-    expect(p.textContent).toContain('Geçerli bir teklifi müşterinin reddetmesi LOST');
+    expect(p.textContent).toContain('Müşteri geçerli bir teklifi reddettiyse Yenilenmedi');
     fireEvent.change(within(p).getByLabelText('Geçersizlik nedeni'), { target: { value: code } });
-    fireEvent.click(within(p).getByLabelText('VOIDED sonucunu ve seçili nedeni onaylıyorum'));
-    fireEvent.click(within(p).getByRole('button', { name: 'VOIDED kaydını onayla' }));
+    fireEvent.click(within(p).getByLabelText('Geçersiz sonucunu ve seçili nedeni onaylıyorum'));
+    fireEvent.click(within(p).getByRole('button', { name: 'Geçersiz olarak kaydet' }));
     await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
     expect(writes(f)[0]![0]).toBe('/api/renewals/r/void');
     expect(JSON.parse(writes(f)[0]![1]!.body as string)).toEqual({
@@ -172,8 +180,8 @@ it('blocks stale/inactive reasons without changing the selection', async () => {
   await open();
   fireEvent.change(screen.getByLabelText('Kayıp nedeni'), { target: { value: 'price' } });
   stale = true;
-  fireEvent.click(screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
   await screen.findByText(/Seçilen kayıp nedeni değişti veya pasif/);
   expect(writes(f)).toHaveLength(0);
   expect((screen.getByLabelText('Kayıp nedeni') as unknown as HTMLSelectElement).value).toBe(
@@ -191,8 +199,8 @@ it('blocks unavailable catalogs and preserves the draft through safe reload', as
     target: { value: 'Taslak' },
   });
   fail = true;
-  fireEvent.click(screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
   await screen.findByText(/Kayıp nedenleri okunamadı/);
   expect(writes(f)).toHaveLength(0);
   expect((screen.getByLabelText('Diğer kayıp açıklaması') as HTMLTextAreaElement).value).toBe(
@@ -202,7 +210,7 @@ it('blocks unavailable catalogs and preserves the draft through safe reload', as
   fireEvent.click(screen.getByRole('button', { name: 'Kayıp nedenlerini yeniden oku' }));
   await screen.findByRole('option', { name: 'Diğer' });
   expect(
-    (screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum') as HTMLInputElement)
+    (screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum') as HTMLInputElement)
       .checked,
   ).toBe(false);
 });
@@ -239,7 +247,7 @@ it.each([403, 503])(
     );
     await open();
     submit();
-    await screen.findByText(/POST kabul edildi; bağımsız/);
+    await screen.findByText(/Kayıt kabul edildi; yenilemenin güncel sonucu/);
     expect(writes(f)).toHaveLength(1);
     expect(f.applied).not.toHaveBeenCalled();
     fail = false;
@@ -266,7 +274,7 @@ it.each([
     );
     await open();
     submit();
-    await screen.findByText(/POST kabul edildi ancak kanıt eksik/);
+    await screen.findByText(/Kayıt kabul edildi ancak sonuç bilgileri eksik/);
     expect(f.applied).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Yalnız yenileme okumasını yeniden dene' }));
     await waitFor(() =>
@@ -288,7 +296,7 @@ it.each([
   );
   await open();
   submit();
-  await screen.findByText(/güncel yenileme durumu\/sürümü çelişkili/);
+  await screen.findByText(/sonuç bilgileri eksik veya tutarsız/);
   expect(f.applied).not.toHaveBeenCalled();
   expect(writes(f)).toHaveLength(1);
 });
@@ -313,7 +321,7 @@ it('bounds cyclic or missing renewal evidence and offers GET-only retry', async 
   );
   await open();
   submit();
-  await screen.findByText(/bağımsız yetkili yenileme okuması doğrulanamadı/);
+  await screen.findByText(/yenilemenin güncel sonucu henüz okunamadı/);
   expect(f.fetcher.mock.calls.filter(([u]) => u.startsWith('/api/customers'))).toHaveLength(2);
   expect(f.applied).not.toHaveBeenCalled();
 });
@@ -340,12 +348,12 @@ it('compares dual CAS after 409, adopts only the explicit same target and reconf
   expect(writes(f)).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: 'Güncel aynı hedefi benimse' }));
   expect(
-    (screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum') as HTMLInputElement)
+    (screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum') as HTMLInputElement)
       .checked,
   ).toBe(false);
   conflict = false;
-  fireEvent.click(screen.getByLabelText('LOST sonucunu ve seçili nedeni onaylıyorum'));
-  fireEvent.click(screen.getByRole('button', { name: 'LOST kaydını onayla' }));
+  fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
+  fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
   await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
   expect(JSON.parse(writes(f)[1]![1]!.body as string)).toMatchObject({
     expectedPrimaryTaskId: 't',
@@ -379,8 +387,8 @@ it.each(['LOST', 'VOIDED'])(
       fireEvent.change(screen.getByLabelText('Geçersizlik nedeni'), {
         target: { value: 'DUPLICATE' },
       });
-      fireEvent.click(screen.getByLabelText('VOIDED sonucunu ve seçili nedeni onaylıyorum'));
-      fireEvent.click(screen.getByRole('button', { name: 'VOIDED kaydını onayla' }));
+      fireEvent.click(screen.getByLabelText('Geçersiz sonucunu ve seçili nedeni onaylıyorum'));
+      fireEvent.click(screen.getByRole('button', { name: 'Geçersiz olarak kaydet' }));
     }
     await screen.findByText(/Sonuçlandırma çakıştı/);
     const originalBody = writes(f)[0]![1]!.body;
