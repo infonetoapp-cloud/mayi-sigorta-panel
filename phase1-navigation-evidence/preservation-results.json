@@ -1,0 +1,9 @@
+{
+  "baselineHead": "8ff3d2240893c2d109187fdfb81943e1ab5414c4",
+  "existingFiles": 212,
+  "unchangedExistingFiles": 211,
+  "additiveOverlap": ["src/app/pages/today-work/TodayWorkPage.tsx"],
+  "protectedSha256": "f272a14efce57f2ef47d960c2ac387e11cdaeda96aa6fda71db8585844e28930",
+  "ux002FocusHunkRetained": true,
+  "stagedPaths": []
+}

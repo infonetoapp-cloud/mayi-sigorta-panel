@@ -1,0 +1,99 @@
+{
+  "runs": [
+    {
+      "file": "phase1-tests.json",
+      "success": true,
+      "passed": 139,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "file": "phase1-notes-independent-tests.json",
+      "success": true,
+      "passed": 26,
+      "failed": 0,
+      "pending": 0
+    },
+    {
+      "file": "phase1-ui-final.json",
+      "success": true,
+      "passed": 204,
+      "failed": 0,
+      "pending": 0
+    }
+  ],
+  "uniqueFiles": 17,
+  "passed": 310,
+  "failed": 0,
+  "skipped": 0,
+  "files": [
+    {
+      "path": "airy-disclosure.ui.test.tsx",
+      "tests": 5
+    },
+    {
+      "path": "customer-create-navigation.ui.test.tsx",
+      "tests": 5
+    },
+    {
+      "path": "customer-note-navigation.ui.test.tsx",
+      "tests": 5
+    },
+    {
+      "path": "customer-notes.api.test.ts",
+      "tests": 14
+    },
+    {
+      "path": "customer-notes.ui.test.tsx",
+      "tests": 4
+    },
+    {
+      "path": "customer-pages.ui.test.tsx",
+      "tests": 12
+    },
+    {
+      "path": "quote-navigation.ui.test.tsx",
+      "tests": 2
+    },
+    {
+      "path": "renewal-interactions-modern.ui.test.tsx",
+      "tests": 23
+    },
+    {
+      "path": "renewal-quote-send-modern.ui.test.tsx",
+      "tests": 60
+    },
+    {
+      "path": "renewal-quotes-modern.ui.test.tsx",
+      "tests": 35
+    },
+    {
+      "path": "renewal-terminal-modern.ui.test.tsx",
+      "tests": 37
+    },
+    {
+      "path": "renewal-won-modern.ui.test.tsx",
+      "tests": 30
+    },
+    {
+      "path": "renewals.m3-t02-tasks-api.test.ts",
+      "tests": 26
+    },
+    {
+      "path": "task-context.api.test.ts",
+      "tests": 8
+    },
+    {
+      "path": "task-navigation.ui.test.tsx",
+      "tests": 7
+    },
+    {
+      "path": "task-operations-modern.ui.test.tsx",
+      "tests": 19
+    },
+    {
+      "path": "today-work-modern.ui.test.tsx",
+      "tests": 18
+    }
+  ]
+}

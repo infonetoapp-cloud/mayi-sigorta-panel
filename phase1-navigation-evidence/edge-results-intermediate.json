@@ -1,0 +1,120 @@
+{
+  "browser": "155.0.4283.62",
+  "sourceRoot": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance",
+  "rows": [
+    {
+      "actor": "owner",
+      "width": 1440,
+      "checks": [
+        "customer-back-exact-task-section-scroll",
+        "forward-explicit-return",
+        "policy-section-explicit-return",
+        "reload-direct-exact-context",
+        "note-section-back-forward-stay-exact-dom",
+        "note-explicit-cancel",
+        "note-post-response-loss-exact-retry-one-db-row",
+        "pending-mounted-blocked-departure-one-submit",
+        "real-d1-closed-A-no-B-selection",
+        "no-browser-storage"
+      ],
+      "screenshots": ["owner-1440-task-restored.png", "owner-1440-note-preserved.png"],
+      "scroll": {
+        "before": {
+          "page": 400,
+          "queue": 50
+        },
+        "after": {
+          "page": 400,
+          "queue": 50
+        }
+      },
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 1440,
+      "checks": [
+        "customer-back-exact-task-section-scroll",
+        "forward-explicit-return",
+        "policy-section-explicit-return",
+        "reload-direct-exact-context",
+        "note-section-back-forward-stay-exact-dom",
+        "note-explicit-cancel",
+        "note-post-response-loss-exact-retry-one-db-row",
+        "pending-mounted-blocked-departure-one-submit",
+        "real-d1-closed-A-no-B-selection",
+        "real-d1-reassigned-A-denied-to-old-member",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-1440-task-restored.png", "ahmet-1440-note-preserved.png"],
+      "scroll": {
+        "before": {
+          "page": 400,
+          "queue": 50
+        },
+        "after": {
+          "page": 400,
+          "queue": 50
+        }
+      },
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "owner",
+      "width": 360,
+      "checks": [
+        "customer-back-exact-task-section-scroll",
+        "forward-explicit-return",
+        "policy-section-explicit-return",
+        "reload-direct-exact-context",
+        "note-section-back-forward-stay-exact-dom",
+        "note-explicit-cancel",
+        "note-post-response-loss-exact-retry-one-db-row",
+        "pending-mounted-blocked-departure-one-submit",
+        "real-d1-closed-A-no-B-selection",
+        "no-browser-storage"
+      ],
+      "screenshots": ["owner-360-task-restored.png", "owner-360-note-preserved.png"],
+      "scroll": {
+        "before": {
+          "page": 400,
+          "queue": 0
+        },
+        "after": {
+          "page": 400,
+          "queue": 0
+        }
+      },
+      "runtimeErrors": 0
+    },
+    {
+      "actor": "ahmet",
+      "width": 360,
+      "checks": [
+        "customer-back-exact-task-section-scroll",
+        "forward-explicit-return",
+        "policy-section-explicit-return",
+        "reload-direct-exact-context",
+        "note-section-back-forward-stay-exact-dom",
+        "note-explicit-cancel",
+        "note-post-response-loss-exact-retry-one-db-row",
+        "pending-mounted-blocked-departure-one-submit",
+        "real-d1-closed-A-no-B-selection",
+        "real-d1-reassigned-A-denied-to-old-member",
+        "no-browser-storage"
+      ],
+      "screenshots": ["ahmet-360-task-restored.png", "ahmet-360-note-preserved.png"],
+      "scroll": {
+        "before": {
+          "page": 400,
+          "queue": 0
+        },
+        "after": {
+          "page": 400,
+          "queue": 0
+        }
+      },
+      "runtimeErrors": 0
+    }
+  ]
+}

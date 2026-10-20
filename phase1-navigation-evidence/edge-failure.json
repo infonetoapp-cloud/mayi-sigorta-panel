@@ -1,0 +1,6 @@
+{
+  "stage": "ahmet:360:restored-task-completion-get-only",
+  "error": "Error",
+  "message": "locator.fill: Error: Malformed value",
+  "completedCells": 3
+}

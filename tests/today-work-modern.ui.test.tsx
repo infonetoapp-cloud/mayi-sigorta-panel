@@ -342,7 +342,9 @@ it('does not reuse old employee data or late errors after the session-keyed page
   await screen.findByRole('button', { name: /Müşteri employee-b/ });
   await act(async () => release(response(base)));
   expect(screen.queryByRole('button', { name: /Müşteri a/ })).toBeNull();
-  expect(screen.queryByRole('alert')).toBeNull();
+  // The URL now carries an exact Task hint; a different employee cannot resolve it.
+  // This is a fresh, generic unavailable notice, not the old deferred response.
+  expect(screen.getByRole('alert').textContent).toContain('Başka bir takip otomatik seçilmedi');
 });
 const stats = (view: 'self' | 'team', canSeeTeam: boolean) => ({
   view,

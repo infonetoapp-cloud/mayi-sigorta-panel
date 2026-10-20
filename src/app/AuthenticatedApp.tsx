@@ -7,6 +7,7 @@ import { PageHeader } from './components/layout/PageContainer';
 import { navigation } from './components/layout/navigation';
 import { Button } from './components/ui/button';
 import OverviewPage from './pages/OverviewPage';
+import { WorkNavigationProvider } from './pages/today-work/work-navigation';
 const CompatibilityPage = lazy(() => import('./pages/CompatibilityPage'));
 const CustomerListPage = lazy(() => import('./pages/customers/CustomerListPage'));
 const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfilePage'));
@@ -87,155 +88,157 @@ export function AuthenticatedApp({
   reauth: ReactNode;
 }) {
   return (
-    <AppShell session={session} busy={busy} onLogout={onLogout} onReauth={onReauth}>
-      {error && <p role="alert">{error}</p>}
-      {reauth}
-      <Routes>
-        <Route path="/" element={<OverviewPage owner={session.isOwner} />} />
-        <Route
-          path="/today-work"
-          element={
-            <PageBoundary resetKey="today-work">
-              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                <TodayWorkPage
-                  key={`${session.email}:${session.isOwner}`}
-                  owner={session.isOwner}
-                />
-              </Suspense>
-            </PageBoundary>
-          }
-        />
-        <Route
-          path="/today-work/legacy"
-          element={
-            <>
-              <PageHeader title="Bugünkü İşler — klasik çalışma alanı" />
-              <p>
-                <Link to="/today-work">Modern iş kuyruğuna dön</Link>. Mevcut tamamlama, atama,
-                yenileme ve teklif işlemleri bu çalışma alanında korunur.
-              </p>
-              <PageBoundary resetKey="today-work-legacy">
+    <WorkNavigationProvider key={`${session.email}:${session.isOwner}`}>
+      <AppShell session={session} busy={busy} onLogout={onLogout} onReauth={onReauth}>
+        {error && <p role="alert">{error}</p>}
+        {reauth}
+        <Routes>
+          <Route path="/" element={<OverviewPage owner={session.isOwner} />} />
+          <Route
+            path="/today-work"
+            element={
+              <PageBoundary resetKey="today-work">
                 <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                  <CompatibilityPage key={session.email} page="today-work" />
+                  <TodayWorkPage
+                    key={`${session.email}:${session.isOwner}`}
+                    owner={session.isOwner}
+                  />
                 </Suspense>
               </PageBoundary>
-            </>
-          }
-        />
-        <Route
-          path="/customers"
-          element={
-            <PageBoundary resetKey="customers">
-              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                <CustomerListPage />
-              </Suspense>
-            </PageBoundary>
-          }
-        />
-        <Route
-          path="/customers/:customerId"
-          element={
-            <PageBoundary resetKey="customer-profile">
-              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                <CustomerProfilePage />
-              </Suspense>
-            </PageBoundary>
-          }
-        />
-        <Route
-          path="/customers/new"
-          element={
-            <PageBoundary resetKey="customer-create">
-              <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                <CustomerCreatePage />
-              </Suspense>
-            </PageBoundary>
-          }
-        />
-        {(['legacy', 'advanced'] as const).map((mode) => (
+            }
+          />
           <Route
-            key={mode}
-            path={mode === 'advanced' ? '/customers/:customerId/advanced' : `/customers/${mode}`}
+            path="/today-work/legacy"
             element={
               <>
-                <PageHeader title="Müşteri işlemleri" />
-                <PageBoundary resetKey={`customer-${mode}`}>
+                <PageHeader title="Bugünkü İşler — klasik çalışma alanı" />
+                <p>
+                  <Link to="/today-work">Modern iş kuyruğuna dön</Link>. Mevcut tamamlama, atama,
+                  yenileme ve teklif işlemleri bu çalışma alanında korunur.
+                </p>
+                <PageBoundary resetKey="today-work-legacy">
                   <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                    <CompatibilityPage page="customers" customerMode={mode} />
+                    <CompatibilityPage key={session.email} page="today-work" />
                   </Suspense>
                 </PageBoundary>
               </>
             }
           />
-        ))}
-        {[
-          { path: '/policies', page: <PolicyListPage /> },
-          { path: '/policies/legacy', page: <PolicyLegacyPage /> },
-          { path: '/policies/new', page: <PolicyFormPage /> },
-          { path: '/policies/:policyId/edit', page: <PolicyFormPage /> },
-          { path: '/policies/:policyId', page: <PolicyDetailPage /> },
-        ].map(({ path, page }) => (
           <Route
-            key={path}
-            path={path}
+            path="/customers"
             element={
-              <PageBoundary resetKey={path}>
-                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>{page}</Suspense>
+              <PageBoundary resetKey="customers">
+                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                  <CustomerListPage />
+                </Suspense>
               </PageBoundary>
             }
           />
-        ))}
-        {navigation
-          .filter(
-            (item) =>
-              item.path !== '/' &&
-              item.path !== '/customers' &&
-              item.path !== '/policies' &&
-              item.path !== '/today-work',
-          )
-          .map((item) => (
+          <Route
+            path="/customers/:customerId"
+            element={
+              <PageBoundary resetKey="customer-profile">
+                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                  <CustomerProfilePage />
+                </Suspense>
+              </PageBoundary>
+            }
+          />
+          <Route
+            path="/customers/new"
+            element={
+              <PageBoundary resetKey="customer-create">
+                <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                  <CustomerCreatePage />
+                </Suspense>
+              </PageBoundary>
+            }
+          />
+          {(['legacy', 'advanced'] as const).map((mode) => (
             <Route
-              key={item.path}
-              path={item.path}
+              key={mode}
+              path={mode === 'advanced' ? '/customers/:customerId/advanced' : `/customers/${mode}`}
               element={
-                item.ownerOnly && !session.isOwner ? (
-                  <DeniedPage />
-                ) : (
-                  <>
-                    <PageHeader title={item.label} description={item.description} />
-                    <PageBoundary resetKey={item.path}>
-                      <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                        {item.path === '/personnel' ? (
-                          <PersonnelPage />
-                        ) : (
-                          <CompatibilityPage page={item.path.slice(1) as TabType} />
-                        )}
-                      </Suspense>
-                    </PageBoundary>
-                  </>
-                )
+                <>
+                  <PageHeader title="Müşteri işlemleri" />
+                  <PageBoundary resetKey={`customer-${mode}`}>
+                    <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                      <CompatibilityPage page="customers" customerMode={mode} />
+                    </Suspense>
+                  </PageBoundary>
+                </>
               }
             />
           ))}
-        <Route
-          path="/account/password"
-          element={<PasswordPage renderPassword={renderPassword} />}
-        />
-        <Route
-          path="*"
-          element={
-            <>
-              <PageHeader
-                title="Sayfa bulunamadı"
-                description="Bu bağlantı artık geçerli olmayabilir."
+          {[
+            { path: '/policies', page: <PolicyListPage /> },
+            { path: '/policies/legacy', page: <PolicyLegacyPage /> },
+            { path: '/policies/new', page: <PolicyFormPage /> },
+            { path: '/policies/:policyId/edit', page: <PolicyFormPage /> },
+            { path: '/policies/:policyId', page: <PolicyDetailPage /> },
+          ].map(({ path, page }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <PageBoundary resetKey={path}>
+                  <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>{page}</Suspense>
+                </PageBoundary>
+              }
+            />
+          ))}
+          {navigation
+            .filter(
+              (item) =>
+                item.path !== '/' &&
+                item.path !== '/customers' &&
+                item.path !== '/policies' &&
+                item.path !== '/today-work',
+            )
+            .map((item) => (
+              <Route
+                key={item.path}
+                path={item.path}
+                element={
+                  item.ownerOnly && !session.isOwner ? (
+                    <DeniedPage />
+                  ) : (
+                    <>
+                      <PageHeader title={item.label} description={item.description} />
+                      <PageBoundary resetKey={item.path}>
+                        <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                          {item.path === '/personnel' ? (
+                            <PersonnelPage />
+                          ) : (
+                            <CompatibilityPage page={item.path.slice(1) as TabType} />
+                          )}
+                        </Suspense>
+                      </PageBoundary>
+                    </>
+                  )
+                }
               />
-              <Button asChild variant="outline">
-                <Link to="/">Genel Bakış'a dön</Link>
-              </Button>
-            </>
-          }
-        />
-      </Routes>
-    </AppShell>
+            ))}
+          <Route
+            path="/account/password"
+            element={<PasswordPage renderPassword={renderPassword} />}
+          />
+          <Route
+            path="*"
+            element={
+              <>
+                <PageHeader
+                  title="Sayfa bulunamadı"
+                  description="Bu bağlantı artık geçerli olmayabilir."
+                />
+                <Button asChild variant="outline">
+                  <Link to="/">Genel Bakış'a dön</Link>
+                </Button>
+              </>
+            }
+          />
+        </Routes>
+      </AppShell>
+    </WorkNavigationProvider>
   );
 }

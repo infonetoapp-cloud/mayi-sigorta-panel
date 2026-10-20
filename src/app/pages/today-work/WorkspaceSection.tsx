@@ -7,12 +7,14 @@ export function WorkspaceSection({
   description,
   initialOpen = false,
   pinned = false,
+  onOpenChange,
   children,
 }: {
   title: string;
   description: string;
   initialOpen?: boolean;
   pinned?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
   const id = useId();
@@ -32,7 +34,10 @@ export function WorkspaceSection({
           aria-expanded={open}
           aria-disabled={pinned || undefined}
           onClick={() => {
-            if (!pinned) setExpanded((value) => !value);
+            if (!pinned) {
+              setExpanded((value) => !value);
+              onOpenChange?.(!expanded);
+            }
           }}
         >
           <span>

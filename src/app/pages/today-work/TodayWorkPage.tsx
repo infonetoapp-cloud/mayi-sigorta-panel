@@ -5,7 +5,7 @@ import {
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import type { RenewalStateCode, TodayTaskDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { NavigationDecision } from '../../components/layout/NavigationDecision';
@@ -20,6 +20,12 @@ import { RenewalQuotesSection, type QuoteRisk } from './RenewalQuotesSection';
 import { registerQuotePopGuard } from './quote-navigation';
 import { RenewalOutcomesSection } from './RenewalOutcomesSection';
 import { WorkspaceSection } from './WorkspaceSection';
+import {
+  useWorkNavigation,
+  workUrl,
+  workSectionLabels,
+  type WorkBookmark,
+} from './work-navigation';
 
 const states: Record<RenewalStateCode, string> = {
   CONTACT_PENDING: 'İletişim bekleniyor',
@@ -44,6 +50,32 @@ function due(value: string, timezone: string, dateOnly = false) {
 }
 function Workspace({ owner }: { owner: boolean }) {
   const navigate = useNavigate();
+  const route = useLocation();
+  const navigation = useWorkNavigation();
+  const [bookmark] = useState<WorkBookmark | undefined>(() => {
+    const key: unknown = route.state?.workContext;
+    const saved = navigation?.entries.get(typeof key === 'string' ? key : route.key);
+    if (saved) return saved;
+    const params = new URLSearchParams(route.search);
+    const taskId = params.get('task');
+    if (!taskId) return undefined;
+    const mode = params.get('queue');
+    const matching = [...(navigation?.entries.values() ?? [])]
+      .reverse()
+      .find((entry) => entry.taskId === taskId && entry.queue === mode);
+    if (matching) return matching;
+    const section = Object.entries(workSectionLabels).find(
+      ([id]) => id === params.get('work'),
+    )?.[1];
+    return {
+      taskId,
+      queue: mode === 'UNASSIGNED' || mode === 'REASSIGNMENT' ? mode : 'WORK',
+      pageUrls: [],
+      pageScroll: 0,
+      queueScroll: 0,
+      sections: section ? { [section]: true } : {},
+    };
+  });
   const [leave, setLeave] = useState<(() => void) | null>(null);
   const notice = useRef<HTMLParagraphElement>(null);
   function stay() {
@@ -63,7 +95,7 @@ function Workspace({ owner }: { owner: boolean }) {
   const leaveHeading = useRef<HTMLHeadingElement>(null),
     activeInteraction = useRef<string | null>(null),
     interactionRisk = useRef<{ key: string; risk: InteractionRisk } | null>(null);
-  const queue = useTaskQueue(owner),
+  const queue = useTaskQueue(owner, bookmark),
     [selection, setSelection] = useState<{
       id: string;
       queue: WorkQueue;
@@ -82,6 +114,54 @@ function Workspace({ owner }: { owner: boolean }) {
     selection?.queue === queue.view && selection.authority === queue.authority
       ? items.find((task) => task.taskId === selection.id)
       : undefined;
+  useEffect(() => {
+    if (queue.restoredSelection) setSelection({ ...queue.restoredSelection, queue: queue.view });
+  }, [queue.restoredSelection]);
+  function remember() {
+    if (!selected || !navigation) return;
+    const sections: Record<string, boolean> = {};
+    document.querySelectorAll('.workspace-section').forEach((element) => {
+      const title = element.querySelector('button')?.getAttribute('aria-label');
+      if (title) sections[title] = element.getAttribute('data-open') === 'true';
+    });
+    navigation.entries.set(route.key, {
+      taskId: selected.taskId,
+      queue: queue.view,
+      pageUrls: queue.pageUrls(),
+      pageScroll: scrollY,
+      queueScroll:
+        document.querySelector('.today-queue > [data-slot="card-content"]')?.scrollTop ?? 0,
+      sections,
+    });
+    if (navigation.entries.size > 10)
+      navigation.entries.delete(navigation.entries.keys().next().value!);
+  }
+  function initialSection(title: string, fallback = false) {
+    return bookmark && selected?.taskId === bookmark.taskId
+      ? (bookmark.sections[title] ?? fallback)
+      : fallback;
+  }
+  function sectionHint(id: keyof typeof workSectionLabels, open: boolean) {
+    const params = new URLSearchParams(route.search);
+    if (open) params.set('work', id);
+    else if (params.get('work') === id) params.delete('work');
+    void navigate(
+      { pathname: '/today-work', search: '?' + params },
+      { replace: true, state: route.state },
+    );
+  }
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    if (scrollRestored.current || !selected || selected.taskId !== bookmark?.taskId) return;
+    scrollRestored.current = true;
+    if (!bookmark.pageScroll && !bookmark.queueScroll) return;
+    const frame = requestAnimationFrame(() => {
+      const list = document.querySelector('.today-queue > [data-slot="card-content"]');
+      if (list) list.scrollTop = bookmark.queueScroll;
+      scrollTo(0, bookmark.pageScroll);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected?.taskId, bookmark]);
   const interactionKey = selected
     ? `${queue.view}:${queue.authority}:${selected.taskId}:${selected.renewalId}`
     : null;
@@ -267,6 +347,7 @@ function Workspace({ owner }: { owner: boolean }) {
       guarded(() => {
         setSelection(null);
         queue.change(next);
+        void navigate('/today-work?' + new URLSearchParams({ queue: next }), { replace: true });
       });
     }
   }
@@ -340,6 +421,7 @@ function Workspace({ owner }: { owner: boolean }) {
           </Link>
         </Button>
       </div>
+      {queue.unavailable && <p role="alert">{queue.unavailable}</p>}
       {leave && (
         <NavigationDecision onStay={stay}>
           <h3 id="navigation-decision-title" ref={leaveHeading} tabIndex={-1}>
@@ -459,13 +541,16 @@ function Workspace({ owner }: { owner: boolean }) {
                               aria-pressed={selected?.taskId === task.taskId}
                               onKeyDown={(event) => keyboard(event, task)}
                               onClick={() =>
-                                guarded(() =>
+                                guarded(() => {
                                   setSelection({
                                     id: task.taskId,
                                     queue: queue.view,
                                     authority: queue.authority,
-                                  }),
-                                )
+                                  });
+                                  void navigate(workUrl(task.taskId, queue.view), {
+                                    replace: true,
+                                  });
+                                })
                               }
                             >
                               <strong>{task.customerDisplayName}</strong>
@@ -552,13 +637,21 @@ function Workspace({ owner }: { owner: boolean }) {
                       </div>
                       <nav className="today-context-links" aria-label="Seçili kayıtlar">
                         <Button asChild variant="ghost" size="sm">
-                          <Link to={`/customers/${encodeURIComponent(selected.customerId)}`}>
+                          <Link
+                            to={`/customers/${encodeURIComponent(selected.customerId)}`}
+                            onClick={remember}
+                            state={{ workReturn: route.key }}
+                          >
                             Müşteri profilini aç
                           </Link>
                         </Button>
                         {selected.policyId && (
                           <Button asChild variant="ghost" size="sm">
-                            <Link to={`/policies/${encodeURIComponent(selected.policyId)}`}>
+                            <Link
+                              to={`/policies/${encodeURIComponent(selected.policyId)}`}
+                              onClick={remember}
+                              state={{ workReturn: route.key }}
+                            >
                               Poliçeyi aç
                             </Link>
                           </Button>
@@ -621,7 +714,8 @@ function Workspace({ owner }: { owner: boolean }) {
                       key={'communication-panel:' + interactionKey}
                       title="İletişim"
                       description="Görüşme geçmişi ve müşteri notları"
-                      initialOpen
+                      initialOpen={initialSection('İletişim', true)}
+                      onOpenChange={(open) => sectionHint('communication', open)}
                       pinned={communicationPinned}
                     >
                       <fieldset
@@ -645,6 +739,8 @@ function Workspace({ owner }: { owner: boolean }) {
                       key={'task-panel:' + interactionKey}
                       title="Görev işlemleri"
                       description="Yeni takip planı ve görev sorumlusu"
+                      initialOpen={initialSection('Görev işlemleri')}
+                      onOpenChange={(open) => sectionHint('task', open)}
                       pinned={taskPinned}
                     >
                       <fieldset
@@ -699,6 +795,8 @@ function Workspace({ owner }: { owner: boolean }) {
                       key={'quote-panel:' + interactionKey}
                       title="Teklifler"
                       description="Teklif sürümleri ve gönderildi kaydı"
+                      initialOpen={initialSection('Teklifler')}
+                      onOpenChange={(open) => sectionHint('quotes', open)}
                       pinned={quoteBlocking}
                     >
                       <fieldset disabled={terminalBlocking} className="task-interaction-boundary">
@@ -749,6 +847,8 @@ function Workspace({ owner }: { owner: boolean }) {
                       key={'outcome-panel:' + interactionKey}
                       title="Yenileme sonucu"
                       description="Kazanıldı, yenilenmedi veya geçersiz"
+                      initialOpen={initialSection('Yenileme sonucu')}
+                      onOpenChange={(open) => sectionHint('outcomes', open)}
                       pinned={terminalBlocking}
                     >
                       <RenewalOutcomesSection

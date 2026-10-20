@@ -140,6 +140,45 @@ export function registerTaskRoutes(
     }
   });
 
+  app.get(`${API_PREFIX}/tasks/:taskId/context`, async (c) => {
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    try {
+      const params = new URL(c.req.url).searchParams;
+      if ([...params.keys()].some((key) => params.getAll(key).length !== 1))
+        return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      const { queue = 'WORK' } = z
+        .object({ queue: z.enum(['WORK', 'UNASSIGNED', 'REASSIGNMENT']).optional() })
+        .strict()
+        .parse(c.req.query());
+      const taskId = z
+        .string()
+        .min(1)
+        .max(128)
+        .regex(/^[A-Za-z0-9_-]+$/)
+        .parse(c.req.param('taskId'));
+      const data = await listTodayTasks(
+        authenticated.context,
+        c.env.DB,
+        { limit: 1, ...(queue === 'REASSIGNMENT' ? { needsReassignment: 'true' as const } : {}) },
+        taskId,
+      );
+      const items = queue === 'UNASSIGNED' ? data.unassignedItems : data.items;
+      if (
+        (queue === 'UNASSIGNED' && !data.canSeeUnassigned) ||
+        !items.some((item) => item.taskId === taskId)
+      )
+        return fail(c, 404, 'NOT_FOUND', 'Takip kullanılamıyor veya bu takibi görme yetkiniz yok.');
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({ success: true, data, timestamp: new Date().toISOString() }, 200);
+    } catch (error) {
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      if (error instanceof TaskForbiddenError)
+        return fail(c, 403, 'FORBIDDEN', 'Erişim reddedildi.');
+      return fail(c, 503, 'SERVICE_UNAVAILABLE', 'Takip şu anda doğrulanamıyor. Yeniden deneyin.');
+    }
+  });
+
   app.get(`${API_PREFIX}/renewals/:id/tasks/:taskId/assignment-options`, async (c) => {
     const authenticated = await authenticateAndResolve(c);
     if ('error' in authenticated) return authenticated.error;

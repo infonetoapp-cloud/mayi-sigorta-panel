@@ -1,0 +1,25 @@
+{
+  "tree": "0bd3afdb92f0d812a852a61d1b741223677feff5",
+  "changedPaths": [
+    "MayiSigorta_CRM_Planning_Pack_v2/NIHAI_MIMARI_VE_UYGULAMA_PLANI.md",
+    "src/app/AuthenticatedApp.tsx",
+    "src/app/components/CustomerNotesSection.tsx",
+    "src/app/pages/customers/CustomerNoteWorkspace.tsx",
+    "src/app/pages/customers/CustomerProfilePage.tsx",
+    "src/app/pages/policies/PolicyDetailPage.tsx",
+    "src/app/pages/today-work/TodayWorkPage.tsx",
+    "src/app/pages/today-work/WorkspaceSection.tsx",
+    "src/app/pages/today-work/use-task-queue.ts",
+    "src/app/pages/today-work/work-navigation.tsx",
+    "src/server/tasks/routes.ts",
+    "src/server/tasks/service.ts",
+    "tests/browser/navigation-integrity.smoke.mjs",
+    "tests/customer-note-navigation.ui.test.tsx",
+    "tests/task-context.api.test.ts",
+    "tests/task-navigation.ui.test.tsx",
+    "tests/today-work-modern.ui.test.tsx"
+  ],
+  "sourceRoot": "C:\\Users\\sinan\\Desktop\\panel\\node_modules\\.cache\\phase1-acceptance",
+  "exportedPaths": 643,
+  "excludedUX002SummaryFocusHunk": true
+}

@@ -288,6 +288,7 @@ const needsReassignmentSql = `t.assignee_membership_id IS NOT NULL AND EXISTS(
     AND (previous_m.status IN ('SUSPENDED','INACTIVE') OR previous_u.status<>'ACTIVE'))`;
 
 async function loadTaskPage(input: {
+  readonly exactTaskId?: string;
   readonly context: AuthenticatedUserContext;
   readonly db: D1Database;
   readonly active: ReturnType<typeof activeMembership>;
@@ -384,13 +385,17 @@ async function loadTaskPage(input: {
     );
     values.push(input.active.id, input.active.id);
   }
+  if (input.exactTaskId !== undefined) {
+    where.push('t.id=?');
+    values.push(input.exactTaskId);
+  }
   if (input.cursor) {
     where.push('(t.due_at>? OR (t.due_at=? AND t.id>?))');
     values.push(input.cursor.dueAt, input.cursor.dueAt, input.cursor.taskId);
   }
   values.push(input.limit + 1);
 
-  const result = await input.db
+  const statement = input.db
     .prepare(
       `SELECT t.id AS task_id,t.agency_id,t.customer_id,t.renewal_id,t.title AS task_title,
           t.due_at,t.assignee_membership_id AS task_assignee_membership_id,t.version AS task_version,
@@ -418,8 +423,13 @@ async function loadTaskPage(input: {
        WHERE ${where.join(' AND ')}
        ORDER BY t.due_at ASC,t.id ASC LIMIT ?`,
     )
-    .bind(...values)
-    .all<TodayTaskRow>();
+    .bind(...values);
+  // The exact-context read uses the request-bound batch's live session assertion.
+  // Ordinary queue semantics are unchanged; no portfolio scan or alternate-ID lookup.
+  const result =
+    input.exactTaskId === undefined
+      ? await statement.all<TodayTaskRow>()
+      : (await input.db.batch<TodayTaskRow>([statement]))[0]!;
   if (!result.success || !Array.isArray(result.results)) {
     throw new TaskValidationError('TASK_QUERY_FAILED');
   }
@@ -489,6 +499,7 @@ export async function listTodayTasks(
   context: AuthenticatedUserContext,
   db: D1Database,
   query: TodayTasksQuery,
+  exactTaskId?: string,
 ): Promise<TodayTasksResponseData> {
   const active = activeMembership(context);
   const collectionResource = { agencyId: active.agencyId, isCollection: true };
@@ -561,6 +572,7 @@ export async function listTodayTasks(
   });
   if (unassignedCursor && !canSeeUnassigned) throw new TaskForbiddenError();
   const pageInput = {
+    exactTaskId,
     context,
     db,
     active,

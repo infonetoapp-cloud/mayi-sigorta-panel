@@ -1,0 +1,19 @@
+{
+  "MayiSigorta_CRM_Planning_Pack_v2/NIHAI_MIMARI_VE_UYGULAMA_PLANI.md": "3fcde3a31e38b6533b574da41c1643198098872c",
+  "src/app/AuthenticatedApp.tsx": "12afd58f9e9128348e980a155b3dc8d2fab8365b",
+  "src/app/components/CustomerNotesSection.tsx": "f0f07b4584831ba5c12707b0300db14d4f7dc9eb",
+  "src/app/pages/customers/CustomerNoteWorkspace.tsx": "fef9f9abe07b4c8939e7d0ad3487927cb39a051b",
+  "src/app/pages/customers/CustomerProfilePage.tsx": "f1d6e17b4757c05a32c23197f1d45b66cc76fcc3",
+  "src/app/pages/policies/PolicyDetailPage.tsx": "845b896be2d494a4646a603aae37a04a614191ff",
+  "src/app/pages/today-work/TodayWorkPage.tsx": "3311f8ea14eead1ee2c2b6cb30ce09c69cac26bf",
+  "src/app/pages/today-work/WorkspaceSection.tsx": "6ab1161cf0a6e34a534b80531fe90e785bcbbe14",
+  "src/app/pages/today-work/use-task-queue.ts": "876f1d7c8419ad0ba7b4e0792f5590f84f01b8c8",
+  "src/app/pages/today-work/work-navigation.tsx": "13bdf81296f1f2781190e50a07980206580e8273",
+  "src/server/tasks/routes.ts": "ad4081dc0f2154516ffdf79fe2154492153557bb",
+  "src/server/tasks/service.ts": "4c858fb341fbe5dc5276450459b0584aa5167047",
+  "tests/browser/navigation-integrity.smoke.mjs": "d7cf0de224ec718ca816fb8032389c825c309f8a",
+  "tests/customer-note-navigation.ui.test.tsx": "dd2d5ca542a3ac69a3fb9cbf35ffeb190263894a",
+  "tests/task-context.api.test.ts": "163889f1ab35ad6dfa81307f7fdb077138c62b5b",
+  "tests/task-navigation.ui.test.tsx": "15788193a8dbf0565c8f48d9331971b92d9294d0",
+  "tests/today-work-modern.ui.test.tsx": "4d03fd869dc3b430b52690d2e72d1086c19a5975"
+}

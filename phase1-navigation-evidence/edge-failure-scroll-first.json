@@ -1,0 +1,6 @@
+{
+  "stage": "owner:1440:task-return",
+  "error": "TimeoutError",
+  "message": "page.waitForFunction: Timeout 20000ms exceeded.",
+  "completedCells": 0
+}

@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useCustomerResource } from '../customers/customer-resource';
+import { ReturnToWork } from '../today-work/work-navigation';
 import { policyDate, policyMoney, policyStatusLabel, PolicyReadNotice } from './policy-display';
 const sections = [
   ['general', 'Poliçe bilgileri'],
@@ -36,6 +37,7 @@ function PolicyPage({ id }: { id: string }) {
   }
   return (
     <div className="customer-modern policy-modern">
+      <ReturnToWork />
       <Link className="customer-back-link" to="/policies">
         ← Poliçe listesine dön
       </Link>
@@ -80,6 +82,7 @@ function PolicyPage({ id }: { id: string }) {
               <Link
                 key={key}
                 to={key === 'general' ? `/policies/${encodeURIComponent(id)}` : `?section=${key}`}
+                state={location.state}
                 aria-current={section === key ? 'page' : undefined}
               >
                 {label}
@@ -99,6 +102,7 @@ function PolicyPage({ id }: { id: string }) {
                       <Link
                         className="customer-name"
                         to={`/customers/${encodeURIComponent(policy.customer.id)}`}
+                        state={location.state}
                       >
                         {policy.customer.displayName}
                       </Link>

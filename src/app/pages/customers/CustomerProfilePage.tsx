@@ -1,4 +1,4 @@
-import { Link, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { useEffect, useState } from 'react';
 
 import { ArrowLeft, Settings2, Mail, Phone, MapPin } from 'lucide-react';
@@ -11,6 +11,7 @@ import { CustomerContactSection } from '../../components/CustomerContactSection'
 import { CompanyContactsSection } from '../../components/CompanyContactsSection';
 
 import { useCustomerResource } from './customer-resource';
+import { ReturnToWork } from '../today-work/work-navigation';
 const sections = [
   ['general', 'Genel bilgiler'],
   ['contact', 'İletişim'],
@@ -23,6 +24,7 @@ const date = (value: string) =>
   );
 
 function RelatedPolicies({ customerId }: { customerId: string }) {
+  const route = useLocation();
   const [params, setParams] = useSearchParams();
   const cursor = params.get('after');
   const query = new URLSearchParams({ customerId, pageSize: '20' });
@@ -50,7 +52,11 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
           <ul className="customer-related-list">
             {data.items.map((policy) => (
               <li key={policy.id}>
-                <Link className="customer-name" to={`/policies/${encodeURIComponent(policy.id)}`}>
+                <Link
+                  className="customer-name"
+                  to={`/policies/${encodeURIComponent(policy.id)}`}
+                  state={route.state}
+                >
                   {policy.policyNumber}
                 </Link>
                 <span>
@@ -165,6 +171,7 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
   );
 }
 function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDetailDto }) {
+  const route = useLocation();
   const [customer, setCustomer] = useState(initialCustomer);
   const [params] = useSearchParams();
   const section = sections.some(([key]) => key === params.get('section'))
@@ -176,6 +183,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
   }, [section]);
   return (
     <div className="customer-modern">
+      <ReturnToWork />
       <Link className="customer-back" to="/customers">
         <ArrowLeft size={17} aria-hidden="true" />
         Müşteri listesine dön
@@ -219,7 +227,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           <Link
             key={key}
             to={`?section=${key}`}
-
+            state={route.state}
             aria-current={key === section ? 'page' : undefined}
           >
             {label}

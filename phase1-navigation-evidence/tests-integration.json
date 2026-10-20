@@ -1,0 +1,1668 @@
+{
+  "numTotalTestSuites": 15,
+  "numPassedTestSuites": 15,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 139,
+  "numPassedTests": 139,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1792518829812,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "starts with a compact workspace and never collapses a real communication draft",
+          "status": "passed",
+          "title": "starts with a compact workspace and never collapses a real communication draft",
+          "duration": 586.7405000000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps children mounted and field values intact across clean disclosure changes",
+          "status": "passed",
+          "title": "keeps children mounted and field values intact across clean disclosure changes",
+          "duration": 17.68560000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not hide a pinned dirty draft and stays open after risk clears",
+          "status": "passed",
+          "title": "does not hide a pinned dirty draft and stays open after risk clears",
+          "duration": 8.751099999999951,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not hide a pinned uncertain write and stays open after risk clears",
+          "status": "passed",
+          "title": "does not hide a pinned uncertain write and stays open after risk clears",
+          "duration": 9.147899999999936,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not hide a pinned confirmed write pending readback and stays open after risk clears",
+          "status": "passed",
+          "title": "does not hide a pinned confirmed write pending readback and stays open after risk clears",
+          "duration": 7.987599999999929,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519074715,
+      "endTime": 1792519075344.9875,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/airy-disclosure.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through sidebar",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through sidebar",
+          "duration": 336.13369999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through cancel",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through cancel",
+          "duration": 110.53579999999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps all private draft fields on Stay through list link",
+          "status": "passed",
+          "title": "keeps all private draft fields on Stay through list link",
+          "duration": 120.01229999999987,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "leaves only after explicit draft discard and warns on unload",
+          "status": "passed",
+          "title": "leaves only after explicit draft discard and warns on unload",
+          "duration": 110.33310000000029,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins a pending request then retries the identical uncertain body/key once and navigates after success",
+          "status": "passed",
+          "title": "pins a pending request then retries the identical uncertain body/key once and navigates after success",
+          "duration": 347.9505000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519081153,
+      "endTime": 1792519082178.9504,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/customer-create-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps the exact note input and draft across profile sections without writes",
+          "status": "passed",
+          "title": "keeps the exact note input and draft across profile sections without writes",
+          "duration": 479.60079999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requires an explicit decision before a note can leave its customer",
+          "status": "passed",
+          "title": "requires an explicit decision before a note can leave its customer",
+          "duration": 194.77649999999994,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps a pending request mounted through sections, blocks customer changes and writes once",
+          "status": "passed",
+          "title": "keeps a pending request mounted through sections, blocks customer changes and writes once",
+          "duration": 229.89600000000019,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retains an uncertain frozen note and retries only the original body/key after section switching",
+          "status": "passed",
+          "title": "retains an uncertain frozen note and retries only the original body/key after section switching",
+          "duration": 147.47920000000022,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves a rejected draft and recovers an accepted write using GET only",
+          "status": "passed",
+          "title": "preserves a rejected draft and recovers an accepted write using GET only",
+          "duration": 138.23029999999972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519071679,
+      "endTime": 1792519072869.2302,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/customer-note-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API creates an independent note shared with another employee and attributes it from authenticated identity",
+          "status": "passed",
+          "title": "creates an independent note shared with another employee and attributes it from authenticated identity",
+          "duration": 3139.0951000000023,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API retries sequentially and concurrently without duplicate notes, receipts or audit",
+          "status": "passed",
+          "title": "retries sequentially and concurrently without duplicate notes, receipts or audit",
+          "duration": 6535.4293,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API rejects forged authors, invalid content, missing CSRF and non-JSON or oversized bodies",
+          "status": "passed",
+          "title": "rejects forged authors, invalid content, missing CSRF and non-JSON or oversized bodies",
+          "duration": 2345.8538000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API denies actual cross-agency readers and writers without revealing notes",
+          "status": "passed",
+          "title": "denies actual cross-agency readers and writers without revealing notes",
+          "duration": 1694.1045000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API keeps historical author names after suspension, inactivation and a later display-name change",
+          "status": "passed",
+          "title": "keeps historical author names after suspension, inactivation and a later display-name change",
+          "duration": 2703.0791000000027,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API rolls back note and receipt if audit fails and permits a clean same-key retry",
+          "status": "passed",
+          "title": "rolls back note and receipt if audit fails and permits a clean same-key retry",
+          "duration": 2865.090799999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API paginates by timestamp and ID with no duplicates and binds cursors to customer and reader",
+          "status": "passed",
+          "title": "paginates by timestamp and ID with no duplicates and binds cursors to customer and reader",
+          "duration": 9640.7552,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API denies new writes and completed replay after write permission revocation, while read-only history remains accessible",
+          "status": "passed",
+          "title": "denies new writes and completed replay after write permission revocation, while read-only history remains accessible",
+          "duration": 4693.2785,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API does not let a customized ASSIGNED customer reader access notes owned by another employee",
+          "status": "passed",
+          "title": "does not let a customized ASSIGNED customer reader access notes owned by another employee",
+          "duration": 1755.1716000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API fails closed on corrupted receipt output and preserves immutable note content",
+          "status": "passed",
+          "title": "fails closed on corrupted receipt output and preserves immutable note content",
+          "duration": 6035.2448,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API rechecks permission loss inside the atomic batch and commits no note, receipt or audit",
+          "status": "passed",
+          "title": "rechecks permission loss inside the atomic batch and commits no note, receipt or audit",
+          "duration": 1612.872199999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API denies list disclosure when the current session is revoked immediately before the final note read",
+          "status": "passed",
+          "title": "denies list disclosure when the current session is revoked immediately before the final note read",
+          "duration": 2642.825199999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API denies replay disclosure when the current session is revoked immediately before the final note read",
+          "status": "passed",
+          "title": "denies replay disclosure when the current session is revoked immediately before the final note read",
+          "duration": 2507.260699999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Shared customer notes on real local D1/API"],
+          "fullName": "Shared customer notes on real local D1/API allows archived history and exact completed retry but no new archived-customer writes",
+          "status": "passed",
+          "title": "allows archived history and exact completed retry but no new archived-customer writes",
+          "duration": 3959.9214000000065,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792518965482,
+      "endTime": 1792519017618.9214,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/customer-notes.api.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI shows readable historical author, Istanbul time and safe text independent of renewal records",
+          "status": "passed",
+          "title": "shows readable historical author, Istanbul time and safe text independent of renewal records",
+          "duration": 153.6253999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI preserves a draft and reuses exact body/key after an uncertain write",
+          "status": "passed",
+          "title": "preserves a draft and reuses exact body/key after an uncertain write",
+          "duration": 73.63409999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI retries the exact failed history page without discarding earlier notes or drafts",
+          "status": "passed",
+          "title": "retries the exact failed history page without discarding earlier notes or drafts",
+          "duration": 72.04930000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Customer-wide notes UI"],
+          "fullName": "Customer-wide notes UI suppresses stale customer responses after profile navigation",
+          "status": "passed",
+          "title": "suppresses stale customer responses after profile navigation",
+          "duration": 26.819400000000087,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519076714,
+      "endTime": 1792519077039.8193,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/customer-notes.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "edits contact fields inline and refreshes the profile header only after confirmed readback",
+          "status": "passed",
+          "title": "edits contact fields inline and refreshes the profile header only after confirmed readback",
+          "duration": 309.1089000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not offer modern contact editing on archived customers",
+          "status": "passed",
+          "title": "does not offer modern contact editing on archived customers",
+          "duration": 56.45479999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "hides an already loaded profile immediately while the next profile loads",
+          "status": "passed",
+          "title": "hides an already loaded profile immediately while the next profile loads",
+          "duration": 56.35460000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retries the exact failed cursor and restarts filtering without old page records",
+          "status": "passed",
+          "title": "retries the exact failed cursor and restarts filtering without old page records",
+          "duration": 152.85539999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows empty and permission-denied lists without reflecting server diagnostics",
+          "status": "passed",
+          "title": "shows empty and permission-denied lists without reflecting server diagnostics",
+          "duration": 57.901600000000144,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses the same notes mutation key/body on an uncertain write in the full-page workspace",
+          "status": "passed",
+          "title": "uses the same notes mutation key/body on an uncertain write in the full-page workspace",
+          "duration": 110.42229999999972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows bounded server-paged customers with profile links and server search/type filtering",
+          "status": "passed",
+          "title": "shows bounded server-paged customers with profile links and server search/type filtering",
+          "duration": 67.70269999999982,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "never renders prior customer data while switching or after a late response",
+          "status": "passed",
+          "title": "never renders prior customer data while switching or after a late response",
+          "duration": 37.56370000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 403 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 403 without sensitive fields",
+          "duration": 12.009799999999814,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 404 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 404 without sensitive fields",
+          "duration": 16.215099999999893,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "renders safe profile denial/error 500 without sensitive fields",
+          "status": "passed",
+          "title": "renders safe profile denial/error 500 without sensitive fields",
+          "duration": 16.662599999999657,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "dispatches session end on unauthorized profile reads",
+          "status": "passed",
+          "title": "dispatches session end on unauthorized profile reads",
+          "duration": 13.10550000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519023463,
+      "endTime": 1792519024370.1055,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/customer-pages.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "runs a quote POP guard before the later Router listener and releases it on cleanup",
+          "status": "passed",
+          "title": "runs a quote POP guard before the later Router listener and releases it on cleanup",
+          "duration": 3.366399999999885,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not let an old workspace cleanup clear the new workspace guard",
+          "status": "passed",
+          "title": "does not let an old workspace cleanup clear the new workspace guard",
+          "duration": 0.40010000000006585,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519083424,
+      "endTime": 1792519083427.4001,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/quote-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "loads no eager quotes and preserves independently authorized communication/task sections when quote read is denied",
+          "status": "passed",
+          "title": "loads no eager quotes and preserves independently authorized communication/task sections when quote read is denied",
+          "duration": 553.0826000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves the communication draft, then pins an uncertain quote attempt through task/queue/refresh/legacy navigation",
+          "status": "passed",
+          "title": "preserves the communication draft, then pins an uncertain quote attempt through task/queue/refresh/legacy navigation",
+          "duration": 797.5789,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "validates quote money exactly, preserves default expiry precision and rejects invalid dates/installments",
+          "status": "passed",
+          "title": "validates quote money exactly, preserves default expiry precision and rejects invalid dates/installments",
+          "duration": 13.296400000000176,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not silently lose an unresolved quote through a sidebar link or browser history",
+          "status": "passed",
+          "title": "does not silently lose an unresolved quote through a sidebar link or browser history",
+          "duration": 419.4839999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "loads quote history only on demand and creates an explicitly confirmed draft with server readback proof",
+          "status": "passed",
+          "title": "loads quote history only on demand and creates an explicitly confirmed draft with server readback proof",
+          "duration": 48.129799999999705,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "locks insurer/product identity in immutable version mode; alternatives require a new quote",
+          "status": "passed",
+          "title": "locks insurer/product identity in immutable version mode; alternatives require a new quote",
+          "duration": 80.99049999999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves authorized read-only quote history when catalog access is denied without inventing labels",
+          "status": "passed",
+          "title": "preserves authorized read-only quote history when catalog access is denied without inventing labels",
+          "duration": 16.425500000000284,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps quote CAS separate from the historical version number",
+          "status": "passed",
+          "title": "keeps quote CAS separate from the historical version number",
+          "duration": 74.46889999999985,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates a new immutable version with quote CAS only and never edits persisted version controls",
+          "status": "passed",
+          "title": "creates a new immutable version with quote CAS only and never edits persisted version controls",
+          "duration": 79.04019999999946,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins create target/body/expiry/key and prevents competing double writes after lost/429 responses",
+          "status": "passed",
+          "title": "pins create target/body/expiry/key and prevents competing double writes after lost/429 responses",
+          "duration": 72.18149999999969,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins version target/body/expiry/key and prevents competing double writes after lost/429 responses",
+          "status": "passed",
+          "title": "pins version target/body/expiry/key and prevents competing double writes after lost/429 responses",
+          "duration": 77.36409999999978,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses GET-only recovery for confirmed create write with failed readback",
+          "status": "passed",
+          "title": "uses GET-only recovery for confirmed create write with failed readback",
+          "duration": 94.70749999999953,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses GET-only recovery for confirmed version write with failed readback",
+          "status": "passed",
+          "title": "uses GET-only recovery for confirmed version write with failed readback",
+          "duration": 91.54629999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched quoteId evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched quoteId evidence, and never repeats a confirmed write",
+          "duration": 94.89810000000034,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched versionId evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched versionId evidence, and never repeats a confirmed write",
+          "duration": 76.97100000000046,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched versionNumber evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched versionNumber evidence, and never repeats a confirmed write",
+          "duration": 80.09370000000035,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched insurer evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched insurer evidence, and never repeats a confirmed write",
+          "duration": 76.07989999999972,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched product evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched product evidence, and never repeats a confirmed write",
+          "duration": 83.91319999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched premium evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched premium evidence, and never repeats a confirmed write",
+          "duration": 83.90299999999934,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not accept GET200 with mismatched pointer evidence, and never repeats a confirmed write",
+          "status": "passed",
+          "title": "does not accept GET200 with mismatched pointer evidence, and never repeats a confirmed write",
+          "duration": 94.46569999999974,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects a different quote ID in version POST evidence as uncertain instead of switching targets",
+          "status": "passed",
+          "title": "rejects a different quote ID in version POST evidence as uncertain instead of switching targets",
+          "duration": 72.32549999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves create draft and requires explicit current-state comparison and reconfirmation after409",
+          "status": "passed",
+          "title": "preserves create draft and requires explicit current-state comparison and reconfirmation after409",
+          "duration": 126.16209999999955,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves version draft and requires explicit current-state comparison and reconfirmation after409",
+          "status": "passed",
+          "title": "preserves version draft and requires explicit current-state comparison and reconfirmation after409",
+          "duration": 168.8164999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not retarget a missing or accepted quote after an authorized conflict comparison",
+          "status": "passed",
+          "title": "does not retarget a missing or accepted quote after an authorized conflict comparison",
+          "duration": 94.98430000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves safe draft state after 400 without displaying raw errors or inferring write success",
+          "status": "passed",
+          "title": "preserves safe draft state after 400 without displaying raw errors or inferring write success",
+          "duration": 90.53150000000005,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves safe draft state after 403 without displaying raw errors or inferring write success",
+          "status": "passed",
+          "title": "preserves safe draft state after 403 without displaying raw errors or inferring write success",
+          "duration": 87.78040000000055,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves safe draft state after 404 without displaying raw errors or inferring write success",
+          "status": "passed",
+          "title": "preserves safe draft state after 404 without displaying raw errors or inferring write success",
+          "duration": 97.52999999999975,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps accepted history read-only and excludes send/accept/reject actions",
+          "status": "passed",
+          "title": "keeps accepted history read-only and excludes send/accept/reject actions",
+          "duration": 12.954600000000028,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps original renewal snapshot during ordinary props refresh and requires explicit confirmation",
+          "status": "passed",
+          "title": "keeps original renewal snapshot during ordinary props refresh and requires explicit confirmation",
+          "duration": 66.48520000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores delayed history401 after changing selected renewal without contaminating the next task",
+          "status": "passed",
+          "title": "ignores delayed history401 after changing selected renewal without contaminating the next task",
+          "duration": 19.754399999999805,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores delayed csrf401 after changing selected renewal without contaminating the next task",
+          "status": "passed",
+          "title": "ignores delayed csrf401 after changing selected renewal without contaminating the next task",
+          "duration": 54.55239999999958,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores delayed post401 after changing selected renewal without contaminating the next task",
+          "status": "passed",
+          "title": "ignores delayed post401 after changing selected renewal without contaminating the next task",
+          "duration": 108.89159999999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores delayed readback401 after changing selected renewal without contaminating the next task",
+          "status": "passed",
+          "title": "ignores delayed readback401 after changing selected renewal without contaminating the next task",
+          "duration": 50.07920000000013,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "pins revisions to the first immutable identity even when a legacy current version diverges",
+          "status": "passed",
+          "title": "pins revisions to the first immutable identity even when a legacy current version diverges",
+          "duration": 84.48030000000017,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates a different insurer/product alternative only as a new Quote, not a revision",
+          "status": "passed",
+          "title": "creates a different insurer/product alternative only as a new Quote, not a revision",
+          "duration": 95.77350000000024,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792518937152,
+      "endTime": 1792518941391.7734,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/renewal-quotes-modern.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API returns only authorized open renewal tasks with minimal customer and policy context",
+          "status": "passed",
+          "title": "returns only authorized open renewal tasks with minimal customer and policy context",
+          "duration": 1731.2799000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not report an empty Today’s Work page when the database query fails",
+          "status": "passed",
+          "title": "does not report an empty Today’s Work page when the database query fails",
+          "duration": 1669.8309000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API filters ASSIGNED collections by persisted Renewal/Customer ownership and hides the unassigned queue",
+          "status": "passed",
+          "title": "filters ASSIGNED collections by persisted Renewal/Customer ownership and hides the unassigned queue",
+          "duration": 1019.9095000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not let Customer assignment expose an unassigned Task to an ASSIGNED member",
+          "status": "passed",
+          "title": "does not let Customer assignment expose an unassigned Task to an ASSIGNED member",
+          "duration": 1167.417800000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API limits assignment options to active members with linked Renewal and Task read access",
+          "status": "passed",
+          "title": "limits assignment options to active members with linked Renewal and Task read access",
+          "duration": 711.3734000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not present an empty assignee list when the assignment query fails",
+          "status": "passed",
+          "title": "does not present an empty assignee list when the assignment query fails",
+          "duration": 1577.208300000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not disclose assignment options outside the current Renewal scope",
+          "status": "passed",
+          "title": "does not disclose assignment options outside the current Renewal scope",
+          "duration": 543.2250000000022,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API paginates deterministically within the authorized task collection",
+          "status": "passed",
+          "title": "paginates deterministically within the authorized task collection",
+          "duration": 4400.166499999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rejects malformed task pagination cursors",
+          "status": "passed",
+          "title": "rejects malformed task pagination cursors",
+          "duration": 711.8012999999992,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API accepts a bound-shape cursor longer than 256 characters for normal UUID identifiers",
+          "status": "passed",
+          "title": "accepts a bound-shape cursor longer than 256 characters for normal UUID identifiers",
+          "duration": 583.007399999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API atomically assigns both Renewal and primary Task; exact retry creates one audit and changed input conflicts",
+          "status": "passed",
+          "title": "atomically assigns both Renewal and primary Task; exact retry creates one audit and changed input conflicts",
+          "duration": 3874.6453000000038,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rolls back Renewal assignment, Task assignment, receipt, and audit if the Task write fails",
+          "status": "passed",
+          "title": "rolls back Renewal assignment, Task assignment, receipt, and audit if the Task write fails",
+          "duration": 1254.8931999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API denies unknown, inactive, and cross-agency assignees without changing either record",
+          "status": "passed",
+          "title": "denies unknown, inactive, and cross-agency assignees without changing either record",
+          "duration": 4839.775499999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API completes the primary Task only with an atomic replacement follow-up and exact replay",
+          "status": "passed",
+          "title": "completes the primary Task only with an atomic replacement follow-up and exact replay",
+          "duration": 4728.318299999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rolls back primary Task completion when replacement Task insertion fails",
+          "status": "passed",
+          "title": "rolls back primary Task completion when replacement Task insertion fails",
+          "duration": 1314.550599999995,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rolls back completion, replacement, receipt, and both audit events when audit insertion fails",
+          "status": "passed",
+          "title": "rolls back completion, replacement, receipt, and both audit events when audit insertion fails",
+          "duration": 1837.737500000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rolls back zero-row Task and Renewal completion comparisons without an orphan replacement",
+          "status": "passed",
+          "title": "rolls back zero-row Task and Renewal completion comparisons without an orphan replacement",
+          "duration": 2750.729100000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API concurrent exact completion retries converge on one replacement Task and one receipt",
+          "status": "passed",
+          "title": "concurrent exact completion retries converge on one replacement Task and one receipt",
+          "duration": 2890.371500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API lets an ASSIGNED member replace only their linked follow-up",
+          "status": "passed",
+          "title": "lets an ASSIGNED member replace only their linked follow-up",
+          "duration": 3710.103900000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not disclose an unassigned Renewal task to an ASSIGNED member",
+          "status": "passed",
+          "title": "does not disclose an unassigned Renewal task to an ASSIGNED member",
+          "duration": 274.0318000000043,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API does not let a customer assignment grant access to another member’s assigned Task",
+          "status": "passed",
+          "title": "does not let a customer assignment grant access to another member’s assigned Task",
+          "duration": 2213.7946999999986,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API assigns an unassigned queue follow-up and its Renewal together to an active member",
+          "status": "passed",
+          "title": "assigns an unassigned queue follow-up and its Renewal together to an active member",
+          "duration": 2357.186600000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API rechecks live OWNER authority before returning a completed assignment replay",
+          "status": "passed",
+          "title": "rechecks live OWNER authority before returning a completed assignment replay",
+          "duration": 2620.247099999993,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API omits HEALTH follow-up work unless policy.health.read is allowed",
+          "status": "passed",
+          "title": "omits HEALTH follow-up work unless policy.health.read is allowed",
+          "duration": 3279.1733999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API shares regular records and attributed interactions while enforcing private work despite legacy AGENCY task grants",
+          "status": "passed",
+          "title": "shares regular records and attributed interactions while enforcing private work despite legacy AGENCY task grants",
+          "duration": 20262.383,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["M3-T02 scoped Today’s Work API"],
+          "fullName": "M3-T02 scoped Today’s Work API exposes suspended assignee work only in the owner reassignment view and keeps unassigned separate",
+          "status": "passed",
+          "title": "exposes suspended assignee work only in the owner reassignment view and keeps unassigned separate",
+          "duration": 9794.300500000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792518852744,
+      "endTime": 1792518934876.3005,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/renewals.m3-t02-tasks-api.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "returns exact authorized Task A and no unrelated Task B with private no-store",
+          "status": "passed",
+          "title": "returns exact authorized Task A and no unrelated Task B with private no-store",
+          "duration": 1889.4932000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "allows OWNER to read exact A or B but does not expose B to another MEMBER",
+          "status": "passed",
+          "title": "allows OWNER to read exact A or B but does not expose B to another MEMBER",
+          "duration": 4704.978500000001,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects unauthorized queues, duplicate filters, unknown filters and malformed identifiers",
+          "status": "passed",
+          "title": "rejects unauthorized queues, duplicate filters, unknown filters and malformed identifiers",
+          "duration": 2645.9684000000016,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not replace completed A with another primary Task or return a closed record",
+          "status": "passed",
+          "title": "does not replace completed A with another primary Task or return a closed record",
+          "duration": 1832.7843999999968,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "revalidates reassignment instead of restoring the previous employee authority",
+          "status": "passed",
+          "title": "revalidates reassignment instead of restoring the previous employee authority",
+          "duration": 1902.1247000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not disclose cross-agency or HEALTH context through a known exact ID",
+          "status": "passed",
+          "title": "does not disclose cross-agency or HEALTH context through a known exact ID",
+          "duration": 4832.632599999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "fails closed when the session is revoked at the final exact-context batch",
+          "status": "passed",
+          "title": "fails closed when the session is revoked at the final exact-context batch",
+          "duration": 2215.157999999996,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "denies a revoked permission/session without returning cached context",
+          "status": "passed",
+          "title": "denies a revoked permission/session without returning cached context",
+          "duration": 671.7716,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519049107,
+      "endTime": 1792519069802.7715,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/task-context.api.test.ts"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "restores exactly Task A after customer navigation and browser Back",
+          "status": "passed",
+          "title": "restores exactly Task A after customer navigation and browser Back",
+          "duration": 322.4322999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "supports a direct link and a fresh authorized read instead of first-row selection",
+          "status": "passed",
+          "title": "supports a direct link and a fresh authorized read instead of first-row selection",
+          "duration": 40.48720000000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "opens the relevant section from a nonsensitive reload/deep-link hint",
+          "status": "passed",
+          "title": "opens the relevant section from a nonsensitive reload/deep-link hint",
+          "duration": 75.94900000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows unavailable when exact A is closed or unauthorized without selecting B",
+          "status": "passed",
+          "title": "shows unavailable when exact A is closed or unauthorized without selecting B",
+          "duration": 24.55249999999978,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "restores open workspace sections through explicit return and supports browser Forward",
+          "status": "passed",
+          "title": "restores open workspace sections through explicit return and supports browser Forward",
+          "duration": 231.20519999999988,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519078880,
+      "endTime": 1792519079574.205,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/task-navigation.ui.test.tsx"
+    },
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "mounts the real today route and replaces private selection when the authenticated employee changes",
+          "status": "passed",
+          "title": "mounts the real today route and replaces private selection when the authenticated employee changes",
+          "duration": 559.6332,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps today navigation active for the explicit legacy compatibility route",
+          "status": "passed",
+          "title": "keeps today navigation active for the explicit legacy compatibility route",
+          "duration": 16.02500000000009,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ends the current session when the reused statistics endpoint returns401",
+          "status": "passed",
+          "title": "ends the current session when the reused statistics endpoint returns401",
+          "duration": 48.33550000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "shows compact buckets and selects only loaded DTO data without a task detail fetch",
+          "status": "passed",
+          "title": "shows compact buckets and selects only loaded DTO data without a task detail fetch",
+          "duration": 106.54629999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps independent cursors and retries the exact failed page",
+          "status": "passed",
+          "title": "keeps independent cursors and retries the exact failed page",
+          "duration": 175.70829999999978,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selected task, cached queues and statistics on invalidated/denied paging 400",
+          "status": "passed",
+          "title": "clears selected task, cached queues and statistics on invalidated/denied paging 400",
+          "duration": 118.31190000000015,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selected task, cached queues and statistics on invalidated/denied paging 401",
+          "status": "passed",
+          "title": "clears selected task, cached queues and statistics on invalidated/denied paging 401",
+          "duration": 109.08950000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selected task, cached queues and statistics on invalidated/denied paging 403",
+          "status": "passed",
+          "title": "clears selected task, cached queues and statistics on invalidated/denied paging 403",
+          "duration": 109.25669999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selected task, cached queues and statistics on invalidated/denied paging 404",
+          "status": "passed",
+          "title": "clears selected task, cached queues and statistics on invalidated/denied paging 404",
+          "duration": 110.40020000000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selected task, cached queues and statistics on invalidated/denied paging 409",
+          "status": "passed",
+          "title": "clears selected task, cached queues and statistics on invalidated/denied paging 409",
+          "duration": 108.03629999999976,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selection when changing queues and never selects an unloaded task or auto-reassigns history",
+          "status": "passed",
+          "title": "clears selection when changing queues and never selects an unloaded task or auto-reassigns history",
+          "duration": 180.26009999999997,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "ignores late401 paging after queue change without clearing the current session or new selection",
+          "status": "passed",
+          "title": "ignores late401 paging after queue change without clearing the current session or new selection",
+          "duration": 86.7856999999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "clears selection on refresh and retries the failed base URL, not an old next cursor",
+          "status": "passed",
+          "title": "clears selection on refresh and retries the failed base URL, not an old next cursor",
+          "duration": 170.48250000000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "supports keyboard focus and switches selected overview without detail requests",
+          "status": "passed",
+          "title": "supports keyboard focus and switches selected overview without detail requests",
+          "duration": 131.86720000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not offer privileged queues to a MEMBER even if unrelated capabilities appear",
+          "status": "passed",
+          "title": "does not offer privileged queues to a MEMBER even if unrelated capabilities appear",
+          "duration": 28.226400000000012,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not reuse old employee data or late errors after the session-keyed page is remounted",
+          "status": "passed",
+          "title": "does not reuse old employee data or late errors after the session-keyed page is remounted",
+          "duration": 114.82049999999981,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "uses server statistical totals rather than visible page counts and keeps MEMBER self-only",
+          "status": "passed",
+          "title": "uses server statistical totals rather than visible page counts and keeps MEMBER self-only",
+          "duration": 89.98709999999983,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "suppresses a late statistics401 after the statistics view is unmounted",
+          "status": "passed",
+          "title": "suppresses a late statistics401 after the statistics view is unmounted",
+          "duration": 114.95900000000029,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792519019318,
+      "endTime": 1792519021697.959,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel/node_modules/.cache/phase1-acceptance/tests/today-work-modern.ui.test.tsx"
+    }
+  ]
+}
