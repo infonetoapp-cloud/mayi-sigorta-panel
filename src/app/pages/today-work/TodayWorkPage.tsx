@@ -19,6 +19,7 @@ import { TaskOperationsSection, type TaskOperationRisk } from './TaskOperationsS
 import { RenewalQuotesSection, type QuoteRisk } from './RenewalQuotesSection';
 import { registerQuotePopGuard } from './quote-navigation';
 import { RenewalOutcomesSection } from './RenewalOutcomesSection';
+import { WorkspaceSection } from './WorkspaceSection';
 
 const states: Record<RenewalStateCode, string> = {
   CONTACT_PENDING: 'İletişim bekleniyor',
@@ -57,6 +58,8 @@ function Workspace({ owner }: { owner: boolean }) {
   const terminalRisk = useRef<{ key: string; risk: TaskOperationRisk } | null>(null);
   const [terminalBlocking, setTerminalBlocking] = useState(false);
   const [quoteBlocking, setQuoteBlocking] = useState(false);
+  const [communicationPinned, setCommunicationPinned] = useState(false);
+  const [taskPinned, setTaskPinned] = useState(false);
   const leaveHeading = useRef<HTMLHeadingElement>(null),
     activeInteraction = useRef<string | null>(null),
     interactionRisk = useRef<{ key: string; risk: InteractionRisk } | null>(null);
@@ -95,6 +98,8 @@ function Workspace({ owner }: { owner: boolean }) {
     setTerminalBlocking(false);
     setQuoteBlocking(false);
     setOperationUnresolved(false);
+    setCommunicationPinned(false);
+    setTaskPinned(false);
   }, [queue.authority, queue.view]);
   function guarded(action: () => void) {
     if (
@@ -524,7 +529,7 @@ function Workspace({ owner }: { owner: boolean }) {
                 {selected ? (
                   <>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => {
                         guarded(() => {
                           returnFocus.current = true;
@@ -534,155 +539,235 @@ function Workspace({ owner }: { owner: boolean }) {
                     >
                       Görev listesine dön
                     </Button>
-                    <h3>{selected.title}</h3>
-                    <nav className="today-context-links" aria-label="Seçili kayıtlar">
-                      <Button asChild variant="outline">
-                        <Link to={`/customers/${encodeURIComponent(selected.customerId)}`}>
-                          Müşteri profilini aç
-                        </Link>
-                      </Button>
-                      {selected.policyId && (
-                        <Button asChild variant="outline">
-                          <Link to={`/policies/${encodeURIComponent(selected.policyId)}`}>
-                            Poliçeyi aç
+                    <section className="today-summary" aria-label="Özet">
+                      <div className="today-summary-heading">
+                        <h3>{selected.title}</h3>
+                        <span className="today-status" data-kind={selected.bucket}>
+                          {selected.bucket === 'OVERDUE'
+                            ? 'Geciken'
+                            : selected.bucket === 'TODAY'
+                              ? 'Bugün'
+                              : 'Yaklaşan'}
+                        </span>
+                      </div>
+                      <nav className="today-context-links" aria-label="Seçili kayıtlar">
+                        <Button asChild variant="ghost" size="sm">
+                          <Link to={`/customers/${encodeURIComponent(selected.customerId)}`}>
+                            Müşteri profilini aç
                           </Link>
                         </Button>
-                      )}
-                    </nav>
-                    <dl className="today-task-facts">
-                      <div>
-                        <dt>Vade zamanı</dt>
-                        <dd>{due(selected.dueAt, queue.data.timezone)}</dd>
-                      </div>
-                      <div>
-                        <dt>Kayıtlı iş aşaması</dt>
-                        <dd>{states[selected.renewalState] ?? selected.renewalState}</dd>
-                      </div>
-                      {selected.policyNumber && (
+                        {selected.policyId && (
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={`/policies/${encodeURIComponent(selected.policyId)}`}>
+                              Poliçeyi aç
+                            </Link>
+                          </Button>
+                        )}
+                      </nav>
+                      <dl className="today-task-facts">
                         <div>
-                          <dt>Poliçe numarası</dt>
-                          <dd>{selected.policyNumber}</dd>
+                          <dt>Vade zamanı</dt>
+                          <dd>{due(selected.dueAt, queue.data.timezone)}</dd>
                         </div>
-                      )}
-                      {selected.policyEndDate && (
                         <div>
-                          <dt>Poliçe bitişi</dt>
-                          <dd>{due(selected.policyEndDate, queue.data.timezone, true)}</dd>
+                          <dt>Kayıtlı iş aşaması</dt>
+                          <dd>
+                            <span className="today-stage">
+                              {states[selected.renewalState] ?? selected.renewalState}
+                            </span>
+                          </dd>
                         </div>
+                        {selected.policyNumber && (
+                          <div>
+                            <dt>Poliçe numarası</dt>
+                            <dd>{selected.policyNumber}</dd>
+                          </div>
+                        )}
+                        {selected.policyEndDate && (
+                          <div>
+                            <dt>Poliçe bitişi</dt>
+                            <dd>{due(selected.policyEndDate, queue.data.timezone, true)}</dd>
+                          </div>
+                        )}
+                        {selected.customerPhone && (
+                          <div>
+                            <dt>Telefon</dt>
+                            <dd>{selected.customerPhone}</dd>
+                          </div>
+                        )}
+                        {selected.customerEmail && (
+                          <div>
+                            <dt>E-posta</dt>
+                            <dd>{selected.customerEmail}</dd>
+                          </div>
+                        )}
+                      </dl>
+                      <details className="workspace-help">
+                        <summary>İş aşaması ve faaliyet kayıtları</summary>
+                        <p className="today-state-help">
+                          İş aşaması, görüşme ve teklif kayıtlarından ayrıdır. Gerçek temas ve
+                          gönderildi beyanları aşağıdaki yetkili geçmişte gösterilir; bu kayıtlar
+                          aşamayı otomatik değiştirmez.
+                        </p>
+                      </details>
+                      {selected.needsReassignment && (
+                        <p>
+                          Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik
+                          değiştirilmez.
+                        </p>
                       )}
-                      {selected.customerPhone && (
-                        <div>
-                          <dt>Telefon</dt>
-                          <dd>{selected.customerPhone}</dd>
-                        </div>
-                      )}
-                      {selected.customerEmail && (
-                        <div>
-                          <dt>E-posta</dt>
-                          <dd>{selected.customerEmail}</dd>
-                        </div>
-                      )}
-                    </dl>
-                    <p className="today-state-help">
-                      İş aşaması, görüşme ve teklif kayıtlarından ayrıdır. Gerçek temas ve
-                      gönderildi beyanları aşağıdaki yetkili geçmişte gösterilir; bu kayıtlar
-                      aşamayı otomatik değiştirmez.
-                    </p>
-                    {selected.needsReassignment && (
-                      <p>
-                        Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik değiştirilmez.
-                      </p>
-                    )}
-                    <fieldset
-                      disabled={operationUnresolved || quoteBlocking || terminalBlocking}
-                      className="task-interaction-boundary"
+                    </section>
+                    <WorkspaceSection
+                      key={'communication-panel:' + interactionKey}
+                      title="İletişim"
+                      description="Görüşme geçmişi ve müşteri notları"
+                      initialOpen
+                      pinned={communicationPinned}
                     >
-                      <legend className="sr-only">İletişim bölümü</legend>
-                      <RenewalInteractionsSection
-                        key={interactionKey}
-                        renewalId={selected.renewalId}
-                        onRiskChange={(risk) => {
-                          if (activeInteraction.current === interactionKey)
-                            interactionRisk.current = { key: interactionKey!, risk };
-                        }}
-                      />
-                    </fieldset>
-                    <fieldset
-                      disabled={quoteBlocking || terminalBlocking}
-                      className="task-interaction-boundary"
+                      <fieldset
+                        disabled={operationUnresolved || quoteBlocking || terminalBlocking}
+                        className="task-interaction-boundary"
+                      >
+                        <legend className="sr-only">İletişim bölümü</legend>
+                        <RenewalInteractionsSection
+                          key={interactionKey}
+                          renewalId={selected.renewalId}
+                          onRiskChange={(risk) => {
+                            if (activeInteraction.current === interactionKey) {
+                              interactionRisk.current = { key: interactionKey!, risk };
+                              setCommunicationPinned(risk !== 'clean');
+                            }
+                          }}
+                        />
+                      </fieldset>
+                    </WorkspaceSection>
+                    <WorkspaceSection
+                      key={'task-panel:' + interactionKey}
+                      title="Görev işlemleri"
+                      description="Yeni takip planı ve görev sorumlusu"
+                      pinned={taskPinned}
                     >
-                      <legend className="sr-only">Görev işlemleri alanı</legend>
-                      <TaskOperationsSection
-                        key={'operations:' + interactionKey}
+                      <fieldset
+                        disabled={quoteBlocking || terminalBlocking}
+                        className="task-interaction-boundary"
+                      >
+                        <legend className="sr-only">Görev işlemleri alanı</legend>
+                        <TaskOperationsSection
+                          key={'operations:' + interactionKey}
+                          task={selected}
+                          read={(signal) => queue.readOperation(selected.taskId, signal)}
+                          canOperate={() => {
+                            if (activeInteraction.current !== interactionKey) return false;
+                            if (
+                              terminalRisk.current?.key === interactionKey &&
+                              (terminalRisk.current.risk.dirty ||
+                                terminalRisk.current.risk.unresolved)
+                            )
+                              return false;
+                            if (
+                              quoteRisk.current?.key === interactionKey &&
+                              (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved)
+                            ) {
+                              setOperationMessage(
+                                'Önce teklif taslağını açıkça kapatın veya teklif yazımını doğrulayın.',
+                              );
+                              return false;
+                            }
+                            if (
+                              interactionRisk.current?.key === interactionKey &&
+                              interactionRisk.current.risk !== 'clean'
+                            ) {
+                              setOperationMessage(
+                                'İletişim taslağını açıkça kapatın veya iletişim yazımını doğrulayın. Görev işlemi iletişim taslağını/anahtarını silmez.',
+                              );
+                              return false;
+                            }
+                            return true;
+                          }}
+                          onRisk={(risk) => {
+                            if (activeInteraction.current === interactionKey) {
+                              operationRisk.current = { key: interactionKey!, risk };
+                              setOperationUnresolved(risk.unresolved);
+                              setTaskPinned(risk.dirty || risk.unresolved);
+                            }
+                          }}
+                          onApplied={(message) => setOperationMessage(message)}
+                        />
+                      </fieldset>
+                    </WorkspaceSection>
+                    <WorkspaceSection
+                      key={'quote-panel:' + interactionKey}
+                      title="Teklifler"
+                      description="Teklif sürümleri ve gönderildi kaydı"
+                      pinned={quoteBlocking}
+                    >
+                      <fieldset disabled={terminalBlocking} className="task-interaction-boundary">
+                        <legend className="sr-only">Teklif işlemleri alanı</legend>
+                        <RenewalQuotesSection
+                          key={'quotes:' + interactionKey}
+                          renewalId={selected.renewalId}
+                          renewalVersion={selected.renewalVersion}
+                          renewalOpen={!['WON', 'LOST', 'VOIDED'].includes(selected.renewalState)}
+                          compareRenewal={async (signal) => {
+                            const fresh = await queue.readOperation(selected.taskId, signal);
+                            return fresh.current?.renewalId === selected.renewalId
+                              ? fresh.current.renewalVersion
+                              : null;
+                          }}
+                          canOperate={() => {
+                            if (activeInteraction.current !== interactionKey) return false;
+                            if (
+                              terminalRisk.current?.key === interactionKey &&
+                              (terminalRisk.current.risk.dirty ||
+                                terminalRisk.current.risk.unresolved)
+                            )
+                              return false;
+                            if (
+                              (interactionRisk.current?.key === interactionKey &&
+                                interactionRisk.current.risk !== 'clean') ||
+                              (operationRisk.current?.key === interactionKey &&
+                                (operationRisk.current.risk.dirty ||
+                                  operationRisk.current.risk.unresolved))
+                            ) {
+                              setOperationMessage(
+                                'İletişim/görev taslağını açıkça kapatın veya önceki yazımı doğrulayın. Teklif işlemi mevcut taslağı/anahtarı silmez.',
+                              );
+                              return false;
+                            }
+                            return true;
+                          }}
+                          onRisk={(risk) => {
+                            if (activeInteraction.current === interactionKey) {
+                              quoteRisk.current = { key: interactionKey!, risk };
+                              setQuoteBlocking(risk.dirty || risk.unresolved);
+                            }
+                          }}
+                        />
+                      </fieldset>
+                    </WorkspaceSection>
+                    <WorkspaceSection
+                      key={'outcome-panel:' + interactionKey}
+                      title="Yenileme sonucu"
+                      description="Kazanıldı, yenilenmedi veya geçersiz"
+                      pinned={terminalBlocking}
+                    >
+                      <RenewalOutcomesSection
+                        key={'outcomes:' + interactionKey}
                         task={selected}
                         read={(signal) => queue.readOperation(selected.taskId, signal)}
                         canOperate={() => {
                           if (activeInteraction.current !== interactionKey) return false;
                           if (
-                            terminalRisk.current?.key === interactionKey &&
-                            (terminalRisk.current.risk.dirty ||
-                              terminalRisk.current.risk.unresolved)
-                          )
-                            return false;
-                          if (
-                            quoteRisk.current?.key === interactionKey &&
-                            (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved)
-                          ) {
-                            setOperationMessage(
-                              'Önce teklif taslağını açıkça kapatın veya teklif yazımını doğrulayın.',
-                            );
-                            return false;
-                          }
-                          if (
-                            interactionRisk.current?.key === interactionKey &&
-                            interactionRisk.current.risk !== 'clean'
-                          ) {
-                            setOperationMessage(
-                              'İletişim taslağını açıkça kapatın veya iletişim yazımını doğrulayın. Görev işlemi iletişim taslağını/anahtarını silmez.',
-                            );
-                            return false;
-                          }
-                          return true;
-                        }}
-                        onRisk={(risk) => {
-                          if (activeInteraction.current === interactionKey) {
-                            operationRisk.current = { key: interactionKey!, risk };
-                            setOperationUnresolved(risk.unresolved);
-                          }
-                        }}
-                        onApplied={(message) => setOperationMessage(message)}
-                      />
-                    </fieldset>
-                    <fieldset disabled={terminalBlocking} className="task-interaction-boundary">
-                      <legend className="sr-only">Teklif işlemleri alanı</legend>
-                      <RenewalQuotesSection
-                        key={'quotes:' + interactionKey}
-                        renewalId={selected.renewalId}
-                        renewalVersion={selected.renewalVersion}
-                        renewalOpen={!['WON', 'LOST', 'VOIDED'].includes(selected.renewalState)}
-                        compareRenewal={async (signal) => {
-                          const fresh = await queue.readOperation(selected.taskId, signal);
-                          return fresh.current?.renewalId === selected.renewalId
-                            ? fresh.current.renewalVersion
-                            : null;
-                        }}
-                        canOperate={() => {
-                          if (activeInteraction.current !== interactionKey) return false;
-                          if (
-                            terminalRisk.current?.key === interactionKey &&
-                            (terminalRisk.current.risk.dirty ||
-                              terminalRisk.current.risk.unresolved)
-                          )
-                            return false;
-                          if (
                             (interactionRisk.current?.key === interactionKey &&
                               interactionRisk.current.risk !== 'clean') ||
                             (operationRisk.current?.key === interactionKey &&
                               (operationRisk.current.risk.dirty ||
-                                operationRisk.current.risk.unresolved))
+                                operationRisk.current.risk.unresolved)) ||
+                            (quoteRisk.current?.key === interactionKey &&
+                              (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved))
                           ) {
                             setOperationMessage(
-                              'İletişim/görev taslağını açıkça kapatın veya önceki yazımı doğrulayın. Teklif işlemi mevcut taslağı/anahtarı silmez.',
+                              'Önce iletişim/görev/teklif taslağını açıkça kapatın veya önceki yazımı doğrulayın. Sonuçlandırma mevcut taslağı/anahtarı silmez.',
                             );
                             return false;
                           }
@@ -690,57 +775,32 @@ function Workspace({ owner }: { owner: boolean }) {
                         }}
                         onRisk={(risk) => {
                           if (activeInteraction.current === interactionKey) {
-                            quoteRisk.current = { key: interactionKey!, risk };
-                            setQuoteBlocking(risk.dirty || risk.unresolved);
+                            terminalRisk.current = { key: interactionKey!, risk };
+                            setTerminalBlocking(risk.dirty || risk.unresolved);
                           }
                         }}
+                        onApplied={(message) => {
+                          if (activeInteraction.current !== interactionKey) return;
+                          setOperationMessage(message);
+                          setSelection(null);
+                          queue.refresh();
+                        }}
                       />
-                    </fieldset>
-                    <RenewalOutcomesSection
-                      key={'outcomes:' + interactionKey}
-                      task={selected}
-                      read={(signal) => queue.readOperation(selected.taskId, signal)}
-                      canOperate={() => {
-                        if (activeInteraction.current !== interactionKey) return false;
-                        if (
-                          (interactionRisk.current?.key === interactionKey &&
-                            interactionRisk.current.risk !== 'clean') ||
-                          (operationRisk.current?.key === interactionKey &&
-                            (operationRisk.current.risk.dirty ||
-                              operationRisk.current.risk.unresolved)) ||
-                          (quoteRisk.current?.key === interactionKey &&
-                            (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved))
-                        ) {
-                          setOperationMessage(
-                            'Önce iletişim/görev/teklif taslağını açıkça kapatın veya önceki yazımı doğrulayın. Sonuçlandırma mevcut taslağı/anahtarı silmez.',
-                          );
-                          return false;
-                        }
-                        return true;
-                      }}
-                      onRisk={(risk) => {
-                        if (activeInteraction.current === interactionKey) {
-                          terminalRisk.current = { key: interactionKey!, risk };
-                          setTerminalBlocking(risk.dirty || risk.unresolved);
-                        }
-                      }}
-                      onApplied={(message) => {
-                        if (activeInteraction.current !== interactionKey) return;
-                        setOperationMessage(message);
-                        setSelection(null);
-                        queue.refresh();
-                      }}
-                    />
-                    <p>
-                      WON mevcut poliçe bağlama ve yeni poliçe oluşturma bu alandadır. Diğer WON
-                      dalları, teklif ret ve WhatsApp önizleme/açma klasik çalışma alanındadır.
-                      Bağlantı bu görevi otomatik seçmez; klasik listeden yeniden seçmeniz gerekir.
-                    </p>
-                    <Button asChild>
-                      <Link to="/today-work/legacy" onClick={classic}>
-                        Klasik iş akışını aç
-                      </Link>
-                    </Button>
+                    </WorkspaceSection>
+                    <details className="workspace-help today-advanced">
+                      <summary>Diğer yenileme işlemleri</summary>
+                      <p>
+                        WON mevcut poliçe bağlama ve yeni poliçe oluşturma bu alandadır. Diğer WON
+                        dalları, teklif ret ve WhatsApp önizleme/açma klasik çalışma alanındadır.
+                        Bağlantı bu görevi otomatik seçmez; klasik listeden yeniden seçmeniz
+                        gerekir.
+                      </p>
+                      <Button asChild>
+                        <Link to="/today-work/legacy" onClick={classic}>
+                          Klasik iş akışını aç
+                        </Link>
+                      </Button>
+                    </details>
                   </>
                 ) : (
                   <p>

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceSections } from './workspace-disclosures.mjs';
 async function read(page, url) {
   return page.evaluate(async (url) => {
     const r = await globalThis.fetch(url, { cache: 'no-store' });
@@ -27,6 +28,7 @@ export async function taskOperationsWalkthrough(page, index, mark, demo) {
     task = pageData.items[0];
     await page.locator('.today-task-row').first().click();
   }
+  await openWorkspaceSections(page);
   const before = await demo.db
       .prepare('SELECT COUNT(*) count FROM tasks WHERE renewal_id=?')
       .bind(task.renewalId)

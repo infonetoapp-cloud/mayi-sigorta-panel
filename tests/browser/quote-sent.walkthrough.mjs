@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceSections } from './workspace-disclosures.mjs';
 import { join } from 'node:path';
 import { setTimeout } from 'node:timers';
 async function read(page, url) {
@@ -61,6 +62,7 @@ export async function quoteSentWalkthrough(page, index, mark, demo, evidence) {
   await page.getByRole('link', { name: 'Klasik çalışma alanı', exact: true }).click();
   await page.getByRole('link', { name: 'Modern iş kuyruğuna dön', exact: true }).click();
   await page.locator('.today-task-row').first().click();
+  await openWorkspaceSections(page);
   const task = (await read(page, '/api/tasks/today?limit=20')).items[0];
   const root = `/api/renewals/${task.renewalId}/quotes`;
   const initial = await read(page, root);

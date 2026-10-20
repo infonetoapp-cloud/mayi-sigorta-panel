@@ -21,7 +21,7 @@
   --border: #dce2e9;
   --ring: #2563eb;
   --radius: 0.75rem;
-  --sidebar-width: 15.5rem;
+  --sidebar-width: 14.75rem;
   --sidebar-collapsed-width: 4.5rem;
 }
 @theme inline {
@@ -181,28 +181,28 @@ body {
   padding: 0 0.75rem;
 }
 .sidebar-section-label {
-  margin: 1rem 0.75rem 0.5rem;
+  margin: 1.25rem 0.75rem 0.75rem;
   color: #b0c3d5;
   font-size: 0.65rem;
-  letter-spacing: 0.09em;
-  font-weight: 650;
+  letter-spacing: 0.06em;
+  font-weight: 500;
 }
 .sidebar-management {
-  padding-top: 1.5rem;
-  margin-top: 1.5rem;
-  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 1.75rem;
+  border-top: 1px solid #30495f;
 }
 .sidebar-link {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  padding: 0.75rem;
-  margin-bottom: 0.3rem;
+  padding: 0.7rem 0.75rem;
+  margin-bottom: 0.45rem;
   min-height: 44px;
   border-radius: var(--radius);
   text-decoration: none;
   font-size: 0.875rem;
-  font-weight: 550;
+  font-weight: 450;
   color: var(--sidebar-text);
 }
 .sidebar-link:hover {
@@ -210,14 +210,20 @@ body {
   color: #fff;
 }
 .sidebar-link-active {
-  background: var(--sidebar-active);
+  background: #ffffff0a;
   color: #fff;
-  font-weight: 650;
-  box-shadow: inset 3px 0 #91c6f5;
+  font-weight: 550;
+  box-shadow: inset 2px 0 #91c6f5;
+}
+.sidebar-link svg {
+  opacity: 0.8;
+}
+.sidebar-link-active svg {
+  opacity: 1;
 }
 .sidebar-footer {
   padding: 1rem 0.75rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid #30495f;
 }
 .sidebar-collapse {
   width: 100%;
@@ -236,11 +242,10 @@ body {
 .sidebar-brand-mark {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.5rem;
+  width: 1.5rem;
+  height: 2rem;
   flex-shrink: 0;
-  border: 1px solid #7796b2;
-  border-radius: 0.8rem;
+  border: 0;
   color: #fff;
   font-size: 1rem;
   font-weight: 750;

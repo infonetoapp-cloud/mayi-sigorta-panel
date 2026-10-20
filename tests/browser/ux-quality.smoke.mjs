@@ -247,6 +247,7 @@ try {
           const j = await (await fetch('/api/tasks/today?limit=20')).json();
           return j.data.items[0];
         });
+        await button('Yenileme sonucu').click();
         await button('Yenilenmedi olarak sonuçlandır').click();
         await page
           .getByRole('combobox', { name: 'Kayıp nedeni', exact: true })
@@ -307,6 +308,7 @@ try {
             if (dt?.nextElementSibling)
               dt.nextElementSibling.textContent = 'UZUN-POLICE-'.repeat(24);
           });
+        await button('Teklifler').click();
         await button('Teklif geçmişini aç').click();
         await button('Teklif geçmişini ve katalogları yeniden oku').waitFor();
         await page.locator('.quote-history').waitFor();

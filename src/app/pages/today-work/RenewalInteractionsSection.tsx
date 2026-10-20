@@ -305,10 +305,13 @@ export function RenewalInteractionsSection({
       <h3 ref={historyHeading} tabIndex={-1}>
         İletişim geçmişi
       </h3>
-      <p className="today-clock">
-        İzin bu bölümün kendi endpoint'inde doğrulanır; kuyruk veya teklif izni iletişim izni yerine
-        geçmez. Saatler Europe/Istanbul'dur.
-      </p>
+      <details className="workspace-help">
+        <summary>İletişim kayıtları hakkında</summary>
+        <p className="today-clock">
+          İzin bu bölümün kendi endpoint'inde doğrulanır; kuyruk veya teklif izni iletişim izni
+          yerine geçmez. Saatler Europe/Istanbul'dur.
+        </p>
+      </details>
       {busy && <p role="status">İletişim bilgileri işleniyor…</p>}
       {error && <p role="alert">{error}</p>}
       {success && <p role="status">{success}</p>}

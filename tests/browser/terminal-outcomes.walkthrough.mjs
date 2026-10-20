@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceSections } from './workspace-disclosures.mjs';
 import { join } from 'node:path';
 async function read(page, url) {
   return page.evaluate(async (url) => {
@@ -24,6 +25,7 @@ async function selectTask(page, later = false) {
   const rows = page.locator('.today-task-row');
   const wanted = rows.filter({ has: page.locator('small', { hasText: task.policyNumber }) });
   await wanted.first().click();
+  await openWorkspaceSections(page);
   await page.getByRole('region', { name: 'Yenileme sonuçlandırma', exact: true }).waitFor();
   return { task, original };
 }
@@ -38,6 +40,7 @@ async function selectExactTask(page, taskId) {
         .locator('.today-task-row')
         .filter({ has: page.getByText(task.policyNumber, { exact: true }) })
         .click();
+      await openWorkspaceSections(page);
       return task;
     }
     assert.ok(data.nextCursor, 'EXPLICIT_TARGET_NOT_IN_AUTHORIZED_QUEUE');

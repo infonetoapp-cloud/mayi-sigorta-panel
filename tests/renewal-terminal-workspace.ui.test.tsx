@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { openWorkspaceSections } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { installQuotePopBoundary } from '../src/app/pages/today-work/quote-navigation';
 import { invalidateCsrfToken } from '../src/app/csrf';
@@ -100,6 +101,7 @@ function fixture(
 }
 async function select() {
   fireEvent.click(await screen.findByRole('button', { name: /Sentetik Müşteri/ }));
+  openWorkspaceSections();
   await screen.findByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' });
 }
 async function open() {

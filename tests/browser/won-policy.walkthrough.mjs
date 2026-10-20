@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceSections } from './workspace-disclosures.mjs';
 import { join } from 'node:path';
 async function read(page, url) {
   return page.evaluate(async (url) => {
@@ -37,6 +38,7 @@ async function selectTask(page) {
     .filter({ has: page.getByText(task.policyNumber, { exact: true }) })
     .first()
     .click();
+  await openWorkspaceSections(page);
   await page
     .getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla', exact: true })
     .waitFor();

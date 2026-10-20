@@ -14,6 +14,7 @@ import { useTaskQueue } from '../src/app/pages/today-work/use-task-queue';
 import { invalidateCsrfToken } from '../src/app/csrf';
 import { canonicalOccurrence } from '../src/app/pages/today-work/interaction-model';
 import { MemoryRouter } from 'react-router';
+import { openWorkspaceSections } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 export const task: TodayTaskDto = {
   taskId: 't',
@@ -392,6 +393,7 @@ it('integrates the interaction draft guard and holds the operation key against q
     </MemoryRouter>,
   );
   fireEvent.click(await screen.findByRole('button', { name: /Sentetik/ }));
+  openWorkspaceSections();
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Kaybolmamalı' } });

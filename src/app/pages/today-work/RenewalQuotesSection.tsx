@@ -539,12 +539,18 @@ function QuoteWorkspace(props: Props) {
       <h3 ref={historyHeading} tabIndex={-1}>
         Teklifler
       </h3>
-      <p>
-        Teklif okuma ve yönetme izinleri ayrı doğrulanır. Gönderildi durumu dış mesaj teslimatının
-        kanıtı değildir. Burada mesaj/belge gönderilmez; kabul/ret veya yenileme sonucu işlemi
-        yapılmaz. Farklı sigorta şirketi veya ürün alternatifi için yeni teklif oluşturun; sürüm
-        işlemi aynı teklifin ilk kayıtlı şirket/ürün kimliğini korur.
+      <p className="today-state-help">
+        Teklif oluşturma ve gönderildi kaydı ayrı işlemlerdir. Bu bölüm müşteriye mesaj göndermez.
       </p>
+      <details className="workspace-help">
+        <summary>Teklif ve sürüm bilgisi</summary>
+        <p>
+          Teklif okuma ve yönetme izinleri ayrı doğrulanır. Gönderildi durumu dış mesaj teslimatının
+          kanıtı değildir. Burada mesaj/belge gönderilmez; kabul/ret veya yenileme sonucu işlemi
+          yapılmaz. Farklı sigorta şirketi veya ürün alternatifi için yeni teklif oluşturun; sürüm
+          işlemi aynı teklifin ilk kayıtlı şirket/ürün kimliğini korur.
+        </p>
+      </details>
       {!opened ? (
         <Button
           variant="outline"

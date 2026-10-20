@@ -8,6 +8,7 @@ import type {
 } from '../src/app/pages/today-work/quote-model';
 import { invalidateCsrfToken } from '../src/app/csrf';
 import { MemoryRouter } from 'react-router';
+import { openWorkspaceSections } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { installQuotePopBoundary } from '../src/app/pages/today-work/quote-navigation';
 import type { TodayTaskDto, TodayTasksResponseData } from '../src/shared/types';
@@ -678,6 +679,7 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
       true,
     );
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+    openWorkspaceSections();
     fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
     await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' });
     fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydı ekle' }));
@@ -758,6 +760,7 @@ it('blocks navigation during confirmed-write GET-only recovery without silently 
     true,
   );
   fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+  openWorkspaceSections();
   await open();
   submit();
   await screen.findByRole('button', { name: 'Yalnız gönderildi kanıtını yeniden oku' });
@@ -861,6 +864,7 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
       true,
     );
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+    openWorkspaceSections();
     fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
     await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' });
     if (kind === 'quote-draft') {

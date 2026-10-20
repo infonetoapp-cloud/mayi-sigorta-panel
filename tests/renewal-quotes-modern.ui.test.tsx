@@ -15,6 +15,7 @@ import type {
   TodayTasksResponseData,
 } from '../src/shared/types';
 import { MemoryRouter } from 'react-router';
+import { openWorkspaceSections } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import type { VersionPayload } from '../src/app/components/RenewalQuoteForm';
 const defaults: VersionPayload = {
@@ -134,6 +135,7 @@ function workspace(quoteStatus = 200) {
 it('loads no eager quotes and preserves independently authorized communication/task sections when quote read is denied', async () => {
   const f = workspace(403);
   fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+  openWorkspaceSections();
   await screen.findByText('Bağımsız izinli iletişim');
   expect(f.mock.calls.some(([u]) => u.endsWith('/quotes'))).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
@@ -146,6 +148,7 @@ it('loads no eager quotes and preserves independently authorized communication/t
 it('preserves the communication draft, then pins an uncertain quote attempt through task/queue/refresh/legacy navigation', async () => {
   const f = workspace();
   fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+  openWorkspaceSections();
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Silinmeyecek taslak' } });
@@ -219,6 +222,7 @@ it('does not silently lose an unresolved quote through a sidebar link or browser
   try {
     workspace();
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
+    openWorkspaceSections();
     fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
     submit();

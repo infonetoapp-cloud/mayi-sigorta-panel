@@ -148,6 +148,7 @@ it('shows compact buckets and selects only loaded DTO data without a task detail
   const overview = screen.getByRole('region', { name: 'Seçili görev özeti' });
   expect(within(overview).getByText('a@example.test')).toBeTruthy();
   expect(within(overview).getByText(/00:10/, { selector: 'dd' })).toBeTruthy();
+  fireEvent.click(screen.getByText('Diğer yenileme işlemleri', { selector: 'summary' }));
   expect(screen.getByRole('link', { name: 'Klasik iş akışını aç' }).getAttribute('href')).toBe(
     '/today-work/legacy',
   );

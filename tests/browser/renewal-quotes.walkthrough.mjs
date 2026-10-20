@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceSections } from './workspace-disclosures.mjs';
 import { join } from 'node:path';
 async function get(page, url) {
   return page.evaluate(async (url) => {
@@ -70,6 +71,7 @@ export async function quoteWalkthrough(page, index, mark, evidence) {
     await page.locator('.today-task-row').first().waitFor();
   }
   await page.locator('.today-task-row').first().click();
+  await openWorkspaceSections(page);
   await page.getByRole('button', { name: 'Teklif geçmişini aç', exact: true }).waitFor();
   assert.equal(reads.length, 0);
   const task = (await get(page, '/api/tasks/today?limit=20')).items[0];
