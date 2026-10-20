@@ -43,7 +43,10 @@ export function Sidebar({
       aria-label="Çalışma alanı menüsü"
     >
       <div className="sidebar-brand">
-        <div>
+        <span className="sidebar-brand-mark" aria-hidden="true">
+          M
+        </span>
+        <div className="sidebar-brand-copy">
           <strong className="sidebar-wordmark">
             Mayı <span>Sigorta</span>
           </strong>

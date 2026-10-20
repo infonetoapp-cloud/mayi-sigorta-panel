@@ -8,6 +8,7 @@ import {
 import { Link, useNavigate } from 'react-router';
 import type { RenewalStateCode, TodayTaskDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
+import { NavigationDecision } from '../../components/layout/NavigationDecision';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { TaskStatisticsPanel } from '../../components/TaskStatisticsPanel';
@@ -43,6 +44,12 @@ function due(value: string, timezone: string, dateOnly = false) {
 function Workspace({ owner }: { owner: boolean }) {
   const navigate = useNavigate();
   const [leave, setLeave] = useState<(() => void) | null>(null);
+  const notice = useRef<HTMLParagraphElement>(null);
+  function stay() {
+    document.querySelector<HTMLDialogElement>('.navigation-decision')?.close?.();
+    setLeave(null);
+    overview.current?.focus();
+  }
   const [operationMessage, setOperationMessage] = useState(''),
     [operationUnresolved, setOperationUnresolved] = useState(false);
   const operationRisk = useRef<{ key: string; risk: TaskOperationRisk } | null>(null);
@@ -143,6 +150,7 @@ function Workspace({ owner }: { owner: boolean }) {
     if (!interactionKey) return;
     const index = history.state?.idx as unknown;
     let restoring = false;
+    let confirmedPop = false;
     const quoteAtRisk = () =>
       (quoteRisk.current?.key === interactionKey &&
         (quoteRisk.current.risk.dirty || quoteRisk.current.risk.unresolved)) ||
@@ -174,6 +182,7 @@ function Workspace({ owner }: { owner: boolean }) {
         return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      document.dispatchEvent(new Event('mayi-navigation-attention'));
       if (unresolved()) {
         setOperationMessage(
           'Teklif/görev/iletişim/sonuçlandırma işleminin belirsiz sonucu çözülmeden başka sayfaya geçilemez. Özgün istek/anahtar bu ekranda korunur.',
@@ -187,6 +196,10 @@ function Workspace({ owner }: { owner: boolean }) {
       });
     };
     const pop = (event: PopStateEvent) => {
+      if (confirmedPop) {
+        confirmedPop = false;
+        return;
+      }
       if (restoring) {
         restoring = false;
         event.stopImmediatePropagation();
@@ -205,6 +218,13 @@ function Workspace({ owner }: { owner: boolean }) {
       event.stopImmediatePropagation();
       restoring = true;
       history.go((index as number) - (next as number));
+      document.dispatchEvent(new Event('mayi-navigation-attention'));
+      if (!unresolved()) {
+        setLeave(() => () => {
+          confirmedPop = true;
+          history.go((next as number) - (index as number));
+        });
+      }
       setOperationMessage(
         'Tarayıcı geri/ileri geçişi durduruldu. Önce teklif/görev/iletişim/sonuçlandırma yazımını doğrulayın veya kaydedilmemiş taslağı açıkça bırakın.',
       );
@@ -227,6 +247,9 @@ function Workspace({ owner }: { owner: boolean }) {
   useEffect(() => {
     if (leave) leaveHeading.current?.focus();
   }, [leave]);
+  useEffect(() => {
+    if (operationMessage) notice.current?.focus();
+  }, [operationMessage]);
   useEffect(() => {
     if (selected) overview.current?.focus();
     else if (returnFocus.current) {
@@ -265,7 +288,7 @@ function Workspace({ owner }: { owner: boolean }) {
     <div className="today-modern">
       <PageHeader
         title="Bugünkü İşler"
-        description="Yetkili kuyruktan bir takip seçin; iletişim geçmişini okuyun ve görüşme kaydedin. İleri işlemler klasik çalışma alanındadır."
+        description="Müşteriyi ve poliçeyi inceleyin; görüşme, teklif, takip ve yenileme sonucunu aynı çalışma alanında yönetin."
       />
       <div className="today-toolbar">
         <nav aria-label="İş kuyrukları">
@@ -313,8 +336,8 @@ function Workspace({ owner }: { owner: boolean }) {
         </Button>
       </div>
       {leave && (
-        <section role="alert" className="interaction-leave">
-          <h3 ref={leaveHeading} tabIndex={-1}>
+        <NavigationDecision onStay={stay}>
+          <h3 id="navigation-decision-title" ref={leaveHeading} tabIndex={-1}>
             Hedefi değiştirmeden önce
           </h3>
           <p>
@@ -322,13 +345,7 @@ function Workspace({ owner }: { owner: boolean }) {
             iptal etmez. Bu bölümün taslağı/anahtarı kaybolabilir; yeni kayıt göndermeden önce
             geçmişi yetkili okuyup kontrol edin.
           </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setLeave(null);
-              overview.current?.focus();
-            }}
-          >
+          <Button variant="outline" onClick={stay}>
             Bu ekranda kal
           </Button>
           <Button
@@ -365,9 +382,13 @@ function Workspace({ owner }: { owner: boolean }) {
           >
             Ayrılmayı onayla
           </Button>
-        </section>
+        </NavigationDecision>
       )}
-      {operationMessage && <p role="status">{operationMessage}</p>}
+      {operationMessage && (
+        <p ref={notice} tabIndex={-1} role="status">
+          {operationMessage}
+        </p>
+      )}
       {queue.loading && <p role="status">Görevler yükleniyor…</p>}
       {queue.failure && (
         <div role="alert">
@@ -514,13 +535,27 @@ function Workspace({ owner }: { owner: boolean }) {
                       Görev listesine dön
                     </Button>
                     <h3>{selected.title}</h3>
+                    <nav className="today-context-links" aria-label="Seçili kayıtlar">
+                      <Button asChild variant="outline">
+                        <Link to={`/customers/${encodeURIComponent(selected.customerId)}`}>
+                          Müşteri profilini aç
+                        </Link>
+                      </Button>
+                      {selected.policyId && (
+                        <Button asChild variant="outline">
+                          <Link to={`/policies/${encodeURIComponent(selected.policyId)}`}>
+                            Poliçeyi aç
+                          </Link>
+                        </Button>
+                      )}
+                    </nav>
                     <dl className="today-task-facts">
                       <div>
                         <dt>Vade zamanı</dt>
                         <dd>{due(selected.dueAt, queue.data.timezone)}</dd>
                       </div>
                       <div>
-                        <dt>Yenileme durumu</dt>
+                        <dt>Kayıtlı iş aşaması</dt>
                         <dd>{states[selected.renewalState] ?? selected.renewalState}</dd>
                       </div>
                       {selected.policyNumber && (
@@ -548,6 +583,11 @@ function Workspace({ owner }: { owner: boolean }) {
                         </div>
                       )}
                     </dl>
+                    <p className="today-state-help">
+                      İş aşaması, görüşme ve teklif kayıtlarından ayrıdır. Gerçek temas ve
+                      gönderildi beyanları aşağıdaki yetkili geçmişte gösterilir; bu kayıtlar
+                      aşamayı otomatik değiştirmez.
+                    </p>
                     {selected.needsReassignment && (
                       <p>
                         Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik değiştirilmez.

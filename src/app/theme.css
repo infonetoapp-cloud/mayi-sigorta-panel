@@ -5,8 +5,13 @@
 @source './';
 
 :root {
-  --background: #f7f8fa;
-  --foreground: #192536;
+  --font-body: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --surface-subtle: #f1f5f9;
+  --sidebar-surface: #142c43;
+  --sidebar-text: #dbe5ef;
+  --sidebar-active: #274b6b;
+  --background: #f4f6f9;
+  --foreground: #1c3045;
   --card: #ffffff;
   --card-foreground: #192536;
   --primary: #2459a6;
@@ -15,7 +20,7 @@
   --muted-foreground: #526277;
   --border: #dce2e9;
   --ring: #2563eb;
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   --sidebar-width: 15.5rem;
   --sidebar-collapsed-width: 4.5rem;
 }
@@ -35,11 +40,7 @@
 body {
   margin: 0;
   background: var(--background);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--font-body);
   color: var(--foreground);
 }
 .app-shell,
@@ -48,7 +49,9 @@ body {
 }
 .app-shell {
   min-height: 100dvh;
-  line-height: 1.5;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 .app-shell button,
 .app-shell input,
@@ -63,6 +66,64 @@ body {
 }
 .app-shell svg {
   flex-shrink: 0;
+}
+.app-shell :where(input, select, textarea, button, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+.app-shell :where(time, dd, .customer-table td) {
+  font-variant-numeric: tabular-nums;
+}
+.app-shell :where(h1, h2, h3, h4) {
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.app-shell :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  max-width: 100%;
+  color: var(--foreground);
+}
+.app-shell :where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--primary);
+}
+.app-shell :where([data-slot='card']) {
+  box-shadow: 0 2px 8px #1c304508;
+}
+.app-shell :where([role='alert']) {
+  border-left: 3px solid #b45309;
+  padding-left: 0.85rem;
+}
+.app-shell
+  :where(
+    .app-sidebar,
+    .today-queue > [data-slot='card-content'],
+    .legacy-workspace table,
+    .navigation-decision
+  ) {
+  scrollbar-width: thin;
+  scrollbar-color: #91a3b7 transparent;
+}
+.navigation-decision {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: auto;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 16px 48px #19253633;
+}
+.navigation-decision::backdrop {
+  background: #19253680;
+}
+.navigation-decision button {
+  margin: 0.25rem;
+  white-space: normal;
+  min-height: 44px;
+}
+.navigation-decision h3 {
+  margin-top: 0;
 }
 .skip-link {
   position: fixed;
@@ -85,33 +146,34 @@ body {
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background: var(--card);
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
   border-right: 1px solid var(--border);
   overflow-y: auto;
 }
 .sidebar-brand {
   min-height: 5.5rem;
-  padding: 1.4rem 1.5rem;
+  padding: 1.25rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 .sidebar-wordmark {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   letter-spacing: -0.04em;
-  color: var(--primary);
+  color: #fff;
   white-space: nowrap;
 }
 .sidebar-wordmark span {
-  color: var(--foreground);
+  color: #c5d6e5;
   font-weight: 500;
 }
 .sidebar-caption {
   display: block;
   margin-top: 0.25rem;
-  color: var(--muted-foreground);
-  font-size: 0.7rem;
+  color: #b0c3d5;
+  font-size: 0.75rem;
   letter-spacing: 0.015em;
 }
 .app-sidebar nav {
@@ -120,7 +182,7 @@ body {
 }
 .sidebar-section-label {
   margin: 1rem 0.75rem 0.5rem;
-  color: var(--muted-foreground);
+  color: #b0c3d5;
   font-size: 0.65rem;
   letter-spacing: 0.09em;
   font-weight: 650;
@@ -140,17 +202,18 @@ body {
   border-radius: var(--radius);
   text-decoration: none;
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--muted-foreground);
+  font-weight: 550;
+  color: var(--sidebar-text);
 }
 .sidebar-link:hover {
-  background: var(--muted);
-  color: var(--foreground);
+  background: #203e58;
+  color: #fff;
 }
 .sidebar-link-active {
-  background: #eaf1fb;
-  color: var(--primary);
+  background: var(--sidebar-active);
+  color: #fff;
   font-weight: 650;
+  box-shadow: inset 3px 0 #91c6f5;
 }
 .sidebar-footer {
   padding: 1rem 0.75rem;
@@ -159,6 +222,35 @@ body {
 .sidebar-collapse {
   width: 100%;
   justify-content: flex-start;
+}
+.app-sidebar [data-slot='button'] {
+  color: var(--sidebar-text);
+}
+.app-sidebar [data-slot='button']:hover {
+  background: #203e58;
+  color: #fff;
+}
+.app-sidebar :focus-visible {
+  outline-color: #a5d2ff;
+}
+.sidebar-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border: 1px solid #7796b2;
+  border-radius: 0.8rem;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 750;
+}
+.sidebar-brand-copy {
+  flex: 1;
+  min-width: 0;
+}
+.app-sidebar[data-collapsed='true'] .sidebar-brand-copy {
+  display: none;
 }
 .app-body {
   min-height: 100dvh;
@@ -233,7 +325,7 @@ body {
 }
 .page-heading h1 {
   margin: 0;
-  font-size: 1.65rem;
+  font-size: 1.8rem;
   letter-spacing: -0.035em;
   font-weight: 650;
   line-height: 1.25;
@@ -338,6 +430,13 @@ body {
 .legacy-workspace > div {
   min-width: 0;
 }
+.legacy-content,
+.legacy-content > div,
+.legacy-content > div > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
 @media (max-width: 1100px) {
   .header-workspace span {
     display: none;
@@ -347,6 +446,9 @@ body {
   }
 }
 @media (max-width: 900px) {
+  .app-sidebar[data-collapsed='true'] .sidebar-brand-copy {
+    display: block;
+  }
   .mobile-only {
     display: inline-flex;
   }
@@ -372,10 +474,10 @@ body {
     display: block;
   }
   .app-sidebar[data-collapsed='true'] .sidebar-brand {
-    padding: 1.4rem 1.5rem;
+    padding: 1.25rem 1rem;
   }
   .app-sidebar[data-collapsed='true'] .sidebar-wordmark {
-    font-size: 1.3rem;
+    font-size: 1.1rem;
   }
   .app-sidebar[data-collapsed='true'] .sidebar-link {
     justify-content: flex-start;
@@ -399,6 +501,19 @@ body {
   }
 }
 @media (max-width: 600px) {
+  .app-shell [data-slot='button'] {
+    min-height: 44px;
+    height: auto;
+  }
+  .app-shell :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    font-size: 1rem;
+  }
+  .app-shell [data-slot='card-header'] {
+    padding: 1.1rem;
+  }
+  .app-shell [data-slot='card-content'] {
+    padding-inline: 1.1rem;
+  }
   .app-header {
     padding: 0.6rem 1rem;
   }

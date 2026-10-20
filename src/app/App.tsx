@@ -801,7 +801,11 @@ export const App: React.FC<{
       )}
 
       {/* Ana İçerik Alanı */}
-      <div role={page ? undefined : 'main'} style={page ? undefined : STYLES.main}>
+      <div
+        className={page ? 'legacy-content' : undefined}
+        role={page ? undefined : 'main'}
+        style={page ? undefined : STYLES.main}
+      >
         {activeTab === 'today-work' && (
           <TodayWorkPanel getCsrfToken={getCsrfToken} invalidateCsrfToken={invalidateCsrfToken} />
         )}

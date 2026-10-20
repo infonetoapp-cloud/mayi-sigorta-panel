@@ -640,7 +640,7 @@ function QuoteWorkspace(props: Props) {
                   Teklif {index + 1} — {quoteStatuses[q.status] ?? q.status}
                 </h4>
                 <p>
-                  Kayıt CAS v{q.version} ·{' '}
+                  Kayıt sürümü {q.version} ·{' '}
                   {interactionTime(q.created_at) ?? 'Kayıt tarihi mevcut değil'}
                 </p>
                 {q.versions.map((v) => (
@@ -652,6 +652,16 @@ function QuoteWorkspace(props: Props) {
                         : 'Tarihsel değişmez sürüm'}
                       {v.id === q.accepted_version_id ? ' · Kabul edilmiş sürüm' : ''}
                     </summary>
+                    {v.id === q.current_version_id &&
+                      Number.isFinite(Date.parse(v.valid_until)) &&
+                      Date.parse(v.valid_until) <= Date.now() && (
+                        <p className="quote-expiry-notice">
+                          Bu sürümün geçerliliği sona erdi; gönderildi veya kabul kaydı için
+                          seçilemez. Yenileme açıksa ve yetkiniz varsa aşağıdaki yeni sürüm
+                          işlemiyle güncel bir teklif hazırlayın. Kayıtlı teklif durumu
+                          değiştirilmedi.
+                        </p>
+                      )}
                     <dl className="today-task-facts">
                       <div>
                         <dt>Sigorta şirketi / ürün</dt>

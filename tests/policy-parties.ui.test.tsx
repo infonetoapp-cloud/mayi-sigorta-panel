@@ -120,7 +120,12 @@ it.each(['csrf', 'csrf401', 'write', 'readback', 'readback401', 'customer401'])(
       });
       const view = render(<PolicyPartiesSection key="a" policy={policy} onUpdated={updated} />);
       if (stage === 'customer401') {
-        fireEvent.click(await screen.findByRole('button', { name: 'Taraf ekle' }));
+        await waitFor(() =>
+          expect(screen.getByRole('button', { name: 'Taraf ekle' }).hasAttribute('disabled')).toBe(
+            false,
+          ),
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Taraf ekle' }));
         await screen.findByRole('option', { name: 'Seçilen Müşteri' });
         fireEvent.change(screen.getByLabelText('Müşteri seçimi'), { target: { value: 'chosen' } });
       } else {
@@ -155,7 +160,10 @@ it.each(['csrf', 'csrf401', 'write', 'readback', 'readback401', 'customer401'])(
 it('requires explicit customer and role selection without substituting the first option', async () => {
   const { fetcher, updated } = fixture();
   render(<PolicyPartiesSection policy={policy} onUpdated={updated} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Taraf ekle' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Taraf ekle' }).hasAttribute('disabled')).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Taraf ekle' }));
   await screen.findByRole('option', { name: 'Seçilen Müşteri' });
   fireEvent.click(screen.getByRole('button', { name: 'Tarafı kaydet' }));
   await screen.findByRole('alert');

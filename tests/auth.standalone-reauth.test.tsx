@@ -32,7 +32,7 @@ it('opens standalone NORMAL reauth and returns without a business request or sec
   fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: crypto.randomUUID() } });
   fireEvent.click(screen.getByRole('button', { name: 'Doğrula' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  expect(screen.getByText('CRM workspace')).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Genel Bakış' })).toBeTruthy();
   expect(fetcher.mock.calls.filter(([path]) => path === '/api/auth/reauth')).toHaveLength(1);
   expect(
     fetcher.mock.calls.every(([path]) =>

@@ -16,7 +16,11 @@ export default function CompatibilityPage({
     <>
       {customerMode && (
         <div className="customer-legacy-notice">
-          <strong>Geçici klasik müşteri çalışma alanı</strong>
+          {customerMode === 'advanced' ? (
+            <h2>Atama, arşiv ve kimlik işlemleri</h2>
+          ) : (
+            <strong>Geçici klasik müşteri çalışma alanı</strong>
+          )}
           <p>
             Oluşturma, düzenleme, atama, arşivleme, kimlik işlemleri ve poliçe ekleme mevcut güvenli
             arayüzle sürer.
@@ -24,6 +28,18 @@ export default function CompatibilityPage({
           <Link to={customerId ? `/customers/${encodeURIComponent(customerId)}` : '/customers'}>
             {customerId ? 'Modern müşteri profiline dön' : 'Modern müşteri listesine dön'}
           </Link>
+          {customerMode === 'advanced' && customerId && (
+            <>
+              <p>
+                Günlük iletişim ve poliçe işlemleri müşteri profilindedir. Burada sorumlu
+                değişikliği, arşiv ve yetki gerektiren kimlik işlemleri bulunur. Her işlem kendi
+                izin ve onaylarını korur.
+              </p>
+              <Link to={`/customers/${encodeURIComponent(customerId)}?section=contact`}>
+                İletişim bilgilerine git
+              </Link>
+            </>
+          )}
         </div>
       )}
       <App

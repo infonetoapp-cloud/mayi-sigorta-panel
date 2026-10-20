@@ -50,6 +50,22 @@ const original = (): QuoteRecord => ({
   versions: [{ ...baseVersion }],
   events: [],
 });
+it('explains an expired draft without offering SENT or changing the persisted quote status', async () => {
+  const q = original();
+  q.versions[0]!.valid_until = '2020-01-01T09:00:00.000Z';
+  fixture((url, init) =>
+    url.endsWith('/quotes') && !init?.method
+      ? response({ quotes: [q], defaultVersion: defaults })
+      : undefined,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  await screen.findByText(/Bu sürümün geçerliliği sona erdi/);
+  expect(screen.queryByRole('button', { name: 'Teklifi gönderildi olarak kaydet' })).toBeNull();
+  expect(screen.getByText('Teklif 1 — Taslak')).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Teklif 1 için yeni değişmez sürüm taslağı aç' }),
+  ).toBeTruthy();
+});
 const response = (data: unknown, status = 200) =>
   new Response(
     JSON.stringify(
@@ -283,7 +299,7 @@ it.each(['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'past-validity', 'missing-cu
     else q.status = state;
     view.setHistory({ defaultVersion: defaults, quotes: [q] });
     fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-    await screen.findByText(/Kayıt CAS v7/);
+    await screen.findByText(/Kayıt sürümü 7/);
     expect(screen.queryByRole('button', { name: 'Teklifi gönderildi olarak kaydet' })).toBeNull();
     expect(view.fetcher.mock.calls.some(([, i]) => i?.method)).toBe(false);
   },
