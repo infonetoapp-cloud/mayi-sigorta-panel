@@ -1,4 +1,5 @@
 import type { PolicyDetailDto, SelectableCatalogsDto } from '../../../shared/types';
+import { parseMoneyInput, MONEY_INPUT_HELP } from '../../lib/monetary';
 export type PolicyDraft = {
   insurerId: string;
   branchId: string;
@@ -26,10 +27,7 @@ export const blankPolicyDraft: PolicyDraft = {
   status: 'ACTIVE',
 };
 export function premiumMinor(value: string): bigint | null {
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) return null;
-  const [whole, fraction = ''] = value.split('.');
-  const result = BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return result <= BigInt(Number.MAX_SAFE_INTEGER) ? result : null;
+  return parseMoneyInput(value)?.minor ?? null;
 }
 export function premiumInput(minor: number): string {
   if (!Number.isSafeInteger(minor) || minor < 0) throw new Error('INVALID_PREMIUM');
@@ -57,7 +55,7 @@ export function contractValues(
   return {
     ...draft,
     policyNumber: draft.policyNumber.trim(),
-    grossPremium: draft.grossPremium.trim(),
+    grossPremium: parseMoneyInput(draft.grossPremium)?.canonical ?? draft.grossPremium.trim(),
     installmentCount: draft.installmentCount ? Number(draft.installmentCount) : null,
   };
 }
@@ -102,9 +100,7 @@ export function validatePolicy(
   if (!dateOnly(draft.endDate)) errors.endDate = 'Geçerli bir bitiş tarihi girin.';
   if (!errors.startDate && !errors.endDate && draft.startDate > draft.endDate)
     errors.endDate = 'Bitiş tarihi başlangıçtan önce olamaz.';
-  if (premiumMinor(draft.grossPremium.trim()) === null)
-    errors.grossPremium =
-      'Prim için noktalı ondalık girin (ör. 1234.56); binlik ayırıcı, eksi ve ikiden fazla ondalık kullanmayın.';
+  if (premiumMinor(draft.grossPremium.trim()) === null) errors.grossPremium = MONEY_INPUT_HELP;
   if (
     !/^[A-Z]{3}$/.test(draft.currency) ||
     !new Set(Intl.supportedValuesOf('currency')).has(draft.currency)

@@ -12,7 +12,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { policyDate, policyMoney, PolicyReadNotice } from './policy-display';
-import { premiumMinor } from './policy-form-model';
+import { parseMoneyInput, MONEY_INPUT_HELP } from '../../lib/monetary';
 type Kind = 'amendments' | 'external-references';
 type Row = PolicyAmendmentDto | PolicyExternalReferenceDto;
 const empty = {
@@ -36,9 +36,7 @@ interface Snapshot {
   rows: Row[];
 }
 function signedMinor(value: string): bigint | null {
-  const negative = value.startsWith('-');
-  const result = premiumMinor(negative ? value.slice(1) : value);
-  return result === null ? null : negative ? -result : result;
+  return parseMoneyInput(value, true)?.minor ?? null;
 }
 function validDate(value: string) {
   const date = new Date(value + 'T00:00:00Z');
@@ -256,8 +254,7 @@ export function PolicyAppendSection({
         invalid.currency = invalid.premiumDifference;
       }
       if (v.premiumDifference && signedMinor(v.premiumDifference) === null)
-        invalid.premiumDifference =
-          'İşaretli noktalı ondalık girin (12.34, -0.50 veya 0); en fazla iki ondalık ve güvenli minor-unit sınırı.';
+        invalid.premiumDifference = `Zeyil prim farkı eksi olabilir. ${MONEY_INPUT_HELP}`;
       if (
         v.currency &&
         (!/^[A-Z]{3}$/.test(v.currency) ||
@@ -268,7 +265,9 @@ export function PolicyAppendSection({
         externalReference: v.externalReference,
         effectiveDate: v.effectiveDate,
         description: v.description,
-        premiumDifference: v.premiumDifference || null,
+        premiumDifference: v.premiumDifference
+          ? parseMoneyInput(v.premiumDifference, true)?.canonical
+          : null,
         currency: v.currency || null,
       };
     } else {

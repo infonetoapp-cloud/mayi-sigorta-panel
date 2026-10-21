@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
-import { premiumInput } from '../policies/policy-form-model';
+import { formatMoneyMinor } from '../../lib/monetary';
 import { interactionTime } from './interaction-model';
 import {
   quoteMatches,
@@ -374,9 +374,7 @@ export function QuoteSentOperation(props: Props) {
         </div>
         <div>
           <dt>Brüt prim / para birimi</dt>
-          <dd>
-            {premiumInput(v.gross_premium_minor)} {v.currency}
-          </dd>
+          <dd>{formatMoneyMinor(v.gross_premium_minor, v.currency)}</dd>
         </div>
         <div>
           <dt>Geçerlilik sonu (İstanbul)</dt>

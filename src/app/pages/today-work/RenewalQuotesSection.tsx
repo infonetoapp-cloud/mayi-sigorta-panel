@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/input';
 import { parseAppError } from '../../App';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
-import { premiumInput } from '../policies/policy-form-model';
+import { formatMoneyMinor, MONEY_INPUT_HELP } from '../../lib/monetary';
 import { interactionTime } from './interaction-model';
 import { QuoteSentOperation } from './QuoteSentOperation';
 import {
@@ -688,9 +688,7 @@ function QuoteWorkspace(props: Props) {
                       </div>
                       <div>
                         <dt>Brüt prim</dt>
-                        <dd>
-                          {premiumInput(v.gross_premium_minor)} {v.currency}
-                        </dd>
+                        <dd>{formatMoneyMinor(v.gross_premium_minor, v.currency)}</dd>
                       </div>
                       <div>
                         <dt>Taksit sayısı</dt>
@@ -787,6 +785,7 @@ function QuoteWorkspace(props: Props) {
                 {textField('endDate', 'Teklif kapsam bitişi', 'date')}
                 {textField('validUntil', 'Teklif geçerlilik sonu (İstanbul)', 'datetime-local')}
                 {textField('premium', 'Teklif brüt primi (ana birim)')}
+                <p>{MONEY_INPUT_HELP}</p>
                 {textField('currency', 'Teklif para birimi (ISO)')}
                 {textField('installmentCount', 'Teklif taksit sayısı (yoksa boş)')}
                 <label htmlFor="quote-terms">Teklif koşulları</label>

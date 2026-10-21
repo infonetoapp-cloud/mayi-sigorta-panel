@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PolicyDetailDto, PolicyDto, PolicyListResponseData } from '../../shared/types';
+import { formatMoneyMinor } from '../lib/monetary';
 
 export type RenewalResultPolicy = Pick<
   PolicyDetailDto,
@@ -7,8 +8,7 @@ export type RenewalResultPolicy = Pick<
 >;
 
 export function completionMoney(minor: number, currency: string): string {
-  const value = BigInt(minor);
-  return `${value / 100n},${String(value % 100n).padStart(2, '0')} ${currency}`;
+  return formatMoneyMinor(minor, currency);
 }
 
 export function RenewalPolicySelector({

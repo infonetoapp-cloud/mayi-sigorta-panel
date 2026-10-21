@@ -93,7 +93,7 @@ export function quotePayload(
   branchId: string,
   now = Date.now(),
 ): VersionPayload | null {
-  const premium = premiumMinor(d.premium.trim().replace(',', '.')),
+  const premium = premiumMinor(d.premium),
     parts = d.validUntil.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)(?:\.(\d{1,3}))?$/),
     utc = parts ? canonicalOccurrence(parts[1]!) : null,
     validUntil = utc ? utc.slice(0, 19) + '.' + (parts?.[2] ?? '').padEnd(3, '0') + 'Z' : null;

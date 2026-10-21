@@ -82,6 +82,21 @@ async function fill(kind: 'amendments' | 'external-references') {
   }
 }
 const save = (kind: string) => (kind === 'amendments' ? 'Zeyili kaydet' : 'Referansı kaydet');
+it.each(['-12500,50', '-12.500,50'])(
+  'canonicalizes signed Turkish amendment input %s without changing the base policy',
+  async (value) => {
+    const { updated, fetcher } = fixture('amendments');
+    render(<PolicyAppendSection kind="amendments" policy={policy} onUpdated={updated} />);
+    await fill('amendments');
+    fireEvent.change(screen.getByLabelText('Prim farkı'), { target: { value } });
+    fireEvent.change(screen.getByLabelText('ISO para birimi'), { target: { value: 'TRY' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Zeyili kaydet' }));
+    await screen.findByText(success('amendments'));
+    expect(
+      JSON.parse(String(fetcher.mock.calls.find(([, i]) => i?.method)![1]!.body)).premiumDifference,
+    ).toBe('-12500.50');
+  },
+);
 it.each(['12.34', '-0.50', '0', '90071992547409.91', '-90071992547409.91'])(
   'accepts canonical signed difference %s without floating-point conversion',
   async (value) => {
@@ -94,13 +109,13 @@ it.each(['12.34', '-0.50', '0', '90071992547409.91', '-90071992547409.91'])(
     await screen.findByText(success('amendments'));
     expect(
       JSON.parse(String(fetcher.mock.calls.find(([, i]) => i?.method)![1]!.body)).premiumDifference,
-    ).toBe(value);
+    ).toBe(value === '0' ? '0.00' : value);
   },
 );
 it.each([
   ['1.00', ''],
   ['', 'TRY'],
-  ['1,00', 'TRY'],
+  ['1,000', 'TRY'],
   ['+1.00', 'TRY'],
   ['1.234', 'TRY'],
   ['90071992547409.92', 'TRY'],

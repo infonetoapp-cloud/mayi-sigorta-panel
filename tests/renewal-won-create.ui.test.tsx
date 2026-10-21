@@ -117,7 +117,7 @@ function fixture(
   const view = render(strict ? <StrictMode>{ui}</StrictMode> : ui);
   return { fetcher, applied, read, view };
 }
-async function fill() {
+async function fill(premium = '1250.50') {
   fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur' }));
   await screen.findByRole('option', { name: 'Sigortacı' });
   for (const [label, value] of [
@@ -129,7 +129,7 @@ async function fill() {
     ['Yeni poliçe numarası', 'NEW-1'],
     ['Başlangıç tarihi', '2027-01-01'],
     ['Bitiş tarihi', '2027-12-31'],
-    ['Brüt prim', '1250.50'],
+    ['Brüt prim', premium],
   ] as const)
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
   fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçeyi gözden geçir' }));
@@ -143,6 +143,30 @@ function submit() {
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
+it.each(['12500,50', '12500.50', '12.500,50'])(
+  'normalizes WON CREATE money only into its reviewed frozen snapshot: %s',
+  async (value) => {
+    const f = fixture((url, init) =>
+      url === '/api/policies/created'
+        ? response({ ...policy, grossPremiumMinor: 1250050 })
+        : init?.method === 'POST'
+          ? response(
+              {
+                ...result,
+                links: result.links.map((link) => ({ ...link, allocatedNewPremiumMinor: 1250050 })),
+              },
+              201,
+            )
+          : undefined,
+    );
+    await fill(value);
+    submit();
+    await waitFor(() => expect(f.applied).toHaveBeenCalled());
+    expect(JSON.parse(writes(f)[0]![1]!.body as string).result.policy.grossPremium).toBe(
+      '12500.50',
+    );
+  },
+);
 it('creates policy and WON only through one frozen atomic command with decimal string premium', async () => {
   const f = fixture();
   await fill();

@@ -1,0 +1,33 @@
+{
+  "actor": "ahmet",
+  "checks": [
+    "three-policy-input-formats-same-real-D1-value-strict-ambiguous-rejection-exact-retry",
+    "canonical-CAS-PATCH-accepted-write-GET-only-readback",
+    "real-quote-create-and-immutable-revision-exact-minor-values",
+    "real-WON-CREATE-reviewed-canonical-decimal-and-exact-allocation"
+  ],
+  "screenshots": ["input-0.png", "input-1.png", "input-2.png", "quote-money.png", "won-review.png"],
+  "policyAmounts": [
+    {
+      "input": "12500,50",
+      "canonical": "12500.50",
+      "stored": 1250050,
+      "posts": 2
+    },
+    {
+      "input": "12500.50",
+      "canonical": "12500.50",
+      "stored": 1250050,
+      "posts": 1
+    },
+    {
+      "input": "12.500,50",
+      "canonical": "12500.50",
+      "stored": 1250050,
+      "posts": 1
+    }
+  ],
+  "runtimeErrors": 0,
+  "width": 360,
+  "browser": "155.0.4283.62"
+}

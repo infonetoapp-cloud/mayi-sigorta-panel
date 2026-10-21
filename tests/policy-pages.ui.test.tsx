@@ -160,8 +160,8 @@ it('requests strict pageSize and default end-date order; renders only list DTO f
   await screen.findByRole('link', { name: 'POL-a' });
   expect(fetcher.mock.calls[0]![0]).toContain('pageSize=20');
   expect(fetcher.mock.calls[0]![0]).toContain('sort=end_date_asc');
-  expect(screen.getByText('1.234,56 TRY')).toBeTruthy();
-  expect(screen.getByText('90.071.992.547.409,91 TRY')).toBeTruthy();
+  expect(screen.getByText('1.234,56 ₺')).toBeTruthy();
+  expect(screen.getByText('90.071.992.547.409,91 ₺')).toBeTruthy();
   expect(within(screen.getByRole('row', { name: /POL-big/ })).getByText('İptal')).toBeTruthy();
   expect(screen.getByText('Arşivlenmiş')).toBeTruthy();
   expect(screen.queryByText('Sigorta Şirketi')).toBeNull();
@@ -219,7 +219,7 @@ it('shows full authorized historical detail without identity/health/personnel da
   );
   mount('/policies/a');
   await screen.findByRole('heading', { name: 'POL-a' });
-  for (const text of ['Sigorta Şirketi', 'Ürün', 'Branş', 'Kart', '1.234,56 TRY'])
+  for (const text of ['Sigorta Şirketi', 'Ürün', 'Branş', 'Kart', '1.234,56 ₺'])
     expect(screen.getByText(text, { selector: 'dd' })).toBeTruthy();
   expect(screen.getByText('Geçersiz')).toBeTruthy();
   expect(screen.getByText('Arşivlenmiş')).toBeTruthy();
@@ -274,7 +274,7 @@ it('loads read-only related sections on demand and formats negative endorsement 
   await screen.findByText('Sigortalı Adı');
   expect(screen.getByText('Sigortalı · Pasif')).toBeTruthy();
   fireEvent.click(screen.getByRole('link', { name: 'Zeyiller' }));
-  await screen.findByText('-0,50 TRY');
+  await screen.findByText('-0,50 ₺');
   fireEvent.click(screen.getByRole('link', { name: 'Dış referanslar' }));
   await screen.findByText('REF-1');
   expect(document.body.textContent).not.toContain('PROTECTED-');

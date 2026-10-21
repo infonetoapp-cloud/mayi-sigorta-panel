@@ -130,6 +130,68 @@ async function fill() {
   ])
     fireEvent.change(screen.getByLabelText(label!), { target: { value } });
 }
+it.each(['12500,50', '12500.50', '12.500,50'])(
+  'sends canonical decimal policy creation from employee input %s',
+  async (value) => {
+    const f = fixture();
+    mount();
+    await fill();
+    fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
+    await screen.findByText('Modern detay');
+    expect(
+      JSON.parse(String(f.mock.calls.find(([, i]) => i?.method === 'POST')![1]!.body)).grossPremium,
+    ).toBe('12500.50');
+  },
+);
+it.each(['12500,50', '12500.50', '12.500,50'])(
+  'sends canonical CAS PATCH from employee input %s',
+  async (value) => {
+    const f = fixture();
+    mount('/policies/policy-a/edit');
+    await screen.findByLabelText('Brüt prim');
+    fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Değişiklikleri kaydet' }));
+    await screen.findByText('Modern detay');
+    expect(
+      JSON.parse(String(f.mock.calls.find(([, i]) => i?.method === 'PATCH')![1]!.body)),
+    ).toEqual({ expectedVersion: 2, grossPremium: '12500.50' });
+  },
+);
+it('never rewrites a frozen canonical money payload on ambiguous retry after a field change', async () => {
+  let attempts = 0;
+  const f = fixture((u, i) =>
+    u === '/api/policies/created'
+      ? response({ ...policy, id: 'created', version: 1 })
+      : i?.method === 'POST'
+        ? ++attempts === 1
+          ? response(null, 503)
+          : response({ ...policy, id: 'created', version: 1 }, 201)
+        : undefined,
+  );
+  mount();
+  await fill();
+  fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '12.500,50' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
+  await screen.findByRole('button', { name: 'Aynı işlemi yeniden dene' });
+  fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '1,00' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Aynı işlemi yeniden dene' }));
+  await screen.findByText('Modern detay');
+  const calls = f.mock.calls.filter(([, i]) => i?.method === 'POST');
+  expect(calls).toHaveLength(2);
+  expect(calls[0]![1]!.body).toBe(calls[1]![1]!.body);
+  expect(calls[0]![1]!.headers).toEqual(calls[1]![1]!.headers);
+  expect(JSON.parse(String(calls[1]![1]!.body)).grossPremium).toBe('12500.50');
+});
+it('does not write when a policy amount changes only its employee-facing separators', async () => {
+  const f = fixture();
+  mount('/policies/policy-a/edit');
+  await screen.findByLabelText('Brüt prim');
+  fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '1.234,56' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Değişiklikleri kaydet' }));
+  await screen.findByText('En az bir sözleşme bilgisini değiştirin.');
+  expect(f.mock.calls.some(([, i]) => i?.method)).toBe(false);
+});
 it('preselects the exact authorized origin outside bounded search results and creates with canonical fields', async () => {
   const fetcher = fixture();
   mount();
@@ -159,9 +221,9 @@ it('validates exact decimal premium, ISO currency and dependent product without 
   const fetcher = fixture();
   mount();
   await fill();
-  fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '1,25' } });
+  fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '1,250' } });
   fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
-  await screen.findByText(/Prim için noktalı ondalık girin/);
+  await screen.findByText(/12500,50 veya 12500.50/, { selector: '.customer-field-error' });
   fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '90071992547409.92' } });
   fireEvent.change(screen.getByLabelText('ISO para birimi'), { target: { value: 'ZZZ' } });
   fireEvent.change(screen.getByLabelText('Sigorta şirketi'), { target: { value: 'other-i' } });
@@ -267,7 +329,7 @@ it('requires explicit 409 comparison and sends only originally changed fields at
   fireEvent.click(screen.getByRole('button', { name: 'Değişiklikleri kaydet' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Güncel poliçeyi karşılaştır' }));
   await screen.findByText(/karşılaştırma kaydı · sürüm 7/);
-  expect(screen.getByLabelText('Sözleşme özeti').textContent).toContain('EUR');
+  expect(screen.getByLabelText('Sözleşme özeti').textContent).toContain('€');
   expect((screen.getByLabelText('Poliçe numarası') as HTMLInputElement).value).toBe('MY-DRAFT');
   fireEvent.click(screen.getByRole('button', { name: 'Karşılaştırdım, değişiklikleri kaydet' }));
   await screen.findByText('Modern detay');

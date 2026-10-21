@@ -5,6 +5,7 @@ import type {
   TodayTaskDto,
 } from '../../../shared/types';
 import { Button } from '../../components/ui/button';
+import { parseMoneyInput, formatMoneyMinor, MONEY_INPUT_HELP } from '../../lib/monetary';
 import { readCustomerResource } from '../customers/customer-resource';
 import {
   blankPolicyDraft,
@@ -142,7 +143,7 @@ export function WonCreatePolicyForm({
         policyNumber: draft.policyNumber.trim(),
         startDate: draft.startDate,
         endDate: draft.endDate,
-        grossPremium: draft.grossPremium.trim(),
+        grossPremium: parseMoneyInput(draft.grossPremium)!.canonical,
         currency: draft.currency,
         installmentCount: draft.installmentCount ? Number(draft.installmentCount) : null,
         status: 'ACTIVE',
@@ -288,6 +289,7 @@ export function WonCreatePolicyForm({
               }
               <input
                 type={key === 'startDate' || key === 'endDate' ? 'date' : 'text'}
+                inputMode={key === 'grossPremium' ? 'decimal' : undefined}
                 value={draft[key]}
                 maxLength={key === 'policyNumber' ? 200 : 100}
                 onChange={(e) => change(key, e.target.value)}
@@ -310,10 +312,7 @@ export function WonCreatePolicyForm({
             Taksit seçimini açıkça temizle
           </Button>
         )}
-        <p>
-          Durum: ACTIVE. Prim noktalı decimal string olarak gönderilir (ör.1250.50), kayan noktalı
-          yuvarlama yapılmaz.
-        </p>
+        <p>Durum: ACTIVE. {MONEY_INPUT_HELP}</p>
         <Button
           type="button"
           disabled={!catalogs}
@@ -337,8 +336,12 @@ export function WonCreatePolicyForm({
               {catalogs?.products.find((r) => r.id === review.policy.productId)?.name}; branş{' '}
               {catalogs?.branches.find((r) => r.id === review.policy.branchId)?.name}; ödeme{' '}
               {catalogs?.paymentMethods.find((r) => r.id === review.policy.paymentMethodId)?.name};{' '}
-              {review.policy.startDate} → {review.policy.endDate}; prim {review.policy.grossPremium}{' '}
-              {review.policy.currency}; taksit {review.policy.installmentCount ?? 'yok'}; sorumlu{' '}
+              {review.policy.startDate} → {review.policy.endDate}; prim{' '}
+              {formatMoneyMinor(
+                Number(premiumMinor(review.policy.grossPremium)),
+                review.policy.currency,
+              )}
+              ; taksit {review.policy.installmentCount ?? 'yok'}; sorumlu{' '}
               {review.policy.assigneeMembershipId}.
             </p>
             <details>

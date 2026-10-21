@@ -447,6 +447,24 @@ function submit(mode = 'create') {
   );
 }
 const success = () => screen.findByText('Teklif kaydedildi ve geçmiş güncellendi.');
+it.each([
+  ['create', '12500,50'],
+  ['create', '12500.50'],
+  ['create', '12.500,50'],
+  ['version', '12500,50'],
+  ['version', '12500.50'],
+  ['version', '12.500,50'],
+] as const)('uses the same exact minor conversion for quote %s input %s', async (mode, value) => {
+  const f = fixture(mode);
+  await open(mode);
+  fireEvent.change(screen.getByLabelText('Teklif brüt primi (ana birim)'), { target: { value } });
+  submit(mode);
+  await success();
+  expect(
+    JSON.parse(String(f.fetcher.mock.calls.find(([, i]) => i?.method === 'POST')![1]!.body)).version
+      .grossPremiumMinor,
+  ).toBe(1250050);
+});
 it('locks insurer/product identity in immutable version mode; alternatives require a new quote', async () => {
   const expanded = {
     ...catalogs,

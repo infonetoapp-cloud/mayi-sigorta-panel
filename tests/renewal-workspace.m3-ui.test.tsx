@@ -448,9 +448,9 @@ describe('M3 Renewal workspace UI', () => {
     );
     await screen.findByText(/Teklif ve poliçe arasında ürün\/prim farkı var/);
     expect(screen.getByText(/Teklif: Quoted Product/)).toBeTruthy();
-    expect(screen.getByText(/Teklif: Quoted Product/).textContent).toContain('100,00 TRY');
+    expect(screen.getByText(/Teklif: Quoted Product/).textContent).toContain('100,00 ₺');
     expect(screen.getByText(/Poliçe: Result Product/)).toBeTruthy();
-    expect(screen.getByText(/Poliçe: Result Product/).textContent).toContain('120,00 TRY');
+    expect(screen.getByText(/Poliçe: Result Product/).textContent).toContain('120,00 ₺');
     expect(calls.some((item) => item.url.endsWith('/close-won'))).toBe(false);
     fireEvent.change(screen.getByLabelText('Ürün/prim farkı nedeni: Individual A'), {
       target: { value: 'INSURER_REQUOTE' },

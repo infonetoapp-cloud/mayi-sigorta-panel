@@ -249,8 +249,8 @@ it('requires explicit quote/version selection and confirmation, posts only CAS/v
   );
   expect(form.textContent).toContain('Sentetik şirket');
   expect(form.textContent).toContain('Sentetik ürün');
-  expect(form.textContent).toContain('123.45');
-  expect(form.textContent).toContain('TRY');
+  expect(form.textContent).toContain('123,45');
+  expect(form.textContent).toContain('₺');
   fireEvent.click(within(form).getByRole('button', { name: 'Gönderildi kaydını onayla' }));
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(0);
   submit();
@@ -592,7 +592,7 @@ it.each([400, 403, 404])(
     const form = screen.getByRole('form', { name: 'Gönderildi durum kaydı' });
     expect(document.body.textContent).not.toContain('unsafe diagnostic');
     if (status !== 400) {
-      expect(form.textContent).not.toContain('123.45');
+      expect(form.textContent).not.toContain('123,45');
       expect(form.textContent).not.toContain('Sentetik ürün');
     }
     expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
@@ -892,7 +892,7 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
       );
     else {
       expect(screen.getByRole('form', { name: 'Gönderildi durum kaydı' }).textContent).toContain(
-        '123.45',
+        '123,45',
       );
       if (kind === 'sent-unresolved')
         expect(
