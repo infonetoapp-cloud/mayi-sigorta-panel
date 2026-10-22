@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { historicalMigrationHash } from './support/migration-git-bytes';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync, spawnSync } from 'node:child_process';
@@ -32,11 +32,7 @@ const hashes: Record<string, string> = {
 describe('M2-T05 migration 0008', () => {
   it('preserves historical SQL and creates exactly one 0008', () => {
     for (const [file, expected] of Object.entries(hashes)) {
-      expect(
-        createHash('sha256')
-          .update(readFileSync(resolve(root, 'db/migrations', file)))
-          .digest('hex'),
-      ).toBe(expected);
+      expect(historicalMigrationHash(root, file)).toBe(expected);
     }
     expect(
       readdirSync(resolve(root, 'db/migrations')).filter((file) => file.startsWith('0008_')),

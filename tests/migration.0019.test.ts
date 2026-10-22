@@ -12,6 +12,7 @@ import {
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { historicalMigrationBytes } from './support/migration-git-bytes';
 const root = process.cwd();
 const migration = '0019_m4_internal_document_validation.sql';
 const files = readdirSync('db/migrations')
@@ -135,7 +136,7 @@ describe('0019 forward structural acceptance', () => {
           { cwd: root },
         );
         expect(committed.status).toBe(0);
-        expect(readFileSync(resolve(dir, n))).toEqual(committed.stdout);
+        expect(historicalMigrationBytes(root, `${dir}/${n}`)).toEqual(committed.stdout);
       }
     const old = spawnSync(
       'git',

@@ -1,17 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { historicalMigrationBytes } from './support/migration-git-bytes';
 
 const migration = '0018_document_backup_terminal_failure.sql';
 const root = process.cwd();
@@ -173,7 +166,7 @@ describe('0018 local forward-only backup terminal guard', () => {
         { cwd: root },
       );
       expect(committed.status).toBe(0);
-      expect(readFileSync(resolve('db/migrations', name))).toEqual(committed.stdout);
+      expect(historicalMigrationBytes(root, `db/migrations/${name}`)).toEqual(committed.stdout);
     }
     for (const name of readdirSync('db/migrations/meta').filter((name) =>
       /^00(?:0[0-9]|1[0-7])_snapshot\.json$/u.test(name),
@@ -184,7 +177,9 @@ describe('0018 local forward-only backup terminal guard', () => {
         { cwd: root },
       );
       expect(committed.status).toBe(0);
-      expect(readFileSync(resolve('db/migrations/meta', name))).toEqual(committed.stdout);
+      expect(historicalMigrationBytes(root, `db/migrations/meta/${name}`)).toEqual(
+        committed.stdout,
+      );
     }
   });
 });

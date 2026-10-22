@@ -61,7 +61,7 @@ beforeAll(async () => {
   const gateProbe = await build({
     ...options,
     stdin: {
-      contents: `import {WorkerEntrypoint} from 'cloudflare:workers';import worker from './src/server/worker';export class DocumentGateProbe extends WorkerEntrypoint {async check(path){const r=await worker.fetch(new Request('https://panel.mayisigorta.com'+path,{method:'POST',headers:{Origin:'https://panel.mayisigorta.com',Host:'panel.mayisigorta.com','content-type':'application/json'},body:'{}'}),this.env,this.ctx);const b=await r.json();return {status:r.status,code:b.error?.code}}}export default {...worker,fetch(){return new Response(null,{status:404})}}`,
+      contents: `import {WorkerEntrypoint} from 'cloudflare:workers';import worker from './src/server/worker';export {DocumentUploadDurableObject} from './src/server/worker';export class DocumentGateProbe extends WorkerEntrypoint {async check(path){const upload=path==='/api/documents';const r=await worker.fetch(new Request('https://panel.mayisigorta.com'+path,{method:'POST',headers:{Origin:'https://panel.mayisigorta.com',Host:'panel.mayisigorta.com','content-type':upload?'multipart/form-data; boundary=closed-gate-boundary':'application/json'},body:upload?'--closed-gate-boundary--\\r\\n':'{}'}),this.env,this.ctx);const b=await r.json();return {status:r.status,code:b.error?.code}}}export default {...worker,fetch(){return new Response(null,{status:404})}}`,
       resolveDir: process.cwd(),
       loader: 'ts',
     },
@@ -107,6 +107,20 @@ beforeAll(async () => {
           ...main,
           script: gateProbe.outputFiles![0]!.text,
           bindings: bindings(String(pub), String(jobs), String(cron)),
+          // Exercise the current real upload dispatcher/DO before its auth denial,
+          // rather than masking missing infrastructure with a weaker503 expectation.
+          durableObjects: {
+            DOCUMENT_UPLOAD_RUNTIME: {
+              className: 'DocumentUploadDurableObject',
+              useSQLite: true as const,
+            },
+          },
+          ratelimits: {
+            AUTH_SOURCE_RATE_LIMITER: {
+              namespace_id: String(49000 + i),
+              simple: { limit: 1000, period: 60 as const },
+            },
+          },
           serviceBindings: capability('document-recovery'),
           queueProducers: { DOCUMENT_JOB_QUEUE: 'synthetic-document-jobs' },
         })),

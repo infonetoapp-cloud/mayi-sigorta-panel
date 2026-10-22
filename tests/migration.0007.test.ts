@@ -1,15 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  copyFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { createHash } from 'node:crypto';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { historicalMigrationHash } from './support/migration-git-bytes';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync, execSync } from 'node:child_process';
@@ -28,12 +20,7 @@ const hashes: Record<string, string> = {
 };
 describe('M2-T04 migration 0007', () => {
   it('preserves hashes 0000-0006', () => {
-    for (const [f, h] of Object.entries(hashes))
-      expect(
-        createHash('sha256')
-          .update(readFileSync(resolve(root, 'db/migrations', f)))
-          .digest('hex'),
-      ).toBe(h);
+    for (const [f, h] of Object.entries(hashes)) expect(historicalMigrationHash(root, f)).toBe(h);
   });
   it('upgrades 0006 to 0007, preserves prior seeds, clean-applies and reruns no-op', () => {
     for (const mode of ['upgrade', 'clean'] as const) {

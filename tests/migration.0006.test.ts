@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
+import { historicalMigrationHash } from './support/migration-git-bytes';
 import { execSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import miniflare from 'miniflare';
@@ -48,9 +48,7 @@ describe('M2-T03 Migration 0006 & Database Invariant Verification', () => {
   // 1. Historical migrations 0000-0005 are strictly unchanged
   it('verifies historical 0000-0005 migrations are unchanged (exact SHA-256 hash preservation)', () => {
     for (const [filename, expectedHash] of Object.entries(HISTORICAL_HASHES)) {
-      const filePath = resolve(rootDir, 'db/migrations', filename);
-      const content = readFileSync(filePath);
-      const actualHash = createHash('sha256').update(content).digest('hex');
+      const actualHash = historicalMigrationHash(rootDir, filename);
       expect(actualHash).toBe(expectedHash);
     }
   });

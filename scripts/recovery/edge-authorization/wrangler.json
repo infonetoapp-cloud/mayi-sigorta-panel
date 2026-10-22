@@ -1,0 +1,45 @@
+{
+  "name": "mayisigorta-ops001-auth-edge-01",
+  "main": "../../../src/server/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "triggers": { "crons": [] },
+  "vars": {
+    "APP_ENV": "production",
+    "PANEL_ORIGIN": "https://owner-approval-required.invalid",
+    "DOCUMENTS_ENABLED": "false",
+    "DOCUMENT_JOBS_ENABLED": "false",
+    "DOCUMENT_CRON_ENABLED": "false",
+    "RENEWAL_CONTINUATION_ENABLED": "false"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "PASSWORD_KDF", "class_name": "PasswordKdfDurableObject" }]
+  },
+  "migrations": [
+    { "tag": "ops001-auth-edge-kdf-v1", "new_sqlite_classes": ["PasswordKdfDurableObject"] }
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_ACCOUNT_RATE_LIMITER",
+      "namespace_id": "48001",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "AUTH_SOURCE_RATE_LIMITER",
+      "namespace_id": "48002",
+      "simple": { "limit": 1000, "period": 60 }
+    }
+  ],
+  "secrets": { "required": ["CSRF_SECRET"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mayisigorta-ops001-auth-edge-db-01",
+      "database_id": "00000000-0000-4000-8000-000000000906",
+      "migrations_dir": "../../../db/migrations"
+    }
+  ]
+}
