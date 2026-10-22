@@ -526,7 +526,10 @@ async function seedOperationalState(db: D1Database) {
 }
 
 /** Optional explicit test-only seed remains confined to the freshly created local source. */
-export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => Promise<void>) {
+export async function createSyntheticAuthBackup(
+  seedLocal?: (db: D1Database) => Promise<void>,
+  extendLocal?: (db: D1Database) => Promise<void>,
+) {
   const directory = directoryFor('source');
   let platform: Awaited<ReturnType<typeof openLocal>> | undefined;
   try {
@@ -537,12 +540,16 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
       await seed(platform.db);
       await seedOperationalState(platform.db);
     }
+    // Same additive test-only hook accepted in Gate A; source is still local/quiescent.
+    await extendLocal?.(platform.db);
     // Source is offline/quiescent. Native export is the consistent snapshot boundary, not row-by-row live reads.
     await platform.dispose();
     platform = undefined;
     const start = performance.now(),
       dump = join(directory, 'native.sql');
+    const snapshotStartedAt = new Date().toISOString();
     localCommand(directory, ['d1', 'export', 'DB', '--output', dump]);
+    const snapshotCompletedAt = new Date().toISOString();
     const native = readFileSync(dump, 'utf8');
 
     const decoded = new DatabaseSync(':memory:', {
@@ -573,6 +580,8 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
       backup,
       // SYNTHETIC bytes only, retained for same-source native transport regression.
       nativeExportSql: native,
+      snapshotStartedAt,
+      snapshotCompletedAt,
       db: source.db,
       exportElapsedMs,
       async dispose() {

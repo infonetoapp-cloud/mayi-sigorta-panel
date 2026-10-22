@@ -283,6 +283,7 @@ export function verifyD1UploadEtag(expectedMD5: string, received: unknown) {
   if (
     !/^[a-f0-9]{32}$/u.test(expectedMD5) ||
     typeof received !== 'string' ||
+    !/^(?:[a-f0-9]{32}|"[a-f0-9]{32}")$/iu.test(received) ||
     received.replace(/^"|"$/gu, '').toLowerCase() !== expectedMD5
   )
     return fail('UPLOAD_ETAG_MISMATCH');

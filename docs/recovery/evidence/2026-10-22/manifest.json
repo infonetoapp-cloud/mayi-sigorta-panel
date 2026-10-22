@@ -1,0 +1,18 @@
+{
+  "kind": "HISTORICAL_RECEIPTS_ONLY_NO_AUTHORITY",
+  "scope": "SYNTHETIC_D1_SQL_ONLY",
+  "files": [
+    {
+      "path": "query-result.json",
+      "sha256": "0f8db4a6fe916c80debc3d41a7bfeced4866c27fdadcf0cb14b105a5e9507de6"
+    },
+    {
+      "path": "independent-absence.json",
+      "sha256": "061f528d69243d6030150373a5ed2faedd65525ff97ba9ea6483f7568194038a"
+    },
+    {
+      "path": "closeout.json",
+      "sha256": "030ebecd9cb535973411322eba60eed73b19310b09bc3aa16728384303d9ba3f"
+    }
+  ]
+}

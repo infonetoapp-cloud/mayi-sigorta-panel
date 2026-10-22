@@ -1,0 +1,26 @@
+{
+  "code": "REMOTE_QUERY_VERIFIED_SEALED",
+  "at": "2026-10-22T07:42:03.952Z",
+  "uuid": "cc293a82-c9fc-41f7-818a-9ca1c80fe66b",
+  "name": "mayisigorta-ops001-restore-gatec-44c314b-03",
+  "requests": 123,
+  "rowsRead": 3509,
+  "rowsWritten": 995,
+  "snapshot": {
+    "tables": 46,
+    "rows": 114,
+    "migrations": 23,
+    "foreignKeyViolations": 0,
+    "schemaHash": "f7d308266f6376551ba964e0df0089cf2f1a8eca466c9f54dadaf1c29ec4c763",
+    "policyMinor": 183456,
+    "level": "SQL_ONLY",
+    "apiAuthorization": "NOT_EXECUTED"
+  },
+  "reconciled": {
+    "level": "SQL_ONLY",
+    "apiAuthorization": "NOT_EXECUTED",
+    "publication": "SEALED"
+  },
+  "publication": "SEALED",
+  "apiAuthorization": "NOT_EXECUTED"
+}

@@ -1,0 +1,2 @@
+# Historical recovery receipts must remain byte-exact on every checkout.
+/docs/recovery/evidence/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
