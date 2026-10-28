@@ -1,0 +1,1063 @@
+/* Third slice only: no global shell or approved workspace selectors. */
+.portfolio-v4 {
+  --pv4-ink: #1b2a41;
+  --pv4-muted: #687890;
+  --pv4-line: #e5eaf1;
+  --pv4-blue: #285ed8;
+  min-width: 0;
+  color: var(--pv4-ink);
+  max-width: 1540px;
+  margin: auto;
+}
+.portfolio-v4 [hidden] {
+  display: none !important;
+}
+.portfolio-v4 h1,
+.portfolio-v4 h2,
+.portfolio-v4 h3,
+.portfolio-v4 p {
+  margin-top: 0;
+}
+.portfolio-v4 h2 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.portfolio-v4 h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.portfolio-v4 p {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.portfolio-v4 small {
+  display: block;
+  color: var(--pv4-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.portfolio-v4 a:focus-visible,
+.portfolio-v4 button:focus-visible,
+.portfolio-v4 input:focus-visible,
+.portfolio-v4 select:focus-visible {
+  outline: 3px solid #90b6fb;
+  outline-offset: 3px;
+}
+.pv4-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+.pv4-page-header h1 {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  margin: 7px 0;
+}
+.pv4-page-header p {
+  margin: 0;
+  color: var(--pv4-muted);
+}
+.pv4-eyebrow {
+  color: var(--pv4-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+}
+.pv4-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pv4-surface {
+  background: #fff;
+  border: 1px solid var(--pv4-line);
+  border-radius: 14px;
+  box-shadow: 0 2px 5px #23375503;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pv4-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  padding: 19px;
+  flex-wrap: wrap;
+}
+.portfolio-v4 label {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 6px;
+}
+.pv4-toolbar > div:first-child {
+  flex: 1;
+  min-width: 200px;
+}
+.portfolio-v4 select {
+  border: 1px solid #dbe3ef;
+  background: white;
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 7px 28px 7px 10px;
+  font: inherit;
+  font-size: 12px;
+  max-width: 100%;
+}
+.pv4-query-options {
+  display: contents;
+}
+.pv4-toolbar input {
+  min-height: 38px;
+  font-size: 13px;
+}
+.pv4-toolbar > button {
+  min-height: 38px;
+}
+.pv4-advanced {
+  padding: 18px;
+  border-top: 1px solid var(--pv4-line);
+  background: #fafbfd;
+}
+.pv4-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.pv4-filter-grid select,
+.pv4-filter-grid input {
+  width: 100%;
+}
+.pv4-customer-search {
+  padding-top: 16px;
+  border-top: 1px solid var(--pv4-line);
+  margin-bottom: 16px;
+}
+.pv4-customer-search .pv4-inline input {
+  flex: 1;
+  min-width: 160px;
+}
+.pv4-customer-search p {
+  color: var(--pv4-muted);
+  font-size: 11px;
+  margin: 9px 0;
+}
+.pv4-customer-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 15px 0;
+}
+.pv4-expiry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 19px;
+  background: #fbfcfe;
+  border-top: 1px solid var(--pv4-line);
+  border-bottom: 1px solid var(--pv4-line);
+}
+.pv4-expiry > span:first-child {
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 8px;
+  color: var(--pv4-muted);
+}
+.pv4-expiry > button {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+.pv4-expiry > button[aria-pressed='true'] {
+  background: #edf3ff;
+  color: var(--pv4-blue);
+  box-shadow: inset 0 0 0 1px #cbdcfa;
+}
+.pv4-scope {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--pv4-muted);
+}
+.pv4-active-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 14px 19px 0;
+}
+.pv4-active-filters button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dbe6f6;
+  border-radius: 6px;
+  background: #f4f8ff;
+  color: #486a9f;
+  padding: 5px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.pv4-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 19px 13px;
+}
+.pv4-list-heading h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.pv4-list-heading h2 span {
+  font-size: 11px;
+  color: var(--pv4-muted);
+  margin-left: 8px;
+  font-weight: 400;
+}
+.pv4-list-heading > span {
+  font-size: 10px;
+  color: var(--pv4-muted);
+}
+.pv4-table {
+  width: 100%;
+  text-align: left;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.pv4-table th {
+  color: var(--pv4-muted);
+  background: #f8fafd;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-block: 1px solid var(--pv4-line);
+}
+.pv4-table th:first-child {
+  width: 23%;
+  padding-left: 20px;
+}
+.pv4-table th:nth-child(2) {
+  width: 19%;
+}
+.pv4-table th:nth-child(3) {
+  width: 19%;
+}
+.pv4-table th:nth-child(4) {
+  width: 15%;
+}
+.pv4-table th:nth-child(5) {
+  width: 12%;
+}
+.pv4-table th:last-child {
+  width: 100px;
+}
+.pv4-table td {
+  padding: 17px 14px;
+  border-bottom: 1px solid #edf0f5;
+  vertical-align: middle;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.pv4-table td:first-child {
+  padding-left: 20px;
+}
+.pv4-table td strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.6;
+}
+.pv4-table small {
+  font-size: 11px;
+}
+.pv4-customer {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  color: #24344d;
+  line-height: 1.65;
+  margin-bottom: 4px;
+}
+.pv4-customer:hover,
+.pv4-policy-link:hover {
+  color: var(--pv4-blue);
+}
+.pv4-policy-link {
+  display: block;
+  font-size: 11px;
+  color: #718198;
+  line-height: 1.6;
+}
+.pv4-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pv4-table td.pv4-number {
+  font-size: 13px;
+  font-weight: 550;
+}
+.pv4-table tr[data-selected='true'] {
+  background: #f0f6ff;
+}
+.pv4-status {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f4f8;
+  color: #67768a;
+  padding: 4px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+.pv4-status.is-active {
+  background: #eaf6ef;
+  color: #2d7851;
+}
+.pv4-table .pv4-expiration {
+  margin-top: 4px;
+  color: #697f9f;
+}
+.pv4-table td > button {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.pv4-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 16px 19px;
+}
+.pv4-pagination > span {
+  margin-right: auto;
+  font-size: 10px;
+  color: var(--pv4-muted);
+}
+.pv4-footnote {
+  font-size: 11px !important;
+  line-height: 1.7;
+  margin-top: 14px;
+  color: var(--pv4-muted);
+}
+.pv4-muted {
+  color: var(--pv4-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.pv4-empty {
+  text-align: center;
+  padding: 45px 20px;
+  color: var(--pv4-muted);
+}
+.pv4-empty > svg {
+  margin: 0 auto 14px;
+  color: #9aadca;
+}
+.pv4-empty h2 {
+  color: var(--pv4-ink);
+  margin-bottom: 8px;
+}
+.pv4-warning {
+  margin: 12px 19px;
+  padding: 10px;
+  background: #fff8e9;
+  color: #795a24;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.portfolio-v4 > [role='alert'],
+.pv4-surface > [role='alert'],
+.pv4-surface > [role='status'] {
+  margin: 12px 19px;
+}
+.pv4-preview {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  max-height: 100dvh;
+  height: 100dvh;
+  width: min(460px, 100vw);
+  max-width: 100vw;
+  border: 0;
+  border-left: 1px solid #dce5f1;
+  background: #fff;
+  color: #1c2c45;
+  padding: 25px;
+  box-sizing: border-box;
+  box-shadow: -15px 0 60px #182a4920;
+  overflow: auto;
+}
+.pv4-preview::backdrop {
+  background: #172a462e;
+  backdrop-filter: blur(2px);
+}
+.pv4-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.pv4-preview-head > span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #718198;
+  font-weight: 650;
+}
+.pv4-preview h2 {
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+  margin: 0 0 9px;
+}
+.pv4-preview-customer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #285ed8;
+  font-size: 15px;
+}
+.pv4-preview .pv4-badges {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0;
+}
+.pv4-badges span {
+  font-size: 11px;
+  background: #eff4fa;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #647791;
+}
+.pv4-preview dl {
+  display: grid;
+  gap: 0;
+  margin: 0 0 24px;
+}
+.pv4-preview dl > div {
+  padding: 16px 0;
+  border-top: 1px solid #e8edf5;
+}
+.pv4-preview dt {
+  font-size: 11px;
+  color: #76859b;
+  margin-bottom: 7px;
+}
+.pv4-preview dd {
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pv4-preview dd small {
+  display: block;
+  font-size: 12px;
+  color: #7b899d;
+}
+.pv4-preview-actions {
+  display: grid;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #e8edf5;
+}
+.pv4-preview-actions > a {
+  justify-content: center;
+  min-height: 42px;
+}
+.pv4-preview button:focus-visible,
+.pv4-preview a:focus-visible {
+  outline: 3px solid #8db3f6;
+  outline-offset: 2px;
+}
+.portfolio-v4.pv4-detail > div:first-of-type {
+  margin-top: 14px;
+}
+.pv4-detail .customer-section-nav {
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 0 0 1px;
+  border: 0;
+  border-bottom: 1px solid var(--pv4-line);
+  margin-block: 22px;
+}
+.pv4-detail .customer-section-nav a {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--pv4-muted);
+}
+.pv4-detail .customer-section-nav a[aria-current='page'] {
+  border-bottom-color: var(--pv4-blue);
+  color: var(--pv4-blue);
+}
+.pv4-detail .customer-info-grid {
+  gap: 23px;
+}
+.pv4-detail .customer-info-grid dt {
+  font-size: 11px;
+}
+.pv4-detail .customer-info-grid dd {
+  font-size: 14px;
+}
+.pv4-renewal-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin: 25px 0 22px;
+}
+.pv4-renewal-heading > svg {
+  color: #7c9cc9;
+  flex: none;
+}
+.pv4-renewal-heading h2 {
+  font-size: 21px;
+  margin: 8px 0;
+}
+.pv4-renewal-heading p {
+  font-size: 12px;
+  color: var(--pv4-muted);
+  margin: 0;
+}
+.pv4-select-renewal {
+  padding: 22px;
+}
+.pv4-select-renewal > p {
+  color: var(--pv4-muted);
+  max-width: 760px;
+}
+.pv4-renewal-choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--pv4-line);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.pv4-renewal-choice strong {
+  font-size: 14px;
+}
+.pv4-renewal-choice small {
+  margin-top: 4px;
+}
+.pv4-selected-context {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 13px 17px;
+  border: 1px solid #dce7f7;
+  background: #f4f8ff;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.pv4-selected-context > button {
+  margin-left: auto;
+}
+.pv4-work-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.pv4-work-tabs > button {
+  min-height: 42px;
+  font-size: 13px;
+  color: var(--pv4-muted);
+}
+.pv4-work-tabs > button[aria-pressed='true'] {
+  color: var(--pv4-blue);
+  background: #eaf1ff;
+}
+.pv4-renewal-body {
+  padding: 24px;
+}
+.pv4-renewal-workspace > .pv4-surface {
+  padding: 22px;
+}
+.pv4-renewal-body .quote-history > h3,
+.pv4-renewal-body h3 {
+  font-size: 16px;
+}
+.pv4-renewal-body label {
+  font-size: 12px;
+  margin-top: 12px;
+}
+.pv4-renewal-body input,
+.pv4-renewal-body textarea,
+.pv4-renewal-body select {
+  font: inherit;
+  font-size: 13px;
+  min-height: 38px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.pv4-renewal-body fieldset {
+  min-width: 0;
+}
+.pv4-renewal-body .quote-form,
+.pv4-renewal-body .interaction-form {
+  padding: 20px;
+  border: 1px solid var(--pv4-line);
+  border-radius: 12px;
+  background: #f8fafd;
+  margin-top: 20px;
+}
+.pv4-renewal-body .interaction-form fieldset {
+  display: grid;
+  gap: 7px;
+}
+.pv4-renewal-body .interaction-form input,
+.pv4-renewal-body .interaction-form select,
+.pv4-renewal-body .interaction-form textarea {
+  width: 100%;
+}
+.pv4-renewal-body input[type='checkbox'] {
+  width: 16px;
+  min-height: 0;
+}
+.pv4-renewal-body ul {
+  min-width: 0;
+}
+.pv4-renewal-body p,
+.pv4-renewal-body li {
+  overflow-wrap: anywhere;
+}
+.pv4-renewal-body .quote-record {
+  border: 1px solid var(--pv4-line);
+  border-radius: 12px;
+  padding: 18px;
+  margin: 14px 0;
+  box-shadow: none;
+}
+.pv4-renewal-body details {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--pv4-line);
+  border-radius: 9px;
+}
+.pv4-renewal-body summary {
+  font-size: 13px;
+  cursor: pointer;
+}
+.pv4-draft-notice {
+  padding: 11px 14px;
+  border: 1px solid #f0e4bf;
+  border-radius: 8px;
+  background: #fff9ed;
+  color: #846525;
+  font-size: 12px !important;
+}
+.pv4-legacy-boundary {
+  border-top: 1px solid var(--pv4-line);
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.pv4-legacy-boundary p {
+  color: var(--pv4-muted);
+  font-size: 12px;
+}
+.pv4-legacy-boundary a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--pv4-blue);
+  font-size: 12px;
+}
+/* Browser revision: explicit form rhythm and readable tablet secondary text. */
+.pv4-action-lock {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.pv4-renewal-body .quote-form fieldset {
+  display: grid;
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 18px;
+}
+.pv4-renewal-body .quote-form fieldset > label {
+  grid-column: 1;
+  margin: 0;
+}
+.pv4-renewal-body .quote-form fieldset > input,
+.pv4-renewal-body .quote-form fieldset > select,
+.pv4-renewal-body .quote-form fieldset > textarea {
+  grid-column: 2;
+  width: 100%;
+}
+.pv4-renewal-body .quote-form fieldset > p,
+.pv4-renewal-body .quote-form fieldset > .interaction-confirm {
+  grid-column: 1/-1;
+}
+.pv4-renewal-body .quote-form .interaction-confirm {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  padding-block: 10px;
+}
+.pv4-renewal-body .quote-form textarea {
+  min-height: 90px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 10px;
+}
+.pv4-renewal-body .quote-record h4 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0 0 8px;
+}
+.pv4-preview-head > button {
+  width: 44px;
+  min-height: 44px;
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .portfolio-v4 .pv4-table th {
+    font-size: 11px;
+  }
+  .portfolio-v4 .pv4-table small {
+    font-size: 11px;
+  }
+  .portfolio-v4 .pv4-table td strong,
+  .portfolio-v4 .pv4-customer {
+    font-size: 13px;
+  }
+}
+@media (max-width: 600px) {
+  .pv4-renewal-body .quote-form fieldset {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+  .pv4-renewal-body .quote-form fieldset > label,
+  .pv4-renewal-body .quote-form fieldset > input,
+  .pv4-renewal-body .quote-form fieldset > select,
+  .pv4-renewal-body .quote-form fieldset > textarea {
+    grid-column: 1;
+  }
+  .pv4-renewal-body .quote-form fieldset > label {
+    margin-top: 8px;
+  }
+  .pv4-table td:nth-child(6) > button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 1200px) {
+  .pv4-toolbar {
+    gap: 9px;
+  }
+  .pv4-toolbar > div:first-child {
+    min-width: 200px;
+  }
+  .pv4-table th,
+  .pv4-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .pv4-table th:last-child {
+    width: 85px;
+  }
+  .pv4-table td > button span {
+    display: none;
+  }
+  .pv4-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .pv4-page-header {
+    align-items: start;
+  }
+  .pv4-page-header h1 {
+    font-size: 28px;
+  }
+  .pv4-table th {
+    font-size: 9px;
+  }
+  .pv4-table td {
+    padding: 14px 8px;
+    font-size: 11px;
+  }
+  .pv4-table th:first-child {
+    width: 22%;
+  }
+  .pv4-table th:nth-child(4) {
+    width: 16%;
+  }
+  .pv4-table th:last-child {
+    width: 48px;
+  }
+  .pv4-table td strong,
+  .pv4-customer {
+    font-size: 12px;
+  }
+  .pv4-table td.pv4-number {
+    font-size: 12px;
+  }
+  .pv4-table small {
+    font-size: 10px;
+  }
+  .pv4-scope {
+    width: 100%;
+    margin-left: 0;
+  }
+  .pv4-toolbar > div:first-child {
+    flex-basis: 50%;
+  }
+}
+@media (max-width: 600px) {
+  .pv4-page-header {
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .pv4-page-header h1 {
+    font-size: 28px;
+  }
+  .pv4-page-header .pv4-inline {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .pv4-page-header .pv4-inline > a {
+    justify-content: center;
+    min-height: 42px;
+    font-size: 12px;
+  }
+  .pv4-toolbar {
+    padding: 15px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .portfolio-v4 .pv4-toolbar > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .portfolio-v4 .pv4-apply {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+  .portfolio-v4 .pv4-query-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-column: 1/-1;
+    gap: 12px;
+  }
+  .portfolio-v4[data-filters-open='false'] :is(.pv4-query-options, .pv4-expiry) {
+    display: none;
+  }
+  .pv4-toolbar select {
+    width: 100%;
+    font-size: 11px;
+  }
+  .pv4-toolbar > button {
+    font-size: 11px;
+    min-height: 40px;
+  }
+  .portfolio-v4 .pv4-toolbar > button:last-child {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .pv4-expiry {
+    padding: 12px;
+    gap: 2px;
+  }
+  .pv4-expiry > button {
+    min-height: 40px;
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+  .pv4-filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .pv4-advanced {
+    padding: 15px;
+  }
+  .pv4-customer-search .pv4-inline > * {
+    width: 100%;
+  }
+  .pv4-active-filters {
+    padding: 12px;
+  }
+  .pv4-active-filters button {
+    min-height: 36px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  .pv4-list-heading {
+    padding: 18px 15px 12px;
+    flex-wrap: wrap;
+  }
+  .pv4-list-heading > span {
+    width: 100%;
+  }
+  .pv4-table thead {
+    display: none;
+  }
+  .pv4-table,
+  .pv4-table tbody {
+    display: block;
+  }
+  .pv4-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 16px;
+    border-bottom: 1px solid var(--pv4-line);
+    gap: 9px 16px;
+  }
+  .pv4-table td {
+    padding: 0 !important;
+    border: 0;
+    display: block;
+  }
+  .pv4-table td:first-child {
+    grid-column: 1/-1;
+    padding-right: 44px !important;
+  }
+  .pv4-customer {
+    font-size: 14px;
+  }
+  .pv4-policy-link {
+    font-size: 12px;
+  }
+  .pv4-table td:nth-child(2) {
+    grid-column: 1;
+  }
+  .pv4-table td:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2/4;
+  }
+  .pv4-table td:nth-child(4) {
+    grid-column: 1;
+    text-align: left;
+    font-size: 14px;
+  }
+  .pv4-table td:nth-child(4)::before {
+    content: 'Brüt prim';
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--pv4-muted);
+    margin-bottom: 2px;
+  }
+  .pv4-table td:nth-child(5) {
+    grid-column: 2;
+    grid-row: 4;
+  }
+  .pv4-table td:nth-child(6) {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .pv4-table td:nth-child(6) > button {
+    min-height: 42px;
+    border: 1px solid var(--pv4-line);
+    border-radius: 7px;
+    padding: 8px 12px;
+  }
+  .pv4-table td > button span {
+    display: inline;
+  }
+  .pv4-table td strong {
+    font-size: 13px;
+  }
+  .pv4-table small {
+    font-size: 11px;
+  }
+  .pv4-pagination {
+    padding: 15px;
+    justify-content: space-between;
+  }
+  .pv4-pagination > span {
+    width: 100%;
+    margin-bottom: 6px;
+  }
+  .pv4-pagination > button {
+    font-size: 12px;
+    min-height: 42px;
+  }
+  .pv4-preview {
+    width: 100vw;
+    border: 0;
+    padding: 20px;
+  }
+  .pv4-detail .customer-section-nav {
+    gap: 8px 16px;
+  }
+  .pv4-detail .customer-section-nav a {
+    font-size: 11px;
+  }
+  .pv4-renewal-heading {
+    margin-top: 20px;
+  }
+  .pv4-renewal-heading h2 {
+    font-size: 19px;
+  }
+  .pv4-renewal-choice {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+  .pv4-renewal-choice > button,
+  .pv4-renewal-choice > a {
+    width: 100%;
+    justify-content: center;
+    min-height: 42px;
+  }
+  .pv4-work-tabs {
+    gap: 5px;
+  }
+  .pv4-work-tabs > button {
+    font-size: 11px;
+    min-height: 44px;
+    padding: 7px 10px;
+  }
+  .pv4-renewal-body,
+  .pv4-renewal-workspace > .pv4-surface {
+    padding: 15px;
+  }
+  .pv4-renewal-body .quote-form,
+  .pv4-renewal-body .interaction-form {
+    padding: 13px;
+  }
+  .pv4-renewal-body .quote-record {
+    padding: 13px;
+  }
+  .pv4-renewal-body .customer-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .pv4-renewal-body button {
+    white-space: normal;
+    height: auto;
+    min-height: 40px;
+    overflow-wrap: anywhere;
+  }
+  .pv4-selected-context {
+    gap: 8px;
+  }
+  .pv4-selected-context > button {
+    margin: 0;
+    padding: 5px 0;
+  }
+  .pv4-renewal-body .quote-version-grid,
+  .pv4-renewal-body .today-task-facts {
+    grid-template-columns: 1fr;
+  }
+}

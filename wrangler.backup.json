@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mayisigorta-d1-backup",
+  "account_id": "af9fc98cb8d5f5508d58057bc794d863",
+  "main": "src/server/d1-backup/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "routes": [],
+  "triggers": { "crons": ["*/30 * * * *"] },
+  "r2_buckets": [
+    { "binding": "RECOVERY", "bucket_name": "mayisigorta-crm-recovery", "jurisdiction": "eu" }
+  ],
+  "workflows": [
+    {
+      "binding": "BACKUP_WORKFLOW",
+      "name": "mayisigorta-d1-backup",
+      "class_name": "D1BackupWorkflow"
+    }
+  ]
+}

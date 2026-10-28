@@ -1,0 +1,1225 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "9533cc96-78af-4ab9-accb-247b57a094ed",
+  "prevId": "9db2b445-9ef0-4034-bb84-9265ef43529e",
+  "tables": {
+    "agencies": {
+      "name": "agencies",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bootstrap_completed_at": {
+          "name": "bootstrap_completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agencies_id_nonempty": {
+          "name": "agencies_id_nonempty",
+          "value": "length(trim(\"agencies\".\"id\")) > 0"
+        },
+        "agencies_status_valid": {
+          "name": "agencies_status_valid",
+          "value": "\"agencies\".\"status\" IN ('PROVISIONING', 'ACTIVE')"
+        },
+        "agencies_version_positive": {
+          "name": "agencies_version_positive",
+          "value": "\"agencies\".\"version\" >= 1"
+        },
+        "agencies_timestamps_ordered": {
+          "name": "agencies_timestamps_ordered",
+          "value": "\"agencies\".\"updated_at\" >= \"agencies\".\"created_at\""
+        },
+        "agencies_lifecycle_consistent": {
+          "name": "agencies_lifecycle_consistent",
+          "value": "(\"agencies\".\"status\" = 'PROVISIONING' AND \"agencies\".\"bootstrap_completed_at\" IS NULL AND \"agencies\".\"activated_at\" IS NULL)\n          OR (\"agencies\".\"status\" = 'ACTIVE' AND \"agencies\".\"bootstrap_completed_at\" IS NOT NULL AND \"agencies\".\"activated_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "agency_memberships": {
+      "name": "agency_memberships",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permission_version": {
+          "name": "permission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "invitation_email": {
+          "name": "invitation_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "invitation_expires_at": {
+          "name": "invitation_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "invitation_renewed_at": {
+          "name": "invitation_renewed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "suspended_at": {
+          "name": "suspended_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "inactivated_at": {
+          "name": "inactivated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_operation_id": {
+          "name": "last_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "agency_memberships_agency_user_uq": {
+          "name": "agency_memberships_agency_user_uq",
+          "columns": ["agency_id", "user_id"],
+          "isUnique": true
+        },
+        "agency_memberships_owner_lookup_idx": {
+          "name": "agency_memberships_owner_lookup_idx",
+          "columns": ["agency_id", "type", "status"],
+          "isUnique": false
+        },
+        "agency_memberships_user_status_idx": {
+          "name": "agency_memberships_user_status_idx",
+          "columns": ["user_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agency_memberships_agency_id_agencies_id_fk": {
+          "name": "agency_memberships_agency_id_agencies_id_fk",
+          "tableFrom": "agency_memberships",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "agency_memberships_user_id_users_id_fk": {
+          "name": "agency_memberships_user_id_users_id_fk",
+          "tableFrom": "agency_memberships",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agency_memberships_id_nonempty": {
+          "name": "agency_memberships_id_nonempty",
+          "value": "length(trim(\"agency_memberships\".\"id\")) > 0"
+        },
+        "agency_memberships_type_valid": {
+          "name": "agency_memberships_type_valid",
+          "value": "\"agency_memberships\".\"type\" IN ('OWNER', 'MEMBER')"
+        },
+        "agency_memberships_status_valid": {
+          "name": "agency_memberships_status_valid",
+          "value": "\"agency_memberships\".\"status\" IN ('INVITED', 'ACTIVE', 'SUSPENDED', 'INACTIVE')"
+        },
+        "agency_memberships_version_positive": {
+          "name": "agency_memberships_version_positive",
+          "value": "\"agency_memberships\".\"version\" >= 1"
+        },
+        "agency_memberships_permission_version_positive": {
+          "name": "agency_memberships_permission_version_positive",
+          "value": "\"agency_memberships\".\"permission_version\" >= 1"
+        },
+        "agency_memberships_invitation_email_shape": {
+          "name": "agency_memberships_invitation_email_shape",
+          "value": "length(trim(\"agency_memberships\".\"invitation_email\")) > 3 AND instr(\"agency_memberships\".\"invitation_email\", '@') > 1"
+        },
+        "agency_memberships_invitation_expiry_ordered": {
+          "name": "agency_memberships_invitation_expiry_ordered",
+          "value": "\"agency_memberships\".\"invitation_expires_at\" > \"agency_memberships\".\"created_at\""
+        },
+        "agency_memberships_timestamps_ordered": {
+          "name": "agency_memberships_timestamps_ordered",
+          "value": "\"agency_memberships\".\"updated_at\" >= \"agency_memberships\".\"created_at\""
+        },
+        "agency_memberships_lifecycle_consistent": {
+          "name": "agency_memberships_lifecycle_consistent",
+          "value": "(\"agency_memberships\".\"status\" = 'INVITED')\n          OR (\"agency_memberships\".\"status\" = 'ACTIVE' AND \"agency_memberships\".\"activated_at\" IS NOT NULL)\n          OR (\"agency_memberships\".\"status\" = 'SUSPENDED' AND \"agency_memberships\".\"activated_at\" IS NOT NULL AND \"agency_memberships\".\"suspended_at\" IS NOT NULL)\n          OR (\"agency_memberships\".\"status\" = 'INACTIVE' AND \"agency_memberships\".\"inactivated_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "audit_events": {
+      "name": "audit_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "audit_events_agency_created_idx": {
+          "name": "audit_events_agency_created_idx",
+          "columns": ["agency_id", "created_at"],
+          "isUnique": false
+        },
+        "audit_events_actor_created_idx": {
+          "name": "audit_events_actor_created_idx",
+          "columns": ["actor_membership_id", "created_at"],
+          "isUnique": false
+        },
+        "audit_events_target_idx": {
+          "name": "audit_events_target_idx",
+          "columns": ["target_type", "target_id"],
+          "isUnique": false
+        },
+        "audit_events_correlation_idx": {
+          "name": "audit_events_correlation_idx",
+          "columns": ["correlation_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "audit_events_agency_id_agencies_id_fk": {
+          "name": "audit_events_agency_id_agencies_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "audit_events_actor_user_id_users_id_fk": {
+          "name": "audit_events_actor_user_id_users_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "audit_events_actor_membership_id_agency_memberships_id_fk": {
+          "name": "audit_events_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_events_id_nonempty": {
+          "name": "audit_events_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"id\")) > 0"
+        },
+        "audit_events_action_nonempty": {
+          "name": "audit_events_action_nonempty",
+          "value": "length(trim(\"audit_events\".\"action\")) > 0"
+        },
+        "audit_events_target_type_nonempty": {
+          "name": "audit_events_target_type_nonempty",
+          "value": "length(trim(\"audit_events\".\"target_type\")) > 0"
+        },
+        "audit_events_target_id_nonempty": {
+          "name": "audit_events_target_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"target_id\")) > 0"
+        },
+        "audit_events_correlation_id_nonempty": {
+          "name": "audit_events_correlation_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"correlation_id\")) > 0"
+        },
+        "audit_events_outcome_valid": {
+          "name": "audit_events_outcome_valid",
+          "value": "\"audit_events\".\"outcome\" IN ('SUCCESS', 'FAILURE')"
+        }
+      }
+    },
+    "auth_identities": {
+      "name": "auth_identities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verified_email": {
+          "name": "verified_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "bound_at": {
+          "name": "bound_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "auth_identities_issuer_subject_uq": {
+          "name": "auth_identities_issuer_subject_uq",
+          "columns": ["issuer", "subject"],
+          "isUnique": true
+        },
+        "auth_identities_user_status_idx": {
+          "name": "auth_identities_user_status_idx",
+          "columns": ["user_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auth_identities_user_id_users_id_fk": {
+          "name": "auth_identities_user_id_users_id_fk",
+          "tableFrom": "auth_identities",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "auth_identities_id_nonempty": {
+          "name": "auth_identities_id_nonempty",
+          "value": "length(trim(\"auth_identities\".\"id\")) > 0"
+        },
+        "auth_identities_issuer_nonempty": {
+          "name": "auth_identities_issuer_nonempty",
+          "value": "length(trim(\"auth_identities\".\"issuer\")) > 0"
+        },
+        "auth_identities_subject_nonempty": {
+          "name": "auth_identities_subject_nonempty",
+          "value": "length(trim(\"auth_identities\".\"subject\")) > 0"
+        },
+        "auth_identities_verified_email_shape": {
+          "name": "auth_identities_verified_email_shape",
+          "value": "length(trim(\"auth_identities\".\"verified_email\")) > 3 AND instr(\"auth_identities\".\"verified_email\", '@') > 1"
+        },
+        "auth_identities_status_valid": {
+          "name": "auth_identities_status_valid",
+          "value": "\"auth_identities\".\"status\" IN ('ACTIVE', 'REVOKED')"
+        },
+        "auth_identities_version_positive": {
+          "name": "auth_identities_version_positive",
+          "value": "\"auth_identities\".\"version\" >= 1"
+        },
+        "auth_identities_timestamps_ordered": {
+          "name": "auth_identities_timestamps_ordered",
+          "value": "\"auth_identities\".\"updated_at\" >= \"auth_identities\".\"created_at\""
+        },
+        "auth_identities_lifecycle_consistent": {
+          "name": "auth_identities_lifecycle_consistent",
+          "value": "(\"auth_identities\".\"status\" = 'ACTIVE' AND \"auth_identities\".\"revoked_at\" IS NULL)\n          OR (\"auth_identities\".\"status\" = 'REVOKED' AND \"auth_identities\".\"revoked_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "d1_cas_assertions": {
+      "name": "d1_cas_assertions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expected": {
+          "name": "expected",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actual": {
+          "name": "actual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'OPTIMISTIC_CONCURRENCY_CONFLICT'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "d1_cas_assertions_id_nonempty": {
+          "name": "d1_cas_assertions_id_nonempty",
+          "value": "length(trim(\"d1_cas_assertions\".\"id\")) > 0"
+        },
+        "d1_cas_assertions_failure_code_nonempty": {
+          "name": "d1_cas_assertions_failure_code_nonempty",
+          "value": "length(trim(\"d1_cas_assertions\".\"failure_code\")) > 0"
+        }
+      }
+    },
+    "membership_permissions": {
+      "name": "membership_permissions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "membership_id": {
+          "name": "membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permission_code": {
+          "name": "permission_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "membership_permissions_membership_code_uq": {
+          "name": "membership_permissions_membership_code_uq",
+          "columns": ["membership_id", "permission_code"],
+          "isUnique": true
+        },
+        "membership_permissions_membership_idx": {
+          "name": "membership_permissions_membership_idx",
+          "columns": ["membership_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "membership_permissions_membership_id_agency_memberships_id_fk": {
+          "name": "membership_permissions_membership_id_agency_memberships_id_fk",
+          "tableFrom": "membership_permissions",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "membership_permissions_id_nonempty": {
+          "name": "membership_permissions_id_nonempty",
+          "value": "length(trim(\"membership_permissions\".\"id\")) > 0"
+        },
+        "membership_permissions_code_nonempty": {
+          "name": "membership_permissions_code_nonempty",
+          "value": "length(trim(\"membership_permissions\".\"permission_code\")) > 0"
+        },
+        "membership_permissions_scope_valid": {
+          "name": "membership_permissions_scope_valid",
+          "value": "\"membership_permissions\".\"scope\" IN ('UNSCOPED', 'ASSIGNED', 'AGENCY')"
+        },
+        "membership_permissions_timestamps_ordered": {
+          "name": "membership_permissions_timestamps_ordered",
+          "value": "\"membership_permissions\".\"updated_at\" >= \"membership_permissions\".\"created_at\""
+        }
+      }
+    },
+    "operation_receipts": {
+      "name": "operation_receipts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload_fingerprint": {
+          "name": "payload_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "response_status": {
+          "name": "response_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "response_body": {
+          "name": "response_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "operation_receipts_idem_uq": {
+          "name": "operation_receipts_idem_uq",
+          "columns": [
+            "agency_id",
+            "actor_user_id",
+            "actor_membership_id",
+            "action",
+            "idempotency_key"
+          ],
+          "isUnique": true
+        },
+        "operation_receipts_agency_idx": {
+          "name": "operation_receipts_agency_idx",
+          "columns": ["agency_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "operation_receipts_agency_id_agencies_id_fk": {
+          "name": "operation_receipts_agency_id_agencies_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "operation_receipts_actor_user_id_users_id_fk": {
+          "name": "operation_receipts_actor_user_id_users_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "operation_receipts_actor_membership_id_agency_memberships_id_fk": {
+          "name": "operation_receipts_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operation_receipts_id_nonempty": {
+          "name": "operation_receipts_id_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"id\")) > 0"
+        },
+        "operation_receipts_action_nonempty": {
+          "name": "operation_receipts_action_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"action\")) > 0"
+        },
+        "operation_receipts_key_nonempty": {
+          "name": "operation_receipts_key_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"idempotency_key\")) > 0"
+        },
+        "operation_receipts_fingerprint_nonempty": {
+          "name": "operation_receipts_fingerprint_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"payload_fingerprint\")) > 0"
+        },
+        "operation_receipts_status_valid": {
+          "name": "operation_receipts_status_valid",
+          "value": "\"operation_receipts\".\"status\" IN ('IN_PROGRESS', 'COMPLETED', 'FAILED')"
+        },
+        "operation_receipts_timestamps_ordered": {
+          "name": "operation_receipts_timestamps_ordered",
+          "value": "\"operation_receipts\".\"updated_at\" >= \"operation_receipts\".\"created_at\""
+        }
+      }
+    },
+    "sensitive_action_grants": {
+      "name": "sensitive_action_grants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "evidence_hash": {
+          "name": "evidence_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_ids_json": {
+          "name": "target_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expected_target_version": {
+          "name": "expected_target_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "permission_version": {
+          "name": "permission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assurance": {
+          "name": "assurance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'SECURE_GRANT'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ISSUED'"
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "consumed_operation_id": {
+          "name": "consumed_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "sensitive_action_grants_evidence_uq": {
+          "name": "sensitive_action_grants_evidence_uq",
+          "columns": ["evidence_hash"],
+          "isUnique": true
+        },
+        "sensitive_action_grants_lookup_idx": {
+          "name": "sensitive_action_grants_lookup_idx",
+          "columns": ["agency_id", "actor_membership_id", "action", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "sensitive_action_grants_agency_id_agencies_id_fk": {
+          "name": "sensitive_action_grants_agency_id_agencies_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "sensitive_action_grants_actor_user_id_users_id_fk": {
+          "name": "sensitive_action_grants_actor_user_id_users_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "sensitive_action_grants_actor_membership_id_agency_memberships_id_fk": {
+          "name": "sensitive_action_grants_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "sensitive_action_grants_id_nonempty": {
+          "name": "sensitive_action_grants_id_nonempty",
+          "value": "length(trim(\"sensitive_action_grants\".\"id\")) > 0"
+        },
+        "sensitive_action_grants_evidence_shape": {
+          "name": "sensitive_action_grants_evidence_shape",
+          "value": "length(\"sensitive_action_grants\".\"evidence_hash\") = 64"
+        },
+        "sensitive_action_grants_action_nonempty": {
+          "name": "sensitive_action_grants_action_nonempty",
+          "value": "length(trim(\"sensitive_action_grants\".\"action\")) > 0"
+        },
+        "sensitive_action_grants_payload_shape": {
+          "name": "sensitive_action_grants_payload_shape",
+          "value": "length(\"sensitive_action_grants\".\"payload_hash\") = 64"
+        },
+        "sensitive_action_grants_permission_version_positive": {
+          "name": "sensitive_action_grants_permission_version_positive",
+          "value": "\"sensitive_action_grants\".\"permission_version\" > 0"
+        },
+        "sensitive_action_grants_assurance_valid": {
+          "name": "sensitive_action_grants_assurance_valid",
+          "value": "\"sensitive_action_grants\".\"assurance\" = 'SECURE_GRANT'"
+        },
+        "sensitive_action_grants_status_valid": {
+          "name": "sensitive_action_grants_status_valid",
+          "value": "\"sensitive_action_grants\".\"status\" IN ('ISSUED', 'CONSUMED', 'REVOKED')"
+        },
+        "sensitive_action_grants_expiry_ordered": {
+          "name": "sensitive_action_grants_expiry_ordered",
+          "value": "\"sensitive_action_grants\".\"expires_at\" > \"sensitive_action_grants\".\"issued_at\""
+        },
+        "sensitive_action_grants_ttl_valid": {
+          "name": "sensitive_action_grants_ttl_valid",
+          "value": "(strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) <= 180 AND (strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) >= 1"
+        },
+        "sensitive_action_grants_timestamps_ordered": {
+          "name": "sensitive_action_grants_timestamps_ordered",
+          "value": "\"sensitive_action_grants\".\"updated_at\" >= \"sensitive_action_grants\".\"created_at\""
+        },
+        "sensitive_action_grants_lifecycle_consistent": {
+          "name": "sensitive_action_grants_lifecycle_consistent",
+          "value": "(\"sensitive_action_grants\".\"status\" = 'ISSUED' AND \"sensitive_action_grants\".\"consumed_at\" IS NULL AND \"sensitive_action_grants\".\"revoked_at\" IS NULL AND \"sensitive_action_grants\".\"consumed_operation_id\" IS NULL)\n          OR (\"sensitive_action_grants\".\"status\" = 'CONSUMED' AND \"sensitive_action_grants\".\"consumed_at\" IS NOT NULL AND \"sensitive_action_grants\".\"revoked_at\" IS NULL)\n          OR (\"sensitive_action_grants\".\"status\" = 'REVOKED' AND \"sensitive_action_grants\".\"revoked_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'INACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "users_status_idx": {
+          "name": "users_status_idx",
+          "columns": ["status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_id_nonempty": {
+          "name": "users_id_nonempty",
+          "value": "length(trim(\"users\".\"id\")) > 0"
+        },
+        "users_status_valid": {
+          "name": "users_status_valid",
+          "value": "\"users\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "users_version_positive": {
+          "name": "users_version_positive",
+          "value": "\"users\".\"version\" >= 1"
+        },
+        "users_timestamps_ordered": {
+          "name": "users_timestamps_ordered",
+          "value": "\"users\".\"updated_at\" >= \"users\".\"created_at\""
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

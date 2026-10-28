@@ -1,0 +1,36 @@
+.portfolio-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem 0;
+}
+.portfolio-shortcuts button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--primary);
+}
+.portfolio-hint {
+  padding: 0 1.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+.portfolio-labels {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.portfolio-labels span:not(:first-child) {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+.policy-modern .policy-table {
+  table-layout: fixed;
+  width: 100%;
+}
+@media (max-width: 640px) {
+  .portfolio-shortcuts {
+    padding: 1rem 1rem 0;
+  }
+  .portfolio-hint {
+    padding: 0 1rem;
+  }
+}

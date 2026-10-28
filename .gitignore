@@ -1,0 +1,87 @@
+# Bağımlılıklar
+node_modules/
+.pnp
+.pnp.js
+
+# Derleme çıktıları
+dist/
+dist-client/
+build/
+*.local
+
+# Yerel tarihsel arşiv (kaynak repository kapsamı dışındadır)
+_archive/
+
+# Cloudflare & Wrangler yerel verileri
+.wrangler/
+.mf/
+
+# Gizli anahtarlar ve ortam değişkenleri (KRİTİK GÜVENLİK - ASLA repoya eklenemez)
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Test & Raporlama
+coverage/
+
+# Yerel ürün kabulünün ham çıktıları; kaynak testler ve özet .md belgeler sürümlenir.
+/portfolio-evidence/
+/dashboard-evidence/
+/functional-evidence/
+/personnel-evidence/
+/catalog-evidence/
+/v4-evidence/
+/customer360-evidence/
+/v4-checkpoint-evidence/
+/acceptance-evidence/
+/settings-evidence/
+/final-evidence/
+/performance-evidence/
+# Final approved V4: retain raw acceptance artifacts locally, not in product commits.
+/completion-evidence/
+/modernization-evidence/
+/polish-evidence/
+/refinement-evidence/
+/rollout-evidence/
+/visual-pilot-evidence/
+/phase1-navigation-evidence/
+/phase2-coverage-evidence/
+/ux-fix-evidence/
+# Kabul raporları/ham kanıtlar recovery snapshot'ında; ürün kaynakları ayrıca sürümlenir.
+/AGENCY_SETTINGS_V4_INTEGRATION.md
+/FINAL_V4_LOCAL_ACCEPTANCE.md
+/v4-*.log
+# Kabul edilmiş tarihsel UX-003 dosyaları tracked kalır; bu kural yalnız yeni çıktıları dışlar.
+/ux003-evidence/
+
+# IDE & Editörler
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# İşletim sistemi kalıntıları
+.DS_Store
+Thumbs.db
+
+# Log dosyaları
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

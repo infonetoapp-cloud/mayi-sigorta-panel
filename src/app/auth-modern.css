@@ -1,0 +1,134 @@
+.auth-page {
+  min-height: 100dvh;
+  background: #f6f7f9;
+  font-family: var(--font-body, 'Segoe UI', sans-serif);
+  color: #242d3b;
+}
+.auth-card {
+  border-color: #e7ebf0;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 12px 48px #25354a08;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -1.2px;
+  color: #242d3b;
+  margin-bottom: 40px;
+}
+.auth-brand small {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 3px;
+  margin-top: 3px;
+  color: #5d6878;
+}
+.auth-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #215fce;
+  color: white;
+  font-size: 32px;
+  letter-spacing: -3px;
+  padding-right: 3px;
+}
+.auth-eyebrow {
+  color: #5d6878;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  margin-bottom: 12px;
+}
+.auth-login h1 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  font-weight: 600;
+  margin-bottom: 11px;
+}
+.auth-login > p {
+  font-size: 14px;
+}
+.auth-login form {
+  margin-top: 28px;
+}
+.auth-card .auth-primary {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 22px;
+  border-radius: 11px;
+  background: #215fce;
+  border-color: #215fce;
+  font-weight: 600;
+}
+.auth-password-field {
+  position: relative;
+}
+.auth-card .auth-password-field input {
+  padding-right: 50px;
+}
+.auth-card .auth-password-toggle {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+.auth-login label {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.auth-card input:not([type='checkbox']) {
+  min-height: 48px;
+  border-radius: 10px;
+}
+.auth-login .auth-help {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e7ebf0;
+  font-size: 13px;
+}
+.auth-access-note {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  color: #5d6878;
+  font-size: 12px;
+  margin-top: 24px;
+}
+.auth-card button:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+.auth-card input:focus-visible,
+.auth-card button:focus-visible {
+  outline: 3px solid #215fce;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .auth-page {
+    padding: 16px;
+  }
+  .auth-card {
+    padding: 28px 24px;
+    border-radius: 20px;
+  }
+  .auth-access-note {
+    align-items: flex-start;
+  }
+}

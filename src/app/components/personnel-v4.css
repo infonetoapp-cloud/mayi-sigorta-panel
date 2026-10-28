@@ -1,0 +1,820 @@
+/* Full-staff bulk actions prepare a draft only. */
+.personnel-v4 .personnel-bulk {
+  border: 0;
+  padding: 0;
+  margin: 0 0 18px;
+  min-width: 0;
+}
+.personnel-v4 .personnel-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  background: #f2f6ff;
+  border: 1px solid #d9e5fa;
+  border-radius: 12px;
+}
+.personnel-bulk-actions > div {
+  flex: 1;
+  min-width: 180px;
+}
+.personnel-bulk-actions > p {
+  width: 100%;
+  font-size: 12px;
+  color: #607089;
+  margin: 0;
+}
+.personnel-v4 .permission-group-bulk {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.personnel-v4 .permission-group-bulk button {
+  min-height: 30px;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+/* Personnel only: retain the approved shared V4 shell and other modules. */
+.personnel-v4 {
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 1440px;
+  margin: auto;
+  min-width: 0;
+}
+.personnel-v4 * {
+  box-sizing: border-box;
+}
+.personnel-v4 button,
+.personnel-v4 input,
+.personnel-v4 select,
+.personnel-v4 textarea {
+  font: inherit;
+}
+.personnel-v4 button,
+.personnel-v4 summary {
+  cursor: pointer;
+}
+.personnel-v4 button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  background: white;
+  color: #39475b;
+  border-radius: 9px;
+  padding: 8px 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.personnel-v4 button:hover:not(:disabled) {
+  background: #f3f6fb;
+  border-color: #b8c9df;
+}
+.personnel-v4 button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.personnel-v4 :focus-visible {
+  outline: 3px solid #93baff;
+  outline-offset: 3px;
+}
+.personnel-v4 .personnel-primary {
+  background: #215fce;
+  border-color: #215fce;
+  color: white;
+}
+.personnel-v4 .personnel-primary:hover:not(:disabled) {
+  background: #184caa;
+  color: white;
+}
+.personnel-v4 .personnel-danger {
+  background: #a83139;
+  border-color: #a83139;
+  color: white;
+}
+.personnel-page-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.personnel-v4 h1 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  line-height: 1.2;
+  font-weight: 600;
+  margin: 5px 0 8px;
+}
+.personnel-v4 h2 {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin: 4px 0 6px;
+}
+.personnel-v4 h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 9px;
+}
+.personnel-v4 h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.personnel-v4 p {
+  margin: 7px 0 13px;
+  max-width: 80ch;
+}
+.personnel-v4 small {
+  display: block;
+  font-size: 12px;
+  color: #657185;
+  line-height: 1.5;
+  margin-top: 3px;
+}
+.personnel-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 650;
+  color: #65738b;
+}
+.personnel-page-heading p {
+  color: #657185;
+  margin: 0;
+}
+.personnel-context {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 13px 0 19px;
+  color: #69768a;
+  font-size: 12px;
+}
+.personnel-context span:first-child {
+  color: #315c8d;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.personnel-context i {
+  width: 7px;
+  height: 7px;
+  background: #507ba9;
+  border-radius: 50%;
+}
+.personnel-roster {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 10px #25364b04;
+  min-width: 0;
+}
+.personnel-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  padding: 18px;
+  flex-wrap: wrap;
+}
+.personnel-toolbar form {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex: 1;
+  min-width: 220px;
+}
+.personnel-toolbar .personnel-search {
+  width: 360px;
+  max-width: 100%;
+}
+.personnel-search > span {
+  font-size: 12px;
+  color: #637086;
+}
+.personnel-v4 label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+}
+.personnel-v4 input:not([type='checkbox']),
+.personnel-v4 select,
+.personnel-v4 textarea {
+  border: 1px solid #d9e1eb;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: #29374b;
+  width: 100%;
+  max-width: 100%;
+}
+.personnel-v4 input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: #215fce;
+  flex: none;
+  margin-top: 3px;
+}
+.personnel-v4 textarea {
+  min-height: 95px;
+  resize: vertical;
+}
+.personnel-muted {
+  color: #6b7789;
+  font-size: 12px;
+}
+.personnel-filter {
+  padding: 0 18px;
+  font-size: 13px;
+}
+.personnel-filter button {
+  margin-left: 8px;
+}
+.personnel-v4 .personnel-table {
+  overflow: visible;
+  margin: 0;
+}
+.personnel-v4 table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  table-layout: fixed;
+}
+.personnel-v4 th {
+  font-size: 12px;
+  color: #647187;
+  font-weight: 500;
+  background: #f7f9fc;
+  padding: 11px 18px;
+}
+.personnel-v4 td {
+  padding: 17px 18px;
+  border-top: 1px solid #edf0f5;
+  vertical-align: middle;
+  font-size: 13px;
+}
+.personnel-roster th:first-child {
+  width: 34%;
+}
+.personnel-roster th:nth-child(2) {
+  width: 12%;
+}
+.personnel-roster th:nth-child(3) {
+  width: 27%;
+}
+.personnel-roster th:last-child {
+  width: 27%;
+}
+.personnel-v4 tr[data-selected='true'] td {
+  background: #f5f8fe;
+}
+.personnel-identity {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  min-width: 0;
+}
+.personnel-identity > div {
+  min-width: 0;
+}
+.personnel-identity small {
+  overflow-wrap: anywhere;
+}
+.personnel-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #eaf0fa;
+  color: #406494;
+  font-weight: 600;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.personnel-status {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  background: #f1f3f6;
+  border-radius: 20px;
+  padding: 4px 9px;
+  color: #687487;
+  white-space: nowrap;
+}
+.personnel-status i {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.personnel-status.active {
+  background: #edf6f2;
+  color: #27785c;
+}
+.personnel-status.suspended {
+  background: #fcf3e6;
+  color: #9a6828;
+}
+.personnel-v4 .personnel-actions {
+  display: table-cell;
+  min-width: 0;
+}
+.personnel-actions > button {
+  font-size: 12px;
+  min-height: 35px;
+  padding: 7px 10px;
+}
+.personnel-actions details {
+  position: relative;
+  display: inline-block;
+  margin-top: 7px;
+  max-width: 100%;
+}
+.personnel-actions summary {
+  font-size: 12px;
+  color: #63738a;
+  padding: 5px 0;
+  white-space: nowrap;
+}
+.personnel-action-menu {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  top: 100%;
+  width: 220px;
+  padding: 8px;
+  background: #fff;
+  box-shadow: 0 12px 40px #23334e24;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+}
+.personnel-action-menu > span {
+  font-size: 11px;
+  color: #7a8495;
+  padding: 6px;
+}
+.personnel-action-menu button {
+  text-align: left;
+  border: 0;
+}
+.personnel-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: #6b7789;
+}
+.personnel-pagination > div {
+  display: flex;
+  gap: 7px;
+}
+.personnel-empty {
+  padding: 35px 10px;
+  text-align: center;
+}
+.personnel-loading {
+  padding: 25px;
+  color: #69768a;
+}
+.personnel-alert,
+.personnel-success {
+  padding: 14px 17px;
+  border-radius: 9px;
+  border: 1px solid #e9cc9e;
+  background: #fff9ef;
+  color: #805c28;
+  font-size: 13px;
+}
+.personnel-success {
+  background: #eff8f3;
+  border-color: #c9e7d5;
+  color: #277655;
+}
+.personnel-workspace {
+  margin-top: 30px;
+  scroll-margin-top: 20px;
+}
+.personnel-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.personnel-editor-heading p {
+  color: #69768a;
+  margin: 0;
+}
+.personnel-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 20px;
+  align-items: start;
+}
+.personnel-fields {
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  gap: 18px;
+}
+.personnel-card,
+.permission-editor {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+}
+.personnel-identity-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 15px;
+}
+.personnel-critical {
+  background: #fffafa;
+  border-color: #ecd6d8;
+}
+.personnel-critical > h3 {
+  color: #9d3842;
+}
+.personnel-template {
+  background: #f8faff;
+}
+.personnel-confirm {
+  display: flex !important;
+  align-items: start;
+  gap: 9px !important;
+  margin-top: 17px;
+}
+.personnel-section-heading {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.personnel-section-heading p {
+  font-size: 12px;
+  color: #69768a;
+  margin: 0;
+}
+.personnel-count {
+  font-size: 11px;
+  background: #eff3f8;
+  color: #516b8d;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.permission-group-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 14px 0 20px;
+}
+.permission-group-nav button {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-color: transparent;
+}
+.permission-group-nav button[aria-pressed='true'] {
+  background: #eaf0fc;
+  color: #215fce;
+  border-color: #d5e0f7;
+}
+.permission-group {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  margin-top: 15px;
+}
+.permission-group h4 {
+  display: flex;
+  justify-content: space-between;
+  color: #3b5579;
+  margin-bottom: 8px;
+}
+.permission-group h4 span {
+  font-size: 11px;
+  color: #8190a3;
+  font-weight: 400;
+}
+.personnel-v4 .permission-row {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f3f7;
+  min-width: 0;
+}
+.permission-row > label {
+  display: flex !important;
+  flex: 1;
+  gap: 9px;
+  align-items: start;
+  font-weight: 400;
+}
+.permission-row strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.permission-row select {
+  font-size: 12px;
+  max-width: 145px;
+  min-height: 35px;
+  padding: 7px !important;
+}
+.permission-dependencies {
+  font-size: 11px !important;
+  color: #7686a0 !important;
+}
+.permission-rule {
+  font-size: 12px;
+  color: #6b7890;
+  background: #f5f8fc;
+  padding: 10px;
+  border-radius: 7px;
+}
+.personnel-review {
+  position: sticky;
+  top: 18px;
+  min-width: 0;
+}
+.personnel-review p {
+  font-size: 12px;
+  color: #66758a;
+}
+.personnel-review button[type='submit'] {
+  width: 100%;
+  margin-top: 12px;
+}
+.personnel-text-button {
+  text-align: left;
+}
+.personnel-comparison-scroll {
+  max-height: min(280px, 40dvh);
+  overflow: auto;
+  margin: 12px -8px 20px;
+}
+.personnel-comparison-scroll table {
+  table-layout: auto;
+  font-size: 11px;
+}
+.personnel-comparison-scroll th,
+.personnel-comparison-scroll td {
+  font-size: 11px;
+  padding: 9px 6px;
+  vertical-align: top;
+}
+.personnel-comparison-scroll tbody th {
+  background: white;
+  width: 42%;
+  font-weight: 500;
+}
+.personnel-comparison-scroll td strong {
+  font-weight: 500;
+  color: #215fce;
+}
+.personnel-secret-dialog {
+  width: min(530px, calc(100vw - 32px));
+  padding: 28px;
+  border: 1px solid #dce3ed;
+  border-radius: 16px;
+  box-shadow: 0 25px 90px #18284033;
+  margin: auto;
+}
+.personnel-secret-dialog::backdrop {
+  background: #1e2c475e;
+  backdrop-filter: blur(4px);
+}
+.personnel-v4 .temporary-secret {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 18px;
+  background: #f4f7fc;
+  border-radius: 9px;
+  font:
+    600 18px/1.6 ui-monospace,
+    monospace;
+  margin: 18px 0;
+}
+.personnel-secret-dialog .auth-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 1200px) {
+  .personnel-editor-grid {
+    grid-template-columns: minmax(0, 1fr) 275px;
+    gap: 14px;
+  }
+  .personnel-v4 td,
+  .personnel-v4 th {
+    padding-left: 13px;
+    padding-right: 13px;
+  }
+  .personnel-roster th:nth-child(3) {
+    width: 23%;
+  }
+  .personnel-roster th:last-child {
+    width: 31%;
+  }
+}
+@media (max-width: 900px) {
+  .personnel-v4 .personnel-workspace {
+    padding-bottom: 95px;
+  }
+  .personnel-mobile-save {
+    position: fixed;
+    bottom: 12px;
+    left: 16px;
+    right: 16px;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 1px solid #d6e1ef;
+    border-radius: 12px;
+    padding: 12px 15px;
+    background: #fffffff5;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 35px #263b5b21;
+    font-size: 12px;
+  }
+  .personnel-editor-grid {
+    grid-template-columns: 1fr;
+  }
+  .personnel-review {
+    position: static;
+    order: -1;
+  }
+  .personnel-comparison-scroll {
+    max-height: 300px;
+  }
+  .personnel-v4 .personnel-table {
+    overflow-x: auto;
+  }
+  .personnel-roster table {
+    min-width: 650px;
+  }
+  .personnel-context {
+    flex-direction: column;
+    gap: 5px;
+  }
+  .personnel-toolbar .personnel-search {
+    width: 100%;
+  }
+  .personnel-v4 .personnel-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .personnel-v4 .personnel-toolbar > form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-column: 1/-1;
+    gap: 8px;
+    align-items: end;
+    min-width: 0;
+  }
+  .personnel-v4 .personnel-toolbar > form > button {
+    width: auto;
+    min-width: 64px;
+  }
+  .personnel-toolbar .personnel-muted {
+    flex: 1;
+  }
+  .personnel-page-heading {
+    align-items: start;
+  }
+}
+@media (max-width: 520px) {
+  .personnel-v4 .personnel-roster .personnel-table {
+    overflow: visible;
+  }
+  .personnel-v4 .personnel-roster table {
+    min-width: 0;
+    table-layout: auto;
+  }
+  .personnel-roster thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .personnel-v4 .personnel-roster tbody tr {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 13px;
+    padding: 16px;
+    border-top: 1px solid #e6ebf2;
+  }
+  .personnel-v4 .personnel-roster td {
+    display: block;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+  }
+  .personnel-roster td:first-child,
+  .personnel-roster td:last-child {
+    grid-column: 1/-1;
+  }
+  .personnel-v4 .personnel-actions {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .personnel-actions details {
+    margin: 0;
+  }
+  .personnel-v4 .personnel-comparison-scroll td,
+  .personnel-v4 .personnel-comparison-scroll th {
+    font-size: 12px;
+  }
+}
+@media (max-width: 520px) {
+  .personnel-v4 h1 {
+    font-size: 25px;
+  }
+  .personnel-page-heading {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .personnel-page-heading > button {
+    width: 100%;
+  }
+  .personnel-context {
+    font-size: 11px;
+  }
+  .personnel-toolbar {
+    padding: 14px;
+  }
+  .personnel-toolbar form {
+    width: 100%;
+    min-width: 0;
+  }
+  .personnel-card,
+  .permission-editor {
+    padding: 15px;
+  }
+  .personnel-identity-fields {
+    grid-template-columns: 1fr;
+  }
+  .personnel-editor-heading {
+    align-items: start;
+  }
+  .personnel-pagination {
+    align-items: start;
+    flex-direction: column;
+  }
+  .personnel-pagination > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .personnel-v4 .permission-row {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .permission-row > label {
+    min-width: 100%;
+  }
+  .permission-row select {
+    margin-left: 26px;
+    max-width: calc(100% - 26px);
+  }
+  .personnel-section-heading {
+    flex-direction: column;
+  }
+  .personnel-action-menu {
+    position: fixed;
+    right: 24px;
+    top: 180px;
+  }
+  .personnel-secret-dialog {
+    padding: 20px;
+  }
+  .personnel-v4 .temporary-secret {
+    font-size: 15px;
+  }
+  .personnel-page-heading p {
+    font-size: 13px;
+  }
+}

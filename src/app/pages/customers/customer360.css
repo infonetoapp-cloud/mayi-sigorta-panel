@@ -1,0 +1,1011 @@
+/* Customer slice only. The approved Daily Work Center is deliberately untouched. */
+.customer360 {
+  --c360-ink: #17243b;
+  --c360-muted: #64748b;
+  --c360-line: #e5eaf1;
+  --c360-blue: #245edb;
+  color: var(--c360-ink);
+  min-width: 0;
+  max-width: 1500px;
+  margin: auto;
+}
+.customer360 [hidden] {
+  display: none !important;
+}
+.customer360 h1,
+.customer360 h2,
+.customer360 h3,
+.customer360 p {
+  margin-top: 0;
+}
+.customer360 h2 {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.4;
+}
+.customer360 h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+.customer360 p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.customer360 small {
+  display: block;
+  font-size: 12px;
+  color: var(--c360-muted);
+  line-height: 1.6;
+  font-weight: 400;
+}
+.customer360 a:focus-visible,
+.customer360 button:focus-visible,
+.customer360 input:focus-visible,
+.customer360 select:focus-visible,
+.customer360 textarea:focus-visible {
+  outline: 3px solid #6b9afa;
+  outline-offset: 3px;
+}
+.c360-breadcrumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 22px;
+  color: var(--c360-muted);
+  font-size: 12px;
+}
+.c360-breadcrumb .customer-back {
+  margin: 0;
+  font-size: 13px;
+  color: #50617a;
+}
+.c360-identity {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 0 26px;
+  border-bottom: 1px solid var(--c360-line);
+  margin-bottom: 24px;
+}
+.c360-avatar {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #3863b4;
+  background: linear-gradient(145deg, #edf3ff, #e4ecfb);
+  border: 1px solid #dce7fb;
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.c360-title {
+  min-width: 0;
+  flex: 1;
+}
+.c360-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--c360-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+}
+.customer360 .c360-title h1 {
+  font-size: clamp(25px, 2.2vw, 34px);
+  line-height: 1.25;
+  letter-spacing: -0.045em;
+  font-weight: 650;
+  margin: 6px 0 10px;
+  overflow-wrap: anywhere;
+}
+.c360-header-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  color: var(--c360-muted);
+  font-size: 13px;
+}
+.c360-header-contact span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.c360-header-contact svg {
+  flex: none;
+}
+.c360-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.c360-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  white-space: normal;
+}
+.c360-status.is-active {
+  background: #eaf6ef;
+  color: #28764c;
+}
+.c360-status.is-muted {
+  background: #f1f4f8;
+  color: #55647c;
+}
+.c360-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.c360-sidebar,
+.c360-main {
+  min-width: 0;
+}
+.c360-panel {
+  background: #fff;
+  border: 1px solid var(--c360-line);
+  border-radius: 14px;
+  padding: 21px;
+  box-shadow: 0 2px 5px #162c4c03;
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.c360-panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.c360-panel-heading h2,
+.c360-panel-heading h3 {
+  margin-bottom: 0;
+}
+.c360-panel-heading p {
+  color: var(--c360-muted);
+  font-size: 12px;
+  margin: 5px 0 0;
+}
+.c360-panel-heading > a {
+  color: var(--c360-muted);
+  padding: 4px;
+  border-radius: 5px;
+}
+.c360-facts {
+  margin: 0;
+  display: grid;
+  gap: 22px;
+}
+.c360-facts dt {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c360-muted);
+  margin-bottom: 6px;
+}
+.c360-facts dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.c360-facts small {
+  font-size: 11px;
+  margin-top: 3px;
+}
+.c360-quick {
+  padding-bottom: 5px;
+}
+.c360-quick h2 {
+  margin-bottom: 10px;
+}
+.c360-quick > a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 14px 0;
+  color: #3a4b65;
+  font-size: 12px;
+  line-height: 1.5;
+  border-top: 1px solid #eef1f5;
+}
+.c360-quick > a:hover {
+  color: var(--c360-blue);
+}
+.c360-quick small {
+  font-size: 11px;
+  margin-top: 3px;
+}
+.customer360 .customer-section-nav {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  border: 0;
+  border-bottom: 1px solid var(--c360-line);
+  padding: 0;
+  margin: 0 0 22px;
+}
+.customer360 .customer-section-nav a {
+  border: 0;
+  border-radius: 0;
+  padding: 0 0 13px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--c360-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.customer360 .customer-section-nav a[aria-current='page'] {
+  border-bottom-color: var(--c360-blue);
+  color: var(--c360-blue);
+}
+.c360-intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 4px 0 22px;
+}
+.c360-intro h2 {
+  font-size: 20px;
+  margin: 8px 0 5px;
+}
+.c360-intro p {
+  color: var(--c360-muted);
+  font-size: 13px;
+  margin-bottom: 0;
+}
+.c360-shortcuts {
+  display: grid;
+  gap: 10px;
+  flex: none;
+}
+.c360-shortcuts a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--c360-blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.customer360 .coverage-summary {
+  border: 1px solid var(--c360-line);
+  border-radius: 14px;
+  padding: 22px;
+  background: #fff;
+  margin: 0 0 18px;
+}
+.customer360 .coverage-summary > h2 {
+  margin: 0 0 16px;
+}
+.customer360 .coverage-brief {
+  gap: 12px;
+}
+.customer360 .coverage-brief > strong {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+.customer360 .coverage-types {
+  gap: 6px;
+}
+.customer360 .coverage-policies {
+  display: grid;
+  gap: 0;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+.customer360 .coverage-policies li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--c360-line);
+  font-size: 12px;
+}
+.customer360 .coverage-policies a {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.customer360 .coverage-policies li > span {
+  color: var(--c360-muted);
+  flex: none;
+  font-size: 11px;
+}
+.customer360 .coverage-scope {
+  border-top: 1px solid var(--c360-line);
+  padding-top: 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--c360-muted);
+  margin: 16px 0 0;
+}
+.customer360 .coverage-summary > a {
+  color: var(--c360-blue);
+  font-size: 12px;
+}
+.c360-shared-context {
+  display: flex;
+  align-items: start;
+  gap: 14px;
+  padding: 20px;
+  background: #f0f5fc;
+  border: 1px solid #e2eaf7;
+  border-radius: 12px;
+}
+.c360-shared-context > svg {
+  color: #6784b7;
+  flex: none;
+}
+.c360-shared-context h2 {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+.c360-shared-context p {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 0;
+}
+.c360-shared-context > a {
+  flex: none;
+}
+.customer360 .c360-contact-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.c360-contact-grid > div:last-child {
+  grid-column: 1/-1;
+}
+.customer360 .customer-info-grid dd {
+  overflow-wrap: anywhere;
+}
+.customer360 .customer-edit-form {
+  background: #f8fafd !important;
+  border: 1px solid var(--c360-line) !important;
+  border-radius: 10px !important;
+  padding: 18px !important;
+  min-width: 0;
+}
+.customer360 .customer-edit-form h3,
+.customer360 .customer-edit-form h4 {
+  font-size: 15px;
+  margin: 0 0 15px;
+}
+.customer360 label {
+  font-size: 12px;
+  font-weight: 550;
+}
+.customer360 .customer-edit-form label {
+  display: grid;
+  gap: 6px;
+}
+.customer360 input,
+.customer360 textarea,
+.customer360 select {
+  font: inherit;
+  font-size: 13px;
+  border-radius: 8px !important;
+  max-width: 100%;
+  min-width: 0;
+}
+.customer360 input,
+.customer360 select {
+  min-height: 38px;
+}
+.customer360 input[type='checkbox'] {
+  min-height: 0;
+}
+.customer360 button:not([class]),
+.customer360 .customer-inline-edit button {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 36px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 12px;
+  color: #324661;
+  cursor: pointer;
+}
+.customer360 button[type='submit']:not([class]) {
+  background: var(--c360-blue);
+  border-color: var(--c360-blue);
+  color: white;
+}
+.customer360 button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.customer360 .company-contacts {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--c360-line);
+}
+.customer360 .company-contacts-heading {
+  align-items: center;
+}
+.customer360 .company-contact-row {
+  border-radius: 10px;
+  padding: 15px;
+  gap: 15px;
+}
+.customer360 .company-contact-row p {
+  margin: 3px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.customer360 .company-contact-row h4 {
+  font-size: 14px;
+}
+.customer360 .company-contact-actions {
+  gap: 7px;
+}
+.customer360 .customer-legacy-hint {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.c360-search {
+  display: grid;
+  gap: 7px;
+  max-width: 350px;
+  margin-bottom: 18px;
+  color: var(--c360-muted);
+}
+.c360-policy-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.c360-policy-search .c360-search {
+  flex: 1 1 240px;
+  max-width: none;
+  margin: 0;
+}
+.c360-policy-search p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--c360-muted);
+  font-size: 12px;
+}
+.c360-policy-table {
+  width: 100%;
+  min-width: 0;
+}
+.c360-policy-table table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  table-layout: fixed;
+}
+.c360-policy-table th {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--c360-muted);
+  padding: 10px 8px;
+  background: #f7f9fc;
+}
+.c360-policy-table th:first-child {
+  width: 42%;
+  border-radius: 7px 0 0 7px;
+}
+.c360-policy-table th:nth-child(2) {
+  width: 26%;
+}
+.c360-policy-table th:last-child {
+  width: 40px;
+}
+.c360-policy-table td {
+  border-bottom: 1px solid var(--c360-line);
+  padding: 16px 8px;
+  font-size: 12px;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.c360-policy-table td > strong,
+.c360-policy-table td > span {
+  display: block;
+}
+.c360-policy-table td > strong {
+  font-weight: 500;
+  margin: 3px 0;
+}
+.c360-policy-number {
+  font-size: 13px;
+  font-weight: 650;
+}
+.c360-policy-table td small {
+  font-size: 11px;
+}
+.c360-row-action {
+  width: 30px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--c360-line);
+  border-radius: 7px;
+  color: #657d9e;
+}
+.customer360 .customer-pagination {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.customer360 .customer-pagination > span {
+  margin-right: auto;
+  color: var(--c360-muted);
+  font-size: 10px;
+}
+.c360-renewal-list {
+  display: grid;
+  gap: 7px;
+}
+.c360-renewal-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--c360-line);
+  border-radius: 10px;
+}
+.c360-renewal-row > div {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.c360-renewal-row strong {
+  font-size: 13px;
+}
+.c360-renewal-row[data-selected='true'] {
+  border-color: #95b6ef;
+  background: #f4f8ff;
+}
+.c360-renewal-row > span {
+  max-width: 150px;
+}
+.c360-selection-prompt {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 16px;
+  background: #f7f9fc;
+  border-radius: 9px;
+  margin-top: 18px;
+  color: var(--c360-muted);
+}
+.c360-selection-prompt p {
+  margin: 0;
+  font-size: 12px;
+}
+.c360-selected-renewal {
+  border-top: 1px solid var(--c360-line);
+  margin-top: 22px;
+  padding-top: 22px;
+}
+.c360-selected-renewal h3 {
+  margin: 6px 0;
+}
+.c360-selected-renewal section {
+  min-width: 0;
+}
+.c360-selected-renewal label {
+  display: grid;
+  gap: 6px;
+}
+.c360-selected-renewal input,
+.c360-selected-renewal textarea,
+.c360-selected-renewal select {
+  width: 100%;
+}
+.c360-selected-renewal form {
+  padding: 16px;
+  background: #f8fafd;
+  border: 1px solid var(--c360-line);
+  border-radius: 10px;
+}
+.c360-selected-renewal form fieldset {
+  min-width: 0;
+}
+.c360-selected-renewal li {
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.c360-draft-notice {
+  background: #fff7e8;
+  color: #886220;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px !important;
+}
+.c360-advanced-note {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid var(--c360-line);
+  margin-top: 18px;
+  padding-top: 16px;
+  color: var(--c360-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.c360-advanced-note a {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--c360-blue);
+}
+.c360-empty {
+  padding: 30px 12px;
+  text-align: center;
+  color: var(--c360-muted);
+}
+.c360-empty > svg {
+  margin: 0 auto 12px;
+  color: #91a2b9;
+}
+.c360-empty h3 {
+  color: var(--c360-ink);
+  margin: 0 0 8px;
+}
+.c360-empty p {
+  font-size: 12px;
+}
+.customer360 [role='alert'] {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.customer360 [role='status'] {
+  font-size: 13px;
+}
+.c360-loading {
+  border: 1px solid #e5eaf1;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+}
+.c360-loading h1 {
+  font-size: 22px;
+}
+.c360-loading-line {
+  height: 5px;
+  width: 100px;
+  background: linear-gradient(90deg, #dee9fa, #7ba5e4, #dee9fa);
+  margin-bottom: 24px;
+  border-radius: 6px;
+}
+.customer360-create {
+  max-width: 920px;
+  margin: auto;
+}
+.customer360-create .customer-form-grid {
+  gap: 18px;
+}
+@media (max-width: 1200px) {
+  .c360-layout {
+    grid-template-columns: 215px minmax(0, 1fr);
+    gap: 18px;
+  }
+  .c360-header-actions {
+    max-width: 250px;
+  }
+  .customer360 .customer-section-nav {
+    gap: 16px;
+  }
+  .c360-panel {
+    padding: 18px;
+  }
+  .c360-intro {
+    flex-wrap: wrap;
+  }
+  .c360-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}
+@media (max-width: 900px) {
+  .c360-layout {
+    grid-template-columns: 1fr;
+  }
+  .c360-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    order: 2;
+  }
+  .c360-sidebar .c360-panel {
+    margin: 0;
+  }
+  .c360-main {
+    order: 1;
+  }
+  .c360-identity {
+    align-items: start;
+    flex-wrap: wrap;
+  }
+  .c360-header-actions {
+    max-width: none;
+    margin-left: 82px;
+  }
+  .customer360 .customer-section-nav {
+    gap: 18px;
+  }
+  .customer360 .coverage-policies li {
+    align-items: start;
+  }
+}
+@media (max-width: 540px) {
+  .c360-breadcrumb {
+    margin-bottom: 18px;
+  }
+  .c360-breadcrumb > span {
+    display: none;
+  }
+  .c360-identity {
+    gap: 12px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+  }
+  .c360-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+  .c360-eyebrow {
+    font-size: 9px;
+    gap: 7px;
+  }
+  .customer360 .c360-title h1 {
+    font-size: 25px;
+    line-height: 1.25;
+  }
+  .c360-header-contact {
+    font-size: 12px;
+    gap: 6px;
+  }
+  .c360-header-actions {
+    margin: 5px 0 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .c360-header-actions > a {
+    justify-content: center;
+  }
+  .c360-layout {
+    gap: 18px;
+  }
+  .c360-sidebar {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .c360-panel {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .customer360 .customer-section-nav {
+    gap: 0 16px;
+    row-gap: 12px;
+    margin-bottom: 20px;
+  }
+  .customer360 .customer-section-nav a {
+    font-size: 12px;
+    padding-bottom: 10px;
+  }
+  .c360-intro {
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .c360-intro h2 {
+    font-size: 19px;
+  }
+  .c360-intro p {
+    font-size: 12px;
+  }
+  .c360-shortcuts {
+    display: grid;
+    gap: 11px;
+  }
+  .c360-shared-context {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .c360-shared-context > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .c360-shared-context > a {
+    margin-left: 30px;
+  }
+  .customer360 .coverage-summary {
+    padding: 16px;
+  }
+  .customer360 .coverage-policies li {
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 0;
+  }
+  .customer360 .c360-contact-grid {
+    grid-template-columns: 1fr;
+  }
+  .customer360 .customer-edit-form {
+    padding: 13px !important;
+  }
+  .customer360 .company-contact-row {
+    padding: 12px;
+  }
+  .c360-policy-table thead {
+    display: none;
+  }
+  .c360-policy-table table,
+  .c360-policy-table tbody {
+    display: block;
+  }
+  .c360-policy-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--c360-line);
+  }
+  .c360-policy-table td {
+    display: block;
+    border: 0;
+    padding: 3px 0;
+  }
+  .c360-policy-table td:first-child {
+    grid-column: 1;
+  }
+  .c360-policy-table td:nth-child(2),
+  .c360-policy-table td:nth-child(3) {
+    grid-column: 1;
+  }
+  .c360-policy-table td:nth-child(2) > span,
+  .c360-policy-table td:nth-child(2) > strong {
+    display: inline;
+    font-size: 11px;
+  }
+  .c360-policy-table td:last-child {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .c360-policy-table td:nth-child(3) small {
+    display: inline;
+    margin-left: 6px;
+  }
+  .c360-policy-table td .c360-status {
+    display: inline-flex;
+  }
+  .c360-renewal-row {
+    flex-wrap: wrap;
+    gap: 9px;
+    padding: 12px;
+  }
+  .c360-renewal-row > div {
+    flex-basis: calc(100% - 90px);
+  }
+  .c360-renewal-row > span {
+    order: 3;
+    max-width: none;
+  }
+  .c360-renewal-row > button {
+    order: 2;
+  }
+  .customer360 .customer-pagination {
+    justify-content: flex-start;
+  }
+  .customer360 .customer-pagination > span {
+    flex-basis: 100%;
+  }
+  .c360-selected-renewal .c360-panel-heading {
+    flex-wrap: wrap;
+  }
+  .customer360-create .customer-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Actual-browser revision: touch targets, stable field labels and shared-note rhythm. */
+.customer360 .customer-section-nav a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+}
+.customer360 .customer-edit-form fieldset > div {
+  display: grid;
+  gap: 6px;
+}
+.customer360 .customer-notes-page {
+  padding: 22px;
+  background: #fff;
+  border: 1px solid var(--c360-line);
+  border-radius: 14px;
+}
+.customer360 .customer-notes-page > h3 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+.customer360 .customer-notes-page > p {
+  font-size: 12px;
+  color: var(--c360-muted);
+}
+.customer360 .customer-notes-page textarea {
+  min-height: 96px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fbfcfe;
+}
+.customer360 .customer-notes-page li {
+  border: 1px solid var(--c360-line);
+  border-radius: 10px;
+  box-shadow: none;
+  padding: 15px;
+}
+.customer360 .customer-notes-page li p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.customer360 .customer-notes-page li time {
+  font-size: 11px;
+  color: var(--c360-muted);
+}
+@media (max-width: 540px) {
+  .customer360 .customer-section-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 12px;
+    row-gap: 4px;
+  }
+  .customer360 .customer-section-nav a {
+    min-height: 44px;
+    padding: 8px 0;
+    line-height: 1.5;
+  }
+  .customer360 .customer-notes-page {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .c360-policy-table td:nth-child(2)::before {
+    content: 'Sözleşme dönemi';
+    display: block;
+    color: var(--c360-muted);
+    font-size: 10px;
+    margin: 5px 0 3px;
+  }
+  .customer360 .c360-renewal-row > button {
+    min-height: 40px;
+  }
+  .customer360 .company-contact-actions button {
+    min-height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer360 * {
+    scroll-behavior: auto;
+  }
+}

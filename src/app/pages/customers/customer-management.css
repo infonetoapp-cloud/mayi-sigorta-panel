@@ -1,0 +1,83 @@
+.customer-management {
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.customer-management header {
+  margin: 24px 0;
+}
+.customer-management h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+  margin: 8px 0;
+}
+.customer-management h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.customer-management p {
+  color: #5d6878;
+  font-size: 14px;
+}
+.management-eyebrow {
+  font-size: 11px !important;
+  letter-spacing: 1.4px;
+  font-weight: 600;
+}
+.management-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.management-surface {
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e7ebf0;
+  border-radius: 14px;
+}
+.customer-management :is(input:not([type='checkbox']), select, textarea) {
+  min-height: 44px;
+  border: 1px solid #d5dce5 !important;
+  border-radius: 9px !important;
+  padding: 10px 12px !important;
+  font: inherit !important;
+  box-sizing: border-box;
+}
+.customer-management :is(button, a) {
+  min-height: 40px;
+}
+.customer-management button {
+  border-radius: 9px !important;
+  font-family: inherit !important;
+}
+.customer-management button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.customer-management label {
+  color: #242d3b;
+  font-size: 13px;
+}
+.customer-management :is(table, td) {
+  overflow-wrap: anywhere;
+}
+.customer-management :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .management-surface {
+    padding: 16px;
+  }
+  .management-surface form > div {
+    flex-wrap: wrap;
+  }
+  .management-tabs button {
+    flex: 1 1 40%;
+    min-height: 44px;
+    font-size: 12px;
+    white-space: normal;
+  }
+}

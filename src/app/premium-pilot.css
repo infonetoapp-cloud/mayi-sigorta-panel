@@ -1,0 +1,931 @@
+/* Shared foundation promoted from the accepted pilot. Named scopes preserve its module layouts. */
+.premium-pilot {
+  --pilot-ink: var(--ui-ink, #202c3e);
+  --pilot-muted: var(--ui-muted, #5b697e);
+  --pilot-line: var(--ui-line, #e5eaf0);
+  --pilot-soft: var(--ui-soft, #f6f8fb);
+  --pilot-blue: var(--ui-blue, #215fce);
+  --pilot-radius: var(--ui-radius, 10px);
+  --pilot-body: var(--ui-body, 13px);
+  --pilot-meta: var(--ui-meta, 12px);
+  --pilot-control: var(--ui-control, 36px);
+  color: var(--pilot-ink);
+  font-size: var(--pilot-body);
+  line-height: 1.5;
+}
+.app-shell .premium-pilot .page-heading {
+  margin-bottom: 20px;
+  align-items: center;
+  gap: 16px;
+}
+.app-shell .premium-pilot .page-heading h1 {
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 36px;
+  letter-spacing: -0.9px;
+}
+.app-shell .premium-pilot .page-heading p {
+  margin-top: 4px;
+  font-size: var(--pilot-body);
+  line-height: 20px;
+  color: var(--pilot-muted);
+}
+/* One control contract: primary, outlined secondary, surfaced tertiary. */
+.app-shell .premium-pilot [data-slot='button'],
+.app-shell .premium-pilot .pilot-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: var(--pilot-control);
+  height: auto;
+  padding: 7px 12px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #344359;
+  font: 550 var(--pilot-body)/20px var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 2px #20304806;
+  white-space: normal;
+  transition:
+    background 120ms,
+    border-color 120ms,
+    box-shadow 120ms;
+}
+.app-shell .premium-pilot [data-slot='button']:hover,
+.app-shell .premium-pilot .pilot-action-link:hover {
+  background: #f2f5f9;
+  border-color: #b8c6d8;
+  color: #1d304c;
+}
+.app-shell .premium-pilot [data-slot='button'].bg-primary {
+  background: var(--pilot-blue);
+  border-color: var(--pilot-blue);
+  color: #fff;
+  box-shadow: 0 1px 2px #215fce26;
+}
+.app-shell .premium-pilot [data-slot='button'].bg-primary:hover {
+  background: #194eae;
+  border-color: #194eae;
+}
+.app-shell .premium-pilot [data-slot='button'].bg-transparent {
+  background: var(--pilot-soft);
+  border-color: #e5eaf2;
+  color: #526278;
+  box-shadow: none;
+}
+.app-shell .premium-pilot [data-slot='button'].bg-transparent:hover {
+  background: #eaf0f7;
+  border-color: #d5dfec;
+  color: #233a5c;
+}
+.app-shell .premium-pilot :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #397cdb;
+  outline-offset: 3px;
+}
+.app-shell .premium-pilot :is(button, input, select, textarea):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.app-shell .premium-pilot [data-slot='button'] svg {
+  width: 16px;
+  height: 16px;
+}
+.app-shell .premium-pilot [data-slot='card'] {
+  border-color: var(--pilot-line);
+  border-radius: var(--pilot-radius);
+  box-shadow: none;
+}
+.app-shell .premium-pilot :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 38px;
+  height: 38px;
+  border: 1px solid #d9e1ec;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--pilot-ink);
+  padding: 7px 10px;
+  font: 400 var(--pilot-body)/20px var(--font-body);
+  box-shadow: 0 1px 2px #20304803;
+}
+.app-shell .premium-pilot textarea {
+  height: auto;
+  min-height: 88px;
+}
+.app-shell .premium-pilot :is(input, select, textarea):hover:not(:disabled) {
+  border-color: #a7b9d0;
+}
+.app-shell .premium-pilot [aria-invalid='true'] {
+  border-color: #bf3753;
+  background: #fffafb;
+}
+.app-shell .premium-pilot label {
+  color: #455269;
+  font-size: var(--pilot-meta);
+  font-weight: 550;
+  line-height: 18px;
+}
+.app-shell .premium-pilot :is([role='alert'], .customer-field-error) {
+  color: #a32d46;
+}
+.app-shell .premium-pilot .customer-field-error {
+  margin: 5px 0 0;
+  font-size: var(--pilot-meta);
+}
+.premium-pilot .pilot-help {
+  color: var(--pilot-muted);
+  font-size: var(--pilot-meta);
+}
+.premium-pilot .pilot-help summary {
+  display: list-item;
+  cursor: pointer;
+  padding: 7px 0;
+  width: fit-content;
+}
+.premium-pilot .pilot-help p {
+  margin: 4px 0 8px;
+  max-width: 75ch;
+  line-height: 1.6;
+}
+.premium-pilot .pilot-control-label {
+  display: block;
+  color: var(--pilot-muted);
+  font-size: var(--pilot-meta);
+  font-weight: 550;
+  line-height: 18px;
+  margin-bottom: 6px;
+}
+.premium-pilot .pilot-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Customer list retains every metadata field; readability does not depend on tiny text. */
+.app-shell .pilot-customers .customer-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 170px auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+}
+.app-shell .pilot-customers .customer-list-toolbar label {
+  margin-bottom: 5px;
+}
+.app-shell .pilot-customers .customer-list-toolbar select {
+  min-width: 0;
+}
+.app-shell .pilot-customers .customer-table th {
+  padding: 10px 16px;
+  background: #f8fafc;
+  color: var(--pilot-muted);
+  font-size: var(--pilot-meta);
+  font-weight: 550;
+}
+.app-shell .pilot-customers .customer-table td {
+  padding: 10px 16px;
+  font-size: var(--pilot-body);
+  border-color: #edf0f4;
+  vertical-align: middle;
+}
+.app-shell .pilot-customers .customer-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #23344b;
+  font-size: 14px;
+  font-weight: 600;
+}
+.app-shell .pilot-customers .customer-name:hover {
+  color: var(--pilot-blue);
+}
+.pilot-customers .pilot-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 9px;
+  background: #edf2fa;
+  color: #50709c;
+  font-size: var(--pilot-meta);
+  font-weight: 600;
+}
+.app-shell .pilot-customers .customer-badge {
+  font-size: var(--pilot-meta);
+  padding: 1px 6px;
+  border-radius: 5px;
+  line-height: 18px;
+  background: #f4f6f9;
+  border-color: #e7ebf1;
+}
+.app-shell .pilot-customers .customer-badge-active {
+  color: #25705c;
+  background: #eff8f4;
+  border-color: #dfefe7;
+}
+.app-shell .pilot-customers .coverage-brief {
+  gap: 1px;
+  font-size: var(--pilot-meta);
+  line-height: 18px;
+}
+.app-shell .pilot-customers .coverage-brief strong {
+  font-size: var(--pilot-meta);
+  font-weight: 500;
+}
+.app-shell .pilot-customers .coverage-types {
+  gap: 4px;
+}
+.app-shell .pilot-customers .customer-contact-line {
+  line-height: 19px;
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-customers .customer-open {
+  min-width: 0;
+  min-height: var(--pilot-control);
+  padding: 5px 8px;
+  display: inline-flex;
+  gap: 7px;
+  border: 1px solid #dde5ef;
+  border-radius: 7px;
+  color: #425b7b;
+  background: #fff;
+  font-size: var(--pilot-meta);
+  font-weight: 550;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.app-shell .pilot-customers .customer-open:hover {
+  background: #edf3fd;
+  border-color: #c4d5f0;
+  color: var(--pilot-blue);
+}
+.app-shell .pilot-customers .customer-pagination {
+  padding: 12px 16px;
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-customers .customer-pagination [data-slot='button'] {
+  font-size: var(--pilot-meta);
+  padding: 5px 10px;
+}
+.app-shell .pilot-customers .customer-legacy-hint {
+  margin: 12px 0 0;
+}
+.app-shell .pilot-customers .customer-legacy-hint a {
+  font-size: var(--pilot-meta);
+  text-underline-offset: 3px;
+}
+.app-shell .pilot-customers .customer-state {
+  padding: 40px 18px;
+}
+/* Scope is navigation; due-date filters are local segmented controls, visibly separated. */
+.app-shell .pilot-work .today-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 16px;
+  padding-bottom: 12px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--pilot-line);
+}
+.app-shell .pilot-work .today-toolbar > .pilot-control-label {
+  grid-column: 1;
+}
+.app-shell .pilot-work .today-toolbar > [data-slot='button'] {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+.app-shell .pilot-work .today-toolbar nav {
+  display: flex;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  flex-wrap: wrap;
+}
+.app-shell .pilot-work .today-toolbar nav [data-slot='button'] {
+  padding: 7px 12px;
+  font-size: var(--pilot-body);
+  background: #fff;
+  border-color: transparent;
+  color: var(--pilot-muted);
+  box-shadow: none;
+  border-radius: 6px;
+}
+.app-shell .pilot-work .today-toolbar nav [aria-pressed='true'] {
+  background: #edf3ff;
+  color: #244a80;
+  border-color: #ccdbf3;
+  box-shadow: inset 0 -2px var(--pilot-blue);
+}
+.app-shell .pilot-work .today-clock {
+  margin: 6px 0 12px;
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-work .today-workspace {
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.15fr);
+  gap: 20px;
+}
+.app-shell .pilot-work .today-workspace[data-selected='false'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-shell .pilot-work .today-overview[hidden] {
+  display: none;
+}
+.app-shell .pilot-work .today-queue {
+  border: 0;
+  border-right: 1px solid var(--pilot-line);
+  border-radius: 0;
+  padding-right: 16px;
+}
+.app-shell .pilot-work .today-workspace[data-selected='false'] .today-queue {
+  border-right: 0;
+  padding-right: 0;
+}
+.app-shell .pilot-work .today-queue > [data-slot='card-header'] {
+  padding: 4px 0 10px;
+}
+.app-shell .pilot-work .today-queue > [data-slot='card-content'] {
+  padding: 0;
+}
+.app-shell .pilot-work .today-queue [data-slot='card-title'] {
+  font-size: 15px;
+}
+.app-shell .pilot-work .today-overview > [data-slot='card-header'] {
+  padding: 16px 18px 8px;
+}
+.app-shell .pilot-work .today-overview > [data-slot='card-content'] {
+  padding: 0 18px 16px;
+}
+.app-shell .pilot-work .today-overview [data-slot='card-title'] {
+  font-size: 21px;
+  line-height: 28px;
+}
+.app-shell .pilot-work .work-list-controls {
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 6px;
+}
+.app-shell .pilot-work .work-list-controls > [data-slot='button'] {
+  padding: 5px 9px;
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-work .work-segments {
+  flex-wrap: nowrap;
+  background: #f2f5f9;
+  padding: 3px;
+}
+.app-shell .pilot-work .work-segments > button {
+  font-size: var(--pilot-meta);
+  min-height: var(--pilot-control);
+  padding: 5px 9px;
+}
+.app-shell .pilot-work .work-segments span {
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-work .work-loaded-note {
+  margin: 4px 0 8px;
+  font-size: var(--pilot-meta);
+  line-height: 18px;
+}
+.app-shell .pilot-work .work-loaded-note summary {
+  padding: 4px 0;
+}
+.app-shell .pilot-work .today-queue h3 {
+  margin: 12px 0 5px;
+  font-size: var(--pilot-meta);
+  letter-spacing: 0;
+  font-weight: 600;
+  text-transform: none;
+}
+.app-shell .pilot-work .today-task-row {
+  min-height: 57px;
+  padding: 8px 10px;
+  gap: 1px 10px;
+  border-bottom: 1px solid #edf0f4;
+}
+.app-shell .pilot-work .today-task-row strong {
+  font-size: var(--pilot-body);
+  font-weight: 550;
+  line-height: 20px;
+}
+.app-shell .pilot-work .today-task-row > span,
+.app-shell .pilot-work .today-task-row time {
+  font-size: var(--pilot-meta);
+  line-height: 18px;
+}
+.app-shell .pilot-work .today-task-row[aria-pressed='true'] {
+  background: #edf3ff;
+  box-shadow: inset 3px 0 var(--pilot-blue);
+  border-radius: 7px;
+}
+.app-shell .pilot-work[data-density='compact'] .today-task-row {
+  min-height: 49px;
+  padding-block: 5px;
+}
+.app-shell .pilot-work .today-task-facts {
+  gap: 12px;
+  margin: 12px 0;
+}
+.app-shell .pilot-work .today-task-facts dt {
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-work .today-task-facts dd {
+  font-size: var(--pilot-body);
+  margin-top: 2px;
+}
+.app-shell .pilot-work .today-context-links {
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.app-shell .pilot-work .today-context-links [data-slot='button'] {
+  background: #fff;
+  border-color: #dbe4f1;
+  color: #375a8c;
+  padding: 5px 9px;
+}
+.app-shell .pilot-work .today-status,
+.app-shell .pilot-work .today-stage {
+  font-size: var(--pilot-meta);
+  padding: 2px 6px;
+  border-radius: 5px;
+  line-height: 18px;
+}
+.app-shell .pilot-work .workspace-section {
+  border-top: 0;
+  margin-top: 8px;
+}
+.app-shell .pilot-work .workspace-section-toggle {
+  padding: 11px 12px;
+  min-height: 44px;
+  border: 1px solid #e3e9f2;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.app-shell .pilot-work .workspace-section-toggle:hover {
+  background: #eff4fb;
+  border-color: #cddbed;
+}
+.app-shell .pilot-work .workspace-section[data-open='true'] .workspace-section-toggle {
+  background: #edf3fc;
+  border-color: #d0dff4;
+}
+.app-shell .pilot-work .workspace-section-title {
+  font-size: var(--pilot-body);
+  line-height: 20px;
+}
+.app-shell .pilot-work .workspace-section-body {
+  padding: 12px 0;
+}
+.app-shell .pilot-work .workspace-help {
+  font-size: var(--pilot-meta);
+  margin: 6px 0;
+}
+.app-shell .pilot-work .today-summary {
+  padding-bottom: 4px;
+}
+.app-shell .pilot-work .today-summary-heading {
+  margin: 4px 0 8px;
+}
+.app-shell .pilot-work .today-statistics {
+  margin-top: 16px;
+}
+/* Reusable exact-customer picker: collapsed when selected; explicit select, bounded search. */
+.premium-pilot .pilot-customer-picker {
+  border: 1px solid var(--pilot-line);
+  border-radius: var(--pilot-radius);
+  background: #f8fafc;
+}
+.premium-pilot .pilot-customer-picker > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 14px;
+  color: #3b5274;
+  font-size: var(--pilot-body);
+  cursor: pointer;
+  list-style: none;
+}
+.premium-pilot .pilot-customer-picker > summary::-webkit-details-marker {
+  display: none;
+}
+.premium-pilot .pilot-customer-picker > summary > span {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.premium-pilot .pilot-customer-picker > summary[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.premium-pilot .pilot-customer-picker[open] > summary > svg {
+  transform: rotate(180deg);
+}
+.app-shell .pilot-policy .pilot-picker-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  padding: 0 14px 14px;
+  border: 0;
+  margin: 0;
+}
+.app-shell .pilot-policy .pilot-picker-fields label {
+  margin-bottom: 5px;
+}
+.premium-pilot .pilot-search-input {
+  position: relative;
+}
+.premium-pilot .pilot-search-input > svg {
+  position: absolute;
+  left: 10px;
+  top: 11px;
+  color: var(--pilot-muted);
+}
+.app-shell .premium-pilot .pilot-search-input input {
+  padding-left: 34px;
+}
+.premium-pilot .pilot-picker-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--pilot-muted);
+  font-size: var(--pilot-meta);
+  line-height: 18px;
+}
+/* Existing compact form, no extra outer card. Only the new-policy root opts in. */
+.app-shell .pilot-policy .customer-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #52667f;
+  font-size: var(--pilot-meta);
+  margin-bottom: 12px;
+  text-underline-offset: 3px;
+}
+.app-shell .pilot-policy .policy-contract-form {
+  margin-top: 12px;
+  gap: 12px;
+}
+.app-shell .pilot-policy .policy-contract-form > p {
+  margin: 0;
+  padding: 0 2px;
+  font-size: var(--pilot-body);
+}
+.app-shell .pilot-policy .policy-contract-form fieldset {
+  gap: 0;
+  border: 1px solid var(--pilot-line);
+  border-radius: var(--pilot-radius);
+  overflow: hidden;
+}
+.app-shell .pilot-policy .policy-contract-form fieldset > [data-slot='card'] {
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+.app-shell .pilot-policy .policy-contract-form fieldset > [data-slot='card'] + [data-slot='card'] {
+  border-top: 1px solid var(--pilot-line);
+}
+.app-shell .pilot-policy [data-slot='card-header'] {
+  padding: 14px 20px 0;
+}
+.app-shell .pilot-policy [data-slot='card-title'] {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.15px;
+}
+.app-shell .pilot-policy [data-slot='card-content'] {
+  padding: 10px 20px 14px;
+}
+.app-shell .pilot-policy .customer-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 16px;
+  margin-top: 0;
+}
+.app-shell .pilot-policy .customer-form-grid label {
+  margin-bottom: 5px;
+}
+.app-shell .pilot-policy .policy-contract-form .pilot-help {
+  margin: 8px 0 0;
+}
+.app-shell .pilot-policy .policy-contract-form .pilot-contract-rule {
+  margin: 0 0 12px;
+  font-size: var(--pilot-meta);
+  color: var(--pilot-muted);
+}
+.app-shell .pilot-policy .company-contact-comparison {
+  margin: 0;
+  padding: 12px 16px;
+  background: #f7f9fc;
+  border: 1px solid var(--pilot-line);
+  border-radius: 9px;
+}
+.app-shell .pilot-policy .company-contact-comparison strong {
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-policy .company-contact-comparison p {
+  margin: 5px 0 0;
+  font-size: var(--pilot-meta);
+}
+.app-shell .pilot-policy .customer-form-actions {
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+}
+@media (min-width: 1101px) {
+  .app-shell .pilot-work .today-workspace[data-selected='false'] .today-task-row {
+    grid-template-columns: minmax(160px, 0.8fr) minmax(200px, 1fr) 160px;
+    min-height: 52px;
+    align-items: center;
+  }
+  .app-shell .pilot-work .today-workspace[data-selected='false'] .today-task-row > span {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .app-shell .pilot-work .today-workspace[data-selected='false'] .today-task-row time {
+    grid-column: 3;
+    grid-row: 1;
+    max-width: none;
+  }
+  .app-shell
+    .pilot-policy
+    .policy-contract-form
+    fieldset
+    > [data-slot='card']:first-child
+    .customer-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .app-shell .pilot-policy .page-heading {
+    margin-bottom: 12px;
+  }
+}
+@media (max-width: 1100px) {
+  .app-shell .pilot-work .today-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .pilot-work .today-queue {
+    border-right: 0;
+    padding-right: 0;
+  }
+  .app-shell .pilot-work .today-overview {
+    max-width: none;
+  }
+  .app-shell .pilot-customers .customer-table td,
+  .app-shell .pilot-customers .customer-table th {
+    padding-inline: 10px;
+  }
+  .app-shell .pilot-customers .pilot-avatar {
+    display: none;
+  }
+  .app-shell .pilot-policy .customer-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  .app-shell .pilot-customers .customer-table.customer-table-with-coverage {
+    display: table;
+    table-layout: fixed;
+  }
+  .app-shell .pilot-customers .customer-table.customer-table-with-coverage thead {
+    display: table-header-group;
+  }
+  .app-shell .pilot-customers .customer-table.customer-table-with-coverage tbody {
+    display: table-row-group;
+  }
+  .app-shell .pilot-customers .customer-table.customer-table-with-coverage tr {
+    display: table-row;
+    padding: 0;
+  }
+  .app-shell .pilot-customers .customer-table.customer-table-with-coverage td {
+    display: table-cell;
+    padding: 10px 8px;
+    font-size: var(--pilot-meta);
+  }
+  .app-shell .pilot-customers .customer-table th {
+    padding-inline: 8px;
+  }
+  .app-shell .pilot-customers .customer-name {
+    font-size: var(--pilot-body);
+  }
+  .app-shell .pilot-customers .customer-open {
+    white-space: normal;
+    padding: 5px 6px;
+    gap: 4px;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(1) {
+    width: 17%;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(2) {
+    width: 12%;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(3) {
+    width: 26%;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(4) {
+    width: 22%;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(5) {
+    width: 8%;
+  }
+  .app-shell .pilot-customers .customer-table th:nth-child(6) {
+    width: 15%;
+  }
+}
+@media (max-width: 700px) {
+  .app-shell .pilot-customers .customer-table {
+    display: block;
+  }
+  .app-shell .pilot-customers .customer-table tbody {
+    display: grid;
+  }
+  .app-shell .pilot-customers .customer-table tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 10px;
+    padding: 12px 14px;
+  }
+  .app-shell .pilot-customers .customer-table td {
+    padding: 0;
+    border: 0;
+    grid-row: auto;
+    grid-column: 1;
+  }
+  .app-shell .pilot-customers .customer-table td:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .app-shell .pilot-customers .customer-table td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+  .app-shell .pilot-customers .customer-table td:nth-child(3) {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .app-shell .pilot-customers .customer-table td:nth-child(4) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .app-shell .pilot-customers .customer-table td:nth-child(5) {
+    grid-column: 1;
+    grid-row: 4;
+    align-self: center;
+  }
+  .app-shell .pilot-customers .customer-table td:last-child {
+    grid-column: 2;
+    grid-row: 4;
+    align-self: center;
+    justify-self: end;
+  }
+  .app-shell .pilot-customers .coverage-brief {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 7px;
+    margin-block: 4px;
+  }
+  .app-shell .pilot-customers .coverage-brief > span:last-child {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .premium-pilot {
+    --pilot-control: 44px;
+  }
+  .app-shell .premium-pilot .page-heading {
+    margin-bottom: 16px;
+    gap: 10px;
+  }
+  .app-shell .premium-pilot .page-heading h1 {
+    font-size: 24px;
+    line-height: 32px;
+    letter-spacing: -0.7px;
+  }
+  .app-shell .premium-pilot .page-heading p {
+    font-size: var(--pilot-meta);
+    line-height: 18px;
+  }
+  .app-shell .premium-pilot [data-slot='button'] {
+    padding: 9px 12px;
+    font-size: var(--pilot-body);
+  }
+  .app-shell
+    .premium-pilot
+    :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    font-size: 16px;
+    min-height: 44px;
+    height: 44px;
+  }
+  .app-shell .pilot-customers .customer-list-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px;
+  }
+  .app-shell .pilot-customers .customer-search {
+    grid-column: 1 / -1;
+  }
+  .app-shell .pilot-customers .pilot-filter-actions {
+    justify-content: stretch;
+    align-self: end;
+    gap: 6px;
+  }
+  .app-shell .pilot-customers .pilot-filter-actions [data-slot='button'] {
+    flex: 1;
+    padding-inline: 9px;
+  }
+  .app-shell .pilot-customers .customer-pagination {
+    padding: 12px;
+    gap: 10px;
+  }
+  .app-shell .pilot-customers .customer-pagination > div {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+  .app-shell .pilot-customers .customer-pagination [data-slot='button'] {
+    flex: 1;
+  }
+  .app-shell .pilot-work .today-toolbar {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .app-shell .pilot-work .today-toolbar > [data-slot='button'] {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+  .app-shell .pilot-work .today-toolbar nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+  .app-shell .pilot-work .today-toolbar nav [data-slot='button'] {
+    min-height: 56px;
+    padding: 7px;
+    font-size: var(--pilot-meta);
+  }
+  .app-shell .pilot-work .work-segments {
+    flex: 1;
+    gap: 0;
+    justify-content: space-between;
+  }
+  .app-shell .pilot-work .work-segments > button {
+    min-height: 44px;
+    padding: 5px 7px;
+  }
+  .app-shell .pilot-work .work-segments span {
+    font-size: var(--pilot-meta);
+    margin-left: 2px;
+  }
+  .app-shell .pilot-work .work-list-controls > [data-slot='button'] {
+    padding: 6px 9px;
+  }
+  .app-shell .pilot-work .today-task-row {
+    min-height: 64px;
+    padding: 10px;
+  }
+  .app-shell .pilot-work .today-overview > [data-slot='card-header'] {
+    padding: 14px 14px 8px;
+  }
+  .app-shell .pilot-work .today-overview > [data-slot='card-content'] {
+    padding: 0 14px 14px;
+  }
+  .app-shell .pilot-work .workspace-section-toggle {
+    min-height: 48px;
+  }
+  .app-shell .pilot-work .today-context-links [data-slot='button'] {
+    flex: 1;
+  }
+  .app-shell .pilot-policy .pilot-picker-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .pilot-policy .customer-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 13px;
+  }
+  .app-shell .pilot-policy [data-slot='card-header'] {
+    padding: 14px 14px 0;
+  }
+  .app-shell .pilot-policy [data-slot='card-content'] {
+    padding: 12px 14px 16px;
+  }
+  .app-shell .pilot-policy .policy-contract-form {
+    margin-top: 12px;
+    gap: 12px;
+  }
+  .app-shell .pilot-policy .customer-form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .app-shell .pilot-policy .customer-form-actions [data-slot='button'] {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .premium-pilot * {
+    transition: none;
+  }
+}

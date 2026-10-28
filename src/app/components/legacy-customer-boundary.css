@@ -1,0 +1,33 @@
+.legacy-customer-boundary:focus {
+  outline: none;
+}
+.legacy-customer-dialog-heading {
+  position: sticky;
+  top: -1.5rem;
+  z-index: 2;
+  background: white;
+  padding-top: 0.75rem;
+}
+.legacy-customer-dialog-heading button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+}
+.legacy-customer-boundary :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #6957e8;
+  outline-offset: 3px;
+}
+.legacy-customer-close-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  width: min(600px, calc(100% - 32px));
+  z-index: 60;
+  padding: 14px 18px;
+  border: 1px solid #d7c7a1;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #654821;
+  box-shadow: 0 8px 30px #182b3b22;
+}

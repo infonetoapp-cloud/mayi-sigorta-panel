@@ -1,0 +1,5122 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "0b281d61-ca69-415d-a918-bf6066b26906",
+  "prevId": "ae70987e-7328-4a09-9b40-5295fdead882",
+  "tables": {
+    "agencies": {
+      "name": "agencies",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bootstrap_completed_at": {
+          "name": "bootstrap_completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agencies_id_nonempty": {
+          "name": "agencies_id_nonempty",
+          "value": "length(trim(\"agencies\".\"id\")) > 0"
+        },
+        "agencies_status_valid": {
+          "name": "agencies_status_valid",
+          "value": "\"agencies\".\"status\" IN ('PROVISIONING', 'ACTIVE')"
+        },
+        "agencies_version_positive": {
+          "name": "agencies_version_positive",
+          "value": "\"agencies\".\"version\" >= 1"
+        },
+        "agencies_timestamps_ordered": {
+          "name": "agencies_timestamps_ordered",
+          "value": "\"agencies\".\"updated_at\" >= \"agencies\".\"created_at\""
+        },
+        "agencies_lifecycle_consistent": {
+          "name": "agencies_lifecycle_consistent",
+          "value": "(\"agencies\".\"status\" = 'PROVISIONING' AND \"agencies\".\"bootstrap_completed_at\" IS NULL AND \"agencies\".\"activated_at\" IS NULL)\n          OR (\"agencies\".\"status\" = 'ACTIVE' AND \"agencies\".\"bootstrap_completed_at\" IS NOT NULL AND \"agencies\".\"activated_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "agency_memberships": {
+      "name": "agency_memberships",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permission_version": {
+          "name": "permission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "invitation_email": {
+          "name": "invitation_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "invitation_expires_at": {
+          "name": "invitation_expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "invitation_renewed_at": {
+          "name": "invitation_renewed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "suspended_at": {
+          "name": "suspended_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "inactivated_at": {
+          "name": "inactivated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_operation_id": {
+          "name": "last_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "agency_memberships_agency_id_id_uq": {
+          "name": "agency_memberships_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "agency_memberships_agency_user_uq": {
+          "name": "agency_memberships_agency_user_uq",
+          "columns": ["agency_id", "user_id"],
+          "isUnique": true
+        },
+        "agency_memberships_owner_lookup_idx": {
+          "name": "agency_memberships_owner_lookup_idx",
+          "columns": ["agency_id", "type", "status"],
+          "isUnique": false
+        },
+        "agency_memberships_user_status_idx": {
+          "name": "agency_memberships_user_status_idx",
+          "columns": ["user_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agency_memberships_agency_id_agencies_id_fk": {
+          "name": "agency_memberships_agency_id_agencies_id_fk",
+          "tableFrom": "agency_memberships",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "agency_memberships_user_id_users_id_fk": {
+          "name": "agency_memberships_user_id_users_id_fk",
+          "tableFrom": "agency_memberships",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agency_memberships_id_nonempty": {
+          "name": "agency_memberships_id_nonempty",
+          "value": "length(trim(\"agency_memberships\".\"id\")) > 0"
+        },
+        "agency_memberships_type_valid": {
+          "name": "agency_memberships_type_valid",
+          "value": "\"agency_memberships\".\"type\" IN ('OWNER', 'MEMBER')"
+        },
+        "agency_memberships_status_valid": {
+          "name": "agency_memberships_status_valid",
+          "value": "\"agency_memberships\".\"status\" IN ('INVITED', 'ACTIVE', 'SUSPENDED', 'INACTIVE')"
+        },
+        "agency_memberships_version_positive": {
+          "name": "agency_memberships_version_positive",
+          "value": "\"agency_memberships\".\"version\" >= 1"
+        },
+        "agency_memberships_permission_version_positive": {
+          "name": "agency_memberships_permission_version_positive",
+          "value": "\"agency_memberships\".\"permission_version\" >= 1"
+        },
+        "agency_memberships_invitation_email_shape": {
+          "name": "agency_memberships_invitation_email_shape",
+          "value": "length(trim(\"agency_memberships\".\"invitation_email\")) > 3 AND instr(\"agency_memberships\".\"invitation_email\", '@') > 1"
+        },
+        "agency_memberships_invitation_expiry_ordered": {
+          "name": "agency_memberships_invitation_expiry_ordered",
+          "value": "\"agency_memberships\".\"invitation_expires_at\" > \"agency_memberships\".\"created_at\""
+        },
+        "agency_memberships_timestamps_ordered": {
+          "name": "agency_memberships_timestamps_ordered",
+          "value": "\"agency_memberships\".\"updated_at\" >= \"agency_memberships\".\"created_at\""
+        },
+        "agency_memberships_lifecycle_consistent": {
+          "name": "agency_memberships_lifecycle_consistent",
+          "value": "(\"agency_memberships\".\"status\" = 'INVITED')\n          OR (\"agency_memberships\".\"status\" = 'ACTIVE' AND \"agency_memberships\".\"activated_at\" IS NOT NULL)\n          OR (\"agency_memberships\".\"status\" = 'SUSPENDED' AND \"agency_memberships\".\"activated_at\" IS NOT NULL AND \"agency_memberships\".\"suspended_at\" IS NOT NULL)\n          OR (\"agency_memberships\".\"status\" = 'INACTIVE' AND \"agency_memberships\".\"inactivated_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "agency_settings": {
+      "name": "agency_settings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "default_insurer_id": {
+          "name": "default_insurer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'Europe/Istanbul'"
+        },
+        "renewal_window_days": {
+          "name": "renewal_window_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 30
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "agency_settings_agency_id_uq": {
+          "name": "agency_settings_agency_id_uq",
+          "columns": ["agency_id"],
+          "isUnique": true
+        },
+        "agency_settings_default_insurer_idx": {
+          "name": "agency_settings_default_insurer_idx",
+          "columns": ["agency_id", "default_insurer_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agency_settings_agency_id_agencies_id_fk": {
+          "name": "agency_settings_agency_id_agencies_id_fk",
+          "tableFrom": "agency_settings",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "agency_settings_agency_default_insurer_fk": {
+          "name": "agency_settings_agency_default_insurer_fk",
+          "tableFrom": "agency_settings",
+          "tableTo": "insurers",
+          "columnsFrom": ["agency_id", "default_insurer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agency_settings_id_nonempty": {
+          "name": "agency_settings_id_nonempty",
+          "value": "length(trim(\"agency_settings\".\"id\")) > 0"
+        },
+        "agency_settings_timezone_nonempty": {
+          "name": "agency_settings_timezone_nonempty",
+          "value": "length(trim(\"agency_settings\".\"timezone\")) > 0"
+        },
+        "agency_settings_renewal_window_days_range": {
+          "name": "agency_settings_renewal_window_days_range",
+          "value": "\"agency_settings\".\"renewal_window_days\" >= 1 AND \"agency_settings\".\"renewal_window_days\" <= 120"
+        },
+        "agency_settings_version_positive": {
+          "name": "agency_settings_version_positive",
+          "value": "\"agency_settings\".\"version\" >= 1"
+        },
+        "agency_settings_timestamps_ordered": {
+          "name": "agency_settings_timestamps_ordered",
+          "value": "\"agency_settings\".\"updated_at\" >= \"agency_settings\".\"created_at\""
+        }
+      }
+    },
+    "audit_events": {
+      "name": "audit_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "audit_events_agency_created_idx": {
+          "name": "audit_events_agency_created_idx",
+          "columns": ["agency_id", "created_at"],
+          "isUnique": false
+        },
+        "audit_events_actor_created_idx": {
+          "name": "audit_events_actor_created_idx",
+          "columns": ["actor_membership_id", "created_at"],
+          "isUnique": false
+        },
+        "audit_events_target_idx": {
+          "name": "audit_events_target_idx",
+          "columns": ["target_type", "target_id"],
+          "isUnique": false
+        },
+        "audit_events_correlation_idx": {
+          "name": "audit_events_correlation_idx",
+          "columns": ["correlation_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "audit_events_agency_id_agencies_id_fk": {
+          "name": "audit_events_agency_id_agencies_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "audit_events_actor_user_id_users_id_fk": {
+          "name": "audit_events_actor_user_id_users_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "audit_events_actor_membership_id_agency_memberships_id_fk": {
+          "name": "audit_events_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "audit_events_id_nonempty": {
+          "name": "audit_events_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"id\")) > 0"
+        },
+        "audit_events_action_nonempty": {
+          "name": "audit_events_action_nonempty",
+          "value": "length(trim(\"audit_events\".\"action\")) > 0"
+        },
+        "audit_events_target_type_nonempty": {
+          "name": "audit_events_target_type_nonempty",
+          "value": "length(trim(\"audit_events\".\"target_type\")) > 0"
+        },
+        "audit_events_target_id_nonempty": {
+          "name": "audit_events_target_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"target_id\")) > 0"
+        },
+        "audit_events_correlation_id_nonempty": {
+          "name": "audit_events_correlation_id_nonempty",
+          "value": "length(trim(\"audit_events\".\"correlation_id\")) > 0"
+        },
+        "audit_events_outcome_valid": {
+          "name": "audit_events_outcome_valid",
+          "value": "\"audit_events\".\"outcome\" IN ('SUCCESS', 'FAILURE')"
+        }
+      }
+    },
+    "auth_identities": {
+      "name": "auth_identities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verified_email": {
+          "name": "verified_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "bound_at": {
+          "name": "bound_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "auth_identities_issuer_subject_uq": {
+          "name": "auth_identities_issuer_subject_uq",
+          "columns": ["issuer", "subject"],
+          "isUnique": true
+        },
+        "auth_identities_user_status_idx": {
+          "name": "auth_identities_user_status_idx",
+          "columns": ["user_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "auth_identities_user_id_users_id_fk": {
+          "name": "auth_identities_user_id_users_id_fk",
+          "tableFrom": "auth_identities",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "auth_identities_id_nonempty": {
+          "name": "auth_identities_id_nonempty",
+          "value": "length(trim(\"auth_identities\".\"id\")) > 0"
+        },
+        "auth_identities_issuer_nonempty": {
+          "name": "auth_identities_issuer_nonempty",
+          "value": "length(trim(\"auth_identities\".\"issuer\")) > 0"
+        },
+        "auth_identities_subject_nonempty": {
+          "name": "auth_identities_subject_nonempty",
+          "value": "length(trim(\"auth_identities\".\"subject\")) > 0"
+        },
+        "auth_identities_verified_email_shape": {
+          "name": "auth_identities_verified_email_shape",
+          "value": "length(trim(\"auth_identities\".\"verified_email\")) > 3 AND instr(\"auth_identities\".\"verified_email\", '@') > 1"
+        },
+        "auth_identities_status_valid": {
+          "name": "auth_identities_status_valid",
+          "value": "\"auth_identities\".\"status\" IN ('ACTIVE', 'REVOKED')"
+        },
+        "auth_identities_version_positive": {
+          "name": "auth_identities_version_positive",
+          "value": "\"auth_identities\".\"version\" >= 1"
+        },
+        "auth_identities_timestamps_ordered": {
+          "name": "auth_identities_timestamps_ordered",
+          "value": "\"auth_identities\".\"updated_at\" >= \"auth_identities\".\"created_at\""
+        },
+        "auth_identities_lifecycle_consistent": {
+          "name": "auth_identities_lifecycle_consistent",
+          "value": "(\"auth_identities\".\"status\" = 'ACTIVE' AND \"auth_identities\".\"revoked_at\" IS NULL)\n          OR (\"auth_identities\".\"status\" = 'REVOKED' AND \"auth_identities\".\"revoked_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "company_contacts": {
+      "name": "company_contacts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_primary": {
+          "name": "is_primary",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "company_contacts_active_primary_uq": {
+          "name": "company_contacts_active_primary_uq",
+          "columns": ["agency_id", "customer_id"],
+          "isUnique": true,
+          "where": "\"company_contacts\".\"is_primary\" = 1 AND \"company_contacts\".\"status\" = 'ACTIVE'"
+        },
+        "company_contacts_agency_customer_idx": {
+          "name": "company_contacts_agency_customer_idx",
+          "columns": ["agency_id", "customer_id"],
+          "isUnique": false
+        },
+        "company_contacts_customer_status_idx": {
+          "name": "company_contacts_customer_status_idx",
+          "columns": ["customer_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "company_contacts_agency_id_agencies_id_fk": {
+          "name": "company_contacts_agency_id_agencies_id_fk",
+          "tableFrom": "company_contacts",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "company_contacts_agency_customer_fk": {
+          "name": "company_contacts_agency_customer_fk",
+          "tableFrom": "company_contacts",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "company_contacts_id_nonempty": {
+          "name": "company_contacts_id_nonempty",
+          "value": "length(trim(\"company_contacts\".\"id\")) > 0"
+        },
+        "company_contacts_first_name_nonempty": {
+          "name": "company_contacts_first_name_nonempty",
+          "value": "length(trim(\"company_contacts\".\"first_name\")) > 0"
+        },
+        "company_contacts_last_name_nonempty": {
+          "name": "company_contacts_last_name_nonempty",
+          "value": "length(trim(\"company_contacts\".\"last_name\")) > 0"
+        },
+        "company_contacts_is_primary_valid": {
+          "name": "company_contacts_is_primary_valid",
+          "value": "\"company_contacts\".\"is_primary\" IN (0, 1)"
+        },
+        "company_contacts_status_valid": {
+          "name": "company_contacts_status_valid",
+          "value": "\"company_contacts\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "company_contacts_version_positive": {
+          "name": "company_contacts_version_positive",
+          "value": "\"company_contacts\".\"version\" >= 1"
+        },
+        "company_contacts_timestamps_ordered": {
+          "name": "company_contacts_timestamps_ordered",
+          "value": "\"company_contacts\".\"updated_at\" >= \"company_contacts\".\"created_at\""
+        },
+        "company_contacts_email_shape": {
+          "name": "company_contacts_email_shape",
+          "value": "\"company_contacts\".\"email\" IS NULL OR (length(trim(\"company_contacts\".\"email\")) > 3 AND instr(\"company_contacts\".\"email\", '@') > 1)"
+        },
+        "company_contacts_phone_shape": {
+          "name": "company_contacts_phone_shape",
+          "value": "\"company_contacts\".\"phone\" IS NULL OR length(trim(\"company_contacts\".\"phone\")) > 0"
+        }
+      }
+    },
+    "customers": {
+      "name": "customers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "company_title": {
+          "name": "company_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "assignee_membership_id": {
+          "name": "assignee_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_by_membership_id": {
+          "name": "archived_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archive_reason_code": {
+          "name": "archive_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_type": {
+          "name": "identity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_ciphertext": {
+          "name": "identity_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_iv": {
+          "name": "identity_iv",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_tag": {
+          "name": "identity_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_search_hash": {
+          "name": "identity_search_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "identity_key_version": {
+          "name": "identity_key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "customers_agency_id_id_uq": {
+          "name": "customers_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "customers_agency_type_idx": {
+          "name": "customers_agency_type_idx",
+          "columns": ["agency_id", "type"],
+          "isUnique": false
+        },
+        "customers_agency_assignee_idx": {
+          "name": "customers_agency_assignee_idx",
+          "columns": ["agency_id", "assignee_membership_id"],
+          "isUnique": false
+        },
+        "customers_agency_created_idx": {
+          "name": "customers_agency_created_idx",
+          "columns": ["agency_id", "created_at"],
+          "isUnique": false
+        },
+        "customers_agency_display_name_idx": {
+          "name": "customers_agency_display_name_idx",
+          "columns": ["agency_id", "display_name"],
+          "isUnique": false
+        },
+        "customers_agency_identity_search_hash_idx": {
+          "name": "customers_agency_identity_search_hash_idx",
+          "columns": ["agency_id", "identity_search_hash"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "customers_agency_id_agencies_id_fk": {
+          "name": "customers_agency_id_agencies_id_fk",
+          "tableFrom": "customers",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "customers_agency_assignee_fk": {
+          "name": "customers_agency_assignee_fk",
+          "tableFrom": "customers",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "assignee_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "customers_id_nonempty": {
+          "name": "customers_id_nonempty",
+          "value": "length(trim(\"customers\".\"id\")) > 0"
+        },
+        "customers_type_valid": {
+          "name": "customers_type_valid",
+          "value": "\"customers\".\"type\" IN ('INDIVIDUAL', 'COMPANY')"
+        },
+        "customers_display_name_nonempty": {
+          "name": "customers_display_name_nonempty",
+          "value": "length(trim(\"customers\".\"display_name\")) > 0"
+        },
+        "customers_version_positive": {
+          "name": "customers_version_positive",
+          "value": "\"customers\".\"version\" >= 1"
+        },
+        "customers_timestamps_ordered": {
+          "name": "customers_timestamps_ordered",
+          "value": "\"customers\".\"updated_at\" >= \"customers\".\"created_at\""
+        },
+        "customers_type_fields_valid": {
+          "name": "customers_type_fields_valid",
+          "value": "(\"customers\".\"type\" = 'INDIVIDUAL' AND \"customers\".\"company_title\" IS NULL)\n          OR (\"customers\".\"type\" = 'COMPANY' AND \"customers\".\"first_name\" IS NULL AND \"customers\".\"last_name\" IS NULL)"
+        },
+        "customers_email_shape": {
+          "name": "customers_email_shape",
+          "value": "\"customers\".\"email\" IS NULL OR (length(trim(\"customers\".\"email\")) > 3 AND instr(\"customers\".\"email\", '@') > 1)"
+        },
+        "customers_phone_shape": {
+          "name": "customers_phone_shape",
+          "value": "\"customers\".\"phone\" IS NULL OR length(trim(\"customers\".\"phone\")) > 0"
+        }
+      }
+    },
+    "d1_cas_assertions": {
+      "name": "d1_cas_assertions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expected": {
+          "name": "expected",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actual": {
+          "name": "actual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'OPTIMISTIC_CONCURRENCY_CONFLICT'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "d1_cas_assertions_id_nonempty": {
+          "name": "d1_cas_assertions_id_nonempty",
+          "value": "length(trim(\"d1_cas_assertions\".\"id\")) > 0"
+        },
+        "d1_cas_assertions_failure_code_nonempty": {
+          "name": "d1_cas_assertions_failure_code_nonempty",
+          "value": "length(trim(\"d1_cas_assertions\".\"failure_code\")) > 0"
+        }
+      }
+    },
+    "external_customer_references": {
+      "name": "external_customer_references",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_namespace": {
+          "name": "source_namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_key": {
+          "name": "external_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "ext_cust_refs_agency_source_key_uq": {
+          "name": "ext_cust_refs_agency_source_key_uq",
+          "columns": ["agency_id", "source_namespace", "external_key"],
+          "isUnique": true
+        },
+        "ext_cust_refs_agency_customer_idx": {
+          "name": "ext_cust_refs_agency_customer_idx",
+          "columns": ["agency_id", "customer_id"],
+          "isUnique": false
+        },
+        "ext_cust_refs_agency_source_key_idx": {
+          "name": "ext_cust_refs_agency_source_key_idx",
+          "columns": ["agency_id", "source_namespace", "external_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "external_customer_references_agency_id_agencies_id_fk": {
+          "name": "external_customer_references_agency_id_agencies_id_fk",
+          "tableFrom": "external_customer_references",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "ext_cust_refs_agency_customer_fk": {
+          "name": "ext_cust_refs_agency_customer_fk",
+          "tableFrom": "external_customer_references",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "ext_cust_refs_id_nonempty": {
+          "name": "ext_cust_refs_id_nonempty",
+          "value": "length(trim(\"external_customer_references\".\"id\")) > 0"
+        },
+        "ext_cust_refs_source_namespace_nonempty": {
+          "name": "ext_cust_refs_source_namespace_nonempty",
+          "value": "length(trim(\"external_customer_references\".\"source_namespace\")) > 0"
+        },
+        "ext_cust_refs_external_key_nonempty": {
+          "name": "ext_cust_refs_external_key_nonempty",
+          "value": "length(trim(\"external_customer_references\".\"external_key\")) > 0"
+        },
+        "ext_cust_refs_timestamps_ordered": {
+          "name": "ext_cust_refs_timestamps_ordered",
+          "value": "\"external_customer_references\".\"updated_at\" >= \"external_customer_references\".\"created_at\""
+        }
+      }
+    },
+    "insurance_branches": {
+      "name": "insurance_branches",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "data_classification": {
+          "name": "data_classification",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'GENERAL'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "insurance_branches_agency_id_id_uq": {
+          "name": "insurance_branches_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "insurance_branches_agency_code_uq": {
+          "name": "insurance_branches_agency_code_uq",
+          "columns": ["agency_id", "code"],
+          "isUnique": true
+        },
+        "insurance_branches_agency_status_idx": {
+          "name": "insurance_branches_agency_status_idx",
+          "columns": ["agency_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "insurance_branches_agency_id_agencies_id_fk": {
+          "name": "insurance_branches_agency_id_agencies_id_fk",
+          "tableFrom": "insurance_branches",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "insurance_branches_id_nonempty": {
+          "name": "insurance_branches_id_nonempty",
+          "value": "length(trim(\"insurance_branches\".\"id\")) > 0"
+        },
+        "insurance_branches_code_nonempty": {
+          "name": "insurance_branches_code_nonempty",
+          "value": "length(trim(\"insurance_branches\".\"code\")) > 0"
+        },
+        "insurance_branches_name_nonempty": {
+          "name": "insurance_branches_name_nonempty",
+          "value": "length(trim(\"insurance_branches\".\"name\")) > 0"
+        },
+        "insurance_branches_data_classification_valid": {
+          "name": "insurance_branches_data_classification_valid",
+          "value": "\"insurance_branches\".\"data_classification\" IN ('GENERAL', 'HEALTH')"
+        },
+        "insurance_branches_status_valid": {
+          "name": "insurance_branches_status_valid",
+          "value": "\"insurance_branches\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "insurance_branches_version_positive": {
+          "name": "insurance_branches_version_positive",
+          "value": "\"insurance_branches\".\"version\" >= 1"
+        },
+        "insurance_branches_timestamps_ordered": {
+          "name": "insurance_branches_timestamps_ordered",
+          "value": "\"insurance_branches\".\"updated_at\" >= \"insurance_branches\".\"created_at\""
+        }
+      }
+    },
+    "insurance_products": {
+      "name": "insurance_products",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "insurer_id": {
+          "name": "insurer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "insurance_products_agency_id_id_uq": {
+          "name": "insurance_products_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "insurance_products_policy_relation_uq": {
+          "name": "insurance_products_policy_relation_uq",
+          "columns": ["agency_id", "id", "insurer_id", "branch_id"],
+          "isUnique": true
+        },
+        "insurance_products_agency_code_uq": {
+          "name": "insurance_products_agency_code_uq",
+          "columns": ["agency_id", "code"],
+          "isUnique": true
+        },
+        "insurance_products_agency_insurer_idx": {
+          "name": "insurance_products_agency_insurer_idx",
+          "columns": ["agency_id", "insurer_id"],
+          "isUnique": false
+        },
+        "insurance_products_agency_branch_idx": {
+          "name": "insurance_products_agency_branch_idx",
+          "columns": ["agency_id", "branch_id"],
+          "isUnique": false
+        },
+        "insurance_products_agency_status_idx": {
+          "name": "insurance_products_agency_status_idx",
+          "columns": ["agency_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "insurance_products_agency_id_agencies_id_fk": {
+          "name": "insurance_products_agency_id_agencies_id_fk",
+          "tableFrom": "insurance_products",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "insurance_products_agency_insurer_fk": {
+          "name": "insurance_products_agency_insurer_fk",
+          "tableFrom": "insurance_products",
+          "tableTo": "insurers",
+          "columnsFrom": ["agency_id", "insurer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "insurance_products_agency_branch_fk": {
+          "name": "insurance_products_agency_branch_fk",
+          "tableFrom": "insurance_products",
+          "tableTo": "insurance_branches",
+          "columnsFrom": ["agency_id", "branch_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "insurance_products_id_nonempty": {
+          "name": "insurance_products_id_nonempty",
+          "value": "length(trim(\"insurance_products\".\"id\")) > 0"
+        },
+        "insurance_products_code_nonempty": {
+          "name": "insurance_products_code_nonempty",
+          "value": "length(trim(\"insurance_products\".\"code\")) > 0"
+        },
+        "insurance_products_name_nonempty": {
+          "name": "insurance_products_name_nonempty",
+          "value": "length(trim(\"insurance_products\".\"name\")) > 0"
+        },
+        "insurance_products_status_valid": {
+          "name": "insurance_products_status_valid",
+          "value": "\"insurance_products\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "insurance_products_version_positive": {
+          "name": "insurance_products_version_positive",
+          "value": "\"insurance_products\".\"version\" >= 1"
+        },
+        "insurance_products_timestamps_ordered": {
+          "name": "insurance_products_timestamps_ordered",
+          "value": "\"insurance_products\".\"updated_at\" >= \"insurance_products\".\"created_at\""
+        }
+      }
+    },
+    "insurers": {
+      "name": "insurers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "insurers_agency_id_id_uq": {
+          "name": "insurers_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "insurers_agency_code_uq": {
+          "name": "insurers_agency_code_uq",
+          "columns": ["agency_id", "code"],
+          "isUnique": true
+        },
+        "insurers_agency_status_idx": {
+          "name": "insurers_agency_status_idx",
+          "columns": ["agency_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "insurers_agency_id_agencies_id_fk": {
+          "name": "insurers_agency_id_agencies_id_fk",
+          "tableFrom": "insurers",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "insurers_id_nonempty": {
+          "name": "insurers_id_nonempty",
+          "value": "length(trim(\"insurers\".\"id\")) > 0"
+        },
+        "insurers_code_nonempty": {
+          "name": "insurers_code_nonempty",
+          "value": "length(trim(\"insurers\".\"code\")) > 0"
+        },
+        "insurers_name_nonempty": {
+          "name": "insurers_name_nonempty",
+          "value": "length(trim(\"insurers\".\"name\")) > 0"
+        },
+        "insurers_status_valid": {
+          "name": "insurers_status_valid",
+          "value": "\"insurers\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "insurers_version_positive": {
+          "name": "insurers_version_positive",
+          "value": "\"insurers\".\"version\" >= 1"
+        },
+        "insurers_timestamps_ordered": {
+          "name": "insurers_timestamps_ordered",
+          "value": "\"insurers\".\"updated_at\" >= \"insurers\".\"created_at\""
+        }
+      }
+    },
+    "loss_reasons": {
+      "name": "loss_reasons",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "loss_reasons_agency_id_id_uq": {
+          "name": "loss_reasons_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "loss_reasons_agency_code_uq": {
+          "name": "loss_reasons_agency_code_uq",
+          "columns": ["agency_id", "code"],
+          "isUnique": true
+        },
+        "loss_reasons_agency_status_idx": {
+          "name": "loss_reasons_agency_status_idx",
+          "columns": ["agency_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "loss_reasons_agency_id_agencies_id_fk": {
+          "name": "loss_reasons_agency_id_agencies_id_fk",
+          "tableFrom": "loss_reasons",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "loss_reasons_id_nonempty": {
+          "name": "loss_reasons_id_nonempty",
+          "value": "length(trim(\"loss_reasons\".\"id\")) > 0"
+        },
+        "loss_reasons_code_nonempty": {
+          "name": "loss_reasons_code_nonempty",
+          "value": "length(trim(\"loss_reasons\".\"code\")) > 0"
+        },
+        "loss_reasons_name_nonempty": {
+          "name": "loss_reasons_name_nonempty",
+          "value": "length(trim(\"loss_reasons\".\"name\")) > 0"
+        },
+        "loss_reasons_status_valid": {
+          "name": "loss_reasons_status_valid",
+          "value": "\"loss_reasons\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "loss_reasons_version_positive": {
+          "name": "loss_reasons_version_positive",
+          "value": "\"loss_reasons\".\"version\" >= 1"
+        },
+        "loss_reasons_timestamps_ordered": {
+          "name": "loss_reasons_timestamps_ordered",
+          "value": "\"loss_reasons\".\"updated_at\" >= \"loss_reasons\".\"created_at\""
+        }
+      }
+    },
+    "membership_permissions": {
+      "name": "membership_permissions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "membership_id": {
+          "name": "membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "permission_code": {
+          "name": "permission_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "membership_permissions_membership_code_uq": {
+          "name": "membership_permissions_membership_code_uq",
+          "columns": ["membership_id", "permission_code"],
+          "isUnique": true
+        },
+        "membership_permissions_membership_idx": {
+          "name": "membership_permissions_membership_idx",
+          "columns": ["membership_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "membership_permissions_membership_id_agency_memberships_id_fk": {
+          "name": "membership_permissions_membership_id_agency_memberships_id_fk",
+          "tableFrom": "membership_permissions",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "membership_permissions_id_nonempty": {
+          "name": "membership_permissions_id_nonempty",
+          "value": "length(trim(\"membership_permissions\".\"id\")) > 0"
+        },
+        "membership_permissions_code_nonempty": {
+          "name": "membership_permissions_code_nonempty",
+          "value": "length(trim(\"membership_permissions\".\"permission_code\")) > 0"
+        },
+        "membership_permissions_scope_valid": {
+          "name": "membership_permissions_scope_valid",
+          "value": "\"membership_permissions\".\"scope\" IN ('UNSCOPED', 'ASSIGNED', 'AGENCY')"
+        },
+        "membership_permissions_timestamps_ordered": {
+          "name": "membership_permissions_timestamps_ordered",
+          "value": "\"membership_permissions\".\"updated_at\" >= \"membership_permissions\".\"created_at\""
+        }
+      }
+    },
+    "operation_receipts": {
+      "name": "operation_receipts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload_fingerprint": {
+          "name": "payload_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "response_status": {
+          "name": "response_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "response_body": {
+          "name": "response_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "operation_receipts_idem_uq": {
+          "name": "operation_receipts_idem_uq",
+          "columns": ["agency_id", "actor_user_id", "actor_membership_id", "idempotency_key"],
+          "isUnique": true
+        },
+        "operation_receipts_agency_idx": {
+          "name": "operation_receipts_agency_idx",
+          "columns": ["agency_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "operation_receipts_agency_id_agencies_id_fk": {
+          "name": "operation_receipts_agency_id_agencies_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "operation_receipts_actor_user_id_users_id_fk": {
+          "name": "operation_receipts_actor_user_id_users_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "operation_receipts_actor_membership_id_agency_memberships_id_fk": {
+          "name": "operation_receipts_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "operation_receipts",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "operation_receipts_id_nonempty": {
+          "name": "operation_receipts_id_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"id\")) > 0"
+        },
+        "operation_receipts_action_nonempty": {
+          "name": "operation_receipts_action_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"action\")) > 0"
+        },
+        "operation_receipts_key_nonempty": {
+          "name": "operation_receipts_key_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"idempotency_key\")) > 0"
+        },
+        "operation_receipts_fingerprint_nonempty": {
+          "name": "operation_receipts_fingerprint_nonempty",
+          "value": "length(trim(\"operation_receipts\".\"payload_fingerprint\")) > 0"
+        },
+        "operation_receipts_status_valid": {
+          "name": "operation_receipts_status_valid",
+          "value": "\"operation_receipts\".\"status\" IN ('IN_PROGRESS', 'COMPLETED', 'FAILED')"
+        },
+        "operation_receipts_timestamps_ordered": {
+          "name": "operation_receipts_timestamps_ordered",
+          "value": "\"operation_receipts\".\"updated_at\" >= \"operation_receipts\".\"created_at\""
+        }
+      }
+    },
+    "payment_methods": {
+      "name": "payment_methods",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "supports_installments": {
+          "name": "supports_installments",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "max_installments": {
+          "name": "max_installments",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 12
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "payment_methods_agency_id_id_uq": {
+          "name": "payment_methods_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "payment_methods_agency_code_uq": {
+          "name": "payment_methods_agency_code_uq",
+          "columns": ["agency_id", "code"],
+          "isUnique": true
+        },
+        "payment_methods_agency_status_idx": {
+          "name": "payment_methods_agency_status_idx",
+          "columns": ["agency_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "payment_methods_agency_id_agencies_id_fk": {
+          "name": "payment_methods_agency_id_agencies_id_fk",
+          "tableFrom": "payment_methods",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "payment_methods_id_nonempty": {
+          "name": "payment_methods_id_nonempty",
+          "value": "length(trim(\"payment_methods\".\"id\")) > 0"
+        },
+        "payment_methods_code_nonempty": {
+          "name": "payment_methods_code_nonempty",
+          "value": "length(trim(\"payment_methods\".\"code\")) > 0"
+        },
+        "payment_methods_name_nonempty": {
+          "name": "payment_methods_name_nonempty",
+          "value": "length(trim(\"payment_methods\".\"name\")) > 0"
+        },
+        "payment_methods_supports_installments_valid": {
+          "name": "payment_methods_supports_installments_valid",
+          "value": "\"payment_methods\".\"supports_installments\" IN (0, 1)"
+        },
+        "payment_methods_max_installments_range": {
+          "name": "payment_methods_max_installments_range",
+          "value": "\"payment_methods\".\"max_installments\" >= 2 AND \"payment_methods\".\"max_installments\" <= 36"
+        },
+        "payment_methods_status_valid": {
+          "name": "payment_methods_status_valid",
+          "value": "\"payment_methods\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "payment_methods_version_positive": {
+          "name": "payment_methods_version_positive",
+          "value": "\"payment_methods\".\"version\" >= 1"
+        },
+        "payment_methods_timestamps_ordered": {
+          "name": "payment_methods_timestamps_ordered",
+          "value": "\"payment_methods\".\"updated_at\" >= \"payment_methods\".\"created_at\""
+        }
+      }
+    },
+    "policies": {
+      "name": "policies",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "insurer_id": {
+          "name": "insurer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payment_method_id": {
+          "name": "payment_method_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assignee_membership_id": {
+          "name": "assignee_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_number": {
+          "name": "policy_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "normalized_policy_number": {
+          "name": "normalized_policy_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gross_premium_minor": {
+          "name": "gross_premium_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "installment_count": {
+          "name": "installment_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "identity_variant": {
+          "name": "identity_variant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "identity_variant_reason": {
+          "name": "identity_variant_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archived_by_membership_id": {
+          "name": "archived_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "archive_reason": {
+          "name": "archive_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "policies_agency_id_id_uq": {
+          "name": "policies_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "policies_candidate_uq": {
+          "name": "policies_candidate_uq",
+          "columns": [
+            "agency_id",
+            "insurer_id",
+            "normalized_policy_number",
+            "end_date",
+            "identity_variant"
+          ],
+          "isUnique": true
+        },
+        "policies_agency_end_id_idx": {
+          "name": "policies_agency_end_id_idx",
+          "columns": ["agency_id", "end_date", "id"],
+          "isUnique": false
+        },
+        "policies_agency_customer_end_idx": {
+          "name": "policies_agency_customer_end_idx",
+          "columns": ["agency_id", "customer_id", "end_date"],
+          "isUnique": false
+        },
+        "policies_agency_assignee_idx": {
+          "name": "policies_agency_assignee_idx",
+          "columns": ["agency_id", "assignee_membership_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "policies_agency_customer_fk": {
+          "name": "policies_agency_customer_fk",
+          "tableFrom": "policies",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_agency_insurer_fk": {
+          "name": "policies_agency_insurer_fk",
+          "tableFrom": "policies",
+          "tableTo": "insurers",
+          "columnsFrom": ["agency_id", "insurer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_agency_branch_fk": {
+          "name": "policies_agency_branch_fk",
+          "tableFrom": "policies",
+          "tableTo": "insurance_branches",
+          "columnsFrom": ["agency_id", "branch_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_agency_payment_method_fk": {
+          "name": "policies_agency_payment_method_fk",
+          "tableFrom": "policies",
+          "tableTo": "payment_methods",
+          "columnsFrom": ["agency_id", "payment_method_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_agency_assignee_fk": {
+          "name": "policies_agency_assignee_fk",
+          "tableFrom": "policies",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "assignee_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_agency_archived_by_fk": {
+          "name": "policies_agency_archived_by_fk",
+          "tableFrom": "policies",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "archived_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policies_product_relation_fk": {
+          "name": "policies_product_relation_fk",
+          "tableFrom": "policies",
+          "tableTo": "insurance_products",
+          "columnsFrom": ["agency_id", "product_id", "insurer_id", "branch_id"],
+          "columnsTo": ["agency_id", "id", "insurer_id", "branch_id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "policies_id_nonempty": {
+          "name": "policies_id_nonempty",
+          "value": "length(trim(\"policies\".\"id\")) > 0"
+        },
+        "policies_number_nonempty": {
+          "name": "policies_number_nonempty",
+          "value": "length(trim(\"policies\".\"policy_number\")) > 0"
+        },
+        "policies_normalized_number_nonempty": {
+          "name": "policies_normalized_number_nonempty",
+          "value": "length(\"policies\".\"normalized_policy_number\") > 0"
+        },
+        "policies_date_shape": {
+          "name": "policies_date_shape",
+          "value": "\"policies\".\"start_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND \"policies\".\"end_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "policies_period_ordered": {
+          "name": "policies_period_ordered",
+          "value": "\"policies\".\"start_date\" <= \"policies\".\"end_date\""
+        },
+        "policies_premium_safe": {
+          "name": "policies_premium_safe",
+          "value": "\"policies\".\"gross_premium_minor\" >= 0 AND \"policies\".\"gross_premium_minor\" <= 9007199254740991"
+        },
+        "policies_currency_shape": {
+          "name": "policies_currency_shape",
+          "value": "length(\"policies\".\"currency\") = 3 AND \"policies\".\"currency\" = upper(\"policies\".\"currency\")"
+        },
+        "policies_status_valid": {
+          "name": "policies_status_valid",
+          "value": "\"policies\".\"status\" IN ('ACTIVE', 'CANCELLED', 'VOIDED')"
+        },
+        "policies_identity_variant_nonnegative": {
+          "name": "policies_identity_variant_nonnegative",
+          "value": "\"policies\".\"identity_variant\" >= 0"
+        },
+        "policies_identity_variant_reason_consistent": {
+          "name": "policies_identity_variant_reason_consistent",
+          "value": "(\"policies\".\"identity_variant\" = 0 AND \"policies\".\"identity_variant_reason\" IS NULL) OR (\"policies\".\"identity_variant\" > 0 AND length(trim(\"policies\".\"identity_variant_reason\")) >= 3)"
+        },
+        "policies_installment_range": {
+          "name": "policies_installment_range",
+          "value": "\"policies\".\"installment_count\" IS NULL OR (\"policies\".\"installment_count\" >= 2 AND \"policies\".\"installment_count\" <= 36)"
+        },
+        "policies_archive_consistent": {
+          "name": "policies_archive_consistent",
+          "value": "(\"policies\".\"archived_at\" IS NULL AND \"policies\".\"archived_by_membership_id\" IS NULL AND \"policies\".\"archive_reason\" IS NULL) OR (\"policies\".\"archived_at\" IS NOT NULL AND \"policies\".\"archived_by_membership_id\" IS NOT NULL AND length(trim(\"policies\".\"archive_reason\")) > 0)"
+        },
+        "policies_version_positive": {
+          "name": "policies_version_positive",
+          "value": "\"policies\".\"version\" >= 1"
+        }
+      }
+    },
+    "policy_amendments": {
+      "name": "policy_amendments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_reference": {
+          "name": "external_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "effective_date": {
+          "name": "effective_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "premium_difference_minor": {
+          "name": "premium_difference_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "policy_amendments_agency_id_id_uq": {
+          "name": "policy_amendments_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "policy_amendments_policy_date_idx": {
+          "name": "policy_amendments_policy_date_idx",
+          "columns": ["agency_id", "policy_id", "effective_date"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "policy_amendments_agency_policy_fk": {
+          "name": "policy_amendments_agency_policy_fk",
+          "tableFrom": "policy_amendments",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "policy_amendments_id_nonempty": {
+          "name": "policy_amendments_id_nonempty",
+          "value": "length(trim(\"policy_amendments\".\"id\")) > 0"
+        },
+        "policy_amendments_external_reference_nonempty": {
+          "name": "policy_amendments_external_reference_nonempty",
+          "value": "length(trim(\"policy_amendments\".\"external_reference\")) > 0"
+        },
+        "policy_amendments_description_nonempty": {
+          "name": "policy_amendments_description_nonempty",
+          "value": "length(trim(\"policy_amendments\".\"description\")) > 0"
+        },
+        "policy_amendments_date_shape": {
+          "name": "policy_amendments_date_shape",
+          "value": "\"policy_amendments\".\"effective_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "policy_amendments_premium_safe": {
+          "name": "policy_amendments_premium_safe",
+          "value": "\"policy_amendments\".\"premium_difference_minor\" IS NULL OR (\"policy_amendments\".\"premium_difference_minor\" >= -9007199254740991 AND \"policy_amendments\".\"premium_difference_minor\" <= 9007199254740991)"
+        },
+        "policy_amendments_money_consistent": {
+          "name": "policy_amendments_money_consistent",
+          "value": "(\"policy_amendments\".\"premium_difference_minor\" IS NULL AND \"policy_amendments\".\"currency\" IS NULL) OR (\"policy_amendments\".\"premium_difference_minor\" IS NOT NULL AND length(\"policy_amendments\".\"currency\")=3 AND \"policy_amendments\".\"currency\"=upper(\"policy_amendments\".\"currency\"))"
+        }
+      }
+    },
+    "policy_external_references": {
+      "name": "policy_external_references",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_namespace": {
+          "name": "source_namespace",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "external_key": {
+          "name": "external_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "policy_external_references_agency_id_id_uq": {
+          "name": "policy_external_references_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "policy_external_references_namespace_key_uq": {
+          "name": "policy_external_references_namespace_key_uq",
+          "columns": ["agency_id", "source_namespace", "external_key"],
+          "isUnique": true
+        },
+        "policy_external_references_policy_idx": {
+          "name": "policy_external_references_policy_idx",
+          "columns": ["agency_id", "policy_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "policy_external_references_agency_policy_fk": {
+          "name": "policy_external_references_agency_policy_fk",
+          "tableFrom": "policy_external_references",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "policy_external_references_id_nonempty": {
+          "name": "policy_external_references_id_nonempty",
+          "value": "length(trim(\"policy_external_references\".\"id\")) > 0"
+        },
+        "policy_external_references_namespace_nonempty": {
+          "name": "policy_external_references_namespace_nonempty",
+          "value": "length(trim(\"policy_external_references\".\"source_namespace\")) > 0"
+        },
+        "policy_external_references_key_nonempty": {
+          "name": "policy_external_references_key_nonempty",
+          "value": "length(trim(\"policy_external_references\".\"external_key\")) > 0"
+        }
+      }
+    },
+    "policy_parties": {
+      "name": "policy_parties",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "deactivated_at": {
+          "name": "deactivated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deactivated_by_membership_id": {
+          "name": "deactivated_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "policy_parties_agency_id_id_uq": {
+          "name": "policy_parties_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "policy_parties_active_relation_uq": {
+          "name": "policy_parties_active_relation_uq",
+          "columns": ["agency_id", "policy_id", "customer_id", "role"],
+          "isUnique": true,
+          "where": "\"policy_parties\".\"status\"='ACTIVE'"
+        },
+        "policy_parties_policy_idx": {
+          "name": "policy_parties_policy_idx",
+          "columns": ["agency_id", "policy_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "policy_parties_agency_policy_fk": {
+          "name": "policy_parties_agency_policy_fk",
+          "tableFrom": "policy_parties",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policy_parties_agency_customer_fk": {
+          "name": "policy_parties_agency_customer_fk",
+          "tableFrom": "policy_parties",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "policy_parties_agency_deactivated_by_fk": {
+          "name": "policy_parties_agency_deactivated_by_fk",
+          "tableFrom": "policy_parties",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "deactivated_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "policy_parties_id_nonempty": {
+          "name": "policy_parties_id_nonempty",
+          "value": "length(trim(\"policy_parties\".\"id\")) > 0"
+        },
+        "policy_parties_role_valid": {
+          "name": "policy_parties_role_valid",
+          "value": "\"policy_parties\".\"role\" IN ('INSURED', 'BENEFICIARY')"
+        },
+        "policy_parties_status_valid": {
+          "name": "policy_parties_status_valid",
+          "value": "\"policy_parties\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "policy_parties_version_positive": {
+          "name": "policy_parties_version_positive",
+          "value": "\"policy_parties\".\"version\" >= 1"
+        },
+        "policy_parties_lifecycle_consistent": {
+          "name": "policy_parties_lifecycle_consistent",
+          "value": "(\"policy_parties\".\"status\"='ACTIVE' AND \"policy_parties\".\"deactivated_at\" IS NULL AND \"policy_parties\".\"deactivated_by_membership_id\" IS NULL) OR (\"policy_parties\".\"status\"='INACTIVE' AND \"policy_parties\".\"deactivated_at\" IS NOT NULL AND \"policy_parties\".\"deactivated_by_membership_id\" IS NOT NULL)"
+        }
+      }
+    },
+    "renewal_generation_cursors": {
+      "name": "renewal_generation_cursors",
+      "columns": {
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_successful_local_date": {
+          "name": "last_successful_local_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "renewal_generation_cursors_agency_id_agencies_id_fk": {
+          "name": "renewal_generation_cursors_agency_id_agencies_id_fk",
+          "tableFrom": "renewal_generation_cursors",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_generation_cursors_date_shape": {
+          "name": "renewal_generation_cursors_date_shape",
+          "value": "\"renewal_generation_cursors\".\"last_successful_local_date\" IS NULL OR \"renewal_generation_cursors\".\"last_successful_local_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        },
+        "renewal_generation_cursors_version_positive": {
+          "name": "renewal_generation_cursors_version_positive",
+          "value": "\"renewal_generation_cursors\".\"version\" >= 1"
+        }
+      }
+    },
+    "renewal_interactions": {
+      "name": "renewal_interactions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "renewal_id": {
+          "name": "renewal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "company_contact_id": {
+          "name": "company_contact_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "renewal_interactions_agency_id_id_uq": {
+          "name": "renewal_interactions_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_interactions_renewal_time_idx": {
+          "name": "renewal_interactions_renewal_time_idx",
+          "columns": ["agency_id", "renewal_id", "occurred_at", "id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_interactions_renewal_fk": {
+          "name": "renewal_interactions_renewal_fk",
+          "tableFrom": "renewal_interactions",
+          "tableTo": "renewal_opportunities",
+          "columnsFrom": ["agency_id", "renewal_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_interactions_customer_fk": {
+          "name": "renewal_interactions_customer_fk",
+          "tableFrom": "renewal_interactions",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_interactions_company_contact_fk": {
+          "name": "renewal_interactions_company_contact_fk",
+          "tableFrom": "renewal_interactions",
+          "tableTo": "company_contacts",
+          "columnsFrom": ["company_contact_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_interactions_actor_user_fk": {
+          "name": "renewal_interactions_actor_user_fk",
+          "tableFrom": "renewal_interactions",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_interactions_actor_membership_fk": {
+          "name": "renewal_interactions_actor_membership_fk",
+          "tableFrom": "renewal_interactions",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "actor_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_interactions_id_nonempty": {
+          "name": "renewal_interactions_id_nonempty",
+          "value": "length(trim(\"renewal_interactions\".\"id\"))>0"
+        },
+        "renewal_interactions_outcome_valid": {
+          "name": "renewal_interactions_outcome_valid",
+          "value": "\"renewal_interactions\".\"outcome\" IN ('CONTACT_CONFIRMED','ATTEMPT_NO_RESPONSE','WHATSAPP_OPENED','NOTE')"
+        },
+        "renewal_interactions_note_consistent": {
+          "name": "renewal_interactions_note_consistent",
+          "value": "(\"renewal_interactions\".\"outcome\"='NOTE' AND \"renewal_interactions\".\"note\" IS NOT NULL AND length(trim(\"renewal_interactions\".\"note\")) BETWEEN 1 AND 1000 AND \"renewal_interactions\".\"channel\"='OTHER') OR (\"renewal_interactions\".\"outcome\"<>'NOTE' AND \"renewal_interactions\".\"note\" IS NULL)"
+        }
+      }
+    },
+    "renewal_opportunities": {
+      "name": "renewal_opportunities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expiring_policy_id": {
+          "name": "expiring_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assignee_membership_id": {
+          "name": "assignee_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'CONTACT_PENDING'"
+        },
+        "loss_reason_id": {
+          "name": "loss_reason_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loss_reason_notes": {
+          "name": "loss_reason_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "void_reason_code": {
+          "name": "void_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "closed_by_membership_id": {
+          "name": "closed_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "renewal_opportunities_agency_id_id_uq": {
+          "name": "renewal_opportunities_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_opportunities_expiring_policy_uq": {
+          "name": "renewal_opportunities_expiring_policy_uq",
+          "columns": ["agency_id", "expiring_policy_id"],
+          "isUnique": true
+        },
+        "renewal_opportunities_state_idx": {
+          "name": "renewal_opportunities_state_idx",
+          "columns": ["agency_id", "state", "id"],
+          "isUnique": false
+        },
+        "renewal_opportunities_assignee_state_idx": {
+          "name": "renewal_opportunities_assignee_state_idx",
+          "columns": ["agency_id", "assignee_membership_id", "state", "id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_opportunities_agency_expiring_policy_fk": {
+          "name": "renewal_opportunities_agency_expiring_policy_fk",
+          "tableFrom": "renewal_opportunities",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "expiring_policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_opportunities_agency_assignee_fk": {
+          "name": "renewal_opportunities_agency_assignee_fk",
+          "tableFrom": "renewal_opportunities",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "assignee_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_opportunities_agency_loss_reason_fk": {
+          "name": "renewal_opportunities_agency_loss_reason_fk",
+          "tableFrom": "renewal_opportunities",
+          "tableTo": "loss_reasons",
+          "columnsFrom": ["agency_id", "loss_reason_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_opportunities_agency_closed_by_fk": {
+          "name": "renewal_opportunities_agency_closed_by_fk",
+          "tableFrom": "renewal_opportunities",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "closed_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_opportunities_id_nonempty": {
+          "name": "renewal_opportunities_id_nonempty",
+          "value": "length(trim(\"renewal_opportunities\".\"id\")) > 0"
+        },
+        "renewal_opportunities_state_valid": {
+          "name": "renewal_opportunities_state_valid",
+          "value": "\"renewal_opportunities\".\"state\" IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')"
+        },
+        "renewal_opportunities_version_positive": {
+          "name": "renewal_opportunities_version_positive",
+          "value": "\"renewal_opportunities\".\"version\" >= 1"
+        },
+        "renewal_opportunities_timestamps_ordered": {
+          "name": "renewal_opportunities_timestamps_ordered",
+          "value": "\"renewal_opportunities\".\"updated_at\" >= \"renewal_opportunities\".\"created_at\""
+        },
+        "renewal_opportunities_terminal_fields_consistent": {
+          "name": "renewal_opportunities_terminal_fields_consistent",
+          "value": "(\"renewal_opportunities\".\"state\" IN ('WON','LOST','VOIDED') AND \"renewal_opportunities\".\"closed_at\" IS NOT NULL AND \"renewal_opportunities\".\"closed_by_membership_id\" IS NOT NULL) OR (\"renewal_opportunities\".\"state\" NOT IN ('WON','LOST','VOIDED') AND \"renewal_opportunities\".\"closed_at\" IS NULL AND \"renewal_opportunities\".\"closed_by_membership_id\" IS NULL)"
+        },
+        "renewal_opportunities_loss_reason_consistent": {
+          "name": "renewal_opportunities_loss_reason_consistent",
+          "value": "(\"renewal_opportunities\".\"state\"='LOST' AND \"renewal_opportunities\".\"loss_reason_id\" IS NOT NULL) OR (\"renewal_opportunities\".\"state\"<>'LOST' AND \"renewal_opportunities\".\"loss_reason_id\" IS NULL AND \"renewal_opportunities\".\"loss_reason_notes\" IS NULL)"
+        },
+        "renewal_opportunities_void_reason_consistent": {
+          "name": "renewal_opportunities_void_reason_consistent",
+          "value": "(\"renewal_opportunities\".\"state\"='VOIDED' AND \"renewal_opportunities\".\"void_reason_code\" IS NOT NULL AND length(trim(\"renewal_opportunities\".\"void_reason_code\"))>0) OR (\"renewal_opportunities\".\"state\"<>'VOIDED' AND \"renewal_opportunities\".\"void_reason_code\" IS NULL)"
+        }
+      }
+    },
+    "renewal_policy_links": {
+      "name": "renewal_policy_links",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "renewal_id": {
+          "name": "renewal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "new_policy_id": {
+          "name": "new_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "allocated_new_premium_minor": {
+          "name": "allocated_new_premium_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ACTIVE'"
+        },
+        "supersedes_link_id": {
+          "name": "supersedes_link_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "allocation_operation_id": {
+          "name": "allocation_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "different_policyholder_reason_code": {
+          "name": "different_policyholder_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_membership_id": {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "superseded_by_membership_id": {
+          "name": "superseded_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supersede_reason_code": {
+          "name": "supersede_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "superseded_operation_id": {
+          "name": "superseded_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "renewal_policy_links_agency_id_id_uq": {
+          "name": "renewal_policy_links_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_policy_links_active_logical_uq": {
+          "name": "renewal_policy_links_active_logical_uq",
+          "columns": ["agency_id", "renewal_id", "new_policy_id"],
+          "isUnique": true,
+          "where": "\"renewal_policy_links\".\"status\"='ACTIVE'"
+        },
+        "renewal_policy_links_new_policy_idx": {
+          "name": "renewal_policy_links_new_policy_idx",
+          "columns": ["agency_id", "new_policy_id", "status"],
+          "isUnique": false
+        },
+        "renewal_policy_links_renewal_idx": {
+          "name": "renewal_policy_links_renewal_idx",
+          "columns": ["agency_id", "renewal_id", "status"],
+          "isUnique": false
+        },
+        "renewal_policy_links_operation_idx": {
+          "name": "renewal_policy_links_operation_idx",
+          "columns": ["agency_id", "allocation_operation_id"],
+          "isUnique": false
+        },
+        "renewal_policy_links_superseded_operation_idx": {
+          "name": "renewal_policy_links_superseded_operation_idx",
+          "columns": ["agency_id", "superseded_operation_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_policy_links_agency_renewal_fk": {
+          "name": "renewal_policy_links_agency_renewal_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "renewal_opportunities",
+          "columnsFrom": ["agency_id", "renewal_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_agency_new_policy_fk": {
+          "name": "renewal_policy_links_agency_new_policy_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "new_policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_created_by_fk": {
+          "name": "renewal_policy_links_created_by_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "created_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_superseded_by_fk": {
+          "name": "renewal_policy_links_superseded_by_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "superseded_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_supersedes_fk": {
+          "name": "renewal_policy_links_supersedes_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "renewal_policy_links",
+          "columnsFrom": ["agency_id", "supersedes_link_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_allocation_operation_fk": {
+          "name": "renewal_policy_links_allocation_operation_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "operation_receipts",
+          "columnsFrom": ["allocation_operation_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_policy_links_superseded_operation_fk": {
+          "name": "renewal_policy_links_superseded_operation_fk",
+          "tableFrom": "renewal_policy_links",
+          "tableTo": "operation_receipts",
+          "columnsFrom": ["superseded_operation_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_policy_links_id_nonempty": {
+          "name": "renewal_policy_links_id_nonempty",
+          "value": "length(trim(\"renewal_policy_links\".\"id\")) > 0"
+        },
+        "renewal_policy_links_allocation_safe": {
+          "name": "renewal_policy_links_allocation_safe",
+          "value": "\"renewal_policy_links\".\"allocated_new_premium_minor\" >= 0 AND \"renewal_policy_links\".\"allocated_new_premium_minor\" <= 9007199254740991"
+        },
+        "renewal_policy_links_currency_shape": {
+          "name": "renewal_policy_links_currency_shape",
+          "value": "length(\"renewal_policy_links\".\"currency\") = 3 AND \"renewal_policy_links\".\"currency\" = upper(\"renewal_policy_links\".\"currency\")"
+        },
+        "renewal_policy_links_status_valid": {
+          "name": "renewal_policy_links_status_valid",
+          "value": "\"renewal_policy_links\".\"status\" IN ('ACTIVE','SUPERSEDED')"
+        },
+        "renewal_policy_links_supersession_consistent": {
+          "name": "renewal_policy_links_supersession_consistent",
+          "value": "(\"renewal_policy_links\".\"status\"='ACTIVE' AND \"renewal_policy_links\".\"superseded_at\" IS NULL AND \"renewal_policy_links\".\"superseded_by_membership_id\" IS NULL AND \"renewal_policy_links\".\"supersede_reason_code\" IS NULL AND \"renewal_policy_links\".\"superseded_operation_id\" IS NULL) OR (\"renewal_policy_links\".\"status\"='SUPERSEDED' AND \"renewal_policy_links\".\"superseded_at\" IS NOT NULL AND \"renewal_policy_links\".\"superseded_by_membership_id\" IS NOT NULL AND \"renewal_policy_links\".\"superseded_operation_id\" IS NOT NULL AND \"renewal_policy_links\".\"supersede_reason_code\" IS NOT NULL AND length(trim(\"renewal_policy_links\".\"supersede_reason_code\")) BETWEEN 3 AND 64 AND substr(\"renewal_policy_links\".\"supersede_reason_code\",1,1) GLOB '[A-Z]' AND \"renewal_policy_links\".\"supersede_reason_code\" NOT GLOB '*[^A-Z0-9_]*')"
+        },
+        "renewal_policy_links_supersedes_not_self": {
+          "name": "renewal_policy_links_supersedes_not_self",
+          "value": "\"renewal_policy_links\".\"supersedes_link_id\" IS NULL OR \"renewal_policy_links\".\"supersedes_link_id\" <> \"renewal_policy_links\".\"id\""
+        },
+        "renewal_policy_links_different_customer_reason_shape": {
+          "name": "renewal_policy_links_different_customer_reason_shape",
+          "value": "\"renewal_policy_links\".\"different_policyholder_reason_code\" IS NULL OR (\"renewal_policy_links\".\"different_policyholder_reason_code\" IS NOT NULL AND length(trim(\"renewal_policy_links\".\"different_policyholder_reason_code\")) BETWEEN 3 AND 64 AND substr(\"renewal_policy_links\".\"different_policyholder_reason_code\",1,1) GLOB '[A-Z]' AND \"renewal_policy_links\".\"different_policyholder_reason_code\" NOT GLOB '*[^A-Z0-9_]*')"
+        }
+      }
+    },
+    "renewal_quote_events": {
+      "name": "renewal_quote_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_version_id": {
+          "name": "quote_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "event": {
+          "name": "event",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "operation_receipt_id": {
+          "name": "operation_receipt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "accepted_policy_id": {
+          "name": "accepted_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "renewal_quote_events_agency_id_id_uq": {
+          "name": "renewal_quote_events_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_quote_events_version_event_uq": {
+          "name": "renewal_quote_events_version_event_uq",
+          "columns": ["agency_id", "quote_version_id", "event"],
+          "isUnique": true
+        },
+        "renewal_quote_events_quote_idx": {
+          "name": "renewal_quote_events_quote_idx",
+          "columns": ["agency_id", "quote_id", "occurred_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_quote_events_quote_fk": {
+          "name": "renewal_quote_events_quote_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "renewal_quotes",
+          "columnsFrom": ["agency_id", "quote_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_events_version_fk": {
+          "name": "renewal_quote_events_version_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "renewal_quote_versions",
+          "columnsFrom": ["agency_id", "quote_id", "quote_version_id"],
+          "columnsTo": ["agency_id", "quote_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_events_receipt_fk": {
+          "name": "renewal_quote_events_receipt_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "operation_receipts",
+          "columnsFrom": ["operation_receipt_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_events_policy_fk": {
+          "name": "renewal_quote_events_policy_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "accepted_policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_events_actor_user_fk": {
+          "name": "renewal_quote_events_actor_user_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_events_actor_membership_fk": {
+          "name": "renewal_quote_events_actor_membership_fk",
+          "tableFrom": "renewal_quote_events",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "actor_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_quote_events_id_nonempty": {
+          "name": "renewal_quote_events_id_nonempty",
+          "value": "length(trim(\"renewal_quote_events\".\"id\"))>0"
+        },
+        "renewal_quote_events_acceptance_policy": {
+          "name": "renewal_quote_events_acceptance_policy",
+          "value": "(\"renewal_quote_events\".\"event\"='ACCEPTED' AND \"renewal_quote_events\".\"accepted_policy_id\" IS NOT NULL) OR (\"renewal_quote_events\".\"event\"<>'ACCEPTED' AND \"renewal_quote_events\".\"accepted_policy_id\" IS NULL)"
+        }
+      }
+    },
+    "renewal_quote_versions": {
+      "name": "renewal_quote_versions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote_id": {
+          "name": "quote_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "insurer_id": {
+          "name": "insurer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payment_method_id": {
+          "name": "payment_method_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "valid_until": {
+          "name": "valid_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "gross_premium_minor": {
+          "name": "gross_premium_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "installment_count": {
+          "name": "installment_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "terms_summary": {
+          "name": "terms_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_membership_id": {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "renewal_quote_versions_agency_id_id_uq": {
+          "name": "renewal_quote_versions_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_quote_versions_quote_number_uq": {
+          "name": "renewal_quote_versions_quote_number_uq",
+          "columns": ["agency_id", "quote_id", "version_number"],
+          "isUnique": true
+        },
+        "renewal_quote_versions_quote_id_uq": {
+          "name": "renewal_quote_versions_quote_id_uq",
+          "columns": ["agency_id", "quote_id", "id"],
+          "isUnique": true
+        },
+        "renewal_quote_versions_policy_idx": {
+          "name": "renewal_quote_versions_policy_idx",
+          "columns": ["agency_id", "product_id", "insurer_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_quote_versions_quote_fk": {
+          "name": "renewal_quote_versions_quote_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "renewal_quotes",
+          "columnsFrom": ["agency_id", "quote_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_insurer_fk": {
+          "name": "renewal_quote_versions_insurer_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "insurers",
+          "columnsFrom": ["agency_id", "insurer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_product_fk": {
+          "name": "renewal_quote_versions_product_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "insurance_products",
+          "columnsFrom": ["agency_id", "product_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_branch_fk": {
+          "name": "renewal_quote_versions_branch_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "insurance_branches",
+          "columnsFrom": ["agency_id", "branch_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_payment_method_fk": {
+          "name": "renewal_quote_versions_payment_method_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "payment_methods",
+          "columnsFrom": ["agency_id", "payment_method_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_creator_membership_fk": {
+          "name": "renewal_quote_versions_creator_membership_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "created_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quote_versions_creator_user_fk": {
+          "name": "renewal_quote_versions_creator_user_fk",
+          "tableFrom": "renewal_quote_versions",
+          "tableTo": "users",
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_quote_versions_id_nonempty": {
+          "name": "renewal_quote_versions_id_nonempty",
+          "value": "length(trim(\"renewal_quote_versions\".\"id\")) > 0"
+        },
+        "renewal_quote_versions_number_positive": {
+          "name": "renewal_quote_versions_number_positive",
+          "value": "\"renewal_quote_versions\".\"version_number\" >= 1"
+        },
+        "renewal_quote_versions_premium_safe": {
+          "name": "renewal_quote_versions_premium_safe",
+          "value": "\"renewal_quote_versions\".\"gross_premium_minor\" >= 0 AND \"renewal_quote_versions\".\"gross_premium_minor\" <= 9007199254740991"
+        },
+        "renewal_quote_versions_currency_shape": {
+          "name": "renewal_quote_versions_currency_shape",
+          "value": "length(\"renewal_quote_versions\".\"currency\")=3 AND \"renewal_quote_versions\".\"currency\"=upper(\"renewal_quote_versions\".\"currency\")"
+        },
+        "renewal_quote_versions_date_shape": {
+          "name": "renewal_quote_versions_date_shape",
+          "value": "\"renewal_quote_versions\".\"start_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND \"renewal_quote_versions\".\"end_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND \"renewal_quote_versions\".\"end_date\">\"renewal_quote_versions\".\"start_date\""
+        },
+        "renewal_quote_versions_installment_count": {
+          "name": "renewal_quote_versions_installment_count",
+          "value": "\"renewal_quote_versions\".\"installment_count\" IS NULL OR \"renewal_quote_versions\".\"installment_count\" BETWEEN 2 AND 36"
+        },
+        "renewal_quote_versions_terms_length": {
+          "name": "renewal_quote_versions_terms_length",
+          "value": "\"renewal_quote_versions\".\"terms_summary\" IS NULL OR length(\"renewal_quote_versions\".\"terms_summary\")<=1000"
+        }
+      }
+    },
+    "renewal_quotes": {
+      "name": "renewal_quotes",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "renewal_id": {
+          "name": "renewal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'DRAFT'"
+        },
+        "current_version_id": {
+          "name": "current_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "accepted_version_id": {
+          "name": "accepted_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "accepted_policy_id": {
+          "name": "accepted_policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_membership_id": {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "renewal_quotes_agency_id_id_uq": {
+          "name": "renewal_quotes_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_quotes_renewal_status_idx": {
+          "name": "renewal_quotes_renewal_status_idx",
+          "columns": ["agency_id", "renewal_id", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_quotes_agency_renewal_fk": {
+          "name": "renewal_quotes_agency_renewal_fk",
+          "tableFrom": "renewal_quotes",
+          "tableTo": "renewal_opportunities",
+          "columnsFrom": ["agency_id", "renewal_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quotes_creator_membership_fk": {
+          "name": "renewal_quotes_creator_membership_fk",
+          "tableFrom": "renewal_quotes",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "created_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quotes_creator_user_fk": {
+          "name": "renewal_quotes_creator_user_fk",
+          "tableFrom": "renewal_quotes",
+          "tableTo": "users",
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_quotes_accepted_policy_fk": {
+          "name": "renewal_quotes_accepted_policy_fk",
+          "tableFrom": "renewal_quotes",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "accepted_policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_quotes_id_nonempty": {
+          "name": "renewal_quotes_id_nonempty",
+          "value": "length(trim(\"renewal_quotes\".\"id\")) > 0"
+        },
+        "renewal_quotes_status_valid": {
+          "name": "renewal_quotes_status_valid",
+          "value": "\"renewal_quotes\".\"status\" IN ('DRAFT','READY','SENT','ACCEPTED','REJECTED','EXPIRED')"
+        },
+        "renewal_quotes_version_positive": {
+          "name": "renewal_quotes_version_positive",
+          "value": "\"renewal_quotes\".\"version\" >= 1"
+        },
+        "renewal_quotes_acceptance_consistent": {
+          "name": "renewal_quotes_acceptance_consistent",
+          "value": "(\"renewal_quotes\".\"status\"='ACCEPTED' AND \"renewal_quotes\".\"accepted_version_id\" IS NOT NULL AND \"renewal_quotes\".\"accepted_policy_id\" IS NOT NULL) OR (\"renewal_quotes\".\"status\"<>'ACCEPTED' AND \"renewal_quotes\".\"accepted_version_id\" IS NULL AND \"renewal_quotes\".\"accepted_policy_id\" IS NULL)"
+        },
+        "renewal_quotes_timestamps_ordered": {
+          "name": "renewal_quotes_timestamps_ordered",
+          "value": "\"renewal_quotes\".\"updated_at\" >= \"renewal_quotes\".\"created_at\""
+        }
+      }
+    },
+    "renewal_state_history": {
+      "name": "renewal_state_history",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "renewal_id": {
+          "name": "renewal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "from_state": {
+          "name": "from_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "to_state": {
+          "name": "to_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_kind": {
+          "name": "actor_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "loss_reason_id": {
+          "name": "loss_reason_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "loss_reason_notes": {
+          "name": "loss_reason_notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "void_reason_code": {
+          "name": "void_reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "renewal_state_history_agency_id_id_uq": {
+          "name": "renewal_state_history_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "renewal_state_history_initial_uq": {
+          "name": "renewal_state_history_initial_uq",
+          "columns": ["agency_id", "renewal_id"],
+          "isUnique": true,
+          "where": "\"renewal_state_history\".\"from_state\" IS NULL"
+        },
+        "renewal_state_history_renewal_created_idx": {
+          "name": "renewal_state_history_renewal_created_idx",
+          "columns": ["agency_id", "renewal_id", "created_at", "id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "renewal_state_history_agency_renewal_fk": {
+          "name": "renewal_state_history_agency_renewal_fk",
+          "tableFrom": "renewal_state_history",
+          "tableTo": "renewal_opportunities",
+          "columnsFrom": ["agency_id", "renewal_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_state_history_actor_user_fk": {
+          "name": "renewal_state_history_actor_user_fk",
+          "tableFrom": "renewal_state_history",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "renewal_state_history_actor_membership_fk": {
+          "name": "renewal_state_history_actor_membership_fk",
+          "tableFrom": "renewal_state_history",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "actor_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "renewal_state_history_id_nonempty": {
+          "name": "renewal_state_history_id_nonempty",
+          "value": "length(trim(\"renewal_state_history\".\"id\")) > 0"
+        },
+        "renewal_state_history_from_state_valid": {
+          "name": "renewal_state_history_from_state_valid",
+          "value": "\"renewal_state_history\".\"from_state\" IS NULL OR \"renewal_state_history\".\"from_state\" IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')"
+        },
+        "renewal_state_history_to_state_valid": {
+          "name": "renewal_state_history_to_state_valid",
+          "value": "\"renewal_state_history\".\"to_state\" IN ('CONTACT_PENDING','CONTACTED','QUOTE_PREPARING','QUOTE_SENT','AWAITING_RESPONSE','WON','LOST','VOIDED')"
+        },
+        "renewal_state_history_actor_consistent": {
+          "name": "renewal_state_history_actor_consistent",
+          "value": "(\"renewal_state_history\".\"actor_kind\"='USER' AND \"renewal_state_history\".\"actor_user_id\" IS NOT NULL AND \"renewal_state_history\".\"actor_membership_id\" IS NOT NULL) OR (\"renewal_state_history\".\"actor_kind\"='SYSTEM' AND \"renewal_state_history\".\"actor_user_id\" IS NULL AND \"renewal_state_history\".\"actor_membership_id\" IS NULL)"
+        },
+        "renewal_state_history_reason_nonempty": {
+          "name": "renewal_state_history_reason_nonempty",
+          "value": "length(trim(\"renewal_state_history\".\"reason_code\")) > 0"
+        }
+      }
+    },
+    "sensitive_action_grants": {
+      "name": "sensitive_action_grants",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "evidence_hash": {
+          "name": "evidence_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "actor_membership_id": {
+          "name": "actor_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_ids_json": {
+          "name": "target_ids_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "expected_target_version": {
+          "name": "expected_target_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "permission_version": {
+          "name": "permission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assurance": {
+          "name": "assurance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'SECURE_GRANT'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'ISSUED'"
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "consumed_operation_id": {
+          "name": "consumed_operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "sensitive_action_grants_evidence_uq": {
+          "name": "sensitive_action_grants_evidence_uq",
+          "columns": ["evidence_hash"],
+          "isUnique": true
+        },
+        "sensitive_action_grants_lookup_idx": {
+          "name": "sensitive_action_grants_lookup_idx",
+          "columns": ["agency_id", "actor_membership_id", "action", "status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "sensitive_action_grants_agency_id_agencies_id_fk": {
+          "name": "sensitive_action_grants_agency_id_agencies_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "sensitive_action_grants_actor_user_id_users_id_fk": {
+          "name": "sensitive_action_grants_actor_user_id_users_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "users",
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "sensitive_action_grants_actor_membership_id_agency_memberships_id_fk": {
+          "name": "sensitive_action_grants_actor_membership_id_agency_memberships_id_fk",
+          "tableFrom": "sensitive_action_grants",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["actor_membership_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "sensitive_action_grants_id_nonempty": {
+          "name": "sensitive_action_grants_id_nonempty",
+          "value": "length(trim(\"sensitive_action_grants\".\"id\")) > 0"
+        },
+        "sensitive_action_grants_evidence_shape": {
+          "name": "sensitive_action_grants_evidence_shape",
+          "value": "length(\"sensitive_action_grants\".\"evidence_hash\") = 64"
+        },
+        "sensitive_action_grants_action_nonempty": {
+          "name": "sensitive_action_grants_action_nonempty",
+          "value": "length(trim(\"sensitive_action_grants\".\"action\")) > 0"
+        },
+        "sensitive_action_grants_payload_shape": {
+          "name": "sensitive_action_grants_payload_shape",
+          "value": "length(\"sensitive_action_grants\".\"payload_hash\") = 64"
+        },
+        "sensitive_action_grants_permission_version_positive": {
+          "name": "sensitive_action_grants_permission_version_positive",
+          "value": "\"sensitive_action_grants\".\"permission_version\" > 0"
+        },
+        "sensitive_action_grants_assurance_valid": {
+          "name": "sensitive_action_grants_assurance_valid",
+          "value": "\"sensitive_action_grants\".\"assurance\" = 'SECURE_GRANT'"
+        },
+        "sensitive_action_grants_status_valid": {
+          "name": "sensitive_action_grants_status_valid",
+          "value": "\"sensitive_action_grants\".\"status\" IN ('ISSUED', 'CONSUMED', 'REVOKED')"
+        },
+        "sensitive_action_grants_expiry_ordered": {
+          "name": "sensitive_action_grants_expiry_ordered",
+          "value": "\"sensitive_action_grants\".\"expires_at\" > \"sensitive_action_grants\".\"issued_at\""
+        },
+        "sensitive_action_grants_ttl_valid": {
+          "name": "sensitive_action_grants_ttl_valid",
+          "value": "(strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) <= 180 AND (strftime('%s', \"sensitive_action_grants\".\"expires_at\") - strftime('%s', \"sensitive_action_grants\".\"issued_at\")) >= 1"
+        },
+        "sensitive_action_grants_timestamps_ordered": {
+          "name": "sensitive_action_grants_timestamps_ordered",
+          "value": "\"sensitive_action_grants\".\"updated_at\" >= \"sensitive_action_grants\".\"created_at\""
+        },
+        "sensitive_action_grants_lifecycle_consistent": {
+          "name": "sensitive_action_grants_lifecycle_consistent",
+          "value": "(\"sensitive_action_grants\".\"status\" = 'ISSUED' AND \"sensitive_action_grants\".\"consumed_at\" IS NULL AND \"sensitive_action_grants\".\"revoked_at\" IS NULL AND \"sensitive_action_grants\".\"consumed_operation_id\" IS NULL)\n          OR (\"sensitive_action_grants\".\"status\" = 'CONSUMED' AND \"sensitive_action_grants\".\"consumed_at\" IS NOT NULL AND \"sensitive_action_grants\".\"revoked_at\" IS NULL)\n          OR (\"sensitive_action_grants\".\"status\" = 'REVOKED' AND \"sensitive_action_grants\".\"revoked_at\" IS NOT NULL)"
+        }
+      }
+    },
+    "system_audit_events": {
+      "name": "system_audit_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "system_actor_code": {
+          "name": "system_actor_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_type": {
+          "name": "target_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadata_json": {
+          "name": "metadata_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "system_audit_events_idempotency_uq": {
+          "name": "system_audit_events_idempotency_uq",
+          "columns": ["agency_id", "system_actor_code", "action", "idempotency_key"],
+          "isUnique": true
+        },
+        "system_audit_events_target_idx": {
+          "name": "system_audit_events_target_idx",
+          "columns": ["agency_id", "target_type", "target_id"],
+          "isUnique": false
+        },
+        "system_audit_events_created_idx": {
+          "name": "system_audit_events_created_idx",
+          "columns": ["agency_id", "created_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "system_audit_events_agency_id_agencies_id_fk": {
+          "name": "system_audit_events_agency_id_agencies_id_fk",
+          "tableFrom": "system_audit_events",
+          "tableTo": "agencies",
+          "columnsFrom": ["agency_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "system_audit_events_id_nonempty": {
+          "name": "system_audit_events_id_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"id\")) > 0"
+        },
+        "system_audit_events_actor_code_nonempty": {
+          "name": "system_audit_events_actor_code_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"system_actor_code\")) > 0"
+        },
+        "system_audit_events_action_nonempty": {
+          "name": "system_audit_events_action_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"action\")) > 0"
+        },
+        "system_audit_events_target_type_nonempty": {
+          "name": "system_audit_events_target_type_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"target_type\")) > 0"
+        },
+        "system_audit_events_target_id_nonempty": {
+          "name": "system_audit_events_target_id_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"target_id\")) > 0"
+        },
+        "system_audit_events_correlation_id_nonempty": {
+          "name": "system_audit_events_correlation_id_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"correlation_id\")) > 0"
+        },
+        "system_audit_events_key_nonempty": {
+          "name": "system_audit_events_key_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"idempotency_key\")) > 0"
+        },
+        "system_audit_events_reason_nonempty": {
+          "name": "system_audit_events_reason_nonempty",
+          "value": "length(trim(\"system_audit_events\".\"reason_code\")) > 0"
+        },
+        "system_audit_events_outcome_valid": {
+          "name": "system_audit_events_outcome_valid",
+          "value": "\"system_audit_events\".\"outcome\" IN ('SUCCESS','FAILURE')"
+        }
+      }
+    },
+    "tasks": {
+      "name": "tasks",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agency_id": {
+          "name": "agency_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "renewal_id": {
+          "name": "renewal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "due_at": {
+          "name": "due_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assignee_membership_id": {
+          "name": "assignee_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'OPEN'"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "completed_by_membership_id": {
+          "name": "completed_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "actor_kind": {
+          "name": "actor_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_membership_id": {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "tasks_agency_id_id_uq": {
+          "name": "tasks_agency_id_id_uq",
+          "columns": ["agency_id", "id"],
+          "isUnique": true
+        },
+        "tasks_open_renewal_followup_uq": {
+          "name": "tasks_open_renewal_followup_uq",
+          "columns": ["agency_id", "renewal_id"],
+          "isUnique": true,
+          "where": "\"tasks\".\"kind\"='RENEWAL_FOLLOWUP' AND \"tasks\".\"status\"='OPEN'"
+        },
+        "tasks_today_lookup_idx": {
+          "name": "tasks_today_lookup_idx",
+          "columns": ["agency_id", "status", "due_at", "id"],
+          "isUnique": false
+        },
+        "tasks_assignee_status_due_idx": {
+          "name": "tasks_assignee_status_due_idx",
+          "columns": ["agency_id", "assignee_membership_id", "status", "due_at", "id"],
+          "isUnique": false
+        },
+        "tasks_customer_due_idx": {
+          "name": "tasks_customer_due_idx",
+          "columns": ["agency_id", "customer_id", "due_at"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "tasks_agency_customer_fk": {
+          "name": "tasks_agency_customer_fk",
+          "tableFrom": "tasks",
+          "tableTo": "customers",
+          "columnsFrom": ["agency_id", "customer_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_agency_policy_fk": {
+          "name": "tasks_agency_policy_fk",
+          "tableFrom": "tasks",
+          "tableTo": "policies",
+          "columnsFrom": ["agency_id", "policy_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_agency_renewal_fk": {
+          "name": "tasks_agency_renewal_fk",
+          "tableFrom": "tasks",
+          "tableTo": "renewal_opportunities",
+          "columnsFrom": ["agency_id", "renewal_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_agency_assignee_fk": {
+          "name": "tasks_agency_assignee_fk",
+          "tableFrom": "tasks",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "assignee_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_created_by_user_fk": {
+          "name": "tasks_created_by_user_fk",
+          "tableFrom": "tasks",
+          "tableTo": "users",
+          "columnsFrom": ["created_by_user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_created_by_membership_fk": {
+          "name": "tasks_created_by_membership_fk",
+          "tableFrom": "tasks",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "created_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "tasks_completed_by_membership_fk": {
+          "name": "tasks_completed_by_membership_fk",
+          "tableFrom": "tasks",
+          "tableTo": "agency_memberships",
+          "columnsFrom": ["agency_id", "completed_by_membership_id"],
+          "columnsTo": ["agency_id", "id"],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tasks_id_nonempty": {
+          "name": "tasks_id_nonempty",
+          "value": "length(trim(\"tasks\".\"id\")) > 0"
+        },
+        "tasks_title_nonempty": {
+          "name": "tasks_title_nonempty",
+          "value": "length(trim(\"tasks\".\"title\")) > 0"
+        },
+        "tasks_kind_valid": {
+          "name": "tasks_kind_valid",
+          "value": "\"tasks\".\"kind\" IN ('GENERAL','RENEWAL_FOLLOWUP')"
+        },
+        "tasks_status_valid": {
+          "name": "tasks_status_valid",
+          "value": "\"tasks\".\"status\" IN ('OPEN','COMPLETED')"
+        },
+        "tasks_version_positive": {
+          "name": "tasks_version_positive",
+          "value": "\"tasks\".\"version\" >= 1"
+        },
+        "tasks_timestamps_ordered": {
+          "name": "tasks_timestamps_ordered",
+          "value": "\"tasks\".\"updated_at\" >= \"tasks\".\"created_at\""
+        },
+        "tasks_kind_parent_consistent": {
+          "name": "tasks_kind_parent_consistent",
+          "value": "(\"tasks\".\"kind\"='RENEWAL_FOLLOWUP' AND \"tasks\".\"renewal_id\" IS NOT NULL AND \"tasks\".\"policy_id\" IS NULL) OR (\"tasks\".\"kind\"='GENERAL' AND \"tasks\".\"renewal_id\" IS NULL)"
+        },
+        "tasks_completion_consistent": {
+          "name": "tasks_completion_consistent",
+          "value": "(\"tasks\".\"status\"='OPEN' AND \"tasks\".\"completed_at\" IS NULL AND \"tasks\".\"completed_by_membership_id\" IS NULL) OR (\"tasks\".\"status\"='COMPLETED' AND \"tasks\".\"completed_at\" IS NOT NULL AND \"tasks\".\"completed_by_membership_id\" IS NOT NULL)"
+        },
+        "tasks_creator_consistent": {
+          "name": "tasks_creator_consistent",
+          "value": "(\"tasks\".\"actor_kind\"='USER' AND \"tasks\".\"created_by_user_id\" IS NOT NULL AND \"tasks\".\"created_by_membership_id\" IS NOT NULL) OR (\"tasks\".\"actor_kind\"='SYSTEM' AND \"tasks\".\"created_by_user_id\" IS NULL AND \"tasks\".\"created_by_membership_id\" IS NULL)"
+        }
+      }
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'INACTIVE'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "users_status_idx": {
+          "name": "users_status_idx",
+          "columns": ["status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "users_id_nonempty": {
+          "name": "users_id_nonempty",
+          "value": "length(trim(\"users\".\"id\")) > 0"
+        },
+        "users_status_valid": {
+          "name": "users_status_valid",
+          "value": "\"users\".\"status\" IN ('ACTIVE', 'INACTIVE')"
+        },
+        "users_version_positive": {
+          "name": "users_version_positive",
+          "value": "\"users\".\"version\" >= 1"
+        },
+        "users_timestamps_ordered": {
+          "name": "users_timestamps_ordered",
+          "value": "\"users\".\"updated_at\" >= \"users\".\"created_at\""
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}
