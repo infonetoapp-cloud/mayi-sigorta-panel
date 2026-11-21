@@ -1,0 +1,141 @@
+{
+  "numTotalTestSuites": 1,
+  "numPassedTestSuites": 0,
+  "numFailedTestSuites": 1,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 9,
+  "numPassedTests": 8,
+  "numFailedTests": 1,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1792564555163,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "UX003 persists identical minor values from all three employee formats, with exact replay and unchanged strict backend input",
+          "status": "failed",
+          "title": "UX003 persists identical minor values from all three employee formats, with exact replay and unchanged strict backend input",
+          "duration": 12211.146400000001,
+          "failureMessages": [
+            "AssertionError: expected 500 to be 400 // Object.is equality\n    at C:/Users/sinan/Desktop/panel-ux003/tests/policy-forms.api.test.ts:140:5\n    at file:///C:/Users/sinan/Desktop/panel/node_modules/vitest/dist/chunks/run.C5UmxDPh.js:2783:20"
+          ],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "UX003 canonical money preserves CAS and denied-write financial persistence",
+          "status": "passed",
+          "title": "UX003 canonical money preserves CAS and denied-write financial persistence",
+          "duration": 5625.750899999999,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates individual/company periods for OWNER and shared employees with exact premium and installment contracts",
+          "status": "passed",
+          "title": "creates individual/company periods for OWNER and shared employees with exact premium and installment contracts",
+          "duration": 5200.881800000003,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps create exact replay and renewal initialization idempotent without creating another period",
+          "status": "passed",
+          "title": "keeps create exact replay and renewal initialization idempotent without creating another period",
+          "duration": 4843.2692000000025,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "edits only requested fields, preserves association, rejects stale CAS and safely replays PATCH",
+          "status": "passed",
+          "title": "edits only requested fields, preserves association, rejects stale CAS and safely replays PATCH",
+          "duration": 4579.044700000006,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects invalid premium/currency/dependencies/installments without successful effects and preserves inactive catalog references on a basic edit",
+          "status": "passed",
+          "title": "rejects invalid premium/currency/dependencies/installments without successful effects and preserves inactive catalog references on a basic edit",
+          "duration": 7895.749799999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects archived-policy edits and new policies for archived customers atomically",
+          "status": "passed",
+          "title": "rejects archived-policy edits and new policies for archived customers atomically",
+          "duration": 7025.495800000004,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "denies ungranted/foreign/revoked mutations without evidence or customer disclosure",
+          "status": "passed",
+          "title": "denies ungranted/foreign/revoked mutations without evidence or customer disclosure",
+          "duration": 1210.1591000000044,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "requires explicit sensitive permissions for HEALTH creation and editing, including OWNER",
+          "status": "passed",
+          "title": "requires explicit sensitive permissions for HEALTH creation and editing, including OWNER",
+          "duration": 5667.695300000007,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792564585273,
+      "endTime": 1792564639533.6953,
+      "status": "failed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel-ux003/tests/policy-forms.api.test.ts"
+    }
+  ]
+}

@@ -255,7 +255,7 @@ it('requires explicit quote/version selection and confirmation, posts only CAS/v
   expect(form.textContent).toContain('Sentetik şirket');
   expect(form.textContent).toContain('Sentetik ürün');
   expect(form.textContent).toContain('123,45');
-  expect(form.textContent).toContain('TRY');
+  expect(form.textContent).toContain('₺');
   fireEvent.click(within(form).getByRole('button', { name: 'Gönderildi kaydını onayla' }));
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(0);
   submit();

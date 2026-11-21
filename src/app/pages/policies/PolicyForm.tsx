@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { policyMoney, policyStatusLabel } from './policy-display';
+import { MONEY_INPUT_HELP } from '../../lib/monetary';
 import {
   blankPolicyDraft,
   contractValues,
@@ -286,6 +287,7 @@ export function PolicyForm({
       <Input
         id={`contract-${key}`}
         type={type}
+        inputMode={key === 'grossPremium' ? 'decimal' : undefined}
         value={draft[key]}
         maxLength={maxLength}
         aria-invalid={!!errors[key]}
@@ -477,7 +479,7 @@ export function PolicyForm({
                   </div>
                 </div>
                 <p id="contract-premium-help" className="customer-legacy-hint">
-                  Örnek prim: 1234.56 · Para birimi: TRY, EUR veya USD.
+                  {MONEY_INPUT_HELP} Para birimi üç büyük harfli ISO kodudur.
                 </p>
               </CardContent>
             </Card>

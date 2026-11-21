@@ -2,6 +2,7 @@ import type { PolicyStatus } from '../../../shared/types';
 import { z } from 'zod';
 import { istanbulToday } from '../../../shared/customer-profile';
 import { Button } from '../../components/ui/button';
+import { formatMoneyMinor } from '../../lib/monetary';
 
 export const policyStatusLabel: Record<PolicyStatus, string> = {
   ACTIVE: 'Aktif',
@@ -37,11 +38,7 @@ export function PolicyPeriodBadge({ policy }: { policy: Parameters<typeof policy
 }
 /** All supported amounts are safe integer minor units, never floating-point major units. */
 export function policyMoney(minor: number, currency: string): string {
-  if (!Number.isSafeInteger(minor)) return 'Tutar kullanılamıyor';
-  const value = BigInt(minor),
-    negative = value < 0n,
-    absolute = negative ? -value : value;
-  return `${negative ? '-' : ''}${new Intl.NumberFormat('tr-TR').format(absolute / 100n)},${(absolute % 100n).toString().padStart(2, '0')} ${currency}`;
+  return formatMoneyMinor(minor, currency);
 }
 export function policyDate(value: string): string {
   const date = new Date(value);

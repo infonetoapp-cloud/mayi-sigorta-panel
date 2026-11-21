@@ -1,0 +1,174 @@
+{
+  "numTotalTestSuites": 1,
+  "numPassedTestSuites": 1,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 13,
+  "numPassedTests": 4,
+  "numFailedTests": 0,
+  "numPendingTests": 9,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1792565501271,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "creates from authorized defaults and preserves exact immutable version history for qq-owner",
+          "status": "skipped",
+          "title": "creates from authorized defaults and preserves exact immutable version history for qq-owner",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates from authorized defaults and preserves exact immutable version history for qq-ahmet",
+          "status": "skipped",
+          "title": "creates from authorized defaults and preserves exact immutable version history for qq-ahmet",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "creates from authorized defaults and preserves exact immutable version history for qq-ayse",
+          "status": "skipped",
+          "title": "creates from authorized defaults and preserves exact immutable version history for qq-ayse",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "keeps interaction.read independent of quote.read and quote.manage independent of a successful quote GET",
+          "status": "passed",
+          "title": "keeps interaction.read independent of quote.read and quote.manage independent of a successful quote GET",
+          "duration": 15191.5376,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "replays exact create/version responses after lost success without duplicate quote/version/audit evidence",
+          "status": "passed",
+          "title": "replays exact create/version responses after lost success without duplicate quote/version/audit evidence",
+          "duration": 13193.847000000002,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects stale renewal CAS separately from quote CAS, expired/invalid dates, mismatched catalogs and installments",
+          "status": "passed",
+          "title": "rejects stale renewal CAS separately from quote CAS, expired/invalid dates, mismatched catalogs and installments",
+          "duration": 21045.4248,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "does not disclose HEALTH, foreign-agency or revoked-session quote data",
+          "status": "passed",
+          "title": "does not disclose HEALTH, foreign-agency or revoked-session quote data",
+          "duration": 10441.492500000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "rejects quote versions after an authorized terminal LOST renewal without changing immutable history",
+          "status": "skipped",
+          "title": "rejects quote versions after an authorized terminal LOST renewal without changing immutable history",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "denies a quote ID from another renewal and preserves current history",
+          "status": "skipped",
+          "title": "denies a quote ID from another renewal and preserves current history",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "retains accepted quote evidence through the existing send/WON protocol and rejects further immutable versions",
+          "status": "skipped",
+          "title": "retains accepted quote evidence through the existing send/WON protocol and rejects further immutable versions",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "preserves the same quote identity by rejecting a different active insurer/product alternative under versions",
+          "status": "skipped",
+          "title": "preserves the same quote identity by rejecting a different active insurer/product alternative under versions",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "converges simultaneous same-key quote creation at the atomic batch without duplicate records",
+          "status": "skipped",
+          "title": "converges simultaneous same-key quote creation at the atomic batch without duplicate records",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "serializes competing new immutable versions with one winner, unchanged original and no orphan evidence",
+          "status": "skipped",
+          "title": "serializes competing new immutable versions with one winner, unchanged original and no orphan evidence",
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1792565527949,
+      "endTime": 1792565587824.4924,
+      "status": "passed",
+      "message": "",
+      "name": "C:/Users/sinan/Desktop/panel-ux003/tests/renewal-quotes-modern.api.test.ts"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "base": "cb5bd6cc2e80aa6099b42b9bcffce0eba91f45ce",
+  "decision": "LOCAL_GO_UX003_SCOPED",
+  "testRuns": {
+    "ux003-final-tests.json": {
+      "numPassedTests": 306,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "ux003-policy-api-green.json": {
+      "numPassedTests": 9,
+      "numFailedTests": 0,
+      "numPendingTests": 0
+    },
+    "ux003-won-api.json": {
+      "numPassedTests": 8,
+      "numFailedTests": 0,
+      "numPendingTests": 18
+    },
+    "ux003-quote-api.json": {
+      "numPassedTests": 4,
+      "numFailedTests": 0,
+      "numPendingTests": 9
+    }
+  },
+  "apiPassed": 21,
+  "apiFilteredNotPassed": 27,
+  "edge": {
+    "owner-desktop-final": {
+      "width": 1440,
+      "browser": "155.0.4283.62",
+      "runtimeErrors": 0,
+      "checkGroups": [
+        "three-policy-input-formats-same-real-D1-value-strict-ambiguous-rejection-exact-retry",
+        "canonical-CAS-PATCH-accepted-write-GET-only-readback",
+        "real-quote-create-and-immutable-revision-exact-minor-values",
+        "real-WON-CREATE-reviewed-canonical-decimal-and-exact-allocation"
+      ]
+    },
+    "ahmet-mobile-final": {
+      "width": 360,
+      "browser": "155.0.4283.62",
+      "runtimeErrors": 0,
+      "checkGroups": [
+        "three-policy-input-formats-same-real-D1-value-strict-ambiguous-rejection-exact-retry",
+        "canonical-CAS-PATCH-accepted-write-GET-only-readback",
+        "real-quote-create-and-immutable-revision-exact-minor-values",
+        "real-WON-CREATE-reviewed-canonical-decimal-and-exact-allocation"
+      ]
+    },
+    "ayse-tablet-final": {
+      "width": 768,
+      "browser": "155.0.4283.62",
+      "runtimeErrors": 0,
+      "checkGroups": [
+        "three-policy-input-formats-same-real-D1-value-strict-ambiguous-rejection-exact-retry",
+        "canonical-CAS-PATCH-accepted-write-GET-only-readback",
+        "real-quote-create-and-immutable-revision-exact-minor-values",
+        "real-WON-CREATE-reviewed-canonical-decimal-and-exact-allocation"
+      ]
+    }
+  },
+  "phase3": {
+    "originalExistingFilesUnchanged": 438,
+    "sourceFilesUnchanged": 25,
+    "bundleFilesUnchanged": 20,
+    "servedPreviewHTTP": "NOT_RUNNING_CONNECTION_REFUSED",
+    "servedHtmlEqualsSnapshot": null,
+    "visualApproval": "PENDING",
+    "protectedSHA256": "f272a14efce57f2ef47d960c2ac387e11cdaeda96aa6fda71db8585844e28930",
+    "initialPreviewHTTP": 200,
+    "previewRestarted": false
+  },
+  "defaultRepoFormat": "FAIL_WINDOWS_CRLF_AND_TWO_INITIAL_UNFORMATTED_REPORTS_PRESERVED",
+  "portableRepoFormat": "PASS_READ_ONLY_END_OF_LINE_AUTO",
+  "canonicalGitIndexDefaultFormat": "PASS_FULL_CHECK_ON_ISOLATED_INDEX_EXPORT_WITH_CORE_AUTOCRLF_FALSE",
+  "scopedFormat": "PASS_DEFAULT_FORMAT_ON_APPROVED_SOURCE_TEST_AND_EVIDENCE",
+  "productionMutation": false,
+  "externalMessage": false,
+  "recoveryExecuted": false,
+  "phase3Committed": false
+}

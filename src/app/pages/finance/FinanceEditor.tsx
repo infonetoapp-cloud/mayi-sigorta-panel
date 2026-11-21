@@ -17,25 +17,14 @@ import {
 import { readCustomerResource } from '../customers/customer-resource';
 import { financeDetailFor } from './finance-read-schemas';
 import { readPolicyDetail } from '../policies/policy-read-schemas';
-import { premiumInput, premiumMinor } from '../policies/policy-form-model';
+import { premiumInput } from '../policies/policy-form-model';
+import { MONEY_INPUT_HELP, parseMoneyInput } from '../../lib/monetary';
 import { policyMoney, storedPolicyDate } from '../policies/policy-display';
 import { useFinanceWrite } from './use-finance-write';
 import type { TaskOperationRisk } from '../today-work/TaskOperationsSection';
 type Kind = FinanceCommand['kind'];
 const financeLabels = { amount: 'Tutar', dueDate: 'Vade' };
 
-function canonicalAmount(input: string) {
-  const value = input.trim();
-  if (value.length > 24) return '';
-  if (/^(?:0|[1-9]\d*|[1-9]\d{0,2}(?:\.\d{3})+),\d{1,2}$/.test(value))
-    return value.replaceAll('.', '').replace(',', '.');
-  return value;
-}
-
-function comparableAmount(value: string) {
-  const minor = premiumMinor(canonicalAmount(value));
-  return minor === null ? value : premiumInput(Number(minor));
-}
 export function FinanceEditor({
   kind,
   policy,
@@ -142,15 +131,16 @@ export function FinanceEditor({
     kind === 'ADJUST' && fresh?.dueDate !== undefined
       ? { amount: premiumInput(fresh.amountMinor), dueDate: fresh.dueDate }
       : null;
+  const parsedAmount = parseMoneyInput(amount);
   const comparison =
     currentAdjustment &&
     compareEdits(
       adjustBase,
-      { amount: comparableAmount(amount), dueDate: date },
+      { amount: parsedAmount?.canonical ?? amount, dueDate: date },
       currentAdjustment,
       choices,
     );
-  const paymentAmount = premiumMinor(canonicalAmount(amount));
+  const paymentAmount = parsedAmount?.minor ?? null;
   return (
     <section className="finance-editor">
       <Heading id={headingId} ref={titleRef} tabIndex={-1}>
@@ -189,9 +179,9 @@ export function FinanceEditor({
             return;
           }
           let input: unknown;
-          const enteredAmount = canonicalAmount(amount);
+          const enteredAmount = parsedAmount?.canonical;
           if (['CREATE', 'COLLECT', 'ADJUST'].includes(kind) && (paymentAmount ?? 0n) <= 0n) {
-            setError('Tutarı 1250,50 veya 1.250,50 biçiminde girin.');
+            setError(`Sıfırdan büyük bir tutar girin. ${MONEY_INPUT_HELP}`);
             return;
           }
           if (kind === 'CREATE' && policy)
@@ -413,8 +403,8 @@ export function FinanceEditor({
                 labels={financeLabels}
                 format={(name, value) => {
                   if (name === 'dueDate') return storedPolicyDate(value);
-                  const minor = premiumMinor(canonicalAmount(value));
-                  return minor === null ? value : policyMoney(Number(minor), currency);
+                  const parsed = parseMoneyInput(value);
+                  return parsed ? policyMoney(Number(parsed.minor), currency) : value;
                 }}
                 onChange={(name, choice) => setChoices((prev) => ({ ...prev, [name]: choice }))}
               />

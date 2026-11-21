@@ -7,6 +7,7 @@ import {
 } from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type { CustomerDto, PolicyDto, PolicyDetailDto } from '../src/shared/types';
+import { parseMoneyInput } from '../src/app/lib/monetary';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 let owner: string, ahmet: string, ayse: string, foreign: string, denied: string;
 let individual: CustomerDto, company: CustomerDto, policy: PolicyDto;
@@ -109,6 +110,82 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await f?.mf.dispose();
+});
+it('UX003 persists identical minor values from all three employee formats, with exact replay and unchanged strict backend input', async () => {
+  for (const [index, value] of ['12500,50', '12500.50', '12.500,50'].entries()) {
+    const actor = index === 1 ? ahmet : owner,
+      key = crypto.randomUUID(),
+      body = {
+        ...base,
+        customerId: individual.id,
+        policyNumber: `UX003-${index}`,
+        grossPremium: parseMoneyInput(value)!.canonical,
+      };
+    const created = await data<PolicyDto>(
+      await send('/api/policies', 'POST', body, actor, key),
+      201,
+    );
+    expect(created.grossPremiumMinor).toBe(1250050);
+    expect(
+      await f.db
+        .prepare('SELECT gross_premium_minor AS amount,currency FROM policies WHERE id=?')
+        .bind(created.id)
+        .first(),
+    ).toEqual({ amount: 1250050, currency: 'TRY' });
+    const before = await snapshot();
+    expect(
+      (await data<PolicyDto>(await send('/api/policies', 'POST', body, actor, key), 201)).id,
+    ).toBe(created.id);
+    expect(await snapshot()).toBe(before);
+  }
+  const before = await snapshot();
+  expect(
+    (
+      await send('/api/policies', 'POST', {
+        ...base,
+        customerId: individual.id,
+        policyNumber: 'UX003-RAW',
+        grossPremium: '12500,50',
+      })
+    ).status,
+  ).toBe(500); // Existing backend parser error classification is unchanged; no persistence occurs.
+  expect(await snapshot()).toBe(before);
+});
+it('UX003 canonical money preserves CAS and denied-write financial persistence', async () => {
+  const created = await data<PolicyDto>(
+    await send('/api/policies', 'POST', {
+      ...base,
+      customerId: company.id,
+      policyNumber: 'UX003-CAS',
+    }),
+    201,
+  );
+  const body = {
+    expectedVersion: created.version,
+    grossPremium: parseMoneyInput('12.500,50')!.canonical,
+  };
+  await data<PolicyDto>(await send(`/api/policies/${created.id}`, 'PATCH', body));
+  const before = await snapshot();
+  expect(
+    (await send(`/api/policies/${created.id}`, 'PATCH', { ...body, grossPremium: '1.00' })).status,
+  ).toBe(409);
+  expect(await snapshot()).toBe(before);
+  expect(
+    (
+      await send(
+        '/api/policies',
+        'POST',
+        {
+          ...base,
+          customerId: company.id,
+          policyNumber: 'UX003-DENIED',
+          grossPremium: body.grossPremium,
+        },
+        denied,
+      )
+    ).status,
+  ).toBe(403);
+  expect(await snapshot()).toBe(before);
 });
 it('creates individual/company periods for OWNER and shared employees with exact premium and installment contracts', async () => {
   for (const [index, actor] of [owner, ahmet, ayse].entries()) {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SelectableCatalogsDto, TodayTaskDto } from '../../../shared/types';
 import { Button } from '../../components/ui/button';
+import { parseMoneyInput, MONEY_INPUT_HELP } from '../../lib/monetary';
 import { readCustomerResource } from '../customers/customer-resource';
 import {
   blankPolicyDraft,
@@ -261,7 +262,7 @@ export function WonCreatePolicyForm({
         policyNumber: draft.policyNumber.trim(),
         startDate: draft.startDate,
         endDate: draft.endDate,
-        grossPremium: draft.grossPremium.trim(),
+        grossPremium: parseMoneyInput(draft.grossPremium)!.canonical,
         currency: draft.currency,
         installmentCount: draft.installmentCount ? Number(draft.installmentCount) : null,
         status: 'ACTIVE',
@@ -609,6 +610,7 @@ export function WonCreatePolicyForm({
               {field('startDate', 'Başlangıç tarihi', 'date')}
               {field('endDate', 'Bitiş tarihi', 'date')}
               {field('grossPremium', 'Brüt prim')}
+              <p className="issue-help">{MONEY_INPUT_HELP}</p>
               {field('currency', 'Para birimi')}
               {select('paymentMethodId', 'Ödeme yöntemi', catalogs.paymentMethods)}
               {method?.supportsInstallments && (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ApiResponse, SelectableCatalogsDto, InsurerDto } from '../../shared/types';
 import { completionMoney } from './RenewalPolicySelector';
+import { parseMoneyInput } from '../lib/monetary';
 
 export interface VersionPayload {
   insurerId: string;
@@ -45,11 +46,8 @@ function decimal(minor: number): string {
   return `${value / 100n},${String(value % 100n).padStart(2, '0')}`;
 }
 function parsePremium(text: string): number | null {
-  const canonical = text.trim().replace(',', '.');
-  if (!/^(0|[1-9]\d*)(?:\.\d{1,2})?$/.test(canonical)) return null;
-  const [whole, fraction = ''] = canonical.split('.');
-  const value = BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null;
+  const value = parseMoneyInput(text);
+  return value ? Number(value.minor) : null;
 }
 const normalize = (value: string) =>
   value

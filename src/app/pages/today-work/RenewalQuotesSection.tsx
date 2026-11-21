@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/input';
 import { parseAppError } from '../../App';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
-
+import { MONEY_INPUT_HELP } from '../../lib/monetary';
 import { QuoteSentOperation } from './QuoteSentOperation';
 import {
   quoteDraft,
@@ -754,6 +754,7 @@ function QuoteWorkspace(props: Props) {
                 {textField('endDate', 'Teklif kapsam bitişi', 'date')}
                 {textField('validUntil', 'Teklif geçerlilik sonu (İstanbul)', 'datetime-local')}
                 {textField('premium', 'Teklif brüt primi (ana birim)')}
+                <p>{MONEY_INPUT_HELP}</p>
                 {textField('currency', 'Teklif para birimi (ISO)')}
                 {textField('installmentCount', 'Teklif taksit sayısı (yoksa boş)')}
                 <label htmlFor="quote-terms">Teklif koşulları</label>

@@ -157,7 +157,7 @@ it('fills the current balance and agency date without submitting a collection', 
   fireEvent.click(screen.getByRole('button', { name: /^Bugün$/ }));
   expect((screen.getByLabelText('Tutar (TRY) *') as HTMLInputElement).value).toBe('100,00');
   expect((screen.getByLabelText('Tahsilat tarihi *') as HTMLInputElement).value).toBe(record.today);
-  expect(screen.getByText(/100,00 TRY .*Havale/)).toBeTruthy();
+  expect(screen.getByText(/100,00 ₺ .*Havale/)).toBeTruthy();
   expect(fetcher).not.toHaveBeenCalled();
 });
 it('freezes an uncertain write and retries the exact body and key without a second draft', async () => {
@@ -349,7 +349,7 @@ it('isolates malformed list and detail responses and retries the same filters an
   const retryHistory = await screen.findByRole('button', { name: 'Alacağı yeniden yükle' });
   expect(screen.getByRole('button', { name: 'Örnek Müşteri' })).toBeTruthy();
   fireEvent.click(retryHistory);
-  await screen.findByText(/Tahsilat · 30,00 TRY/);
+  await screen.findByText(/Tahsilat · 30,00 ₺/);
   fireEvent.click(screen.getByRole('button', { name: 'Detayı kapat' }));
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Örnek Müşteri' })),
