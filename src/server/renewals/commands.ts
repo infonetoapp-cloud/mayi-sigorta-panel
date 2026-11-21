@@ -1,3 +1,21 @@
+import {
+  assertWonPriceReplay,
+  prepareWonPrice,
+  wonPriceAudit,
+  type PriceEvidence,
+} from '../sales/renewal-won-price';
+import {
+  prepareCycleRecall,
+  readCycleActionContext,
+  assertCycleRecallReplay,
+  type CycleRecall,
+} from '../sales/renewal-cycle-recall';
+import {
+  prepareRenewalLossCycle,
+  assertRenewalLossCycleReplay,
+  renewalCycleAudit,
+} from '../sales/renewal-loss-cycle';
+import { salesLossResultSchema, type SalesLossResult } from '../../shared/sales-loss';
 import { computePayloadHash } from '../mutations/canonical';
 import { buildSafeAuditRecord } from '../mutations/audit';
 import { computeEvidenceHash, issueAndPersistSensitiveActionGrant } from '../mutations/grants';
@@ -6,6 +24,7 @@ import type { AuthenticatedUserContext } from '../auth/identity';
 import { parsePolicyCreateInput } from '../policies/validation';
 import {
   closeRenewalWonRequestSchema,
+  acceptedPriceEvidenceSchema,
   closeRenewalLostRequestSchema,
   type CloseRenewalWonInput as NewCloseRenewalWonInput,
   type CloseRenewalLostInput as NewCloseRenewalLostInput,
@@ -81,6 +100,7 @@ export interface RenewalLostResult {
   readonly renewalId: string;
   readonly previousState: string;
   readonly state: 'LOST';
+  readonly salesCycle?: SalesLossResult;
   readonly lossReasonId: string;
   readonly primaryTaskId: string;
   readonly renewalVersion: number;
@@ -97,6 +117,7 @@ export interface RenewalWonLinkResult {
 }
 
 export interface RenewalWonResult {
+  readonly acceptedPriceEvidence?: PriceEvidence;
   readonly renewalId: string;
   readonly previousState: string;
   readonly state: 'WON';
@@ -124,6 +145,7 @@ export interface RenewalVoidResult {
 }
 
 export interface RenewalReopenResult {
+  readonly salesCycle?: CycleRecall;
   readonly renewalId: string;
   readonly previousState: 'LOST' | 'VOIDED';
   readonly state: OpenRenewalState;
@@ -327,6 +349,38 @@ async function authorizeReopenTarget(
   return { customerRead, policyRead, renewalRead, taskRead, taskCreate, reopen };
 }
 
+export async function renewalCycleContext(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  id: string,
+  mode: 'close' | 'reopen',
+) {
+  const actor = activeMembership(context);
+  const row = await loadRenewalTask(db, actor.agencyId, id);
+  if (!row || row.customer_archived_at || row.policy_archived_at || row.policy_status !== 'ACTIVE')
+    throw new RenewalCommandError('NOT_FOUND', 404);
+  if (mode === 'close') {
+    if (row.task_status !== 'OPEN' || row.renewal_closed_at)
+      throw new RenewalCommandError('NOT_FOUND', 404);
+    await authorizeCurrentTarget(db, context, row);
+  } else {
+    if (
+      !['LOST', 'VOIDED'].includes(row.renewal_state) ||
+      row.task_status !== 'COMPLETED' ||
+      row.task_completed_at !== row.renewal_closed_at
+    )
+      throw new RenewalCommandError('NOT_FOUND', 404);
+    await authorizeReopenTarget(db, context, row);
+  }
+  return {
+    renewalId: id,
+    renewalVersion: row.renewal_version,
+    taskId: row.task_id,
+    taskVersion: row.task_version,
+    salesCycle: await readCycleActionContext(db, context, row, mode),
+  };
+}
+
 export async function readReceipt(
   db: D1Database,
   active: ActiveMembership,
@@ -407,6 +461,7 @@ function parseLostReceipt(
     'taskVersion',
     'closedAt',
   ];
+  if (input.salesCycle) keys.push('salesCycle', 'cycleCommand');
   if (
     Object.keys(result).length !== keys.length ||
     keys.some((key) => !Object.prototype.hasOwnProperty.call(result, key)) ||
@@ -426,6 +481,22 @@ function parseLostReceipt(
     !isCanonicalTimestamp(result.closedAt)
   ) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+  }
+  if (input.salesCycle) {
+    const cycle = salesLossResultSchema.safeParse(result.salesCycle);
+    if (
+      !cycle.success ||
+      JSON.stringify(result.cycleCommand) !== JSON.stringify(input) ||
+      cycle.data.caseId !== input.salesCycle.caseId ||
+      cycle.data.caseVersion !== input.salesCycle.expectedCaseVersion + 1 ||
+      cycle.data.taskId !== taskId ||
+      cycle.data.taskVersion !== result.taskVersion ||
+      cycle.data.closedAt !== result.closedAt
+    )
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    const { cycleCommand: _command, ...publicResult } = result;
+    void _command;
+    return publicResult as unknown as RenewalLostResult;
   }
   return result as unknown as RenewalLostResult;
 }
@@ -645,7 +716,7 @@ export function receiptInsert(
   result: unknown,
   receiptAt: string,
   responseStatus = 200,
-  receiptId = crypto.randomUUID(),
+  receiptId: string = crypto.randomUUID(),
 ): D1PreparedStatement {
   const body = JSON.stringify(result);
   return db
@@ -912,6 +983,14 @@ async function assertLostReplay(
   ) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
   }
+  if (input.salesCycle)
+    await assertRenewalLossCycleReplay(
+      db,
+      context,
+      { ...input, expectedPrimaryTaskId: row.task_id },
+      result,
+      idempotencyKey,
+    );
 }
 
 function parseReceiptResult(
@@ -943,6 +1022,10 @@ export function isReceiptRace(error: unknown): boolean {
 
 function mapBatchError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('SALES_CYCLE_REOPEN_REQUIRED'))
+    throw new RenewalCommandError('SALES_CYCLE_REOPEN_REQUIRED', 409);
+  if (/SALES_CASE|SALES_RESULT|SALES_CYCLE|SALES_HISTORY/.test(message))
+    throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
   if (message.includes('MEMBERSHIP_PERMISSION_NOT_FOUND')) {
     throw new RenewalCommandError('FORBIDDEN', 403);
   }
@@ -1054,8 +1137,19 @@ export async function closeRenewalLost(
     taskVersion: row.task_version + 1,
     closedAt,
   };
+  const cycle = input.salesCycle
+    ? await prepareRenewalLossCycle(
+        db,
+        context,
+        renewalId,
+        { ...input, expectedPrimaryTaskId: row.task_id },
+        closedAt,
+      )
+    : null;
+  const finalResult: RenewalLostResult = cycle ? { ...result, salesCycle: cycle.result } : result;
   try {
     await db.batch([
+      ...(cycle ? [cycle.authority] : []),
       actorAuthorityAssertion(db, context, active, row, scopes, CLOSE_LOST_ACTION),
       lossReasonAssertion(db, active, input),
       receiptInsert(
@@ -1065,9 +1159,12 @@ export async function closeRenewalLost(
         idempotencyKey,
         CLOSE_LOST_ACTION,
         payloadFingerprint,
-        result,
+        cycle ? { ...finalResult, cycleCommand: input } : finalResult,
         result.closedAt,
+        200,
+        cycle?.result.operationId ?? crypto.randomUUID(),
       ),
+      ...(cycle ? [cycle.revision] : []),
       completePrimaryTaskStatement(db, active, row, closedAt),
       casAssertion(db, 'OPTIMISTIC_CONCURRENCY_CONFLICT'),
       closeRenewalStatement(db, active, row, input, closedAt),
@@ -1077,6 +1174,9 @@ export async function closeRenewalLost(
         lossReasonNotes: input.lossReasonNotes,
         voidReasonCode: null,
       }),
+      ...(cycle
+        ? [...cycle.finish, await renewalCycleAudit(db, context, cycle.result, idempotencyKey)]
+        : []),
       auditInsert(db, context, active, row, input, idempotencyKey, closedAt),
     ]);
   } catch (error) {
@@ -1113,9 +1213,16 @@ export async function closeRenewalLost(
         return { data: replay, replayed: true };
       }
     }
+    if (cycle) {
+      try {
+        await authorizeCurrentTarget(db, context, row);
+      } catch {
+        throw new RenewalCommandError('FORBIDDEN', 403);
+      }
+    }
     mapBatchError(error);
   }
-  return { data: result, replayed: false };
+  return { data: finalResult, replayed: false };
 }
 
 function voidFingerprint(renewalId: string, input: VoidRenewalInput): Promise<string> {
@@ -1548,6 +1655,25 @@ function parseReopenReceipt(
     'taskVersion',
     'reopenedAt',
   ];
+  if (input.salesCycle) {
+    keys.push('salesCycle', 'cycleCommand');
+    if (JSON.stringify(result.cycleCommand) !== JSON.stringify(input))
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    const cycle = result.salesCycle as CycleRecall | undefined;
+    const expected = input.salesCycle;
+    if (
+      !cycle ||
+      Object.keys(cycle).length !== 5 ||
+      cycle.caseId !== expected.caseId ||
+      cycle.expectedCaseVersion !== expected.expectedCaseVersion ||
+      cycle.resultRevisionId !== expected.resultRevisionId ||
+      cycle.successorCaseId !== expected.successorCaseId ||
+      (expected.successorCaseId
+        ? typeof cycle.successorTaskId !== 'string' || !cycle.successorTaskId
+        : cycle.successorTaskId !== null)
+    )
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+  }
   if (
     Object.keys(result).length !== keys.length ||
     keys.some((key) => !Object.prototype.hasOwnProperty.call(result, key)) ||
@@ -1571,7 +1697,9 @@ function parseReopenReceipt(
   ) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
   }
-  return result as unknown as RenewalReopenResult;
+  const { cycleCommand, ...response } = result;
+  void cycleCommand;
+  return response as unknown as RenewalReopenResult;
 }
 
 export async function reopenTargetState(
@@ -1755,11 +1883,11 @@ async function assertReopenReplay(
          (SELECT count(*) FROM tasks t
           WHERE t.agency_id=? AND t.id=? AND t.renewal_id=? AND t.kind='RENEWAL_FOLLOWUP'
             AND t.actor_kind='USER' AND t.created_by_user_id=? AND t.created_by_membership_id=?
-            AND t.due_at=? AND t.created_at=?) AS new_task_count,
+            AND (t.due_at=? OR (?=1 AND t.version>1)) AND t.created_at=?) AS new_task_count,
          (SELECT count(*) FROM tasks t
           WHERE t.agency_id=? AND t.id=? AND t.renewal_id=? AND t.kind='RENEWAL_FOLLOWUP'
             AND t.status='COMPLETED' AND t.version=? AND t.completed_at=?
-            AND t.completed_by_membership_id=?) AS closed_task_count,
+            AND (?=1 OR t.completed_by_membership_id=?)) AS closed_task_count,
          (SELECT count(*) FROM renewal_state_history h
           WHERE h.agency_id=? AND h.renewal_id=? AND h.from_state=? AND h.to_state=?
             AND h.actor_user_id=? AND h.actor_membership_id=? AND h.reason_code='REOPEN'
@@ -1780,12 +1908,14 @@ async function assertReopenReplay(
       context.userId,
       active.id,
       input.replacementDueAt,
+      result.salesCycle ? 1 : 0,
       result.reopenedAt,
       active.agencyId,
       result.closedTaskId,
       result.renewalId,
       result.closedTaskVersion,
       result.terminalClosedAt,
+      result.salesCycle ? 1 : 0,
       active.id,
       active.agencyId,
       result.renewalId,
@@ -1820,6 +1950,7 @@ async function assertReopenReplay(
   ) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
   }
+  await assertCycleRecallReplay(db, context, result, idempotencyKey);
 }
 
 function parseReopenReceiptResult(
@@ -1953,7 +2084,10 @@ export async function reopenRenewal(
   }
   const reopenedState = await reopenTargetState(db, row);
   const reopenedAt = new Date().toISOString();
+  const receiptId = crypto.randomUUID();
+  const recall = await prepareCycleRecall(db, context, row, input, reopenedAt, receiptId);
   const result: RenewalReopenResult = {
+    ...(recall ? { salesCycle: recall.result } : {}),
     renewalId,
     previousState: row.renewal_state as 'LOST' | 'VOIDED',
     state: reopenedState,
@@ -1985,9 +2119,12 @@ export async function reopenRenewal(
         idempotencyKey,
         REOPEN_ACTION,
         payloadFingerprint,
-        result,
+        recall ? { ...result, cycleCommand: input } : result,
         result.reopenedAt,
+        200,
+        receiptId,
       ),
+      ...(recall?.statements ?? []),
       reopenRenewalStatement(db, row, input, reopenedState, reopenedAt),
       casAssertion(db, 'OPTIMISTIC_CONCURRENCY_CONFLICT'),
       stateHistoryInsert(db, context, active, row, reopenedState, 'REOPEN', reopenedAt),
@@ -2199,7 +2336,7 @@ export async function authorizeWonPolicyTargets(
   return authorized;
 }
 
-async function validateWonPolicyCatalogs(
+export async function validateWonPolicyCatalogs(
   db: D1Database,
   agencyId: string,
   data: ReturnType<typeof parsePolicyCreateInput>,
@@ -2374,7 +2511,7 @@ export function wonPolicyReplayVersionAssertion(
     .bind(crypto.randomUUID(), agencyId, target.id, target.version);
 }
 
-function wonPolicyCreateAuthorityAssertion(
+export function wonPolicyCreateAuthorityAssertion(
   db: D1Database,
   context: AuthenticatedUserContext,
   active: ActiveMembership,
@@ -2750,6 +2887,7 @@ function parseWonReceipt(
     'newPolicyIds',
     'linkIds',
     'links',
+    ...(input.acceptedPriceSource ? ['acceptedPriceEvidence'] : []),
   ].sort();
   if (JSON.stringify(Object.keys(result).sort()) !== JSON.stringify(keys)) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
@@ -2834,6 +2972,16 @@ function parseWonReceipt(
   ) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
   }
+  let priceEvidence;
+  if (input.acceptedPriceSource) {
+    const evidence = acceptedPriceEvidenceSchema.safeParse(result.acceptedPriceEvidence);
+    if (!evidence.success || links.length !== 1 || evidence.data.policyId !== links[0]!.newPolicyId)
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    const { policyId, ...selection } = evidence.data;
+    if (JSON.stringify(selection) !== JSON.stringify(input.acceptedPriceSource))
+      throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    priceEvidence = { ...selection, policyId };
+  }
   const parsed: RenewalWonResult = {
     renewalId,
     previousState: result.previousState as string,
@@ -2848,6 +2996,7 @@ function parseWonReceipt(
     newPolicyIds,
     linkIds,
     links,
+    ...(priceEvidence ? { acceptedPriceEvidence: priceEvidence } : {}),
   };
   if (receipt.response_body !== JSON.stringify(parsed)) {
     throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
@@ -3055,6 +3204,11 @@ export async function closeRenewalWon(
 ): Promise<{ data: RenewalWonResult; replayed: boolean; status: 200 | 201 }> {
   const active = activeMembership(context);
   const input = closeRenewalWonRequestSchema.parse(rawInput);
+  if (
+    input.acceptedPriceSource &&
+    (input.acceptedQuoteVersionId || input.result.kind === 'EXISTING_LINKS')
+  )
+    throw new RenewalCommandError('PRICE_SOURCE_CONFLICT', 400);
   const idempotencyKey = rawIdempotencyKey.trim();
   if (!idempotencyKey || idempotencyKey.length > 128) {
     throw new RenewalCommandError('IDEMPOTENCY_KEY_INVALID', 400);
@@ -3197,6 +3351,7 @@ export async function closeRenewalWon(
       input.quoteDifferenceReasonCode,
       targets,
     );
+    await assertWonPriceReplay(db, context, result, receipt.id, idempotencyKey);
     return { data: result, replayed: true, status: 200 };
   }
 
@@ -3432,6 +3587,39 @@ export async function closeRenewalWon(
     ids.add(pair);
   }
 
+  let acceptedPrice;
+  if (input.acceptedPriceSource) {
+    const target = targets.find((t) => t.id === links[0]?.newPolicyId);
+    if (!target || links.length !== 1)
+      throw new RenewalCommandError('PRICE_ACCEPTANCE_INVALID', 409);
+    const actualPolicy =
+      policyCreateData && insurerId
+        ? { insurerId, startDate: policyCreateData.startDate, endDate: policyCreateData.endDate }
+        : await db
+            .prepare(
+              `SELECT insurer_id insurerId,start_date startDate,end_date endDate FROM policies WHERE agency_id=? AND id=? AND version=?`,
+            )
+            .bind(active.agencyId, target.id, target.version)
+            .first<{ insurerId: string; startDate: string; endDate: string }>();
+    if (!actualPolicy) throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
+    acceptedPrice = await prepareWonPrice(
+      db,
+      context,
+      renewalId,
+      row.task_id,
+      row.task_version,
+      input.acceptedPriceSource,
+      {
+        ...actualPolicy,
+        id: target.id,
+        customerId: target.customer_id,
+        branchId: target.branch_id,
+        grossPremiumMinor: target.gross_premium_minor,
+        currency: target.currency,
+      },
+      input.quoteDifferenceReasonCode,
+    );
+  }
   let acceptedQuote: {
     readonly id: string;
     readonly version: number;
@@ -3448,7 +3636,7 @@ export async function closeRenewalWon(
     const quote = await db
       .prepare(
         `SELECT q.id,q.version,q.current_version_id,v.valid_until,
-                v.product_id,v.gross_premium_minor,v.currency
+                v.product_id,v.gross_premium_minor,v.currency,v.start_date,v.end_date
          FROM renewal_quotes q JOIN renewal_quote_versions v
            ON v.agency_id=q.agency_id AND v.quote_id=q.id
          JOIN renewal_quote_events sent ON sent.agency_id=q.agency_id AND sent.quote_id=q.id
@@ -3467,16 +3655,29 @@ export async function closeRenewalWon(
         product_id: string;
         gross_premium_minor: number;
         currency: string;
+        start_date: string;
+        end_date: string;
       }>();
     if (!quote) throw new RenewalCommandError('QUOTE_ACCEPTANCE_INVALID', 409);
     if (Date.parse(quote.valid_until) <= Date.now())
       throw new RenewalCommandError('QUOTE_EXPIRED', 409);
     const acceptedPolicyTarget = targets.find((target) => target.id === links[0]!.newPolicyId);
     if (!acceptedPolicyTarget) throw new RenewalCommandError('QUOTE_ACCEPTANCE_INVALID', 409);
+    const period = policyCreateData
+      ? { start_date: policyCreateData.startDate, end_date: policyCreateData.endDate }
+      : await db
+          .prepare(
+            'SELECT start_date,end_date FROM policies WHERE agency_id=? AND id=? AND version=?',
+          )
+          .bind(active.agencyId, acceptedPolicyTarget.id, acceptedPolicyTarget.version)
+          .first<{ start_date: string; end_date: string }>();
+    if (!period) throw new RenewalCommandError('OPTIMISTIC_CONCURRENCY_CONFLICT', 409);
     const differsFromQuote =
       acceptedPolicyTarget.product_id !== quote.product_id ||
       acceptedPolicyTarget.gross_premium_minor !== quote.gross_premium_minor ||
-      acceptedPolicyTarget.currency !== quote.currency;
+      acceptedPolicyTarget.currency !== quote.currency ||
+      period.start_date !== quote.start_date ||
+      period.end_date !== quote.end_date;
     if (differsFromQuote && !input.quoteDifferenceReasonCode) {
       throw new RenewalCommandError('QUOTE_DIFFERENCE_REASON_REQUIRED', 400);
     }
@@ -3488,7 +3689,7 @@ export async function closeRenewalWon(
       version: quote.version,
       policyId: links[0]!.newPolicyId,
     };
-  } else if (input.quoteDifferenceReasonCode) {
+  } else if (!acceptedPrice && input.quoteDifferenceReasonCode) {
     throw new RenewalCommandError('QUOTE_DIFFERENCE_REASON_UNEXPECTED', 400);
   }
 
@@ -3509,10 +3710,12 @@ export async function closeRenewalWon(
     newPolicyIds: [...new Set(links.map((link) => link.newPolicyId))].sort(),
     linkIds: links.map((link) => link.id).sort(),
     links: [...links].sort((a, b) => a.newPolicyId.localeCompare(b.newPolicyId)),
+    ...(acceptedPrice ? { acceptedPriceEvidence: acceptedPrice.evidence } : {}),
   };
   try {
     const statements: D1PreparedStatement[] = [
       actorAuthorityAssertion(db, context, active, row, scopes, CLOSE_WON_ACTION),
+      ...(acceptedPrice ? [acceptedPrice.assertion] : []),
     ];
     if (policyCreateData && insurerId && assigneeId && policyClassification) {
       statements.push(
@@ -3639,6 +3842,8 @@ export async function closeRenewalWon(
         casAssertion(db, 'RENEWAL_QUOTE_ACCEPTANCE_CONFLICT'),
       );
     }
+    if (acceptedPrice)
+      statements.push(await wonPriceAudit(db, context, result, receiptId, idempotencyKey));
     if (createdPolicyId) {
       statements.push(
         wonAuditStatement(
@@ -3718,6 +3923,7 @@ export async function closeRenewalWon(
           input.quoteDifferenceReasonCode,
           authorizedTargets,
         );
+        await assertWonPriceReplay(db, context, replay, racedReceipt.id, idempotencyKey);
         return { data: replay, replayed: true, status: 200 };
       }
     }

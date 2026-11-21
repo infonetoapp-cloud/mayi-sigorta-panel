@@ -1,28 +1,50 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
-import { useEffect, useState } from 'react';
+import { customerListReturnState } from './customer-list-context';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { ArrowLeft, Settings2, Mail, Phone, MapPin } from 'lucide-react';
-import type { CustomerDetailDto, PolicyListResponseData } from '../../../shared/types';
+import type { CustomerDetailDto, RenewalStateCode } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { CustomerNoteWorkspace } from './CustomerNoteWorkspace';
 import { CustomerContactSection } from '../../components/CustomerContactSection';
 import { CompanyContactsSection } from '../../components/CompanyContactsSection';
+import { CustomerArchiveSection } from '../../components/CustomerArchiveSection';
+import { CustomerIdentitySection } from '../../components/CustomerIdentitySection';
+import { CustomerExternalReferencesSection } from '../../components/CustomerExternalReferencesSection';
 
-import { useCustomerResource } from './customer-resource';
+import { readCustomerResource, useCustomerResource } from './customer-resource';
+import {
+  customerDetailFor,
+  relatedPoliciesFor,
+  relatedRenewalsSchema,
+} from './customer-read-schemas';
+import { storedPolicyDate } from '../policies/policy-display';
 import { ReturnToWork } from '../today-work/work-navigation';
 import { CustomerCoverage } from './CustomerCoverage';
+import { CustomerInsurerNumbers } from './CustomerInsurerNumbers';
+import { CustomerVehicles } from './CustomerVehicles';
+import { SalesCasesSection } from '../sales/SalesCases';
 const sections = [
   ['general', 'Genel bilgiler'],
   ['contact', 'İletişim'],
   ['notes', 'Müşteri notları'],
   ['policies', 'Poliçeler ve yenilemeler'],
+  ['vehicles', 'Araçlar'],
+  ['sales', 'Teklif çalışmaları'],
 ] as const;
-const date = (value: string) =>
-  new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', dateStyle: 'medium' }).format(
-    new Date(value),
-  );
+function relatedPageParams(
+  current: URLSearchParams,
+  key: 'after' | 'renewalsAfter',
+  cursor: string | null,
+) {
+  const next = new URLSearchParams(current);
+  next.set('section', 'policies');
+  if (cursor === null) next.delete(key);
+  else next.set(key, cursor);
+  return next;
+}
 
 function RelatedPolicies({ customerId }: { customerId: string }) {
   const route = useLocation();
@@ -30,9 +52,8 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
   const cursor = params.get('after');
   const query = new URLSearchParams({ customerId, pageSize: '20', includeLabels: 'true' });
   if (cursor) query.set('cursor', cursor);
-  const { data, error, loading, reload } = useCustomerResource<PolicyListResponseData>(
-    `/api/policies?${query}`,
-  );
+  const decoder = useMemo(() => relatedPoliciesFor(customerId), [customerId]);
+  const { data, error, loading, reload } = useCustomerResource(`/api/policies?${query}`, decoder);
   return (
     <Card>
       <CardHeader>
@@ -43,9 +64,11 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
         {error && (
           <div role="alert">
             <p>{error.message}</p>
-            <Button variant="outline" onClick={reload}>
-              Yeniden dene
-            </Button>
+            {error.status >= 500 && (
+              <Button variant="outline" onClick={reload}>
+                Poliçeleri yeniden dene
+              </Button>
+            )}
           </div>
         )}
         {data && !data.items.length && <p>Görüntülenebilir poliçe bulunamadı.</p>}
@@ -67,8 +90,8 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
                   </span>
                 )}
                 <span>
-                  {policy.startDate ? date(policy.startDate) : 'Başlangıç belirtilmedi'} –{' '}
-                  {date(policy.endDate)}
+                  {policy.startDate ? storedPolicyDate(policy.startDate) : 'Başlangıç belirtilmedi'}{' '}
+                  – {storedPolicyDate(policy.endDate)}
                 </span>
                 <span>
                   Kayıt durumu:{' '}
@@ -83,45 +106,45 @@ function RelatedPolicies({ customerId }: { customerId: string }) {
             ))}
           </ul>
         )}
-        <div className="customer-pagination">
-          <Button
-            variant="outline"
-            disabled={!cursor || loading}
-            onClick={() => setParams({ section: 'policies' }, { state: route.state })}
-          >
-            İlk sayfa
-          </Button>
-          <Button
-            variant="outline"
-            disabled={loading || !data?.hasMore || !data.nextCursor}
-            onClick={() => {
-              if (data?.nextCursor)
-                setParams({ section: 'policies', after: data.nextCursor }, { state: route.state });
-            }}
-          >
-            Sonraki poliçeler
-          </Button>
-        </div>
-        <p className="customer-legacy-hint">
-          Poliçe ekleme ve yenileme görüşmeleri, teklif ve sonuç işlemleri henüz klasik çalışma
-          alanındadır.
-        </p>
+        {(cursor || data?.hasMore) && (
+          <div className="customer-pagination">
+            <Button
+              variant="outline"
+              disabled={!cursor || loading}
+              onClick={() =>
+                setParams(relatedPageParams(params, 'after', null), { state: route.state })
+              }
+            >
+              İlk sayfa
+            </Button>
+            <Button
+              variant="outline"
+              disabled={loading || !data?.hasMore || !data.nextCursor}
+              onClick={() => {
+                if (data?.nextCursor)
+                  setParams(relatedPageParams(params, 'after', data.nextCursor), {
+                    state: route.state,
+                  });
+              }}
+            >
+              Sonraki poliçeler
+            </Button>
+          </div>
+        )}
+        <p className="customer-legacy-hint">İncelemek veya düzenlemek için poliçeyi açın.</p>
       </CardContent>
     </Card>
   );
-}
-interface RenewalPage {
-  items: Array<{ id: string; policyNumber: string; policyEndDate: string; state: string }>;
-  nextCursor: string | null;
 }
 function RelatedRenewals({ customerId }: { customerId: string }) {
   const route = useLocation();
   const [params, setParams] = useSearchParams();
   const cursor = params.get('renewalsAfter');
-  const { data, error, loading, reload } = useCustomerResource<RenewalPage>(
+  const { data, error, loading, reload } = useCustomerResource(
     `/api/customers/${encodeURIComponent(customerId)}/renewals${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+    relatedRenewalsSchema,
   );
-  const labels: Record<string, string> = {
+  const labels: Record<RenewalStateCode, string> = {
     CONTACT_PENDING: 'İletişim bekleniyor',
     CONTACTED: 'Görüşüldü',
     QUOTE_PREPARING: 'Teklif hazırlanıyor',
@@ -141,9 +164,11 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
         {error && (
           <div role="alert">
             <p>{error.message}</p>
-            <Button variant="outline" onClick={reload}>
-              Yeniden dene
-            </Button>
+            {error.status >= 500 && (
+              <Button variant="outline" onClick={reload}>
+                Yenilemeleri yeniden dene
+              </Button>
+            )}
           </div>
         )}
         {data && !data.items.length && <p>Görüntülenebilir yenileme bulunamadı.</p>}
@@ -151,9 +176,11 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
           <ul className="customer-related-list">
             {data.items.map((item) => (
               <li key={item.id}>
-                <strong>{item.policyNumber}</strong>
-                <span>Vade: {date(item.policyEndDate)}</span>
-                <span>{labels[item.state] ?? 'Devam ediyor'}</span>
+                <Link className="customer-name" to={'/renewals/' + encodeURIComponent(item.id)}>
+                  {item.policyNumber}
+                </Link>
+                <span>Vade: {storedPolicyDate(item.policyEndDate)}</span>
+                <span>{labels[item.state]}</span>
               </li>
             ))}
           </ul>
@@ -162,7 +189,9 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
           <Button
             variant="outline"
             disabled={!cursor || loading}
-            onClick={() => setParams({ section: 'policies' }, { state: route.state })}
+            onClick={() =>
+              setParams(relatedPageParams(params, 'renewalsAfter', null), { state: route.state })
+            }
           >
             İlk yenilemeler
           </Button>
@@ -171,10 +200,9 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
             disabled={loading || !data?.nextCursor}
             onClick={() => {
               if (data?.nextCursor)
-                setParams(
-                  { section: 'policies', renewalsAfter: data.nextCursor },
-                  { state: route.state },
-                );
+                setParams(relatedPageParams(params, 'renewalsAfter', data.nextCursor), {
+                  state: route.state,
+                });
             }}
           >
             Sonraki yenilemeler
@@ -184,21 +212,59 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
     </Card>
   );
 }
+function ManagementOption({ title, children }: { title: string; children: ReactNode }) {
+  const [visited, setVisited] = useState(false);
+  return (
+    <details
+      className="customer-management-option"
+      onToggle={(event) => {
+        if (event.currentTarget.open) setVisited(true);
+      }}
+    >
+      <summary>{title}</summary>
+      {visited && children}
+    </details>
+  );
+}
 function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDetailDto }) {
   const route = useLocation();
   const [customer, setCustomer] = useState(initialCustomer);
+  const reloadReader = useRef<AbortController | null>(null);
+  useEffect(() => () => reloadReader.current?.abort(), []);
   const [params] = useSearchParams();
-  const section = sections.some(([key]) => key === params.get('section'))
-    ? params.get('section')!
-    : 'general';
+  const section = route.pathname.endsWith('/advanced')
+    ? 'management'
+    : sections.some(([key]) => key === params.get('section'))
+      ? params.get('section')!
+      : 'general';
+  async function reloadCustomer() {
+    reloadReader.current?.abort();
+    const controller = new AbortController();
+    reloadReader.current = controller;
+    const fresh = await readCustomerResource(
+      `/api/customers/${encodeURIComponent(customer.id)}`,
+      controller.signal,
+      customerDetailFor(customer.id),
+    );
+    controller.signal.throwIfAborted();
+    setCustomer((previous) => (fresh.version >= previous.version ? fresh : previous));
+  }
   const [notesVisited, setNotesVisited] = useState(section === 'notes');
+  const [numbersVisited, setNumbersVisited] = useState(section === 'general');
+  const [vehiclesVisited, setVehiclesVisited] = useState(section === 'vehicles');
   useEffect(() => {
     if (section === 'notes') setNotesVisited(true);
+    if (section === 'general') setNumbersVisited(true);
+    if (section === 'vehicles') setVehiclesVisited(true);
   }, [section]);
   return (
     <div className="customer-modern">
       <ReturnToWork />
-      <Link className="customer-back" to="/customers">
+      <Link
+        className="customer-back"
+        to="/customers"
+        state={customerListReturnState(route.state?.listPositionKey)}
+      >
         <ArrowLeft size={17} aria-hidden="true" />
         Müşteri listesine dön
       </Link>
@@ -207,6 +273,11 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
         description={customer.type === 'COMPANY' ? 'Kurumsal müşteri' : 'Bireysel müşteri'}
         action={
           <div className="customer-form-actions">
+            <Button asChild variant="outline">
+              <Link to={`/claims?customerId=${encodeURIComponent(customer.id)}`}>
+                Hasar dosyaları
+              </Link>
+            </Button>
             {!customer.archivedAt && (
               <Button asChild>
                 <Link to={`/policies/new?customerId=${encodeURIComponent(customer.id)}`}>
@@ -217,7 +288,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
             <Button asChild variant="outline">
               <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
                 <Settings2 aria-hidden="true" />
-                İleri müşteri işlemleri
+                Diğer müşteri işlemleri
               </Link>
             </Button>
           </div>
@@ -236,12 +307,14 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           {customer.phone || 'Telefon belirtilmedi'}
         </span>
       </div>
-      <CustomerCoverage customerId={customer.id} />
+      {section !== 'general' && section !== 'management' && (
+        <CustomerCoverage customerId={customer.id} />
+      )}
       <nav className="customer-section-nav" aria-label="Müşteri bölümleri">
         {sections.map(([key, label]) => (
           <Link
             key={key}
-            to={`?section=${key}`}
+            to={`/customers/${encodeURIComponent(customer.id)}?section=${key}`}
             state={route.state}
             aria-current={key === section ? 'page' : undefined}
           >
@@ -249,45 +322,66 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
           </Link>
         ))}
       </nav>
-      {section === 'general' && (
+      {section === 'management' && (
         <Card>
           <CardHeader>
-            <CardTitle>Genel bilgiler</CardTitle>
+            <CardTitle>Müşteri işlemleri</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="customer-info-grid">
-              <div>
-                <dt>Ad / unvan</dt>
-                <dd>{customer.displayName}</dd>
-              </div>
-              <div>
-                <dt>Müşteri türü</dt>
-                <dd>{customer.type === 'COMPANY' ? 'Kurumsal' : 'Bireysel'}</dd>
-              </div>
-              <div>
-                <dt>Kayıt tarihi</dt>
-                <dd>{date(customer.createdAt)}</dd>
-              </div>
-              <div>
-                <dt>Durum</dt>
-                <dd>{customer.archivedAt ? 'Arşivlenmiş' : 'Aktif'}</dd>
-              </div>
-            </dl>
-            <p className="customer-legacy-hint">
-              E-posta, telefon, adres ve şirket yetkililerini İletişim bölümünden yönetebilirsiniz.
-              Atama, arşivleme ve yetkili kimlik işlemleri “İleri müşteri işlemleri”
-              bağlantısındadır.
-            </p>
+            <p>Yalnız seçtiğiniz müşterinin bilgilerini yönetiyorsunuz.</p>
+            <Button asChild variant="outline">
+              <Link to={`/customers/${encodeURIComponent(customer.id)}`}>Müşteri kartına dön</Link>
+            </Button>
+            {!customer.archivedAt && (
+              <>
+                <ManagementOption
+                  title={
+                    customer.type === 'COMPANY'
+                      ? customer.hasIdentity
+                        ? 'Vergi numarası'
+                        : 'Vergi numarası eksik'
+                      : 'Kimlik bilgileri'
+                  }
+                >
+                  <CustomerIdentitySection
+                    customer={customer}
+                    styles={{}}
+                    onCustomerReload={reloadCustomer}
+                  />
+                </ManagementOption>
+                <ManagementOption title="Kaynak müşteri numaraları">
+                  <CustomerExternalReferencesSection
+                    customer={customer}
+                    onCustomerReload={reloadCustomer}
+                  />
+                </ManagementOption>
+              </>
+            )}
+            <CustomerArchiveSection customer={customer} onCustomerReload={reloadCustomer} />
           </CardContent>
         </Card>
       )}
-      {section === 'contact' && (
+      {(section === 'general' || section === 'contact') && (
         <Card>
           <CardHeader>
-            <CardTitle>İletişim bilgileri</CardTitle>
+            <CardTitle>Müşteri ve iletişim bilgileri</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="customer-info-grid">
+              <div>
+                <dt>Referans kişi</dt>
+                <dd>{customer.referenceName || 'Belirtilmedi'}</dd>
+              </div>
+              {customer.type === 'INDIVIDUAL' && (
+                <div>
+                  <dt>Doğum tarihi</dt>
+                  <dd>
+                    {customer.birthDate
+                      ? customer.birthDate.split('-').reverse().join('.')
+                      : 'Belirtilmedi'}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>
                   <Mail size={16} aria-hidden="true" />
@@ -323,7 +417,7 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
                 <p>Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.</p>
               )}
             </div>
-            {customer.type === 'COMPANY' && (
+            {customer.type === 'COMPANY' && section === 'contact' && (
               <>
                 <CompanyContactsSection
                   key={customer.id}
@@ -332,16 +426,30 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
                     setCustomer((previous) => (previous.id === current.id ? current : previous))
                   }
                 />
-                <p className="customer-legacy-hint">
-                  <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
-                    Klasik şirket yetkilisi işlemlerini açın
-                  </Link>{' '}
-                  · Önceki çalışma alanı da korunmaktadır.
-                </p>
               </>
             )}
           </CardContent>
         </Card>
+      )}
+      {(numbersVisited || section === 'general') && (
+        <CustomerInsurerNumbers
+          key={'insurer-numbers:' + customer.id}
+          customer={customer}
+          onCustomerReload={reloadCustomer}
+          visible={section === 'general'}
+        />
+      )}
+      {section === 'general' && <RelatedPolicies customerId={customer.id} />}
+      {section === 'sales' && (
+        <SalesCasesSection key={`sales:${customer.id}`} customer={customer} />
+      )}
+      {(vehiclesVisited || section === 'vehicles') && (
+        <CustomerVehicles
+          key={'vehicles:' + customer.id}
+          customer={customer}
+          onReload={reloadCustomer}
+          visible={section === 'vehicles'}
+        />
       )}
       {(notesVisited || section === 'notes') && (
         <CustomerNoteWorkspace
@@ -361,9 +469,12 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
   );
 }
 export default function CustomerProfilePage() {
+  const route = useLocation();
   const { customerId = '' } = useParams();
-  const { data, error, loading, reload } = useCustomerResource<CustomerDetailDto>(
+  const decoder = useMemo(() => customerDetailFor(customerId), [customerId]);
+  const { data, error, loading, reload } = useCustomerResource(
     `/api/customers/${encodeURIComponent(customerId)}`,
+    decoder,
   );
   if (loading)
     return (
@@ -371,13 +482,15 @@ export default function CustomerProfilePage() {
         Müşteri profili yükleniyor…
       </p>
     );
-  if (error || !data || data.id !== customerId)
+  if (error || !data)
     return (
       <div role="alert" className="customer-state">
         <h1>Müşteri profili açılamadı</h1>
         <p>{error?.message ?? 'Kayıt kullanılamıyor.'}</p>
         <Button asChild variant="outline">
-          <Link to="/customers">Müşteri listesine dön</Link>
+          <Link to="/customers" state={customerListReturnState(route.state?.listPositionKey)}>
+            Müşteri listesine dön
+          </Link>
         </Button>
         {error && error.status >= 500 && <Button onClick={reload}>Yeniden dene</Button>}
       </div>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CustomerReadError, readCustomerResource } from '../pages/customers/customer-resource';
 import type { TaskStatisticsCounts, TaskStatisticsData } from '../../shared/task-statistics';
+import { Button } from './ui/button';
 
 function Counts({ counts }: { readonly counts: TaskStatisticsCounts }) {
   return (
-    <dl style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', margin: '0.5rem 0' }}>
+    <dl className="workload-counts">
       {(
         [
           ['Geciken', counts.overdue],
@@ -15,7 +16,7 @@ function Counts({ counts }: { readonly counts: TaskStatisticsCounts }) {
       ).map(([label, count]) => (
         <div key={label}>
           <dt>{label}</dt>
-          <dd style={{ margin: 0, fontWeight: 700 }}>{count}</dd>
+          <dd>{count}</dd>
         </div>
       ))}
     </dl>
@@ -94,33 +95,40 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
   }, [load, refreshKey]);
   const visible = data?.view === view ? data : null;
   return (
-    <section
-      aria-label="Görev istatistikleri"
-      style={{ border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '1rem' }}
-    >
-      <h3>Görev istatistikleri</h3>
+    <section aria-label="Görev istatistikleri" className="workload-summary">
+      <h3>Görevlerin durumu</h3>
       <p>
-        Güncel atanmış iş yükü ile tamamlayan çalışanın faaliyeti ayrı ölçülür. Görev sayısıdır;
-        müşteri veya yenileme sayısı değildir.
+        Sisteme kaydettiğiniz görevlerin geciken, bugün yapılacak ve yaklaşan işlerini gösterir. Son
+        30 günde tamamladığınız görevler ayrıca sayılır. Müşteri veya teklif sayısı değildir.
       </p>
-      {canSeeTeam && (
-        <nav aria-label="İstatistik kapsamı">
-          <button type="button" aria-pressed={view === 'self'} onClick={() => setView('self')}>
-            Kendi özetim
-          </button>{' '}
-          <button type="button" aria-pressed={view === 'team'} onClick={() => setView('team')}>
-            Ekip özeti
-          </button>
-        </nav>
-      )}
+      <div className="workload-actions">
+        {canSeeTeam && (
+          <div className="workload-scope" role="group" aria-label="İstatistik kapsamı">
+            <Button
+              variant="outline"
+              aria-pressed={view === 'self'}
+              onClick={() => setView('self')}
+            >
+              Kendi özetim
+            </Button>
+            <Button
+              variant="outline"
+              aria-pressed={view === 'team'}
+              onClick={() => setView('team')}
+            >
+              Ekip özeti
+            </Button>
+          </div>
+        )}
+        <Button variant="outline" disabled={loading} onClick={() => void load(failedCursor)}>
+          {error ? 'İstatistikleri yeniden dene' : 'İstatistikleri yenile'}
+        </Button>
+      </div>
       {loading && <p role="status">İstatistikler yükleniyor…</p>}
       {error && <p role="alert">{error}</p>}
-      <button type="button" disabled={loading} onClick={() => void load(failedCursor)}>
-        {error ? 'İstatistikleri yeniden dene' : 'İstatistikleri yenile'}
-      </button>
       {visible && (
         <>
-          <p>
+          <p className="workload-timestamp">
             Europe/Istanbul · İş günü: {visible.todayLocalDate} · Hesaplama:{' '}
             {new Intl.DateTimeFormat('tr-TR', {
               timeZone: 'Europe/Istanbul',
@@ -130,7 +138,7 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
           </p>
           <h4>{view === 'team' ? 'Tüm ekip (atanmamış dahil)' : 'Kendi görev özetim'}</h4>
           <Counts counts={visible.summary} />
-          <details>
+          <details className="workload-definitions">
             <summary>Metrik tanımları ve kapsam</summary>
             <p>
               Güncel atanmış iş yükü: Geciken, bugünün 00:00 sınırından önce vadeli açık görevler;
@@ -160,7 +168,7 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
                 <article
                   key={employee.membershipId}
                   aria-label={employee.displayName ?? 'Çalışan adı mevcut değil'}
-                  style={{ borderTop: '1px solid #e2e8f0', padding: '0.5rem 0' }}
+                  className="workload-employee"
                 >
                   <h5>
                     {employee.displayName ?? 'Çalışan adı mevcut değil'} ·{' '}
@@ -193,13 +201,13 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
                 </>
               )}
               {visible.nextCursor && (
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   disabled={loading}
                   onClick={() => void load(visible.nextCursor)}
                 >
                   Diğer çalışanları göster
-                </button>
+                </Button>
               )}
             </>
           )}
@@ -208,13 +216,20 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
     </section>
   );
 }
-export function TaskStatisticsPanel({ refreshKey }: { readonly refreshKey: number }) {
+export function TaskStatisticsPanel({
+  refreshKey,
+  embedded = false,
+}: {
+  readonly refreshKey: number;
+  readonly embedded?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  if (embedded) return <Statistics refreshKey={refreshKey} />;
   return (
     <div>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
         {open ? 'Görev istatistiklerini gizle' : 'Görev istatistiklerini göster'}
-      </button>
+      </Button>
       {open && <Statistics refreshKey={refreshKey} />}
     </div>
   );

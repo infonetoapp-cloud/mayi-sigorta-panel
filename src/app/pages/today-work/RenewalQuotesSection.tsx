@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { ApiResponse, SelectableCatalogsDto } from '../../../shared/types';
 import { Button } from '../../components/ui/button';
+import { RecordDetails } from '../../components/workspace/RecordDetails';
+import { QuoteComparisonTable } from './QuoteComparisonTable';
 import { Input } from '../../components/ui/input';
 import { parseAppError } from '../../App';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
-import { premiumInput } from '../policies/policy-form-model';
-import { interactionTime } from './interaction-model';
+
 import { QuoteSentOperation } from './QuoteSentOperation';
 import {
   quoteDraft,
   quotePayload,
   quoteMatches,
+  exactQuoteUrl,
   savedPayload,
-  quoteStatuses,
   type QuoteHistory,
   type QuoteRecord,
   type QuoteDraft,
@@ -24,6 +25,7 @@ export interface QuoteRisk {
   unresolved: boolean;
 }
 interface Props {
+  active?: boolean;
   renewalId: string;
   renewalVersion: number;
   renewalOpen: boolean;
@@ -87,6 +89,25 @@ function validResult(r: Result, a: Attempt) {
 }
 function historyShape(h: QuoteHistory) {
   if (!h || !Array.isArray(h.quotes) || !h.defaultVersion) return false;
+  if (
+    h.historyMode === 'SUMMARY' &&
+    (h.quotes.length > 50 ||
+      typeof h.hasMore !== 'boolean' ||
+      !(
+        h.nextCursor === null ||
+        (typeof h.nextCursor === 'string' && h.nextCursor.length <= 1800)
+      ) ||
+      h.hasMore !== !!h.nextCursor ||
+      h.quotes.some(
+        (q) =>
+          !q.versions?.some((v) => v.id === q.current_version_id) ||
+          q.versions.length > 4 ||
+          q.events?.length > 3 ||
+          !Number.isSafeInteger(q.versionCount) ||
+          q.versionCount !== q.versions.find((v) => v.id === q.current_version_id)?.version_number,
+      ))
+  )
+    return false;
   try {
     quoteDraft(h.defaultVersion);
     return h.quotes.every(
@@ -111,6 +132,7 @@ function historyShape(h: QuoteHistory) {
 }
 function QuoteWorkspace(props: Props) {
   const root = `/api/renewals/${encodeURIComponent(props.renewalId)}/quotes`;
+  const [cursor, setCursor] = useState<string | null>(null);
   const [opened, setOpened] = useState(false),
     [data, setData] = useState<QuoteHistory | null>(null),
     [catalogs, setCatalogs] = useState<SelectableCatalogsDto | null>(null),
@@ -173,6 +195,8 @@ function QuoteWorkspace(props: Props) {
         throw new Error('CATALOG_SHAPE');
       const resolved: Record<string, string> = {};
       for (const insurer of cats.insurers) resolved[insurer.id] = insurer.name;
+      for (const q of h.quotes)
+        for (const v of q.versions) if (v.insurer_name) resolved[v.insurer_id] = v.insurer_name;
       // Resolve authorized historical insurer labels only for this selected renewal; never invent names.
       for (const missing of new Set(
         h.quotes
@@ -194,7 +218,11 @@ function QuoteWorkspace(props: Props) {
       return null;
     }
   }
-  async function load(proof?: { attempt: Attempt; result: Result }, compare = false) {
+  async function load(
+    proof?: { attempt: Attempt; result: Result },
+    compare = false,
+    pageCursor: string | null = cursor,
+  ) {
     if (lock.current && !proof) return;
     const e = epoch.current,
       g = ++readGeneration.current,
@@ -203,9 +231,22 @@ function QuoteWorkspace(props: Props) {
     setBusy(true);
     setError('');
     try {
-      const h = await readCustomerResource<QuoteHistory>(root, c.signal);
+      const url = proof
+        ? exactQuoteUrl(
+            root,
+            proof.result.quoteId,
+            proof.result.quoteVersionId,
+            proof.result.operationId,
+          )
+        : compare && form?.kind === 'version'
+          ? exactQuoteUrl(root, form.quoteId!)
+          : pageCursor
+            ? `${root}?cursor=${encodeURIComponent(pageCursor)}`
+            : root;
+      const h = await readCustomerResource<QuoteHistory>(url, c.signal);
       if (!historyShape(h)) throw new Error('HISTORY_SHAPE');
       if (e !== epoch.current || c.signal.aborted || g !== readGeneration.current) return;
+      setCursor(proof || (compare && form?.kind === 'version') ? null : pageCursor);
       if (proof) {
         const { attempt: a, result: r } = proof,
           q = h.quotes.find((q) => q.id === r.quoteId),
@@ -237,7 +278,12 @@ function QuoteWorkspace(props: Props) {
       const cat = await readCatalogs(c.signal, h);
       if (e !== epoch.current || c.signal.aborted || g !== readGeneration.current) return;
       setCatalogs(cat?.catalogs ?? null);
-      setNames(cat?.names ?? {});
+      const labels: Record<string, string> = {};
+      for (const q of h.quotes)
+        for (const v of q.versions)
+          if (typeof v.insurer_name === 'string' && v.insurer_name.trim())
+            labels[v.insurer_id] = v.insurer_name;
+      setNames({ ...labels, ...(cat?.names ?? {}) });
       setCatalogError(
         cat
           ? ''
@@ -534,66 +580,89 @@ function QuoteWorkspace(props: Props) {
       </>
     );
   };
+  useEffect(() => {
+    if (props.active && !opened) {
+      setOpened(true);
+      void load();
+    }
+  }, [props.active, opened]);
   return (
     <section className="renewal-interactions quote-section" aria-label="Teklifler">
       <h3 ref={historyHeading} tabIndex={-1}>
         Teklifler
       </h3>
       <p className="today-state-help">
-        Teklif oluşturma ve gönderildi kaydı ayrı işlemlerdir. Bu bölüm müşteriye mesaj göndermez.
+        Çalışanın elle kaydettiği şirket tekliflerini karşılaştırın veya yeni bir teklif ekleyin.
       </p>
-      <details className="workspace-help">
-        <summary>Teklif ve sürüm bilgisi</summary>
-        <p>
-          Teklif okuma ve yönetme izinleri ayrı doğrulanır. Gönderildi durumu dış mesaj teslimatının
-          kanıtı değildir. Burada mesaj/belge gönderilmez; kabul/ret veya yenileme sonucu işlemi
-          yapılmaz. Farklı sigorta şirketi veya ürün alternatifi için yeni teklif oluşturun; sürüm
-          işlemi aynı teklifin ilk kayıtlı şirket/ürün kimliğini korur.
-        </p>
-      </details>
-      {!opened ? (
-        <Button
-          variant="outline"
-          onClick={() => {
-            setOpened(true);
-            void load();
-          }}
-        >
-          Teklif geçmişini aç
-        </Button>
-      ) : (
-        <Button variant="outline" disabled={locked || !!form} onClick={() => void load()}>
-          Teklif geçmişini ve katalogları yeniden oku
-        </Button>
-      )}
-      {busy && <p role="status">Teklif bilgileri işleniyor…</p>}
-      {error && <p role="alert">{error}</p>}
-      {success && <p role="status">{success}</p>}
-      {catalogError && <p>{catalogError}</p>}
-      {opened && (
-        <QuoteSentOperation
-          renewalId={props.renewalId}
-          renewalOpen={props.renewalOpen}
-          history={data}
-          insurerNames={names}
-          blocked={busy || !!form || !!pending || !!saved}
-          canOperate={() => !lock.current && !form && !pending && !saved && props.canOperate()}
-          compareRenewal={props.compareRenewal}
-          onHistory={(history) => setData(history)}
-          onDenied={() => {
-            setData(null);
-            setCatalogs(null);
-            setNames({});
-          }}
-          onRisk={(next) => {
-            if (next.dirty && !sentRiskRef.current.dirty) setSuccess('');
-            sentRiskRef.current = next;
-            setSentRisk((old) =>
-              old.dirty === next.dirty && old.unresolved === next.unresolved ? old : next,
-            );
-          }}
-        />
-      )}
+      <p className="quote-history-help">
+        Sigorta şirketlerinden otomatik fiyat alınmaz. Her satır ayrı bir şirket teklifidir. Fiyat
+        güncellendiğinde önceki fiyat korunur.
+      </p>
+      <div className="quote-section-actions">
+        {data && !form && props.renewalOpen && (
+          <Button disabled={locked || !catalogs} onClick={() => open('create')}>
+            Yeni teklif
+          </Button>
+        )}
+        {!opened ? (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setOpened(true);
+              void load();
+            }}
+          >
+            Teklif geçmişini aç
+          </Button>
+        ) : (
+          <Button variant="outline" disabled={locked || !!form} onClick={() => void load()}>
+            Kayıtlı teklifleri yenile
+          </Button>
+        )}
+        {busy && (
+          <span
+            className="crm-read-progress"
+            role="status"
+            aria-label={form ? 'Teklif işlemi sürüyor' : 'Teklifler yükleniyor'}
+          >
+            •••
+          </span>
+        )}
+        {error && <p role="alert">{error}</p>}
+        {success && (
+          <p role="status" data-tone="positive">
+            {success}
+          </p>
+        )}
+        {catalogError && <p>{catalogError}</p>}
+        {opened && (
+          <QuoteSentOperation
+            renewalId={props.renewalId}
+            renewalOpen={props.renewalOpen}
+            history={data}
+            insurerNames={names}
+            blocked={busy || !!form || !!pending || !!saved}
+            canOperate={() => !lock.current && !form && !pending && !saved && props.canOperate()}
+            compareRenewal={props.compareRenewal}
+            onHistory={(history) => {
+              setCursor(null);
+              setData(history);
+            }}
+            onDenied={() => {
+              setData(null);
+              setCatalogs(null);
+              setNames({});
+            }}
+            onRisk={(next) => {
+              if (next.dirty && !sentRiskRef.current.dirty) setSuccess('');
+              sentRiskRef.current = next;
+              setSentRisk((old) =>
+                old.dirty === next.dirty && old.unresolved === next.unresolved ? old : next,
+              );
+            }}
+          />
+        )}
+      </div>
       {pending && (
         <Button disabled={busy} onClick={() => void send(pending)}>
           Aynı {pending.kind === 'create' ? 'teklif' : 'sürüm'} isteğini yeniden dene
@@ -606,15 +675,17 @@ function QuoteWorkspace(props: Props) {
       )}
       {form && (
         <>
-          <p>
-            Taslak yalnız bellektedir.{' '}
-            {form.kind === 'create'
-              ? `İlk yenileme v${form.openingRenewalVersion}; gönderim kayıt sürümü ${form.renewalVersion}`
-              : `Aynı teklif düzenleniyor; ilk kayıt sürümü ${form.openingQuoteVersion}, güncel kayıt sürümü ${form.quoteVersion}; yeni teklif sürümü ${form.nextNumber}`}
-            . Kayıtlı sürümler düzenlenmez.
-            {form.kind === 'version' &&
-              ' Şirket/ürün kimliği sabittir; farklı alternatif için ayrı yeni teklif oluşturun.'}
-          </p>
+          <RecordDetails title="Teklif kayıt bilgileri">
+            <p>
+              Taslak yalnız bellektedir.{' '}
+              {form.kind === 'create'
+                ? `İlk yenileme v${form.openingRenewalVersion}; gönderim kayıt sürümü ${form.renewalVersion}`
+                : `Aynı teklif düzenleniyor; ilk kayıt sürümü ${form.openingQuoteVersion}, güncel kayıt sürümü ${form.quoteVersion}; yeni teklif sürümü ${form.nextNumber}`}
+              . Kayıtlı sürümler düzenlenmez.
+              {form.kind === 'version' &&
+                ' Şirket/ürün kimliği sabittir; farklı alternatif için ayrı yeni teklif oluşturun.'}
+            </p>
+          </RecordDetails>
           {!locked && (
             <Button
               variant="outline"
@@ -638,119 +709,15 @@ function QuoteWorkspace(props: Props) {
       )}
       {data && (
         <>
-          <div className="quote-history">
-            {!data.quotes.length && <p>Henüz teklif kaydı bulunmuyor.</p>}
-            {data.quotes.map((q, index) => (
-              <article key={q.id} className="quote-record" aria-label={`Teklif ${index + 1}`}>
-                <h4>
-                  Teklif {index + 1} — {quoteStatuses[q.status] ?? q.status}
-                </h4>
-                <p>
-                  Kayıt sürümü {q.version} ·{' '}
-                  {interactionTime(q.created_at) ?? 'Kayıt tarihi mevcut değil'}
-                </p>
-                {q.versions.map((v) => (
-                  <details key={v.id} open={v.id === q.current_version_id}>
-                    <summary>
-                      Sürüm {v.version_number} —{' '}
-                      {v.id === q.current_version_id
-                        ? 'Güncel kayıtlı sürüm'
-                        : 'Tarihsel değişmez sürüm'}
-                      {v.id === q.accepted_version_id ? ' · Kabul edilmiş sürüm' : ''}
-                    </summary>
-                    {v.id === q.current_version_id &&
-                      Number.isFinite(Date.parse(v.valid_until)) &&
-                      Date.parse(v.valid_until) <= Date.now() && (
-                        <p className="quote-expiry-notice">
-                          Bu sürümün geçerliliği sona erdi; gönderildi veya kabul kaydı için
-                          seçilemez. Yenileme açıksa ve yetkiniz varsa aşağıdaki yeni sürüm
-                          işlemiyle güncel bir teklif hazırlayın. Kayıtlı teklif durumu
-                          değiştirilmedi.
-                        </p>
-                      )}
-                    <dl className="today-task-facts">
-                      <div>
-                        <dt>Sigorta şirketi / ürün</dt>
-                        <dd>
-                          {names[v.insurer_id] ?? 'Şirket adı mevcut değil'} /{' '}
-                          {v.product_name ?? 'Ürün adı mevcut değil'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Kapsam</dt>
-                        <dd>
-                          {v.start_date} — {v.end_date}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Geçerlilik sonu (İstanbul)</dt>
-                        <dd>{interactionTime(v.valid_until) ?? 'Tarih mevcut değil'}</dd>
-                      </div>
-                      <div>
-                        <dt>Brüt prim</dt>
-                        <dd>
-                          {premiumInput(v.gross_premium_minor)} {v.currency}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Taksit sayısı</dt>
-                        <dd>{v.installment_count ?? 'Taksit belirtilmemiş'}</dd>
-                      </div>
-                    </dl>
-                    {v.terms_summary !== null && (
-                      <p className="interaction-note">{v.terms_summary}</p>
-                    )}
-                    <p>{interactionTime(v.created_at) ?? 'Sürüm kayıt tarihi mevcut değil'}</p>
-                  </details>
-                ))}
-                <ul
-                  className="interaction-timeline"
-                  aria-label={`Teklif ${index + 1} tarihsel olayları`}
-                >
-                  {q.events.map((event) => (
-                    <li key={event.id}>
-                      {quoteStatuses[event.event] ?? event.event} ·{' '}
-                      {interactionTime(event.occurred_at) ?? 'Olay tarihi mevcut değil'}
-                      {event.quote_version_id &&
-                      q.versions.some((v) => v.id === event.quote_version_id)
-                        ? ` · Sürüm ${q.versions.find((v) => v.id === event.quote_version_id)!.version_number}`
-                        : ''}
-                    </li>
-                  ))}
-                </ul>
-                {!form && q.status !== 'ACCEPTED' && props.renewalOpen && (
-                  <Button
-                    variant="outline"
-                    disabled={
-                      locked || !catalogs || !q.versions.some((v) => v.id === q.current_version_id)
-                    }
-                    onClick={() => open('version', q)}
-                  >
-                    Teklif {index + 1} için yeni değişmez sürüm taslağı aç
-                  </Button>
-                )}
-                {q.status === 'ACCEPTED' && (
-                  <p>Kabul edilmiş teklif salt okunur; yeni sürüm oluşturulamaz.</p>
-                )}
-              </article>
-            ))}
-          </div>
-          {!form && props.renewalOpen && (
-            <Button disabled={locked || !catalogs} onClick={() => open('create')}>
-              Yeni teklif taslağı aç
-            </Button>
-          )}
           {form && catalogs && (
             <form
               className="interaction-form quote-form"
-              aria-label={
-                form.kind === 'create' ? 'Yeni teklif formu' : 'Yeni değişmez sürüm formu'
-              }
+              aria-label={form.kind === 'create' ? 'Yeni teklif formu' : 'Teklif revizyon formu'}
               noValidate
               onSubmit={submit}
             >
               <h4 ref={formHeading} tabIndex={-1}>
-                {form.kind === 'create' ? 'Yeni teklif önerisi' : 'Yeni değişmez sürüm önerisi'}
+                {form.kind === 'create' ? 'Yeni teklif' : 'Fiyatı güncelle'}
               </h4>
               <p>
                 Sunucu varsayımları yalnız öneridir. Kapsam/prim/geçerlilik/koşulları inceleyin;
@@ -809,11 +776,63 @@ function QuoteWorkspace(props: Props) {
                     : 'Mevcut sürümü değiştirmeden yeni sürüm oluşturmayı onaylıyorum'}
                 </label>
               </fieldset>
-              <Button disabled={locked || form.needsCompare || !form.eligible} type="submit">
-                {form.kind === 'create' ? 'Teklifi oluştur' : 'Yeni değişmez sürümü oluştur'}
-              </Button>
+              <div className="crm-action-footer">
+                <Button disabled={locked || form.needsCompare || !form.eligible} type="submit">
+                  {form.kind === 'create' ? 'Teklifi oluştur' : 'Revizyonu kaydet'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="workspace-context-return"
+                  onClick={() => {
+                    const context = formHeading.current
+                      ?.closest('.today-overview')
+                      ?.querySelector<HTMLElement>('.today-summary');
+                    context?.scrollIntoView({ block: 'start' });
+                    context?.focus({ preventScroll: true });
+                  }}
+                >
+                  Müşteri ve poliçe özetine dön
+                </Button>
+              </div>
             </form>
           )}
+          <div className="quote-history">
+            {!!data.quotes.length && (
+              <QuoteComparisonTable
+                data={data}
+                renewalId={props.renewalId}
+                names={names}
+                disabled={locked || !catalogs}
+                canRevise={!form && props.renewalOpen}
+                onRevise={(quote) => open('version', quote)}
+              />
+            )}
+
+            {!data.quotes.length && <p>Henüz teklif kaydı bulunmuyor.</p>}
+            {(cursor || data.hasMore || data.selectedQuoteId) && (
+              <div className="customer-form-actions">
+                {(cursor || data.selectedQuoteId) && (
+                  <Button
+                    variant="outline"
+                    disabled={locked || !!form}
+                    onClick={() => void load(undefined, false, null)}
+                  >
+                    İlk teklif sayfası
+                  </Button>
+                )}
+                {data.nextCursor && (
+                  <Button
+                    variant="outline"
+                    disabled={locked || !!form}
+                    onClick={() => void load(undefined, false, data.nextCursor!)}
+                  >
+                    Diğer teklifler
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </section>

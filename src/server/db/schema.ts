@@ -1,15 +1,465 @@
 import { sql } from 'drizzle-orm';
 import {
   check,
+  type AnySQLiteColumn,
   foreignKey,
   index,
   integer,
   sqliteTable,
   text,
   uniqueIndex,
+  type SQLiteTableExtraConfigValue,
 } from 'drizzle-orm/sqlite-core';
 
 const utcNow = sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`;
+
+export const salesCasePolicyResults = sqliteTable(
+  'sales_case_policy_results',
+  {
+    receiptId: text('receipt_id')
+      .primaryKey()
+      .notNull()
+      .references(() => operationReceipts.id),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    caseVersion: integer('case_version').notNull(),
+    taskId: text('task_id').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    policyId: text('policy_id').notNull(),
+    policyVersion: integer('policy_version').notNull(),
+  },
+  (t) => [
+    uniqueIndex('sales_policy_result_case_version_uq').on(t.agencyId, t.caseId, t.caseVersion),
+    index('sales_policy_result_policy_idx').on(t.agencyId, t.policyId),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({ columns: [t.agencyId, t.taskId], foreignColumns: [tasks.agencyId, tasks.id] }),
+    foreignKey({
+      columns: [t.agencyId, t.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+    }),
+  ],
+);
+
+export const salesPriceEvents = sqliteTable(
+  'sales_price_events',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    revisionId: text('revision_id').notNull(),
+    caseVersion: integer('case_version').notNull(),
+    eventCode: text('event_code', {
+      enum: ['SHARED', 'CUSTOMER_ACCEPTED', 'ACCEPTANCE_REVOKED'],
+    }).notNull(),
+    occurredAt: text('occurred_at').notNull(),
+    taskId: text('task_id').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    actorUserId: text('actor_user_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    receiptId: text('receipt_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_price_events_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('sales_price_events_case_version_uq').on(t.agencyId, t.caseId, t.caseVersion),
+    uniqueIndex('sales_price_events_receipt_uq').on(t.receiptId),
+    index('sales_price_events_revision_page').on(t.agencyId, t.revisionId, t.caseVersion, t.id),
+    check(
+      'sales_price_events_code',
+      sql`${t.eventCode} IN ('SHARED','CUSTOMER_ACCEPTED','ACCEPTANCE_REVOKED')`,
+    ),
+    check('sales_price_events_versions', sql`${t.caseVersion}>=2 AND ${t.taskVersion}>=1`),
+    check(
+      'sales_price_events_occurrence',
+      sql`length(${t.occurredAt})=24 AND strftime('%Y-%m-%dT%H:%M:%fZ',${t.occurredAt}) IS NOT NULL AND strftime('%Y-%m-%dT%H:%M:%fZ',${t.occurredAt})=${t.occurredAt} AND ${t.occurredAt}<=${t.createdAt}`,
+    ),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.revisionId],
+      foreignColumns: [salesPriceRevisions.agencyId, salesPriceRevisions.id],
+    }),
+    foreignKey({ columns: [t.agencyId, t.taskId], foreignColumns: [tasks.agencyId, tasks.id] }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    foreignKey({ columns: [t.actorUserId], foreignColumns: [users.id] }),
+    foreignKey({ columns: [t.receiptId], foreignColumns: [operationReceipts.id] }),
+  ],
+);
+
+export const salesPrices = sqliteTable(
+  'sales_prices',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    insurerId: text('insurer_id').notNull(),
+    currentRevisionId: text('current_revision_id').notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_prices_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('sales_prices_company_uq').on(t.agencyId, t.caseId, t.insurerId),
+    index('sales_prices_case_page').on(t.agencyId, t.caseId, t.createdAt, t.id),
+    check('sales_prices_version', sql`${t.version}>=1`),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.insurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+    }),
+    foreignKey({
+      name: 'sales_prices_current_revision_fk',
+      columns: [t.agencyId, t.id, t.currentRevisionId],
+      foreignColumns: [
+        salesPriceRevisions.agencyId,
+        salesPriceRevisions.priceId,
+        salesPriceRevisions.id,
+      ],
+    }),
+  ],
+);
+export const salesPriceRevisions = sqliteTable(
+  'sales_price_revisions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    priceId: text('price_id').notNull(),
+    revisionNumber: integer('revision_number').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    termsNote: text('terms_note'),
+    offeredStartDate: text('offered_start_date'),
+    offeredEndDate: text('offered_end_date'),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_price_revisions_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('sales_price_revisions_pointer_uq').on(t.agencyId, t.priceId, t.id),
+    uniqueIndex('sales_price_revisions_number_uq').on(t.agencyId, t.priceId, t.revisionNumber),
+    check('sales_price_revisions_number', sql`${t.revisionNumber}>=1`),
+    check(
+      'sales_price_revisions_amount',
+      sql`${t.amountMinor}>=0 AND ${t.amountMinor}<=9007199254740991`,
+    ),
+    check(
+      'sales_price_revisions_currency',
+      sql`length(${t.currency})=3 AND ${t.currency} GLOB '[A-Z][A-Z][A-Z]'`,
+    ),
+    check(
+      'sales_price_revisions_note',
+      sql`${t.termsNote} IS NULL OR length(${t.termsNote}) BETWEEN 1 AND 1000`,
+    ),
+    check(
+      'sales_price_revisions_period',
+      sql`(${t.offeredStartDate} IS NULL AND ${t.offeredEndDate} IS NULL) OR (${t.offeredStartDate} IS NOT NULL AND ${t.offeredEndDate} IS NOT NULL AND length(${t.offeredStartDate})=10 AND date(${t.offeredStartDate}) IS NOT NULL AND date(${t.offeredStartDate})=${t.offeredStartDate} AND length(${t.offeredEndDate})=10 AND date(${t.offeredEndDate}) IS NOT NULL AND date(${t.offeredEndDate})=${t.offeredEndDate} AND ${t.offeredEndDate}>=${t.offeredStartDate})`,
+    ),
+    foreignKey({
+      columns: [t.agencyId, t.priceId],
+      foreignColumns: [salesPrices.agencyId, salesPrices.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    foreignKey({ columns: [t.createdByUserId], foreignColumns: [users.id] }),
+  ],
+);
+export const salesCaseResultRevisions = sqliteTable(
+  'sales_case_result_revisions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    resultNo: integer('result_no').notNull(),
+    kind: text('kind').notNull(),
+    caseVersion: integer('case_version').notNull(),
+    taskId: text('task_id').notNull(),
+    taskVersion: integer('task_version').notNull(),
+    lossReasonId: text('loss_reason_id').notNull(),
+    notes: text('notes'),
+    followupCaseId: text('followup_case_id'),
+    exceptionCode: text('exception_code'),
+    receiptId: text('receipt_id').notNull(),
+    actorUserId: text('actor_user_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_case_results_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('sales_case_results_number_uq').on(t.agencyId, t.caseId, t.resultNo),
+    uniqueIndex('sales_case_results_receipt_uq').on(t.receiptId),
+    uniqueIndex('sales_case_results_followup_uq').on(t.agencyId, t.followupCaseId),
+    check(
+      'sales_case_results_kind',
+      sql`${t.kind} IN ('LOST','WON','VOIDED','REOPENED','WON_CORRECTED')`,
+    ),
+    check(
+      'sales_case_results_versions',
+      sql`${t.resultNo}>=1 AND ${t.caseVersion}>=2 AND ${t.taskVersion}>=2`,
+    ),
+    check(
+      'sales_case_results_notes',
+      sql`${t.notes} IS NULL OR length(${t.notes}) BETWEEN 1 AND 500`,
+    ),
+    check(
+      'sales_case_results_followup',
+      sql`(${t.followupCaseId} IS NOT NULL AND ${t.exceptionCode} IS NULL) OR (${t.followupCaseId} IS NULL AND ${t.exceptionCode} IS NOT NULL AND ${t.exceptionCode} IN ('NO_FURTHER_CONTACT','DUPLICATE','TECHNICAL_ERROR') AND ${t.notes} IS NOT NULL)`,
+    ),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({ columns: [t.agencyId, t.taskId], foreignColumns: [tasks.agencyId, tasks.id] }),
+    foreignKey({
+      columns: [t.agencyId, t.lossReasonId],
+      foreignColumns: [lossReasons.agencyId, lossReasons.id],
+    }),
+    foreignKey({ columns: [t.followupCaseId], foreignColumns: [salesCases.id] }),
+    foreignKey({ columns: [t.receiptId], foreignColumns: [operationReceipts.id] }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    foreignKey({ columns: [t.actorUserId], foreignColumns: [users.id] }),
+  ],
+);
+export const salesCases = sqliteTable(
+  'sales_cases',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    branchId: text('branch_id').notNull(),
+    dataClassification: text('data_classification', { enum: ['GENERAL', 'HEALTH'] }).notNull(),
+    contextKind: text('context_kind', { enum: ['NEW_BUSINESS', 'RENEWAL'] }).notNull(),
+    renewalId: text('renewal_id'),
+    sourcePolicyId: text('source_policy_id'),
+    cycleDate: text('cycle_date'),
+    dateBasis: text('date_basis', { enum: ['KNOWN_END_DATE', 'MANUAL'] }).notNull(),
+    result: text('result', { enum: ['OPEN', 'WON', 'LOST', 'VOIDED'] }),
+    activeTaskId: text('active_task_id'),
+    currentResultId: text('current_result_id').references(() => salesCaseResultRevisions.id),
+    predecessorCaseId: text('predecessor_case_id').references((): AnySQLiteColumn => salesCases.id),
+    originResultRevisionId: text('origin_result_revision_id').references(
+      () => salesCaseResultRevisions.id,
+    ),
+    version: integer('version').notNull().default(1),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByMembershipId: text('created_by_membership_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_cases_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('sales_cases_renewal_uq').on(t.agencyId, t.renewalId),
+    uniqueIndex('sales_cases_origin_uq').on(
+      t.agencyId,
+      t.predecessorCaseId,
+      t.originResultRevisionId,
+    ),
+    index('sales_cases_customer_page').on(t.agencyId, t.customerId, t.createdAt, t.id),
+    check(
+      'sales_cases_context',
+      sql`(${t.contextKind}='NEW_BUSINESS' AND ${t.renewalId} IS NULL AND ${t.result} IN ('OPEN','WON','LOST','VOIDED')) OR (${t.contextKind}='RENEWAL' AND ${t.renewalId} IS NOT NULL AND ${t.result} IS NULL AND ${t.activeTaskId} IS NULL)`,
+    ),
+    check(
+      'sales_cases_active_task',
+      sql`(${t.contextKind}='NEW_BUSINESS' AND ${t.result}='OPEN' AND ${t.activeTaskId} IS NOT NULL) OR (NOT (${t.contextKind}='NEW_BUSINESS' AND ${t.result}='OPEN') AND ${t.activeTaskId} IS NULL)`,
+    ),
+    check('sales_cases_class', sql`${t.dataClassification} IN ('GENERAL','HEALTH')`),
+    check('sales_cases_version', sql`${t.version}>=1`),
+    check(
+      'sales_cases_date_basis',
+      sql`${t.dateBasis} IN ('KNOWN_END_DATE','MANUAL') AND (${t.dateBasis}<>'KNOWN_END_DATE' OR ${t.cycleDate} IS NOT NULL)`,
+    ),
+    foreignKey({
+      columns: [t.agencyId, t.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.branchId],
+      foreignColumns: [insuranceBranches.agencyId, insuranceBranches.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.sourcePolicyId],
+      foreignColumns: [policies.agencyId, policies.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.createdByMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    foreignKey({ columns: [t.createdByUserId], foreignColumns: [users.id] }),
+    foreignKey({
+      name: 'sales_cases_active_link_fk',
+      columns: [t.agencyId, t.id, t.activeTaskId],
+      foreignColumns: [salesCaseTasks.agencyId, salesCaseTasks.caseId, salesCaseTasks.taskId],
+    }),
+  ],
+);
+export const salesCaseTasks = sqliteTable(
+  'sales_case_tasks',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    taskId: text('task_id').notNull(),
+    purpose: text('purpose', { enum: ['ACTIVE_CONTACT', 'NEXT_CYCLE'] }).notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_case_tasks_relation_uq').on(t.agencyId, t.caseId, t.taskId),
+    uniqueIndex('sales_case_tasks_task_uq').on(t.agencyId, t.taskId),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({ columns: [t.agencyId, t.taskId], foreignColumns: [tasks.agencyId, tasks.id] }),
+    check('sales_case_tasks_purpose', sql`${t.purpose} IN ('ACTIVE_CONTACT','NEXT_CYCLE')`),
+  ],
+);
+export const salesCaseHistory = sqliteTable(
+  'sales_case_history',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    caseId: text('case_id').notNull(),
+    caseVersion: integer('case_version').notNull(),
+    eventCode: text('event_code').notNull(),
+    taskId: text('task_id'),
+    reasonCode: text('reason_code'),
+    notes: text('notes'),
+    actorUserId: text('actor_user_id').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    receiptId: text('receipt_id').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+  },
+  (t): SQLiteTableExtraConfigValue[] => [
+    uniqueIndex('sales_case_history_event_uq').on(t.agencyId, t.caseId, t.caseVersion, t.eventCode),
+    uniqueIndex('sales_case_history_receipt_uq').on(t.receiptId, t.caseId),
+    foreignKey({
+      columns: [t.agencyId, t.caseId],
+      foreignColumns: [salesCases.agencyId, salesCases.id],
+    }),
+    foreignKey({ columns: [t.agencyId, t.taskId], foreignColumns: [tasks.agencyId, tasks.id] }),
+    foreignKey({ columns: [t.receiptId], foreignColumns: [operationReceipts.id] }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    foreignKey({ columns: [t.actorUserId], foreignColumns: [users.id] }),
+    check('sales_case_history_version', sql`${t.caseVersion}>=1`),
+    check(
+      'sales_case_history_notes',
+      sql`${t.notes} IS NULL OR length(${t.notes}) BETWEEN 1 AND 500`,
+    ),
+  ],
+);
+
+export const customerVehicles = sqliteTable(
+  'customer_vehicles',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    detailsJson: text('details_json').notNull(),
+    normalizedPlate: text('normalized_plate'),
+    status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
+      .notNull()
+      .default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agencyId, table.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    uniqueIndex('customer_vehicles_agency_customer_id_uq').on(
+      table.agencyId,
+      table.customerId,
+      table.id,
+    ),
+    uniqueIndex('customer_vehicles_customer_plate_uq').on(
+      table.agencyId,
+      table.customerId,
+      table.normalizedPlate,
+    ),
+    index('customer_vehicles_customer_page_idx').on(table.agencyId, table.customerId, table.id),
+    check(
+      'customer_vehicles_details_valid',
+      sql`json_valid(${table.detailsJson}) AND json_type(${table.detailsJson})='object' AND (json_type(${table.detailsJson},'$.plate')='null' OR (json_type(${table.detailsJson},'$.plate')='text' AND length(trim(json_extract(${table.detailsJson},'$.plate'))) BETWEEN 2 AND 30))`,
+    ),
+    check(
+      'customer_vehicles_plate_nonempty',
+      sql`length(${table.normalizedPlate}) BETWEEN 2 AND 30`,
+    ),
+    check('customer_vehicles_status_valid', sql`${table.status} IN ('ACTIVE','INACTIVE')`),
+    check('customer_vehicles_version_positive', sql`${table.version}>=1`),
+    check('customer_vehicles_timestamps_ordered', sql`${table.updatedAt}>=${table.createdAt}`),
+  ],
+);
+export const policyVehicleSnapshots = sqliteTable(
+  'policy_vehicle_snapshots',
+  {
+    policyId: text('policy_id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    vehicleId: text('vehicle_id').notNull(),
+    vehicleVersion: integer('vehicle_version').notNull(),
+    detailsJson: text('details_json').notNull(),
+    createdAt: text('created_at').notNull().default(utcNow),
+    updatedAt: text('updated_at').notNull().default(utcNow),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agencyId, table.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    foreignKey({
+      columns: [table.agencyId, table.customerId, table.vehicleId],
+      foreignColumns: [customerVehicles.agencyId, customerVehicles.customerId, customerVehicles.id],
+    })
+      .onDelete('restrict')
+      .onUpdate('restrict'),
+    index('policy_vehicle_snapshots_vehicle_idx').on(
+      table.agencyId,
+      table.customerId,
+      table.vehicleId,
+    ),
+    check(
+      'policy_vehicle_snapshots_details_valid',
+      sql`json_valid(${table.detailsJson}) AND json_type(${table.detailsJson})='object'`,
+    ),
+    check('policy_vehicle_snapshots_version_positive', sql`${table.vehicleVersion}>=1`),
+    check(
+      'policy_vehicle_snapshots_timestamps_ordered',
+      sql`${table.updatedAt}>=${table.createdAt}`,
+    ),
+  ],
+);
 
 export const agencies = sqliteTable(
   'agencies',
@@ -473,6 +923,10 @@ export const customers = sqliteTable(
     firstName: text('first_name'),
     lastName: text('last_name'),
     companyTitle: text('company_title'),
+    birthDate: text('birth_date'),
+    referenceMembershipId: text('reference_membership_id'),
+    referenceName: text('reference_name'),
+    referenceSearchKey: text('reference_search_key'),
     email: text('email'),
     phone: text('phone'),
     address: text('address'),
@@ -515,6 +969,8 @@ export const customers = sqliteTable(
       .onUpdate('restrict'),
     uniqueIndex('customers_agency_id_id_uq').on(table.agencyId, table.id),
     index('customers_agency_type_idx').on(table.agencyId, table.type),
+    index('customers_agency_reference_idx').on(table.agencyId, table.referenceMembershipId),
+    index('customers_agency_reference_search_idx').on(table.agencyId, table.referenceSearchKey),
     index('customers_agency_assignee_idx').on(table.agencyId, table.assigneeMembershipId),
     index('customers_agency_created_idx').on(table.agencyId, table.createdAt),
     index('customers_agency_display_name_idx').on(table.agencyId, table.displayName),
@@ -657,6 +1113,9 @@ export const insuranceBranches = sqliteTable(
     dataClassification: text('data_classification', { enum: ['GENERAL', 'HEALTH'] })
       .notNull()
       .default('GENERAL'),
+    supportsVehicleDetails: integer('supports_vehicle_details', { mode: 'boolean' })
+      .notNull()
+      .default(false),
     status: text('status', { enum: ['ACTIVE', 'INACTIVE'] })
       .notNull()
       .default('ACTIVE'),
@@ -2634,3 +3093,296 @@ export type BackgroundJob = typeof backgroundJobs.$inferSelect;
 export type BackgroundJobRun = typeof backgroundJobRuns.$inferSelect;
 export type DocumentScanEvidence = typeof documentScanEvidence.$inferSelect;
 export type DocumentBackupCopy = typeof documentBackupCopies.$inferSelect;
+
+export const financeReceivables = sqliteTable(
+  'finance_receivables',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    currency: text('currency').notNull(),
+    dueDate: text('due_date').notNull(),
+    method: text('method').notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('finance_receivables_agency_id_uq').on(t.agencyId, t.id),
+    index('finance_receivables_due_idx').on(t.agencyId, t.dueDate, t.id),
+    index('finance_receivables_policy_idx').on(t.agencyId, t.policyId),
+    foreignKey({
+      columns: [t.agencyId, t.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+    }),
+    check(
+      'finance_receivable_amount',
+      sql`${t.amountMinor}>0 AND ${t.amountMinor}<=9007199254740991`,
+    ),
+    check(
+      'finance_receivable_currency',
+      sql`length(${t.currency})=3 AND ${t.currency} GLOB '[A-Z][A-Z][A-Z]'`,
+    ),
+    check(
+      'finance_receivable_date',
+      sql`length(${t.dueDate})=10 AND date(${t.dueDate},'+0 days')=${t.dueDate}`,
+    ),
+    check('finance_receivable_method', sql`${t.method} IN ('DEFERRED','CASH','BANK','CARD')`),
+    check('finance_receivable_state', sql`${t.status} IN ('ACTIVE','VOIDED') AND ${t.version}>=1`),
+  ],
+);
+export const financeEntries = sqliteTable(
+  'finance_entries',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    receivableId: text('receivable_id').notNull(),
+    kind: text('kind').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    receivedDate: text('received_date').notNull(),
+    method: text('method').notNull(),
+    reversesId: text('reverses_id'),
+    reasonCode: text('reason_code'),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('finance_entries_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('finance_entries_reversal_uq').on(t.agencyId, t.reversesId),
+    index('finance_entries_receivable_idx').on(t.agencyId, t.receivableId, t.createdAt, t.id),
+    foreignKey({
+      columns: [t.agencyId, t.receivableId],
+      foreignColumns: [financeReceivables.agencyId, financeReceivables.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    check('finance_entry_amount', sql`${t.amountMinor}>0 AND ${t.amountMinor}<=9007199254740991`),
+    check(
+      'finance_entry_kind',
+      sql`(${t.kind}='PAYMENT' AND ${t.reversesId} IS NULL AND ${t.reasonCode} IS NULL) OR (${t.kind}='REVERSAL' AND ${t.reversesId} IS NOT NULL AND ${t.reasonCode} IS NOT NULL)`,
+    ),
+    check('finance_entry_method', sql`${t.method} IN ('CASH','BANK','CARD')`),
+    check(
+      'finance_entry_date',
+      sql`length(${t.receivedDate})=10 AND date(${t.receivedDate},'+0 days')=${t.receivedDate}`,
+    ),
+  ],
+);
+export const financeRevisions = sqliteTable(
+  'finance_revisions',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    receivableId: text('receivable_id').notNull(),
+    version: integer('version').notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    dueDate: text('due_date').notNull(),
+    status: text('status').notNull(),
+    reasonCode: text('reason_code'),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('finance_revisions_version_uq').on(t.agencyId, t.receivableId, t.version),
+    foreignKey({
+      columns: [t.agencyId, t.receivableId],
+      foreignColumns: [financeReceivables.agencyId, financeReceivables.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+  ],
+);
+
+export const claimFiles = sqliteTable(
+  'claim_files',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    policyId: text('policy_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    insurerId: text('insurer_id').notNull(),
+    branchId: text('branch_id').notNull(),
+    dataClassification: text('data_classification').notNull(),
+    lossDate: text('loss_date').notNull(),
+    fileNumber: text('file_number'),
+    normalizedFileNumber: text('normalized_file_number'),
+    expertName: text('expert_name'),
+    expertContact: text('expert_contact'),
+    status: text('status').notNull(),
+    note: text('note'),
+    version: integer('version').notNull().default(1),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('claim_files_agency_id_uq').on(t.agencyId, t.id),
+    uniqueIndex('claim_files_insurer_number_uq').on(
+      t.agencyId,
+      t.insurerId,
+      t.normalizedFileNumber,
+    ),
+    index('claim_files_date_idx').on(t.agencyId, t.lossDate, t.id),
+    foreignKey({
+      columns: [t.agencyId, t.policyId],
+      foreignColumns: [policies.agencyId, policies.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.customerId],
+      foreignColumns: [customers.agencyId, customers.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.insurerId],
+      foreignColumns: [insurers.agencyId, insurers.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.branchId],
+      foreignColumns: [insuranceBranches.agencyId, insuranceBranches.id],
+    }),
+    check('claim_files_class', sql`${t.dataClassification} IN ('GENERAL','HEALTH')`),
+    check('claim_files_status', sql`${t.status} IN ('WAITING','IN_PROGRESS','COMPLETED')`),
+    check('claim_files_version', sql`${t.version} BETWEEN 1 AND 1000000000`),
+    check(
+      'claim_files_date',
+      sql`length(${t.lossDate})=10 AND date(${t.lossDate},'+0 days') IS NOT NULL AND date(${t.lossDate},'+0 days')=${t.lossDate}`,
+    ),
+    check(
+      'claim_files_number',
+      sql`(${t.fileNumber} IS NULL AND ${t.normalizedFileNumber} IS NULL) OR (${t.fileNumber} IS NOT NULL AND ${t.normalizedFileNumber} IS NOT NULL AND length(trim(${t.fileNumber})) BETWEEN 1 AND 80 AND length(${t.normalizedFileNumber}) BETWEEN 1 AND 80)`,
+    ),
+  ],
+);
+export const claimHistory = sqliteTable(
+  'claim_history',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    claimId: text('claim_id').notNull(),
+    version: integer('version').notNull(),
+    dataClassification: text('data_classification').notNull(),
+    snapshotJson: text('snapshot_json').notNull(),
+    actorMembershipId: text('actor_membership_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('claim_history_version_uq').on(t.agencyId, t.claimId, t.version),
+    foreignKey({
+      columns: [t.agencyId, t.claimId],
+      foreignColumns: [claimFiles.agencyId, claimFiles.id],
+    }),
+    foreignKey({
+      columns: [t.agencyId, t.actorMembershipId],
+      foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+    }),
+    check(
+      'claim_history_json',
+      sql`json_valid(${t.snapshotJson}) AND json_type(${t.snapshotJson})='object'`,
+    ),
+  ],
+);
+
+/** Append-only policy lifecycle evidence; historical status-only rows remain readable. */
+function policyLifecycleTable(name: 'policy_cancellations' | 'policy_void_events') {
+  return sqliteTable(
+    name,
+    {
+      id: text('id').primaryKey(),
+      agencyId: text('agency_id').notNull(),
+      policyId: text('policy_id').notNull(),
+      beforeVersion: integer('before_version').notNull(),
+      afterVersion: integer('after_version').notNull(),
+      eventDate: text('event_date').notNull(),
+      reasonCode: text('reason_code').notNull(),
+      notes: text('notes'),
+      lossReasonId: text('loss_reason_id'),
+      actorUserId: text('actor_user_id').notNull(),
+      actorMembershipId: text('actor_membership_id').notNull(),
+      receiptId: text('receipt_id').notNull(),
+      createdAt: text('created_at').notNull(),
+    },
+    (t) => [
+      uniqueIndex(name + '_agency_id_uq').on(t.agencyId, t.id),
+      uniqueIndex(name + '_policy_uq').on(t.agencyId, t.policyId),
+      uniqueIndex(name + '_receipt_uq').on(t.receiptId),
+      check(
+        name + '_version',
+        sql`${t.beforeVersion}>=1 AND ${t.afterVersion}=${t.beforeVersion}+1`,
+      ),
+      foreignKey({
+        columns: [t.agencyId, t.policyId],
+        foreignColumns: [policies.agencyId, policies.id],
+      }).onDelete('restrict'),
+      foreignKey({
+        columns: [t.agencyId, t.actorMembershipId],
+        foreignColumns: [agencyMemberships.agencyId, agencyMemberships.id],
+      }).onDelete('restrict'),
+      foreignKey({ columns: [t.actorUserId], foreignColumns: [users.id] }).onDelete('restrict'),
+      foreignKey({ columns: [t.receiptId], foreignColumns: [operationReceipts.id] }).onDelete(
+        'restrict',
+      ),
+      foreignKey({
+        columns: [t.agencyId, t.lossReasonId],
+        foreignColumns: [lossReasons.agencyId, lossReasons.id],
+      }).onDelete('restrict'),
+    ],
+  );
+}
+export const policyCancellations = policyLifecycleTable('policy_cancellations');
+export const policyVoidEvents = policyLifecycleTable('policy_void_events');
+export const policyLifecycleTargets = sqliteTable(
+  'policy_lifecycle_targets',
+  {
+    id: text('id').primaryKey(),
+    agencyId: text('agency_id').notNull(),
+    cancellationId: text('cancellation_id'),
+    voidEventId: text('void_event_id'),
+    renewalId: text('renewal_id'),
+    taskId: text('task_id'),
+    beforeVersion: integer('before_version').notNull(),
+    afterVersion: integer('after_version').notNull(),
+  },
+  (t) => [
+    check(
+      'policy_lifecycle_targets_event_xor',
+      sql`(${t.cancellationId} IS NOT NULL) != (${t.voidEventId} IS NOT NULL)`,
+    ),
+    check(
+      'policy_lifecycle_targets_target_xor',
+      sql`(${t.renewalId} IS NOT NULL) != (${t.taskId} IS NOT NULL)`,
+    ),
+    check(
+      'policy_lifecycle_targets_version',
+      sql`${t.beforeVersion}>=1 AND ${t.afterVersion}=${t.beforeVersion}+1`,
+    ),
+    uniqueIndex('policy_lifecycle_targets_cancel_renewal_uq').on(t.cancellationId, t.renewalId),
+    uniqueIndex('policy_lifecycle_targets_cancel_task_uq').on(t.cancellationId, t.taskId),
+    uniqueIndex('policy_lifecycle_targets_void_renewal_uq').on(t.voidEventId, t.renewalId),
+    uniqueIndex('policy_lifecycle_targets_void_task_uq').on(t.voidEventId, t.taskId),
+    foreignKey({
+      columns: [t.agencyId, t.cancellationId],
+      foreignColumns: [policyCancellations.agencyId, policyCancellations.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.agencyId, t.voidEventId],
+      foreignColumns: [policyVoidEvents.agencyId, policyVoidEvents.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.agencyId, t.renewalId],
+      foreignColumns: [renewalOpportunities.agencyId, renewalOpportunities.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.agencyId, t.taskId],
+      foreignColumns: [tasks.agencyId, tasks.id],
+    }).onDelete('restrict'),
+  ],
+);

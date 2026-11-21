@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import type { CustomerDto, CompanyContactDto } from '../src/shared/types';
 
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
@@ -13,10 +18,7 @@ interface Operation {
   body: Record<string, unknown>;
   key: string;
 }
-const randomHex = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
-    b.toString(16).padStart(2, '0'),
-  ).join('');
+let nextTaxNumber = 9000000200;
 async function send(op: Operation, cookie = owner, csrf?: string) {
   return f.request(op.path, op.method, cookie, op.body, csrf ?? (await f.csrf(cookie)), {
     'idempotency-key': op.key,
@@ -35,6 +37,8 @@ async function setup(kind: Kind) {
       operation('/api/customers', 'POST', {
         type: 'COMPANY',
         companyTitle: 'Sentetik yaşam döngüsü',
+        taxNumber: String(nextTaxNumber++),
+        insurerNumber: registrationNumber('archive-registration-insurer'),
       }),
     ),
     201,
@@ -94,7 +98,8 @@ async function setup(kind: Kind) {
             : kind === 'identity'
               ? operation(path + '/identity', 'PUT', {
                   expectedVersion: current.version,
-                  clear: true,
+                  identityType: 'VKN',
+                  identityValue: String(nextTaxNumber++),
                 })
               : kind === 'reference'
                 ? operation(path + '/external-references', 'POST', {
@@ -142,19 +147,11 @@ async function snapshot(id: string) {
 }
 beforeAll(async () => {
   f = await localAuthFixture();
-  f.env.IDENTITY_ENCRYPTION_KEY = randomHex();
-  f.env.IDENTITY_HMAC_KEY = randomHex();
-  f.env.IDENTITY_KEY_VERSION = '1';
-  await f.seed('archive-owner', 'OWNER');
+  const ownerActor = await f.seed('archive-owner', 'OWNER');
+  await enableCompanyRegistration(f, ownerActor.membershipId);
+  await seedRegistrationInsurer(f.db, ownerActor.agencyId, 'archive-registration-insurer');
   await f.seed('archive-denied');
   await f.seed('archive-foreign', 'OWNER', false, 'archive-foreign-agency');
-  for (const permission of ['sensitive.identity.read', 'sensitive.identity.write'])
-    await f.db
-      .prepare(
-        "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,'membership-archive-owner',?,'UNSCOPED')",
-      )
-      .bind(crypto.randomUUID(), permission)
-      .run();
   owner = (await f.session('archive-owner')).cookie;
   denied = (await f.session('archive-denied')).cookie;
   foreign = (await f.session('archive-foreign')).cookie;
@@ -335,8 +332,15 @@ it('reconciles a concurrent completed receipt before the archived-parent asserti
     barrier.restore();
   }
 });
-it('rejects identity replacement as well as clear and rechecks the sensitive grant before replay', async () => {
+it('requires company VKN, rejects archived replacement, and rechecks the sensitive grant before replay', async () => {
   const s = await setup('identity');
+  const active = await snapshot(s.id);
+  const clear = operation(s.path + '/identity', 'PUT', {
+    expectedVersion: s.current.version,
+    clear: true,
+  });
+  expect((await send(clear)).status).toBe(400);
+  expect((await snapshot(s.id)) === active).toBe(true);
   const original = await data(await send(s.op), 200);
   await archive(s);
   const before = await snapshot(s.id);

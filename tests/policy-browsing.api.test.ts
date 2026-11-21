@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
+import type { PolicyLifecycleContext } from '../src/shared/policy-cancellation';
 import type {
   PolicyDto,
   PolicyDetailDto,
@@ -30,8 +31,9 @@ async function login(id: string, type: 'OWNER' | 'MEMBER' = 'MEMBER', agencyId?:
   return result.headers.get('set-cookie')!.split(';')[0]!;
 }
 async function data<T>(response: Response, status = 200): Promise<T> {
-  expect(response.status).toBe(status);
-  return ((await response.json()) as { data: T }).data;
+  const body = (await response.json()) as { data: T; error?: { code?: string } };
+  expect(response.status, body.error?.code).toBe(status);
+  return body.data;
 }
 async function post(path: string, body: unknown, key = crypto.randomUUID()) {
   return f.request(path, 'POST', cookie, body, await f.csrf(cookie), { 'idempotency-key': key });
@@ -45,6 +47,9 @@ beforeAll(async () => {
   foreign = await login('browse-foreign', 'OWNER', 'foreign-policy-agency');
   const agency = 'agency-auth-test';
   await f.db.batch([
+    f.db
+      .prepare('INSERT INTO loss_reasons(id,agency_id,code,name) VALUES(?,?,?,?)')
+      .bind('browse-customer-request', agency, 'CUSTOMER_REQUEST', 'Müşteri talebi'),
     f.db
       .prepare('INSERT INTO insurers(id,agency_id,code,name) VALUES(?,?,?,?)')
       .bind('browse-insurer', agency, 'BROWSE', 'Yetkili Sigortacı'),
@@ -63,12 +68,18 @@ beforeAll(async () => {
       .bind('browse-payment', agency, 'BROWSE', 'Peşin'),
   ]);
   customer = await data<CustomerDto>(
-    await post('/api/customers', { type: 'INDIVIDUAL', firstName: 'Kaynak', lastName: 'Müşteri' }),
+    await post('/api/customers', {
+      type: 'INDIVIDUAL',
+      firstName: 'Kaynak',
+      lastName: 'Müşteri',
+      insurerNumber: { insurerId: 'browse-insurer', customerNumber: '000-BROWSE-1' },
+    }),
     201,
   );
   insured = await data<CustomerDto>(
     await post('/api/customers', {
       type: 'INDIVIDUAL',
+      insurerNumber: { insurerId: 'browse-insurer', customerNumber: '000-BROWSE-2' },
       firstName: 'Sigortalı',
       lastName: 'Müşteri',
     }),
@@ -76,7 +87,7 @@ beforeAll(async () => {
   );
   policies = [];
   for (const [index, status] of ['ACTIVE', 'CANCELLED', 'VOIDED'].entries()) {
-    const created = await data<PolicyDto>(
+    let created = await data<PolicyDto>(
       await post('/api/policies', {
         customerId: customer.id,
         insurerId: 'browse-insurer',
@@ -90,15 +101,135 @@ beforeAll(async () => {
         grossPremium: '1234.56',
         installmentCount: null,
         currency: 'TRY',
-        status,
+        status: 'ACTIVE',
       }),
       201,
     );
+    if (status !== 'ACTIVE') {
+      const kind = status === 'CANCELLED' ? 'cancel' : 'void';
+      const ctx = await data<PolicyLifecycleContext>(
+        await f.request(
+          `/api/policies/${created.id}/${kind === 'cancel' ? 'cancellation-context' : 'void-context'}`,
+          'GET',
+          cookie,
+        ),
+        200,
+      );
+      await data(
+        await post(`/api/policies/${created.id}/${kind}`, {
+          expectedPolicyVersion: ctx.policyVersion,
+          targetSetFingerprint: ctx.targetSetFingerprint,
+          cancellationDate: '2026-11-17',
+          reasonCode: kind === 'cancel' ? 'CUSTOMER_REQUEST' : 'DUPLICATE',
+          reasonNotes: null,
+          ...(ctx.expectedRenewal ? { expectedRenewal: ctx.expectedRenewal } : {}),
+          ...(ctx.expectedRenewal && kind === 'cancel'
+            ? { lossReasonId: 'browse-customer-request' }
+            : {}),
+        }),
+        200,
+      );
+      created = { ...created, status: status as PolicyDto['status'], version: created.version + 1 };
+    }
     policies.push(created);
   }
 });
 afterAll(async () => {
   await f?.mf.dispose();
+});
+it('returns authorized customer and catalog labels with the historical plate in the bounded policy page', async () => {
+  const details = JSON.stringify({
+    plate: '34 DFL 537',
+    brand: null,
+    model: null,
+    modelYear: null,
+    vin: null,
+    engineNumber: null,
+    registrationSerial: null,
+  });
+  await f.db
+    .prepare(
+      'INSERT INTO customer_vehicles(id,agency_id,customer_id,details_json,normalized_plate) VALUES(?,?,?,?,?)',
+    )
+    .bind('browse-vehicle', 'agency-auth-test', customer.id, details, '34DFL537')
+    .run();
+  await f.db
+    .prepare(
+      'INSERT INTO policy_vehicle_snapshots(policy_id,agency_id,customer_id,vehicle_id,vehicle_version,details_json) VALUES(?,?,?,?,1,?)',
+    )
+    .bind(policies[0]!.id, 'agency-auth-test', customer.id, 'browse-vehicle', details)
+    .run();
+  await f.db
+    .prepare(
+      'UPDATE customer_vehicles SET details_json=?,normalized_plate=?,version=version+1 WHERE id=?',
+    )
+    .bind(details.replace('34 DFL 537', '06 NEW 001'), '06NEW001', 'browse-vehicle')
+    .run();
+  const response = await f.request('/api/policies?includeLabels=true&pageSize=1', 'GET', cookie);
+  expect(response.headers.get('cache-control')).toContain('no-store');
+  const page = await data<PolicyListResponseData>(response);
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]!.labels).toEqual({
+    customerDisplayName: 'Kaynak Müşteri',
+    branchName: 'Genel Branş',
+    productName: 'Genel Ürün',
+    insurerName: 'Yetkili Sigortacı',
+    plate: '34 DFL 537',
+  });
+  expect(JSON.stringify(page)).not.toContain('06 NEW 001');
+  const next = await data<PolicyListResponseData>(
+    await f.request(
+      '/api/policies?includeLabels=true&pageSize=1&cursor=' + encodeURIComponent(page.nextCursor!),
+      'GET',
+      cookie,
+    ),
+  );
+  expect(next.items[0]!.id).toBe(policies[1]!.id);
+  expect(next.items[0]!.labels?.plate).toBeNull();
+  expect(
+    (
+      await data<PolicyListResponseData>(
+        await f.request('/api/policies?includeLabels=true', 'GET', foreign),
+      )
+    ).items,
+  ).toEqual([]);
+});
+
+it('does not reveal a customer label outside the independent customer.read scope', async () => {
+  await f.seed('browse-policy-only');
+  for (const [code, scope] of [
+    ['policy.read', 'AGENCY'],
+    ['customer.read', 'ASSIGNED'],
+  ])
+    await f.db
+      .prepare(
+        'INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,?)',
+      )
+      .bind(crypto.randomUUID(), 'membership-browse-policy-only', code, scope)
+      .run();
+  const actor = (await f.session('browse-policy-only')).cookie;
+  const page = await data<PolicyListResponseData>(
+    await f.request('/api/policies?includeLabels=true', 'GET', actor),
+  );
+  expect(page.items).toHaveLength(3);
+  expect(page.items.every((policy) => policy.labels?.customerDisplayName === null)).toBe(true);
+  expect(JSON.stringify(page)).not.toContain('Kaynak Müşteri');
+  await f.db
+    .prepare(
+      "UPDATE customers SET assignee_membership_id='membership-browse-policy-only',version=version+1 WHERE id=?",
+    )
+    .bind(customer.id)
+    .run();
+  const assigned = await data<PolicyListResponseData>(
+    await f.request('/api/policies?includeLabels=true', 'GET', actor),
+  );
+  expect(assigned.items[0]!.labels?.customerDisplayName).toBe('Kaynak Müşteri');
+  await f.db
+    .prepare(
+      "UPDATE customers SET assignee_membership_id='membership-policy-reader',version=version+1 WHERE id=?",
+    )
+    .bind(customer.id)
+    .run();
 });
 it('rejects the reproduced wrong limit parameter and accepts canonical customer pageSize=20', async () => {
   const result = await f.request(
@@ -200,8 +331,22 @@ it('supports existing creation, insured parties, endorsements and references thr
   }
 });
 it('preserves archived history independently from cancellation or void status', async () => {
-  const path = `/api/policies/${policies[0]!.id}`,
-    current = await data<PolicyDetailDto>(await f.request(path, 'GET', cookie));
+  const path = `/api/policies/${policies[0]!.id}`;
+  const { expectedRenewal } = await data<PolicyLifecycleContext>(
+    await f.request(path + '/cancellation-context', 'GET', cookie),
+  );
+  if (expectedRenewal) {
+    await data(
+      await post(`/api/renewals/${expectedRenewal.id}/close-lost`, {
+        expectedPrimaryTaskId: expectedRenewal.primaryTaskId,
+        expectedRenewalVersion: expectedRenewal.version,
+        expectedTaskVersion: expectedRenewal.taskVersion,
+        lossReasonId: 'browse-customer-request',
+        lossReasonNotes: null,
+      }),
+    );
+  }
+  const current = await data<PolicyDetailDto>(await f.request(path, 'GET', cookie));
   await data(
     await post(path + '/archive', {
       expectedVersion: current.version,
@@ -231,7 +376,11 @@ it('excludes a synthetic HEALTH fixture from ordinary lists and denies every det
   ]);
   for (const actor of [cookie, ahmet, ayse]) {
     const listed = await data<PolicyListResponseData>(
-      await f.request('/api/policies?search=HEALTH&searchMode=prefix', 'GET', actor),
+      await f.request(
+        '/api/policies?search=HEALTH&searchMode=prefix&includeLabels=true',
+        'GET',
+        actor,
+      ),
     );
     expect(listed.items).toEqual([]);
     for (const suffix of ['', '/parties', '/amendments', '/external-references']) {
@@ -263,4 +412,47 @@ it('denies foreign, ungranted and revoked actors without policy fields on every 
     .bind(Date.now())
     .run();
   expect((await f.request(path, 'GET', ayse)).status).toBe(401);
+});
+
+it('searches a multibyte policy prefix across insurer partitions and respects the exact boundary', async () => {
+  const prefix = 'Ş'.repeat(45) + '\u{10400}';
+  const lowercase = 'ş'.repeat(45) + '\u{10428}';
+  await f.db.batch([
+    f.db.prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('browse-insurer-second','agency-auth-test','BROWSE2','İkinci Sigortacı')",
+    ),
+    f.db.prepare(
+      `INSERT INTO insurance_products(id,agency_id,insurer_id,branch_id,code,name)
+        VALUES('browse-product-second','agency-auth-test','browse-insurer-second','browse-branch','BROWSE2','İkinci Ürün')`,
+    ),
+  ]);
+  const policy = async (policyNumber: string, suffix = '') =>
+    data<PolicyDto>(
+      await post('/api/policies', {
+        customerId: customer.id,
+        insurerId: 'browse-insurer' + suffix,
+        productId: 'browse-product' + suffix,
+        branchId: 'browse-branch',
+        paymentMethodId: 'browse-payment',
+        policyNumber,
+        startDate: '2026-01-01',
+        endDate: '2026-12-20',
+        grossPremium: '12.34',
+        installmentCount: null,
+        currency: 'TRY',
+        status: 'ACTIVE',
+      }),
+      201,
+    );
+  const one = await policy(prefix);
+  const two = await policy(prefix + '9', '-second');
+  await policy('Ş'.repeat(45) + '\u{10401}');
+  const path = '/api/policies?search=' + encodeURIComponent(lowercase) + '&includeLabels=true';
+  const list = async (suffix: string) =>
+    (await data<PolicyListResponseData>(await f.request(path + suffix, 'GET', cookie))).items.map(
+      (row) => row.id,
+    );
+  expect(new Set(await list('&searchMode=prefix'))).toEqual(new Set([one.id, two.id]));
+  expect(await list('&searchMode=prefix&insurerId=browse-insurer-second')).toEqual([two.id]);
+  expect(await list('&searchMode=exact')).toEqual([one.id]);
 });

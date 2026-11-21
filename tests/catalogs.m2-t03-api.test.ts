@@ -115,7 +115,7 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
       const { readdirSync } = await import('node:fs');
       const migDir = resolve(rootDir, 'db/migrations');
       const generated = readdirSync(migDir)
-        .filter((file) => /^000[67]_.*\.sql$/.test(file))
+        .filter((file) => /^(?:000[67]|0040)_.*\.sql$/.test(file))
         .sort();
       for (const file of generated) {
         const sql = readFileSync(resolve(migDir, file), 'utf8');

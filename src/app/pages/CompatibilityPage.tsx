@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { App, type TabType } from '../App';
 
@@ -12,6 +13,9 @@ export default function CompatibilityPage({
 }) {
   const navigate = useNavigate();
   const { customerId } = useParams();
+  const onCustomerCreate = useCallback(() => {
+    void navigate('/customers/new');
+  }, [navigate]);
   return (
     <>
       {customerMode && (
@@ -45,6 +49,7 @@ export default function CompatibilityPage({
       <App
         page={page}
         initialCustomerId={customerMode === 'advanced' ? customerId : undefined}
+        onCustomerCreate={onCustomerCreate}
         createCustomer={customerMode === 'new'}
         onPolicyCreate={(customer) => {
           void navigate(`/policies/legacy?customerId=${encodeURIComponent(customer.id)}`);

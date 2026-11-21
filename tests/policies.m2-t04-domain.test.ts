@@ -53,7 +53,7 @@ describe('M2-T04 policy domain on real D1', () => {
     );
     db = await mf.getD1Database('DB');
     for (const file of readdirSync(resolve(root, 'db/migrations'))
-      .filter((x) => /^000[0-7]_.*\.sql$/.test(x))
+      .filter((x) => /^\d{4}_.*\.sql$/.test(x))
       .sort()) {
       for (const statement of readFileSync(resolve(root, 'db/migrations', file), 'utf8')
         .split('--> statement-breakpoint')

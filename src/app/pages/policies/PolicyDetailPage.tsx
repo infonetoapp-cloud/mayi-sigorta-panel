@@ -1,15 +1,25 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { PolicyVehicleSection } from './PolicyVehicleSection';
 import { PolicyPartiesSection } from './PolicyPartiesSection';
 import { PolicyAppendSection } from './PolicyAppendSection';
 import { PolicyManagementSection } from './PolicyManagementSection';
+import { PolicyLifecycleSection } from './PolicyLifecycleSection';
 import type { PolicyDetailDto } from '../../../shared/types';
 import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useCustomerResource } from '../customers/customer-resource';
+import { policyDetailFor } from './policy-read-schemas';
 import { ReturnToWork } from '../today-work/work-navigation';
-import { policyDate, policyMoney, policyStatusLabel, PolicyReadNotice } from './policy-display';
+import {
+  policyDate,
+  storedPolicyDate,
+  policyMoney,
+  policyStatusLabel,
+  PolicyPeriodBadge,
+  PolicyReadNotice,
+} from './policy-display';
 const sections = [
   ['general', 'Poliçe bilgileri'],
   ['parties', 'Sigortalılar ve lehtarlar'],
@@ -24,7 +34,12 @@ function PolicyPage({ id }: { id: string }) {
   const section = sections.some(([key]) => key === params.get('section'))
     ? params.get('section')!
     : 'general';
-  const state = useCustomerResource<PolicyDetailDto>(`/api/policies/${encodeURIComponent(id)}`);
+  const [vehicleVisited, setVehicleVisited] = useState(section === 'general');
+  useEffect(() => {
+    if (section === 'general') setVehicleVisited(true);
+  }, [section]);
+  const decoder = useMemo(() => policyDetailFor(id), [id]);
+  const state = useCustomerResource(`/api/policies/${encodeURIComponent(id)}`, decoder);
   const [refreshed, setRefreshed] = useState<PolicyDetailDto | null>(null);
   const policy = state.data
     ? refreshed && refreshed.version >= state.data.version
@@ -35,10 +50,24 @@ function PolicyPage({ id }: { id: string }) {
     if (fresh.id !== id) return;
     setRefreshed((previous) => (previous && previous.version > fresh.version ? previous : fresh));
   }
+  const back: unknown = location.state?.policyList;
+  const returnTo =
+    typeof back === 'string' && (back === '/policies' || back.startsWith('/policies?'))
+      ? back
+      : '/policies';
+  const listKey: unknown = location.state?.listPositionKey;
   return (
     <div className="customer-modern policy-modern">
       <ReturnToWork />
-      <Link className="customer-back-link" to="/policies">
+      <Link
+        className="customer-back-link"
+        to={returnTo}
+        state={
+          returnTo === back && typeof listKey === 'string'
+            ? { listPositionKey: listKey }
+            : undefined
+        }
+      >
         ← Poliçe listesine dön
       </Link>
       <PolicyReadNotice {...state} />
@@ -49,7 +78,7 @@ function PolicyPage({ id }: { id: string }) {
             description="Poliçe ayrıntıları ve tarihsel kayıtlar"
             action={
               <div className="customer-form-actions">
-                {!policy.archivedAt && (
+                {!policy.archivedAt && policy.status === 'ACTIVE' && (
                   <Button asChild>
                     <Link to={`/policies/${encodeURIComponent(policy.id)}/edit`}>
                       Poliçeyi düzenle
@@ -57,7 +86,14 @@ function PolicyPage({ id }: { id: string }) {
                   </Button>
                 )}
                 <Button asChild variant="outline">
-                  <Link to="/policies/legacy">Poliçe işlemleri (klasik)</Link>
+                  <Link to={`/claims?policyId=${encodeURIComponent(policy.id)}`}>
+                    Hasar dosyaları
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to={`/finance?policyId=${encodeURIComponent(policy.id)}`}>
+                    Alacak ve tahsilatlar
+                  </Link>
                 </Button>
               </div>
             }
@@ -66,7 +102,10 @@ function PolicyPage({ id }: { id: string }) {
             <p role="status">Poliçe kaydedildi ve güncel detay doğrulandı.</p>
           )}
           <div className="company-contact-badges">
-            <span className="customer-badge">{policyStatusLabel[policy.status]}</span>
+            <PolicyPeriodBadge policy={policy} />
+            <span className="catalog-row-detail">
+              Kayıt: <span>{policyStatusLabel[policy.status]}</span>
+            </span>
             <span className="customer-badge">
               {policy.archivedAt ? 'Arşivlenmiş' : 'Arşivlenmemiş'}
             </span>
@@ -138,11 +177,11 @@ function PolicyPage({ id }: { id: string }) {
                   </div>
                   <div>
                     <dt>Başlangıç tarihi</dt>
-                    <dd>{policyDate(policy.startDate)}</dd>
+                    <dd>{storedPolicyDate(policy.startDate)}</dd>
                   </div>
                   <div>
                     <dt>Bitiş tarihi</dt>
-                    <dd>{policyDate(policy.endDate)}</dd>
+                    <dd>{storedPolicyDate(policy.endDate)}</dd>
                   </div>
                   <div>
                     <dt>Brüt prim</dt>
@@ -160,9 +199,13 @@ function PolicyPage({ id }: { id: string }) {
               </CardContent>
             </Card>
           ) : section === 'parties' ? (
-            <PolicyPartiesSection key={id} policy={policy} onUpdated={acceptUpdated} />
+            <PolicyPartiesSection key={`parties:${id}`} policy={policy} onUpdated={acceptUpdated} />
           ) : section === 'management' ? (
-            <PolicyManagementSection key={id} policy={policy} onUpdated={acceptUpdated} />
+            <PolicyManagementSection
+              key={`management:${id}`}
+              policy={policy}
+              onUpdated={acceptUpdated}
+            />
           ) : (
             <PolicyAppendSection
               key={`${id}:${section}`}
@@ -171,9 +214,19 @@ function PolicyPage({ id }: { id: string }) {
               onUpdated={acceptUpdated}
             />
           )}
-          <p className="customer-legacy-hint">
-            Hassas kimlik-varyant onayı ve klasik ileri işlemler ayrı güvenli akışta korunur.
-          </p>
+          {vehicleVisited && (
+            <PolicyVehicleSection
+              key={`vehicle:${id}`}
+              policy={policy}
+              onUpdated={acceptUpdated}
+              visible={section === 'general'}
+            />
+          )}
+          <PolicyLifecycleSection
+            key={`lifecycle:${id}`}
+            policy={policy}
+            onUpdated={acceptUpdated}
+          />
         </>
       )}
     </div>

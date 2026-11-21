@@ -15,6 +15,11 @@ export const CSP_DIRECTIVE = [
   "form-action 'self'",
 ].join('; ');
 
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com';
+const LOGIN_CSP_DIRECTIVE =
+  CSP_DIRECTIVE.replace("script-src 'self'", `script-src 'self' ${TURNSTILE_ORIGIN}`) +
+  `; frame-src ${TURNSTILE_ORIGIN}`;
+
 export const PERMISSIONS_POLICY_DIRECTIVE = [
   'accelerometer=()',
   'camera=()',
@@ -37,6 +42,7 @@ export function getSecurityHeaders(options: SecurityHeadersOptions = {}): Record
     isHttps = false,
     isApi = false,
     hstsMaxAge = DEFAULT_HSTS_MAX_AGE,
+    allowTurnstile = false,
   } = options;
 
   const headers: Record<string, string> = {
@@ -44,7 +50,7 @@ export function getSecurityHeaders(options: SecurityHeadersOptions = {}): Record
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
     'Permissions-Policy': PERMISSIONS_POLICY_DIRECTIVE,
-    'Content-Security-Policy': CSP_DIRECTIVE,
+    'Content-Security-Policy': allowTurnstile ? LOGIN_CSP_DIRECTIVE : CSP_DIRECTIVE,
     'X-Robots-Tag': 'noindex, nofollow, noarchive',
   };
 

@@ -152,6 +152,14 @@ export function validateRequestOrigin(
     };
   }
 
+  if (rawOrigin !== canonicalTrustedOrigin) {
+    return {
+      valid: false,
+      code: 'MALFORMED_ORIGIN',
+      message: 'Origin başlığı kanonik biçimde olmalıdır.',
+    };
+  }
+
   return {
     valid: true,
     origin: parsedOriginUrl.origin,

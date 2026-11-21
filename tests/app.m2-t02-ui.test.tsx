@@ -232,13 +232,11 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     expect(screen.getByText('123******01')).toBeDefined();
 
     fireEvent.click(screen.getByRole('button', { name: /Kimlik Bilgisini Güncelle/i }));
-    const draftInput = screen.getByPlaceholderText(/TCKN veya VKN giriniz/i) as HTMLInputElement;
+    const draftInput = screen.getByLabelText('TCKN numarası') as HTMLInputElement;
     fireEvent.change(draftInput, { target: { value: '98765432154' } });
     fireEvent.click(screen.getByRole('button', { name: 'Kapat' }));
     fireEvent.click(screen.getByRole('button', { name: /Kimlik Bilgisini Güncelle/i }));
-    expect((screen.getByPlaceholderText(/TCKN veya VKN giriniz/i) as HTMLInputElement).value).toBe(
-      '',
-    );
+    expect((screen.getByLabelText('TCKN numarası') as HTMLInputElement).value).toBe('');
   });
 
   it('5. Kimlik güncelleme PUT /api/customers/:id/identity çağrısı yapmalı, CSRF ve Idempotency-Key iletmeli, başarıda hassas formu temizlemeli ve DTO yenilenmelidir', async () => {
@@ -318,9 +316,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     });
     fireEvent.click(editIdentityBtn);
 
-    const identityInput = await screen.findByPlaceholderText(
-      /TCKN veya VKN giriniz|11 haneli TCKN/i,
-    );
+    const identityInput = await screen.findByLabelText('TCKN numarası');
     fireEvent.change(identityInput, { target: { value: '98765432154' } });
 
     const saveIdentityBtn = screen.getByRole('button', { name: /Kimliği Kaydet|Kaydet/i });

@@ -148,13 +148,19 @@ export async function runBackup(
           await runtime.sleep();
           continue;
         }
-        const url = new URL(result.signedUrl);
-        requireState(
-          url.protocol === 'https:' &&
-            url.hostname.endsWith('.r2.cloudflarestorage.com') &&
-            !url.username &&
-            !url.password,
-        );
+        let url: URL;
+        try {
+          url = new URL(result.signedUrl);
+        } catch {
+          throw safeFailure('download', 'invalid-url', poll + 1, runtime.now() - started);
+        }
+        if (
+          url.protocol !== 'https:' ||
+          !url.hostname.endsWith('.r2.cloudflarestorage.com') ||
+          url.username ||
+          url.password
+        )
+          throw safeFailure('download', 'invalid-url', poll + 1, runtime.now() - started);
         const exportMs = runtime.now() - begin.startedAt;
         const downloadStart = runtime.now();
         // Deliberately no authentication header on download, no signed URL in durable step output/logs.
@@ -185,12 +191,13 @@ export async function runBackup(
           );
         const downloadMs = runtime.now() - downloadStart,
           expected = response.headers.get('content-length');
-        if (expected !== null)
-          requireState(
-            Number.isSafeInteger(Number(expected)) &&
-              Number(expected) > 0 &&
-              Number(expected) <= 16 * 1024 * 1024,
-          );
+        if (
+          expected !== null &&
+          (!Number.isSafeInteger(Number(expected)) ||
+            Number(expected) <= 0 ||
+            Number(expected) > 16 * 1024 * 1024)
+        )
+          throw safeFailure('download', 'invalid-length', poll + 1, downloadMs);
         const uploadStart = runtime.now();
         const wrote = await env.RECOVERY.put(prefix + 'database.sql', response.body, {
           onlyIf: { etagDoesNotMatch: '*' },
@@ -200,19 +207,46 @@ export async function runBackup(
             bookmark: currentBookmark ?? '',
           },
           httpMetadata: { contentType: 'application/sql', cacheControl: 'private, no-store' },
+        }).catch(() => {
+          throw safeFailure(
+            'storage-write',
+            'local-failure',
+            poll + 1,
+            runtime.now() - uploadStart,
+          );
         });
-        requireState(wrote);
-        const head = await env.RECOVERY.head(prefix + 'database.sql');
-        requireState(
-          head &&
-            head.size > 0 &&
-            head.size <= 16 * 1024 * 1024 &&
-            head.customMetadata?.generation === generation &&
-            head.customMetadata?.source === BACKUP_SOURCE.databaseId &&
-            head.customMetadata?.bookmark === (currentBookmark ?? '') &&
-            head.etag === wrote.etag &&
-            (expected === null || Number(expected) === head.size),
-        );
+        if (!wrote)
+          throw safeFailure(
+            'storage-write',
+            'verification-failed',
+            poll + 1,
+            runtime.now() - uploadStart,
+          );
+        const head = await env.RECOVERY.head(prefix + 'database.sql').catch(() => {
+          throw safeFailure(
+            'storage-verify',
+            'local-failure',
+            poll + 1,
+            runtime.now() - uploadStart,
+          );
+        });
+        if (
+          !head ||
+          !Number.isSafeInteger(head.size) ||
+          head.size <= 0 ||
+          head.size > 16 * 1024 * 1024 ||
+          head.customMetadata?.generation !== generation ||
+          head.customMetadata?.source !== BACKUP_SOURCE.databaseId ||
+          head.customMetadata?.bookmark !== (currentBookmark ?? '') ||
+          head.etag !== wrote.etag ||
+          (expected !== null && Number(expected) !== head.size)
+        )
+          throw safeFailure(
+            'storage-verify',
+            'verification-failed',
+            poll + 1,
+            runtime.now() - uploadStart,
+          );
         return {
           key: prefix + 'database.sql',
           size: head.size,
@@ -224,7 +258,12 @@ export async function runBackup(
           uploadStreamMs: runtime.now() - uploadStart,
         };
       }
-      throw new Error('BACKUP_POLL_LIMIT');
+      throw safeFailure(
+        'export-poll',
+        'poll-limit',
+        MAX_POLLS + 1,
+        runtime.now() - begin.startedAt,
+      );
     });
     const manifest = await steps.do('write-verify-manifest', async () => {
       const value = {

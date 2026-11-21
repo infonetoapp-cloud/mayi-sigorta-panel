@@ -430,6 +430,20 @@ export function TodayWorkPanel({ getCsrfToken, invalidateCsrfToken }: TodayWorkP
         if (!response.ok) throw new TaskListRequestError(response.status);
         const envelope = (await response.json()) as ApiResponse<TodayTasksResponseData>;
         if (!envelope.success) throw new TaskListRequestError(response.status);
+        // Historical renewal-only adapter never opens a GENERAL Task as a renewal.
+        const renewalOnly = (task: { kind?: string }) => task.kind !== 'GENERAL';
+        (
+          envelope.data as {
+            items: readonly TodayTaskDto[];
+            unassignedItems: readonly TodayTaskDto[];
+          }
+        ).items = envelope.data.items.filter(renewalOnly);
+        (
+          envelope.data as {
+            items: readonly TodayTaskDto[];
+            unassignedItems: readonly TodayTaskDto[];
+          }
+        ).unassignedItems = envelope.data.unassignedItems.filter(renewalOnly);
         if (generation !== requestGeneration.current) return;
         if (!append) setStatisticsRefreshKey((value) => value + 1);
         for (const task of envelope.data.items) completionPages.current.set(task.taskId, query);

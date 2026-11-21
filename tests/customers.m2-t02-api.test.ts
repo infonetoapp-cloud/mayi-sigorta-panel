@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import { mintFixtureSession } from './support/domain-local-session';
+import { seedRegistrationInsurer } from './support/customer-registration-fixture';
 import { LOCAL_AUTH_ISSUER } from '../src/server/auth/session';
 import type {
   ApiResponse,
@@ -63,6 +64,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
   let testApp: ReturnType<typeof createApp>;
 
   const AGENCY_ID = 'ag-m2t02-api';
+  const registrationInsurerId = 'm2-t02-api-registration';
   const OTHER_AGENCY_ID = 'ag-m2t02-other';
 
   const OWNER_USER = 'usr-owner';
@@ -96,18 +98,11 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     );
     db = await mf.getD1Database('DB');
 
-    for (const file of [
-      'db/migrations/0000_good_hammerhead.sql',
-      'db/migrations/0001_chunky_blazing_skull.sql',
-      'db/migrations/0002_productive_arclight.sql',
-      'db/migrations/0003_lonely_zzzax.sql',
-      'db/migrations/0004_thankful_pixie.sql',
-      'db/migrations/0005_graceful_northstar.sql',
-      'db/migrations/0006_parched_proteus.sql',
-      'db/migrations/0007_robust_scalphunter.sql',
-      'db/migrations/0008_fearless_giant_girl.sql',
-    ]) {
-      const sql = readFileSync(resolve(rootDir, file), 'utf8');
+    const migrations = resolve(rootDir, 'db/migrations');
+    for (const file of readdirSync(migrations)
+      .filter((name) => /^\d{4}_.*\.sql$/.test(name))
+      .sort()) {
+      const sql = readFileSync(resolve(migrations, file), 'utf8');
       const stmts = sql
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
@@ -160,6 +155,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
     }
 
     await seedAgency(AGENCY_ID, OWNER_USER, OWNER_MEM, 'owner@mayi.test', OWNER_SUB);
+    await seedRegistrationInsurer(db, AGENCY_ID, registrationInsurerId);
     await seedAgency(
       OTHER_AGENCY_ID,
       OTHER_OWNER_USER,
@@ -378,6 +374,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Individual With Identity',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-ALIVELI' },
             firstName: 'Ali',
             lastName: 'Veli',
           },
@@ -502,6 +499,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Bad ID Customer',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-BADID' },
             firstName: 'Bad',
             lastName: 'ID',
           },
@@ -564,6 +562,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Patch Guard Customer',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-PATCHGUARD' },
             firstName: 'Patch',
             lastName: 'Guard',
           },
@@ -626,7 +625,9 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'COMPANY',
             displayName: 'Searchable Corp',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-SEARCHABLE' },
             companyTitle: 'Searchable Corp A.Ş.',
+            taxNumber: '9400000001',
           },
         ),
       );
@@ -715,7 +716,13 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
               'X-CSRF-Token': csrf,
               'Idempotency-Key': `${key}-create`,
             },
-            { type: 'INDIVIDUAL', displayName, firstName: displayName, lastName: 'Scope' },
+            {
+              type: 'INDIVIDUAL',
+              displayName,
+              firstName: displayName,
+              lastName: 'Scope',
+              insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-' + key },
+            },
           ),
         );
         expect(response.status).toBe(201);
@@ -787,6 +794,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Assignment Options',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-ASSIGNMENT' },
             firstName: 'Assignment',
             lastName: 'Options',
           },
@@ -842,6 +850,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'To Be Reassigned',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REASSIGN' },
             firstName: 'Reassign',
             lastName: 'Customer',
           },
@@ -863,6 +872,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'To Be Reassigned',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REASSIGN' },
             firstName: 'Reassign',
             lastName: 'Customer',
           },
@@ -904,6 +914,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'To Be Reassigned',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REASSIGN' },
             firstName: 'Reassign',
             lastName: 'Customer',
           },
@@ -1009,6 +1020,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Bad Assign Customer',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-BADASSIGN' },
             firstName: 'Bad',
             lastName: 'Assign',
           },
@@ -1086,6 +1098,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Customer Ext Ref Test',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REFERENCE' },
             firstName: 'Ext',
             lastName: 'Ref',
           },
@@ -1145,6 +1158,7 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
           {
             type: 'INDIVIDUAL',
             displayName: 'Second External Reference Target',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REFERENCE2' },
             firstName: 'Second',
             lastName: 'Target',
           },
@@ -1190,9 +1204,19 @@ describe('M2-T02 Customer Identity, Assign, and External Reference API Tests (Mi
       );
       expect(listRefRes.status).toBe(200);
       const refList = asSuccess<ExternalCustomerReferenceDto[]>(await listRefRes.json()).data;
-      expect(refList.length).toBe(1);
-      expect(refList[0]!.sourceNamespace).toBe('ALLIANZ');
-      expect(refList[0]!.externalKey).toBe('POL-100200');
+      expect(refList).toHaveLength(2);
+      expect(refList).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            sourceNamespace: `insurer:${registrationInsurerId}`,
+            externalKey: '00-REFERENCE',
+          }),
+          expect.objectContaining({
+            sourceNamespace: 'ALLIANZ',
+            externalKey: 'POL-100200',
+          }),
+        ]),
+      );
 
       const extRefAudits = await db
         .prepare(

@@ -1,13 +1,19 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import PolicyListPage from '../src/app/pages/policies/PolicyListPage';
 import PolicyDetailPage from '../src/app/pages/policies/PolicyDetailPage';
 import PolicyLegacyPage from '../src/app/pages/policies/PolicyLegacyPage';
 import CustomerProfilePage from '../src/app/pages/customers/CustomerProfilePage';
+import { customerDetailFixture } from './support/customer-detail-fixture';
+import { policyDetailFixture } from './support/policy-detail-fixture';
 import { Sidebar } from '../src/app/components/layout/Sidebar';
+import { WorkNavigationProvider } from '../src/app/pages/today-work/work-navigation';
 const policy = (id = 'a') => ({
-  id,
+  ...policyDetailFixture(id, {
+    customerId: 'customer',
+    customer: { id: 'customer', displayName: 'Yetkili Müşteri' },
+  }),
   policyNumber: `POL-${id}`,
   customerId: 'customer',
   startDate: '2026-01-01',
@@ -17,11 +23,13 @@ const policy = (id = 'a') => ({
   status: 'ACTIVE',
   archivedAt: null,
   installmentCount: 3,
-  customer: { id: 'customer', displayName: 'Yetkili Müşteri' },
-  insurer: { name: 'Sigorta Şirketi' },
-  product: { name: 'Ürün' },
-  branch: { name: 'Branş' },
-  paymentMethod: { name: 'Kart' },
+  labels: {
+    customerDisplayName: 'Yetkili Müşteri',
+    productName: 'Birleşik Kasko',
+    branchName: 'Kasko',
+    insurerName: 'Yetkili Sigortacı',
+    plate: '34 DFL 537',
+  },
   identityValue: 'PROTECTED-IDENTITY',
   healthData: 'PROTECTED-HEALTH',
   assigneeMembershipId: 'PROTECTED-PERSONNEL',
@@ -111,19 +119,49 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+function HistoryBack() {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(-1)}>Tarayıcı geri</button>;
+}
 function mount(path = '/policies') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Link to="/policies/b">Diğer poliçe</Link>
-      <Routes>
-        <Route path="/policies" element={<PolicyListPage />} />
-        <Route path="/policies/:policyId" element={<PolicyDetailPage />} />
-        <Route path="/policies/legacy" element={<PolicyLegacyPage />} />
-        <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
-      </Routes>
+      <WorkNavigationProvider>
+        <Link to="/policies/b">Diğer poliçe</Link>
+        <HistoryBack />
+        <Routes>
+          <Route path="/policies" element={<PolicyListPage />} />
+          <Route path="/policies/:policyId" element={<PolicyDetailPage />} />
+          <Route path="/policies/legacy" element={<PolicyLegacyPage />} />
+          <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
+        </Routes>
+      </WorkNavigationProvider>
     </MemoryRouter>,
   );
 }
+it('retries an exact number in cancelled policies without dropping filters or carrying an old cursor', async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    const params = new URL(url, 'https://synthetic.invalid').searchParams;
+    return response({
+      items:
+        params.get('status') === 'CANCELLED' ? [{ ...policy('iptal'), status: 'CANCELLED' }] : [],
+      hasMore: false,
+      nextCursor: null,
+    });
+  });
+  vi.stubGlobal('fetch', fetcher);
+  mount('/policies?search=POL-iptal&endFrom=2026-01-01&cursor=previous');
+  const retry = await screen.findByRole('button', { name: 'İptal edilenlerde ara' });
+  expect(screen.getByText(/Aranan görünüm/)).toBeTruthy();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  fireEvent.click(retry);
+  await screen.findByRole('link', { name: 'POL-iptal' });
+  const request = new URL(fetcher.mock.calls.at(-1)![0], 'https://synthetic.invalid').searchParams;
+  expect(request.get('status')).toBe('CANCELLED');
+  expect(request.get('search')).toBe('POL-iptal');
+  expect(request.get('endFrom')).toBe('2026-01-01');
+  expect(request.has('cursor')).toBe(false);
+});
 it.each(['/policies/a', '/policies/legacy'])('keeps the policy sidebar active at %s', (path) => {
   render(
     <MemoryRouter initialEntries={[path]}>
@@ -165,9 +203,55 @@ it('requests strict pageSize and default end-date order; renders only list DTO f
   expect(within(screen.getByRole('row', { name: /POL-big/ })).getByText('İptal')).toBeTruthy();
   expect(screen.getByText('Arşivlenmiş')).toBeTruthy();
   expect(screen.queryByText('Sigorta Şirketi')).toBeNull();
-  expect(screen.queryByText('Yetkili Müşteri')).toBeNull();
+  expect(screen.getAllByRole('link', { name: 'Yetkili Müşteri' })).toHaveLength(2);
+  expect(screen.getAllByText('Birleşik Kasko')).toHaveLength(2);
+  expect(screen.getAllByText('Yetkili Sigortacı')).toHaveLength(2);
+  expect(screen.getAllByText('34 DFL 537')).toHaveLength(2);
+  expect(fetcher.mock.calls[0]![0]).toContain('includeLabels=true');
   expect(document.body.textContent).not.toContain('PROTECTED-');
   expect(screen.getByRole('link', { name: 'POL-a' }).getAttribute('href')).toBe('/policies/a');
+});
+it('switches active/cancelled/all views through server filters and drops an old cursor', async () => {
+  const urls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      urls.push(url);
+      return response({ items: [policy()], hasMore: true, nextCursor: 'next-page' });
+    }),
+  );
+  mount();
+  await screen.findByText('POL-a');
+  expect(urls.at(-1)).toContain('status=ACTIVE');
+  fireEvent.click(screen.getByRole('button', { name: 'Sonraki sayfa' }));
+  await waitFor(() => expect(urls.at(-1)).toContain('cursor='));
+  fireEvent.click(screen.getByRole('button', { name: 'İptal edilenler' }));
+  await waitFor(() => expect(urls.at(-1)).toContain('status=CANCELLED'));
+  expect(urls.at(-1)).not.toContain('cursor=');
+  fireEvent.click(screen.getByRole('button', { name: 'Tümü' }));
+  await waitFor(() =>
+    expect(new URL(urls.at(-1)!, 'https://local.invalid').searchParams.has('status')).toBe(false),
+  );
+  expect(screen.queryByRole('link', { name: 'Poliçe işlemleri (klasik)' })).toBeNull();
+});
+it('does not substitute unapproved customer detail fields when the list label is unavailable', async () => {
+  const row = policy();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response({
+        items: [{ ...row, labels: { ...row.labels, customerDisplayName: null, plate: null } }],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    ),
+  );
+  mount();
+  await screen.findByText('POL-a');
+  expect(screen.getByText('Müşteri bilgisi kullanılamıyor')).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'Yetkili Müşteri' })).toBeNull();
+  expect(screen.queryByText('34 DFL 537')).toBeNull();
+  expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
 });
 it('retries the exact failed cursor and resets it when applying search/status/date/sort filters', async () => {
   const urls: string[] = [];
@@ -178,7 +262,7 @@ it('retries the exact failed cursor and resets it when applying search/status/da
       urls.push(url);
       if (url.includes('cursor='))
         return ++next === 1
-          ? response(null, 503)
+          ? response({ items: [null], hasMore: false, nextCursor: null })
           : response({ items: [policy('next')], hasMore: false, nextCursor: null });
       return response({ items: [policy()], hasMore: true, nextCursor: 'opaque+cursor=' });
     }),
@@ -205,6 +289,67 @@ it('retries the exact failed cursor and resets it when applying search/status/da
   expect(last).toContain('endFrom=2026-01-01');
   expect(last).not.toContain('cursor=');
 });
+it('keeps list context while retrying a detail response for the wrong policy', async () => {
+  let detailReads = 0;
+  const fetcher = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
+    if (url.startsWith('/api/policies?'))
+      return response({ items: [policy()], hasMore: false, nextCursor: null });
+    if (url === '/api/policies/a') return response(++detailReads === 1 ? policy('b') : policy());
+    return response([]);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const listUrl = '/policies?search=POL&searchMode=prefix&cursor=opaque%2Bcursor%3D';
+  mount(listUrl);
+  fireEvent.click(await screen.findByRole('link', { name: 'POL-a' }));
+  const retry = await screen.findByRole('button', { name: 'Yeniden dene' });
+  expect(screen.queryByText('POL-b')).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Poliçeyi düzenle' })).toBeNull();
+  expect(screen.getByRole('link', { name: '← Poliçe listesine dön' }).getAttribute('href')).toBe(
+    listUrl,
+  );
+  fireEvent.click(retry);
+  await screen.findByRole('heading', { name: 'POL-a' });
+  expect(detailReads).toBe(2);
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+});
+it('returns to the activated policy on the same filtered page through the link and browser Back', async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.startsWith('/api/policies?'))
+      return response({ items: [policy(), policy('b')], hasMore: false, nextCursor: null });
+    if (url === '/api/policies/a') return response(policy());
+    if (url === '/api/policies/b') return response(policy('b'));
+    return response([]);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  const scroll = vi.fn();
+  vi.stubGlobal('scrollTo', scroll);
+  mount('/policies?search=POL&searchMode=prefix&cursor=page2');
+  const first = await screen.findByRole('link', { name: 'POL-a' });
+  const advanced = screen.getByText('Tarih ve diğer filtreler').closest('details')!;
+  advanced.open = true;
+  screen.getByRole('region', { name: 'Poliçe listesi' }).scrollLeft = 41;
+  vi.stubGlobal('scrollY', 200);
+  fireEvent.click(first);
+  await screen.findByRole('heading', { name: 'POL-a' });
+  vi.stubGlobal('scrollY', 0);
+  fireEvent.click(screen.getByRole('link', { name: '← Poliçe listesine dön' }));
+  const restored = await screen.findByRole('link', { name: 'POL-a' });
+  await waitFor(() => expect(document.activeElement).toBe(restored));
+  expect(scroll).toHaveBeenCalledWith(0, 200);
+  expect(screen.getByRole('region', { name: 'Poliçe listesi' }).scrollLeft).toBe(41);
+  expect(screen.getByText('Tarih ve diğer filtreler').closest('details')?.open).toBe(true);
+  fireEvent.click(screen.getByRole('link', { name: 'POL-b' }));
+  await screen.findByRole('heading', { name: 'POL-b' });
+  fireEvent.click(screen.getByRole('button', { name: 'Tarayıcı geri' }));
+  const second = await screen.findByRole('link', { name: 'POL-b' });
+  await waitFor(() => expect(document.activeElement).toBe(second));
+  const listReads = fetcher.mock.calls
+    .map(([url]) => url)
+    .filter((url) => url.startsWith('/api/policies?'));
+  expect(listReads).toHaveLength(3);
+  expect(new Set(listReads).size).toBe(1);
+  expect(listReads[0]).toContain('cursor=page2');
+});
 it('shows full authorized historical detail without identity/health/personnel data or document viewer', async () => {
   vi.stubGlobal(
     'fetch',
@@ -227,8 +372,9 @@ it('shows full authorized historical detail without identity/health/personnel da
   expect(screen.getByRole('link', { name: 'Yetkili Müşteri' }).getAttribute('href')).toBe(
     '/customers/customer',
   );
-  expect(screen.getByRole('link', { name: 'Poliçe işlemleri (klasik)' }).getAttribute('href')).toBe(
-    '/policies/legacy',
+  expect(screen.queryByRole('link', { name: 'Poliçe işlemleri (klasik)' })).toBeNull();
+  expect(screen.getByRole('link', { name: 'Hasar dosyaları' }).getAttribute('href')).toBe(
+    '/claims?policyId=a',
   );
   expect(document.body.textContent).not.toContain('PROTECTED-');
   expect(screen.queryByText('Belgeler')).toBeNull();
@@ -412,13 +558,7 @@ it('uses pageSize=20 for customer-profile policies and links each entry to moder
           ? { items: [policy()], hasMore: false, nextCursor: null }
           : url.includes('/renewals')
             ? { items: [], nextCursor: null }
-            : {
-                id: 'customer',
-                displayName: 'Yetkili Müşteri',
-                type: 'INDIVIDUAL',
-                createdAt: '2026-01-01',
-                archivedAt: null,
-              },
+            : customerDetailFixture('customer', { displayName: 'Yetkili Müşteri' }),
       );
     }),
   );

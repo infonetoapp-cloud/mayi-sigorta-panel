@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { customerCoverageFixture } from './support/customer-coverage-fixture';
 import type { CustomerCoverageSummary } from '../src/shared/customer-coverage';
+import { referenceSearchKey } from '../src/shared/customer-profile';
 import type { CustomerListResponseData } from '../src/shared/types';
 let f: Awaited<ReturnType<typeof customerCoverageFixture>>;
 beforeAll(async () => {
@@ -12,6 +13,24 @@ beforeAll(async () => {
 }, 60000);
 afterAll(async () => {
   await f?.mf.dispose();
+});
+it('finds Turkish customer names in either case through the authorized coverage list', async () => {
+  await f.customer('turkish-case', undefined, 'İpek Şahin');
+  for (const name of ['İpek Şahin', 'ipek şahin']) {
+    const response = await f.request(
+      '/api/customers?include=coverage&search=' + encodeURIComponent(name),
+      'GET',
+      f.owner,
+    );
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as { data: CustomerListResponseData };
+    expect(data.items.map(({ id }) => id)).toEqual(['turkish-case']);
+  }
+  await f.customer('ascii-case', undefined, 'ALICE TEST');
+  const response = await f.request('/api/customers?search=alice%20test', 'GET', f.owner);
+  expect(response.status).toBe(200);
+  const { data } = (await response.json()) as { data: CustomerListResponseData };
+  expect(data.items.map(({ id }) => id)).toEqual(['ascii-case']);
 });
 it('projects exact authorized coverage beyond a policy page with real display names and a bounded preview', async () => {
   const r = await f.request('/api/customers/coverage-many/coverage', 'GET', f.member);
@@ -123,6 +142,8 @@ it('keeps the complete named policy history paginated, independently of the comp
   expect(page.items).toHaveLength(20);
   expect(page.hasMore).toBe(true);
   expect(page.items[0]?.labels).toEqual({
+    customerDisplayName: 'coverage-many',
+    plate: null,
     branchName: 'Kasko',
     productName: 'Kasko Ürünü',
     insurerName: 'Sentetik Sigorta',
@@ -398,4 +419,54 @@ it('rechecks live session at the aggregate boundary without returning a stale su
   } finally {
     f.env.DB = db;
   }
+});
+
+it('matches the full customer name and normalized reference literally inside the current scope', async () => {
+  const punctuation = '%' + '_' + String.fromCharCode(92);
+  const name = 'ANADOLU'.repeat(16) + ' İşlem😀 ' + punctuation;
+  const reference = 'İIŞĞÜÖÇ '.repeat(8) + '😀' + punctuation;
+  const rows = [
+    { id: 'search-assigned', name, reference, membership: 'membership-coverage-a' },
+    { id: 'search-unassigned', name, reference, membership: 'membership-coverage-owner' },
+    {
+      id: 'search-near-match',
+      name: name.replace('%', '!'),
+      reference: reference.replace('%', '!'),
+      membership: 'membership-coverage-a',
+    },
+  ];
+  await f.db.batch(
+    rows.map((row) =>
+      f.db
+        .prepare(
+          `INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,
+      assignee_membership_id,reference_name,reference_search_key)
+      VALUES(?,'agency-auth-test','INDIVIDUAL',?,'Sentetik','Müşteri',?,?,?)`,
+        )
+        .bind(row.id, row.name, row.membership, row.reference, referenceSearchKey(row.reference)),
+    ),
+  );
+  await f.db
+    .prepare(
+      "UPDATE membership_permissions SET scope='ASSIGNED' WHERE membership_id='membership-coverage-a' AND scope='AGENCY'",
+    )
+    .run();
+  for (const [field, q] of [
+    ['search', name.replaceAll('ANADOLU', 'anadolu')],
+    ['search', punctuation],
+    ['reference', reference.replace(/İIŞĞÜÖÇ/g, 'iışğüöç')],
+    ['reference', punctuation],
+  ] as const) {
+    const response = await f.request(
+      '/api/customers?' + field + '=' + encodeURIComponent(q),
+      'GET',
+      f.member,
+    );
+    expect(response.status, await response.clone().text()).toBe(200);
+    const body = (await response.json()) as { data: CustomerListResponseData };
+    expect(body.data.items.map((row) => row.id)).toEqual(['search-assigned']);
+  }
+  expect((await f.request('/api/customers?search=' + 'a'.repeat(201), 'GET', f.owner)).status).toBe(
+    400,
+  );
 });

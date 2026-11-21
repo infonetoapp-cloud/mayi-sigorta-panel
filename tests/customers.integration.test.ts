@@ -1,10 +1,14 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import { mintFixtureSession, fixtureCsrf } from './support/domain-local-session';
+import {
+  enableCompanyRegistration,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import { LOCAL_AUTH_ISSUER, hashSessionToken } from '../src/server/auth/session';
 import { verifyIdentityBoundCsrfToken } from '../src/server/security/csrf';
 import type {
@@ -65,6 +69,8 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   let mf: miniflare.Miniflare;
   let db: D1Database;
   let testApp: ReturnType<typeof createApp>;
+  let env: Env;
+  const registrationInsurerId = 'customer-integration-registration';
 
   // Agency 1
   const AGENCY_1 = 'ag-m2-01';
@@ -102,21 +108,11 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
     );
     db = await mf.getD1Database('DB');
 
-    // Use the real archive schema; mutation lifecycle guards depend on it.
-    const migrationFiles = [
-      'db/migrations/0000_good_hammerhead.sql',
-      'db/migrations/0001_chunky_blazing_skull.sql',
-      'db/migrations/0002_productive_arclight.sql',
-      'db/migrations/0003_lonely_zzzax.sql',
-      'db/migrations/0004_thankful_pixie.sql',
-      'db/migrations/0005_graceful_northstar.sql',
-      'db/migrations/0006_parched_proteus.sql',
-      'db/migrations/0007_robust_scalphunter.sql',
-      'db/migrations/0008_fearless_giant_girl.sql',
-    ];
-
-    for (const file of migrationFiles) {
-      const sql = readFileSync(resolve(rootDir, file), 'utf8');
+    const migrations = resolve(rootDir, 'db/migrations');
+    for (const file of readdirSync(migrations)
+      .filter((name) => /^\d{4}_.*\.sql$/.test(name))
+      .sort()) {
+      const sql = readFileSync(resolve(migrations, file), 'utf8');
       const stmts = sql
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
@@ -304,6 +300,9 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
       OWNER_2_SUB,
       'owner2@otheragency.test',
     );
+    env = { DB: db, CSRF_SECRET };
+    await seedRegistrationInsurer(db, AGENCY_1, registrationInsurerId);
+    await enableCompanyRegistration({ db, env }, OWNER_1_MEM);
   });
 
   afterAll(async () => {
@@ -313,11 +312,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
   });
 
   function getEnv(): Env {
-    return {
-      DB: db,
-
-      CSRF_SECRET,
-    };
+    return env;
   }
 
   async function createSessionCookie(subject: string, email: string): Promise<string> {
@@ -349,6 +344,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'Ahmet',
             lastName: 'Yılmaz',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-AHMET' },
             email: 'ahmet.yilmaz@example.test',
             phone: '+905551112233',
             address: 'Moda Cad. No: 12 Kadıköy İstanbul',
@@ -435,6 +431,8 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
           {
             type: 'COMPANY',
             companyTitle: 'Mayı Lojistik Ltd. Şti.',
+            taxNumber: '9000000301',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-1' },
             email: 'info@mayilojistik.test',
             phone: '+902165554433',
             address: 'Ataşehir İstanbul',
@@ -538,6 +536,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
         type: 'INDIVIDUAL' as const,
         firstName: 'Zeynep',
         lastName: 'Kaya',
+        insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-REPLAY' },
         email: 'zeynep@example.test',
       };
 
@@ -602,6 +601,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'Different',
             lastName: 'Person',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-CONFLICT' },
           },
         ),
         getEnv(),
@@ -635,6 +635,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'Kemal',
             lastName: 'Arslan',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-KEMAL' },
             email: 'kemal@test.test',
           },
         ),
@@ -832,6 +833,8 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
           {
             type: 'COMPANY',
             companyTitle: 'Atlas Holding A.Ş.',
+            taxNumber: '9000000302',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-2' },
           },
         ),
         getEnv(),
@@ -853,6 +856,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'Burak',
             lastName: 'Yıldız',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-BURAK' },
           },
         ),
         getEnv(),
@@ -937,7 +941,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             'X-CSRF-Token': csrf,
             'Idempotency-Key': 'ik-exact-contact-replay-customer',
           },
-          { type: 'COMPANY', companyTitle: 'Exact Contact Replay Customer' },
+          {
+            type: 'COMPANY',
+            companyTitle: 'Exact Contact Replay Customer',
+            taxNumber: '9000000303',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-3' },
+          },
         ),
         getEnv(),
       );
@@ -1011,7 +1020,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-contact-reassign-customer-create',
           },
-          { type: 'COMPANY', companyTitle: 'Contact Replay Scope Customer' },
+          {
+            type: 'COMPANY',
+            companyTitle: 'Contact Replay Scope Customer',
+            taxNumber: '9000000304',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-4' },
+          },
         ),
         getEnv(),
       );
@@ -1109,7 +1123,12 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             'X-CSRF-Token': ownerCsrf,
             'Idempotency-Key': 'ik-agency-contact-replay-customer',
           },
-          { type: 'COMPANY', companyTitle: 'Agency Contact Replay Customer' },
+          {
+            type: 'COMPANY',
+            companyTitle: 'Agency Contact Replay Customer',
+            taxNumber: '9000000305',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-5' },
+          },
         ),
         getEnv(),
       );
@@ -1385,6 +1404,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'Assigned',
             lastName: 'Customer',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-ASSIGNED' },
           },
         ),
         getEnv(),
@@ -1410,6 +1430,7 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
             type: 'INDIVIDUAL',
             firstName: 'OwnerOnly',
             lastName: 'Customer',
+            insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-OWNER-ONLY' },
           },
         ),
         getEnv(),
@@ -2065,6 +2086,8 @@ describe('M2-T01 Customer & CompanyContact Integration Tests (Miniflare D1)', ()
         {
           type: 'COMPANY',
           companyTitle: 'Real CSRF Flow Ltd',
+          taxNumber: '9000000306',
+          insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-6' },
           email: 'csrf@flow.test',
         },
       );

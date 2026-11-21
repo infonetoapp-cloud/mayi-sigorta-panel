@@ -1,3 +1,4 @@
+import { Button } from './ui/button';
 import React, { useState, useEffect, useCallback, useId } from 'react';
 import type { AgencySettingsDto, SelectableCatalogsDto, ApiResponse } from '../../shared/types';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
@@ -195,8 +196,11 @@ export const AgencySettingsPanel: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-        Acente ayarları yükleniyor...
+      <div
+        role="status"
+        style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted-foreground)' }}
+      >
+        Acente ayarları yükleniyor…
       </div>
     );
   }
@@ -204,10 +208,11 @@ export const AgencySettingsPanel: React.FC = () => {
   if (fetchError) {
     return (
       <div
+        role="alert"
         style={{
-          color: '#dc2626',
+          color: 'var(--danger)',
           padding: '1rem',
-          backgroundColor: '#fee2e2',
+          backgroundColor: 'var(--danger-surface)',
           borderRadius: '0.375rem',
         }}
       >
@@ -220,17 +225,16 @@ export const AgencySettingsPanel: React.FC = () => {
     <div
       style={{
         maxWidth: '40rem',
-        backgroundColor: '#ffffff',
-        borderRadius: '0.5rem',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'var(--card)',
+        borderRadius: 'var(--radius)',
+        border: '1px solid var(--border)',
         padding: '1.5rem',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
       }}
     >
       <h2
         style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: '#0f172a' }}
       >
-        Acente Operasyonel Ayarları
+        Çalışma ayarları
       </h2>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
         Acentenin varsayılan sigortacı ataması, zaman dilimi ve yenileme takip gün penceresi.
@@ -238,10 +242,11 @@ export const AgencySettingsPanel: React.FC = () => {
 
       {successMessage && (
         <div
+          role="status"
           style={{
-            color: '#047857',
+            color: 'var(--success)',
             padding: '0.75rem',
-            backgroundColor: '#ecfdf5',
+            backgroundColor: 'var(--success-surface)',
             borderRadius: '0.375rem',
             marginBottom: '1rem',
             fontSize: '0.875rem',
@@ -270,21 +275,9 @@ export const AgencySettingsPanel: React.FC = () => {
         >
           <span>{mutationError.message}</span>
           {mutationError.isRetryable && (
-            <button
-              type="button"
-              onClick={handleRetry}
-              style={{
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-              }}
-            >
+            <Button variant="outline" type="button" onClick={handleRetry}>
               Tekrar Dene
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -409,22 +402,9 @@ export const AgencySettingsPanel: React.FC = () => {
           <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
             Versiyon: v{settings?.version}
           </span>
-          <button
-            type="submit"
-            disabled={submitting}
-            style={{
-              backgroundColor: '#2563eb',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0.375rem',
-              padding: '0.5rem 1.25rem',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              cursor: submitting ? 'not-allowed' : 'pointer',
-            }}
-          >
+          <Button variant="default" type="submit" disabled={submitting}>
             {submitting ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

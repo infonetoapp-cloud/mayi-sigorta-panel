@@ -331,6 +331,7 @@ describe('M3-T02 scoped Today’s Work API', () => {
     expect(envelope.data.items).toHaveLength(2);
     expect(envelope.data.canSeeUnassigned).toBe(true);
     const actorTask = envelope.data.items.find((task) => task.taskId === 'task-primary');
+    expect(actorTask).toMatchObject({ policyBranchName: 'Auto', policyInsurerName: 'Insurer' });
     expect(actorTask?.taskId).toBe('task-primary');
     expect(actorTask?.renewalId).toBe('task-renewal');
     expect(actorTask?.customerDisplayName).toBe('Ada Yılmaz');
@@ -347,6 +348,27 @@ describe('M3-T02 scoped Today’s Work API', () => {
     });
   });
 
+  it('unifies authorized owner tasks in server order with one bounded cursor and keeps MEMBER private', async () => {
+    const first = await listTodayTasks(context, db, { limit: 1, unified: 'true' });
+    expect(first.items).toHaveLength(1);
+    const all = [...first.items];
+    let next = first.nextCursor;
+    while (next) {
+      const page = await listTodayTasks(context, db, { limit: 1, unified: 'true', cursor: next });
+      all.push(...page.items);
+      next = page.nextCursor;
+    }
+    expect(all.some((t) => t.taskId === 'task-primary-unassigned')).toBe(true);
+    expect(new Set(all.map((t) => t.taskId)).size).toBe(all.length);
+    await expect(
+      listTodayTasks(context, db, { limit: 1, cursor: first.nextCursor! }),
+    ).rejects.toThrow();
+    const member = await listTodayTasks(memberContext, db, { limit: 25, unified: 'true' });
+    expect(member.items.every((t) => t.assigneeMembershipId === 'task-member-membership')).toBe(
+      true,
+    );
+    expect(member.items.some((t) => t.isUnassigned)).toBe(false);
+  });
   it('does not report an empty Today’s Work page when the database query fails', async () => {
     const failingDb = databaseWithFailedAllResult(db, 'SELECT t.id AS task_id');
 

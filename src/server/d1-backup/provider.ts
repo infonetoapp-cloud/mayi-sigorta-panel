@@ -1,5 +1,11 @@
 export type DiagnosticStage =
-  'export-start' | 'export-poll' | 'download' | 'workflow-step' | 'cron-create';
+  | 'export-start'
+  | 'export-poll'
+  | 'download'
+  | 'storage-write'
+  | 'storage-verify'
+  | 'workflow-step'
+  | 'cron-create';
 export type Classification =
   | 'progress'
   | 'complete'
@@ -12,6 +18,10 @@ export type Classification =
   | 'unexpected-redirect'
   | 'invalid-json'
   | 'provider-error'
+  | 'poll-limit'
+  | 'invalid-url'
+  | 'invalid-length'
+  | 'verification-failed'
   | 'local-failure';
 export interface SafeDiagnostic {
   errorName?: string;

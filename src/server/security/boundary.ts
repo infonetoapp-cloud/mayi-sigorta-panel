@@ -7,6 +7,7 @@ import {
 } from './headers';
 import { validateRequestOrigin } from './origin';
 import { validateFetchMetadata } from './fetch-metadata';
+import { DOCUMENT_ROUTE_CONTRACT } from '../documents/route-contract';
 import type { SecurityBoundaryConfig } from './types';
 import type { ApiResponse } from '../../shared/types';
 
@@ -152,11 +153,13 @@ export function createSecurityBoundaryMiddleware(
       }
     }
 
-    // Bound actual JSON streams before any handler can parse them; Content-Length is not proof.
-    if (
-      rawReq.body &&
-      rawReq.headers.get('content-type')?.toLowerCase().startsWith('application/json')
-    ) {
+    // JSON readers can parse bodies regardless of Content-Type. Only the multipart
+    // upload route uses a separate stream limit.
+    const isMultipartUpload =
+      method === 'POST' &&
+      url.pathname === DOCUMENT_ROUTE_CONTRACT[0].path &&
+      rawReq.headers.get('content-type')?.toLowerCase().startsWith('multipart/form-data;');
+    if (rawReq.body && !isMultipartUpload) {
       const reader = rawReq.clone().body!.getReader();
       let total = 0;
       try {

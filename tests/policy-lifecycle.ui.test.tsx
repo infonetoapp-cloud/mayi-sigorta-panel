@@ -10,7 +10,7 @@ import {
 } from '@testing-library/react';
 import { PolicyManagementSection } from '../src/app/pages/policies/PolicyManagementSection';
 import { invalidateCsrfToken } from '../src/app/csrf';
-import type { PolicyDetailDto } from '../src/shared/types';
+import { policyDetailFixture } from './support/policy-detail-fixture';
 import { MemoryRouter } from 'react-router';
 function render(ui: Parameters<typeof renderUI>[0]) {
   return renderUI(ui, { wrapper: MemoryRouter });
@@ -99,18 +99,10 @@ it.each([401, 403, 404])(
     }
   },
 );
-const policy = {
-  id: 'a',
+const policy = policyDetailFixture('a', {
   version: 3,
   policyNumber: 'POL-A',
-  startDate: '2026-01-01',
-  endDate: '2027-01-01',
-  grossPremiumMinor: 123456,
-  currency: 'TRY',
-  status: 'ACTIVE',
-  assigneeMembershipId: 'm1',
-  archivedAt: null,
-} as PolicyDetailDto;
+});
 const options = [
   { membershipId: 'm1', label: 'Sorumlu Bir', membershipType: 'OWNER' },
   { membershipId: 'm2', label: 'Sorumlu İki', membershipType: 'MEMBER' },

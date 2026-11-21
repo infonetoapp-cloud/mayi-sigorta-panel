@@ -7,6 +7,11 @@ vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
 import worker from '../src/server/worker';
 import { localAuthFixture } from './support/local-auth-fixture';
 import {
+  enableCompanyRegistration,
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
+import {
   randomSessionToken,
   hashSessionToken,
   sessionInsert,
@@ -15,9 +20,12 @@ import {
 } from '../src/server/auth/session';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 const origin = 'https://panel.mayisigorta.com';
+const insurer = 'exported-registration-insurer';
 beforeAll(async () => {
   f = await localAuthFixture();
-  await f.seed('exported-owner', 'OWNER');
+  const actor = await f.seed('exported-owner', 'OWNER');
+  await enableCompanyRegistration(f, actor.membershipId);
+  await seedRegistrationInsurer(f.db, actor.agencyId, insurer);
   f.env.DB = { prepare: f.db.prepare.bind(f.db), batch: f.db.batch.bind(f.db) } as D1Database;
 });
 afterAll(async () => {
@@ -63,9 +71,16 @@ async function totals() {
     ),
   );
 }
-const company = { type: 'COMPANY', companyTitle: 'Synthetic Native Company İ雪' };
+let nextTaxNumber = 9000000400;
+const companyRegistration = () => ({
+  type: 'COMPANY',
+  companyTitle: 'Synthetic Native Company İ雪',
+  taxNumber: String(nextTaxNumber++),
+  insurerNumber: registrationNumber(insurer),
+});
 it('default exported Worker NORMAL -> me -> CSRF -> company/contact/read; exact retry one effect/receipt/audit', async () => {
   const c = await context();
+  const company = companyRegistration();
   const me = await request('/api/me', 'GET', c.cookie);
   expect(me.status).toBe(200);
   const before = await totals(),
@@ -133,6 +148,7 @@ it('default exported Worker NORMAL -> me -> CSRF -> company/contact/read; exact 
   expect(stale.status).toBe(409);
 });
 it('default composition rejects missing/wrong-session CSRF, PHP sibling origin and alternate host without business effects', async () => {
+  const company = companyRegistration();
   const c = await context(),
     other = await context();
   const before = await totals();
@@ -204,13 +220,14 @@ it('default composition rechecks authorization on receipt replay and hides unass
     '/api/customers',
     'POST',
     root.cookie,
-    company,
+    companyRegistration(),
     root.csrf,
     crypto.randomUUID(),
   );
   expect(created.status).toBe(201);
   const id = ((await created.json()) as { data: { id: string } }).data.id;
   const member = await f.seed('exported-member');
+  await enableCompanyRegistration(f, member.membershipId);
   for (const [code, scope] of [
     ['customer.read', 'ASSIGNED'],
     ['customer.update', 'ASSIGNED'],
@@ -224,6 +241,7 @@ it('default composition rechecks authorization on receipt replay and hides unass
       .run();
   const c = await context(member.id);
   expect((await request(`/api/customers/${id}`, 'GET', c.cookie)).status).toBe(404);
+  const company = companyRegistration();
   const key = crypto.randomUUID(),
     own = await request('/api/customers', 'POST', c.cookie, company, c.csrf, key);
   expect(own.status).toBe(201);
@@ -281,7 +299,7 @@ it('actual default Worker final mutation batch session revoke rolls back busines
       '/api/customers',
       'POST',
       c.cookie,
-      company,
+      companyRegistration(),
       c.csrf,
       crypto.randomUUID(),
     );

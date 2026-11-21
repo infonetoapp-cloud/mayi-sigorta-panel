@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 const id = z.string().trim().min(1).max(128);
 const policyStatus = z.enum(['ACTIVE', 'CANCELLED', 'VOIDED']);
+// A safe integer in minor units fits within 14 whole digits and up to two decimals.
+const MAX_PREMIUM_LENGTH = 17;
+const MAX_SIGNED_PREMIUM_LENGTH = MAX_PREMIUM_LENGTH + 1;
 const dateOnly = z.string().refine(isCanonicalDateOnly, 'Geçerli YYYY-MM-DD tarihi gereklidir.');
 const ISO_CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
 const currency = z
@@ -24,6 +27,8 @@ export function normalizePolicyNumber(value: string): string {
 }
 
 export function parsePremiumMinor(value: string): number {
+  if (typeof value === 'string' && value.length > MAX_PREMIUM_LENGTH)
+    throw new Error('GROSS_PREMIUM_OVERFLOW');
   if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) {
     throw new Error('GROSS_PREMIUM_INVALID');
   }
@@ -34,6 +39,8 @@ export function parsePremiumMinor(value: string): number {
 }
 
 export function parseSignedPremiumMinor(value: string): number {
+  if (typeof value === 'string' && value.length > MAX_SIGNED_PREMIUM_LENGTH)
+    throw new Error('PREMIUM_DIFFERENCE_OVERFLOW');
   if (typeof value !== 'string' || !/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value)) {
     throw new Error('PREMIUM_DIFFERENCE_INVALID');
   }
@@ -72,7 +79,7 @@ const createSchema = z
     policyNumber: z.string().min(1).max(200),
     startDate: dateOnly,
     endDate: dateOnly,
-    grossPremium: z.string(),
+    grossPremium: z.string().max(MAX_PREMIUM_LENGTH),
     currency,
     installmentCount: z.number().int().min(2).max(36).nullable(),
     status: policyStatus.default('ACTIVE'),
@@ -101,7 +108,7 @@ const patchSchema = z
     policyNumber: z.string().min(1).max(200).optional(),
     startDate: dateOnly.optional(),
     endDate: dateOnly.optional(),
-    grossPremium: z.string().optional(),
+    grossPremium: z.string().max(MAX_PREMIUM_LENGTH).optional(),
     currency: currency.optional(),
     installmentCount: z.number().int().min(2).max(36).nullable().optional(),
     status: policyStatus.optional(),
@@ -197,7 +204,7 @@ const amendmentInputSchema = z
     externalReference: z.string().trim().min(1).max(200),
     effectiveDate: dateOnly,
     description: z.string().trim().min(1).max(2000),
-    premiumDifference: z.string().optional().nullable(),
+    premiumDifference: z.string().max(MAX_SIGNED_PREMIUM_LENGTH).optional().nullable(),
     currency: currency.optional().nullable(),
   })
   .strict()

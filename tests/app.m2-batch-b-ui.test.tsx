@@ -60,7 +60,13 @@ const policy: PolicyDetailDto = {
   customer: { id: customer.id, displayName: customer.displayName },
   insurer: { id: 'insurer-1', name: 'Anadolu Sigorta', status: 'ACTIVE' },
   product: { id: 'product-1', name: 'Kasko', status: 'ACTIVE' },
-  branch: { id: 'branch-1', name: 'Kasko', status: 'ACTIVE', dataClassification: 'GENERAL' },
+  branch: {
+    id: 'branch-1',
+    name: 'Kasko',
+    status: 'ACTIVE',
+    dataClassification: 'GENERAL',
+    supportsVehicleDetails: false,
+  },
   paymentMethod: { id: 'payment-1', name: 'Peşin', status: 'ACTIVE' },
 };
 
@@ -84,6 +90,7 @@ const catalogs: SelectableCatalogsDto = {
       code: 'KASKO',
       name: 'Kasko',
       dataClassification: 'GENERAL',
+      supportsVehicleDetails: false,
       status: 'ACTIVE',
       version: 1,
       createdAt: '',
@@ -95,6 +102,7 @@ const catalogs: SelectableCatalogsDto = {
       code: 'TSS',
       name: 'Tamamlayıcı Sağlık',
       dataClassification: 'HEALTH',
+      supportsVehicleDetails: false,
       status: 'ACTIVE',
       version: 1,
       createdAt: '',

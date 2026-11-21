@@ -16,6 +16,10 @@ import {
   listPolicies,
   updatePolicy,
 } from '../src/server/policies/service';
+import {
+  executePolicyLifecycle,
+  policyCancellationContext,
+} from '../src/server/policies/cancellation';
 import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
 import {
   archiveCustomer,
@@ -78,7 +82,7 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
     );
     db = await mf.getD1Database('DB');
     for (const file of readdirSync(resolve(root, 'db/migrations'))
-      .filter((x) => /^000[0-8]_.*\.sql$/.test(x))
+      .filter((x) => /^\d{4}_.*\.sql$/.test(x))
       .sort()) {
       for (const statement of readFileSync(resolve(root, 'db/migrations', file), 'utf8')
         .split('--> statement-breakpoint')
@@ -754,18 +758,51 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
         )
         .run(),
     ).rejects.toThrow('POLICY_ARCHIVED');
-    await db.prepare("UPDATE policies SET status='CANCELLED' WHERE id='policy-b'").run();
+    const otherOwner = {
+      ...owner,
+      userId: 'user-b',
+      identityId: 'identity-b',
+      memberships: [{ ...owner.memberships[0]!, id: 'member-b', agencyId: 'agency-b' }],
+    };
+    const cancellation = await policyCancellationContext(db, otherOwner, 'policy-b');
+    await executePolicyLifecycle(
+      db,
+      otherOwner,
+      'policy-b',
+      'cancel',
+      {
+        expectedPolicyVersion: cancellation.policyVersion,
+        targetSetFingerprint: cancellation.targetSetFingerprint,
+        cancellationDate: '2026-06-01',
+        reasonCode: 'CUSTOMER_REQUEST',
+        reasonNotes: null,
+      },
+      'policy-b-cancel',
+    );
     expect(
-      (await db
-        .prepare("SELECT archived_at FROM policies WHERE id='policy-b'")
-        .first<{ archived_at: string | null }>())!.archived_at,
-    ).toBeNull();
+      (await db.prepare("SELECT status,archived_at FROM policies WHERE id='policy-b'").first())!,
+    ).toMatchObject({ archived_at: null, status: 'CANCELLED' });
 
     await db
       .prepare(
-        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status) VALUES('policy-archive-audit','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','AUDIT','AUDIT','2026-01-01','2026-12-31',100,'TRY','VOIDED')",
+        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status) VALUES('policy-archive-audit','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','AUDIT','AUDIT','2026-01-01','2026-12-31',100,'TRY','ACTIVE')",
       )
       .run();
+    const voidContext = await policyCancellationContext(db, owner, 'policy-archive-audit', 'void');
+    await executePolicyLifecycle(
+      db,
+      owner,
+      'policy-archive-audit',
+      'void',
+      {
+        expectedPolicyVersion: voidContext.policyVersion,
+        targetSetFingerprint: voidContext.targetSetFingerprint,
+        cancellationDate: '2026-06-01',
+        reasonCode: 'DUPLICATE',
+        reasonNotes: null,
+      },
+      'policy-archive-audit-void',
+    );
     await expect(
       archivePolicy(
         owner,
@@ -785,7 +822,7 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
         owner,
         db,
         'policy-archive-audit',
-        { expectedVersion: 1, reasonCode: 'DUPLICATE_RECORD' },
+        { expectedVersion: voidContext.policyVersion + 1, reasonCode: 'DUPLICATE_RECORD' },
         'policy-archive-audit',
       ),
     ).rejects.toThrow('AUDIT_FAIL');
@@ -798,7 +835,7 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
 
     await db
       .prepare(
-        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status) VALUES('policy-archive-race','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','ARCHR','ARCHR','2026-01-01','2026-12-31',100,'TRY','VOIDED')",
+        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status) VALUES('policy-archive-race','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','ARCHR','ARCHR','2026-01-01','2026-12-31',100,'TRY','ACTIVE')",
       )
       .run();
     const archiveRace = await Promise.allSettled([
@@ -1016,14 +1053,14 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
     await expect(
       db
         .prepare(
-          "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-bad-reason','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','BADR','BADR','2026-01-01','2026-12-31',100,'TRY','VOIDED','2026-01-01Z','member-a','bad reason')",
+          "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-bad-reason','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','BADR','BADR','2026-01-01','2026-12-31',100,'TRY','ACTIVE','2026-01-01Z','member-a','bad reason')",
         )
         .run(),
     ).rejects.toThrow('POLICY_ARCHIVE_REASON_INVALID');
     await expect(
       db
         .prepare(
-          "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-null-reason','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','NULLR','NULLR','2026-01-01','2026-12-31',100,'TRY','VOIDED','2026-01-01Z','member-a',NULL)",
+          "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-null-reason','agency-a','customer-policy','insurer-a','product-a','branch-a','cash-a','member-a','NULLR','NULLR','2026-01-01','2026-12-31',100,'TRY','ACTIVE','2026-01-01Z','member-a',NULL)",
         )
         .run(),
     ).rejects.toThrow('POLICY_ARCHIVE_REASON_INVALID');
@@ -1058,7 +1095,7 @@ describe('M2-T05 policy relationships and lifecycle on real D1', () => {
     ).rejects.toMatchObject({ code: 'OPEN_DEPENDENCIES' });
     await db
       .prepare(
-        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-unarchive','agency-a','customer-unarchive','insurer-a','product-a','branch-a','cash-a','member-a','UNAR','UNAR','2026-01-01','2026-12-31',100,'TRY','VOIDED','2026-01-01Z','member-a','DUPLICATE_RECORD')",
+        "INSERT INTO policies(id,agency_id,customer_id,insurer_id,product_id,branch_id,payment_method_id,assignee_membership_id,policy_number,normalized_policy_number,start_date,end_date,gross_premium_minor,currency,status,archived_at,archived_by_membership_id,archive_reason) VALUES('policy-unarchive','agency-a','customer-unarchive','insurer-a','product-a','branch-a','cash-a','member-a','UNAR','UNAR','2026-01-01','2026-12-31',100,'TRY','ACTIVE','2026-01-01Z','member-a','DUPLICATE_RECORD')",
       )
       .run();
     await archiveCustomer(

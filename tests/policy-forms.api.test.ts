@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type { CustomerDto, PolicyDto, PolicyDetailDto } from '../src/shared/types';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
@@ -65,6 +69,7 @@ async function snapshot() {
 beforeAll(async () => {
   f = await localAuthFixture();
   owner = await login('form-owner', 'OWNER');
+  await enableCompanyRegistration(f, 'membership-form-owner');
   ahmet = await login('form-ahmet');
   ayse = await login('form-ayse');
   denied = await login('form-denied');
@@ -88,11 +93,17 @@ beforeAll(async () => {
       type: 'INDIVIDUAL',
       firstName: 'Bireysel',
       lastName: 'Müşteri',
+      insurerNumber: registrationNumber('form-insurer'),
     }),
     201,
   );
   company = await data<CustomerDto>(
-    await send('/api/customers', 'POST', { type: 'COMPANY', companyTitle: 'Kurumsal Müşteri' }),
+    await send('/api/customers', 'POST', {
+      type: 'COMPANY',
+      companyTitle: 'Kurumsal Müşteri',
+      taxNumber: '9000000113',
+      insurerNumber: registrationNumber('form-insurer'),
+    }),
     201,
   );
 });
@@ -224,7 +235,12 @@ it('rejects archived-policy edits and new policies for archived customers atomic
   ).toBe(false);
   expect(await snapshot()).toBe(before);
   const empty = await data<CustomerDto>(
-    await send('/api/customers', 'POST', { type: 'COMPANY', companyTitle: 'Arşivli Origin' }),
+    await send('/api/customers', 'POST', {
+      type: 'COMPANY',
+      companyTitle: 'Arşivli Origin',
+      taxNumber: '9000000114',
+      insurerNumber: registrationNumber('form-insurer'),
+    }),
     201,
   );
   await data(

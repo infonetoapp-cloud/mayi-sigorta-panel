@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type {
   CustomerDto,
@@ -65,6 +69,7 @@ beforeAll(async () => {
     return r.headers.get('set-cookie')!.split(';')[0]!;
   }
   owner = await login('append-owner', 'OWNER');
+  await enableCompanyRegistration(f, 'membership-append-owner');
   ahmet = await login('append-ahmet');
   ayse = await login('append-ayse');
   foreign = await login('append-foreign', 'OWNER', 'append-foreign-agency');
@@ -88,7 +93,12 @@ beforeAll(async () => {
       '/api/customers',
       'POST',
       owner,
-      { type: 'COMPANY', companyTitle: 'Append Şirket' },
+      {
+        type: 'COMPANY',
+        companyTitle: 'Append Şirket',
+        taxNumber: '9000000111',
+        insurerNumber: registrationNumber('append-i'),
+      },
       await f.csrf(owner),
       { 'idempotency-key': crypto.randomUUID() },
     ),

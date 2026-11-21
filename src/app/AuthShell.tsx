@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import { invalidateCsrfToken } from './csrf';
 import { BrowserRouter } from 'react-router';
 import { AuthenticatedApp } from './AuthenticatedApp';
+import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { LoginChallenge } from './LoginChallenge';
 
 import { authErrorMessage } from './auth-errors';
 import { normalizeBoundedPassword, PASSWORD_INPUT_MESSAGE } from '../shared/password-input';
@@ -34,70 +36,85 @@ export async function authMutation(path: string, body: unknown): Promise<Record<
 export function ReauthForm({
   onSuccess,
   onCancel,
+  inline = false,
 }: {
   onSuccess: () => void;
   onCancel: () => void;
+  inline?: boolean;
 }) {
   const [password, setPassword] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
-  return (
-    <div className="auth-backdrop">
-      <section className="auth-card" role="dialog" aria-modal="true" aria-labelledby="reauth-title">
-        <h2 id="reauth-title">Devam etmek için şifrenizi tekrar girin</h2>
-        <p>Kendi kalıcı şifrenizle bu işlemi doğrulayın.</p>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (normalizeBoundedPassword(password) === null) {
-              setError(PASSWORD_INPUT_MESSAGE);
+  const headingId = useId();
+  const Heading = inline ? 'h3' : 'h2';
+  const content = (
+    <section
+      className={inline ? undefined : 'auth-card'}
+      role={inline ? undefined : 'dialog'}
+      aria-modal={inline ? undefined : true}
+      aria-labelledby={headingId}
+    >
+      <Heading id={headingId}>Devam etmek için şifrenizi tekrar girin</Heading>
+      <p>Kendi kalıcı şifrenizle bu işlemi doğrulayın.</p>
+      <form
+        action="/api/auth/reauth"
+        method="post"
+        aria-labelledby={headingId}
+        className={inline ? 'issue-policy-form' : undefined}
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (normalizeBoundedPassword(password) === null) {
+            setError(PASSWORD_INPUT_MESSAGE);
+            setPassword('');
+            return;
+          }
+          setBusy(true);
+          setError('');
+          try {
+            await authMutation('/api/auth/reauth', { password });
+            setPassword('');
+            onSuccess();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Doğrulama başarısız.');
+            setPassword('');
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          Şifre
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoFocus
+          />
+        </label>
+        {error && <p role="alert">{error}</p>}
+        <div className={inline ? 'customer-form-actions' : 'auth-actions'}>
+          <Button disabled={busy} aria-busy={busy} type="submit">
+            {busy ? 'Doğrulanıyor…' : 'Doğrula'}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={busy}
+            type="button"
+            onClick={() => {
               setPassword('');
-              return;
-            }
-            setBusy(true);
-            setError('');
-            try {
-              await authMutation('/api/auth/reauth', { password });
-              setPassword('');
-              onSuccess();
-            } catch (err) {
-              setError(err instanceof Error ? err.message : 'Doğrulama başarısız.');
-              setPassword('');
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <label>
-            Şifre
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoFocus
-            />
-          </label>
-          {error && <p role="alert">{error}</p>}
-          <div className="auth-actions">
-            <button disabled={busy} type="submit">
-              Doğrula
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPassword('');
-                onCancel();
-              }}
-            >
-              Vazgeç
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+              onCancel();
+            }}
+          >
+            Vazgeç
+          </Button>
+        </div>
+      </form>
+    </section>
   );
+  return inline ? content : <div className="auth-backdrop">{content}</div>;
 }
 function PasswordForm({
   activation,
@@ -159,6 +176,7 @@ function PasswordForm({
             Mevcut şifre
             <input
               type="password"
+              name="currentPassword"
               autoComplete="current-password"
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
@@ -170,6 +188,7 @@ function PasswordForm({
           Yeni şifre
           <input
             type="password"
+            name="newPassword"
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -180,6 +199,7 @@ function PasswordForm({
           Yeni şifre tekrar
           <input
             type="password"
+            name="confirmation"
             autoComplete="new-password"
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
@@ -188,11 +208,11 @@ function PasswordForm({
         </label>
         {error && <p role="alert">{error}</p>}
         <div className="auth-actions">
-          <button type="submit" disabled={busy}>
-            Şifreyi kaydet
+          <button type="submit" disabled={busy} aria-busy={busy}>
+            {busy ? 'Kaydediliyor…' : 'Şifreyi kaydet'}
           </button>
           {onCancel && (
-            <button type="button" onClick={onCancel}>
+            <button type="button" onClick={onCancel} disabled={busy}>
               Vazgeç
             </button>
           )}
@@ -207,10 +227,14 @@ export function AuthShell() {
     [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
+    [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null),
+    [turnstileToken, setTurnstileToken] = useState<string | null>(null),
+    [challengeAttempt, setChallengeAttempt] = useState(0),
     [standaloneReauth, setStandaloneReauth] = useState(false);
   async function refresh() {
     try {
       const response = await fetch('/api/auth/session', { cache: 'no-store' });
+      setTurnstileSiteKey(response.headers.get('X-Turnstile-Site-Key'));
       if (!response.ok) {
         setSession(null);
         return;
@@ -261,12 +285,19 @@ export function AuthShell() {
     return (
       <main className="auth-page">
         <section className="auth-card">
-          <div className="auth-brand">Mayı Sigorta</div>
+          <img
+            className="auth-brand"
+            src="/brand/mayi-logo-header.png"
+            alt="Mayı Sigorta"
+            width={420}
+            height={175}
+          />
           <h1>Giriş Yap</h1>
           <p>Yalnız acente sahibinizin oluşturduğu çalışan hesabıyla giriş yapabilirsiniz.</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              if (busy || (turnstileSiteKey && !turnstileToken)) return;
               setError('');
               if (normalizeBoundedPassword(password) === null) {
                 setError(PASSWORD_INPUT_MESSAGE);
@@ -278,7 +309,11 @@ export function AuthShell() {
                 const response = await fetch('/api/auth/login', {
                   method: 'POST',
                   headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({ email, password }),
+                  body: JSON.stringify({
+                    email,
+                    password,
+                    ...(turnstileToken ? { turnstileToken } : {}),
+                  }),
                   cache: 'no-store',
                 });
                 const result = (await response.json()) as { error?: { code?: string } };
@@ -297,6 +332,8 @@ export function AuthShell() {
                 setError('Giriş tamamlanamadı.');
               } finally {
                 setBusy(false);
+                setTurnstileToken(null);
+                setChallengeAttempt((value) => value + 1);
               }
             }}
           >
@@ -321,9 +358,21 @@ export function AuthShell() {
                 required
               />
             </label>
+            {turnstileSiteKey && (
+              <LoginChallenge
+                key={challengeAttempt}
+                siteKey={turnstileSiteKey}
+                onToken={setTurnstileToken}
+              />
+            )}
             {error && <p role="alert">{error}</p>}
-            <button type="submit" disabled={busy}>
-              Giriş Yap
+            <button
+              type="submit"
+              className="auth-login-button"
+              aria-busy={busy}
+              disabled={busy || (!!turnstileSiteKey && !turnstileToken)}
+            >
+              {busy ? 'Giriş yapılıyor…' : 'Giriş Yap'}
             </button>
           </form>
           <p className="auth-help">Şifrenizi unuttuysanız acente sahibinizle iletişime geçin.</p>

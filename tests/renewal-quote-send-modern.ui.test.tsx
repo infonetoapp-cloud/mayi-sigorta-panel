@@ -8,7 +8,7 @@ import type {
 } from '../src/app/pages/today-work/quote-model';
 import { invalidateCsrfToken } from '../src/app/csrf';
 import { MemoryRouter } from 'react-router';
-import { openWorkspaceSections } from './support/workspace-disclosures';
+import { openWorkspaceSections, openWorkspaceSection } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { installQuotePopBoundary } from '../src/app/pages/today-work/quote-navigation';
 import type { TodayTaskDto, TodayTasksResponseData } from '../src/shared/types';
@@ -55,17 +55,18 @@ it('explains an expired draft without offering SENT or changing the persisted qu
   const q = original();
   q.versions[0]!.valid_until = '2020-01-01T09:00:00.000Z';
   fixture((url, init) =>
-    url.endsWith('/quotes') && !init?.method
+    /\/quotes(?:\?.*)?$/.test(url) && !init?.method
       ? response({ quotes: [q], defaultVersion: defaults })
       : undefined,
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
   await screen.findByText(/Bu sürümün geçerliliği sona erdi/);
   expect(screen.queryByRole('button', { name: 'Teklifi gönderildi olarak kaydet' })).toBeNull();
-  expect(screen.getByText('Teklif 1 — Taslak')).toBeTruthy();
-  expect(
-    screen.getByRole('button', { name: 'Teklif 1 için yeni değişmez sürüm taslağı aç' }),
-  ).toBeTruthy();
+  expect(screen.getByRole('row', { name: 'Teklif 1 güncel özet' }).textContent).toContain('Taslak');
+  expect(screen.getByRole('button', { name: 'Teklif 1 için revizyon' })).toBeTruthy();
 });
 const response = (data: unknown, status = 200) =>
   new Response(
@@ -191,7 +192,11 @@ function fixture(
   };
 }
 async function open() {
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  if (screen.queryByRole('button', { name: 'Teklifler' })) openWorkspaceSection('Teklifler');
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
   fireEvent.click(await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
   const select = screen.getByLabelText('Gönderildi olarak kaydedilecek teklif ve güncel sürüm');
   expect((select as unknown as HTMLSelectElement).value).toBe('');
@@ -249,7 +254,7 @@ it('requires explicit quote/version selection and confirmation, posts only CAS/v
   );
   expect(form.textContent).toContain('Sentetik şirket');
   expect(form.textContent).toContain('Sentetik ürün');
-  expect(form.textContent).toContain('123.45');
+  expect(form.textContent).toContain('123,45');
   expect(form.textContent).toContain('TRY');
   fireEvent.click(within(form).getByRole('button', { name: 'Gönderildi kaydını onayla' }));
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(0);
@@ -299,8 +304,11 @@ it.each(['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'past-validity', 'missing-cu
     else if (state === 'missing-current') q.current_version_id = 'absent';
     else q.status = state;
     view.setHistory({ defaultVersion: defaults, quotes: [q] });
-    fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-    await screen.findByText(/Kayıt sürümü 7/);
+    {
+      const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+      if (read) fireEvent.click(read);
+    }
+    await screen.findByRole('row', { name: 'Teklif 1 güncel özet' });
     expect(screen.queryByRole('button', { name: 'Teklifi gönderildi olarak kaydet' })).toBeNull();
     expect(view.fetcher.mock.calls.some(([, i]) => i?.method)).toBe(false);
   },
@@ -340,9 +348,7 @@ it.each(['network', 408, 429, 503, 'malformed-success'])(
     fireEvent.submit(form);
     await screen.findByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' });
     view.rerender(<RenewalQuotesSection {...view.props} renewalVersion={99} />);
-    expect(
-      screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }).hasAttribute('disabled'),
-    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Yeni teklif' }).hasAttribute('disabled')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' }));
     await success();
     const writes = view.fetcher.mock.calls.filter(([, i]) => i?.method);
@@ -417,7 +423,8 @@ it.each([
   async (failure) => {
     let reads = 0;
     const view = fixture((u, i) => {
-      if (u !== '/api/renewals/r/quotes' || i?.method || ++reads !== 2) return undefined;
+      if (u.split('?')[0] !== '/api/renewals/r/quotes' || i?.method || ++reads !== 2)
+        return undefined;
       if (failure === 'http') return response(null, 503);
       const h = structuredClone(view.getHistory()),
         q = h.quotes[0]!,
@@ -456,7 +463,8 @@ it.each([
 it('preserves the historical SENT proof but reports the actual later DRAFT/current version', async () => {
   let reads = 0;
   const view = fixture((u, i) => {
-    if (u !== '/api/renewals/r/quotes' || i?.method || ++reads !== 2) return undefined;
+    if (u.split('?')[0] !== '/api/renewals/r/quotes' || i?.method || ++reads !== 2)
+      return undefined;
     const h = structuredClone(view.getHistory()),
       q = h.quotes[0]!;
     q.status = 'DRAFT';
@@ -472,7 +480,7 @@ it('preserves the historical SENT proof but reports the actual later DRAFT/curre
   expect(message.textContent).toContain(
     'tarihsel beyan güncel sürümün gönderildiği anlamına gelmez',
   );
-  expect(screen.getByRole('article', { name: 'Teklif 1' }).textContent).toContain('Taslak');
+  expect(screen.getByRole('row', { name: 'Teklif 1 güncel özet' }).textContent).toContain('Taslak');
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
 });
 it.each(['quoteId', 'quoteVersionId', 'versionNumber', 'operationId', 'status'])(
@@ -592,7 +600,7 @@ it.each([400, 403, 404])(
     const form = screen.getByRole('form', { name: 'Gönderildi durum kaydı' });
     expect(document.body.textContent).not.toContain('unsafe diagnostic');
     if (status !== 400) {
-      expect(form.textContent).not.toContain('123.45');
+      expect(form.textContent).not.toContain('123,45');
       expect(form.textContent).not.toContain('Sentetik ürün');
     }
     expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
@@ -616,12 +624,18 @@ it.each(['csrf', 'post', 'readback', 'comparison'])(
           posts++;
           if (stage === 'comparison') return response(null, 409);
         }
-        if (u === '/api/renewals/r/quotes' && !i?.method) reads++;
+        if (u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method) reads++;
         if (
           (stage === 'csrf' && u.endsWith('csrf-token')) ||
           (stage === 'post' && i?.method) ||
-          (stage === 'readback' && u === '/api/renewals/r/quotes' && !i?.method && posts) ||
-          (stage === 'comparison' && u === '/api/renewals/r/quotes' && !i?.method && reads > 1)
+          (stage === 'readback' &&
+            u.split('?')[0] === '/api/renewals/r/quotes' &&
+            !i?.method &&
+            posts) ||
+          (stage === 'comparison' &&
+            u.split('?')[0] === '/api/renewals/r/quotes' &&
+            !i?.method &&
+            reads > 1)
         ) {
           waiting = true;
           return delayed;
@@ -650,14 +664,16 @@ it.each(['csrf', 'post', 'readback', 'comparison'])(
 it('clears previously displayed SENT proof details when quote history authority is revoked', async () => {
   let deny = false;
   fixture((u, i) =>
-    deny && u === '/api/renewals/r/quotes' && !i?.method ? response(null, 403) : undefined,
+    deny && u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method
+      ? response(null, 403)
+      : undefined,
   );
   await open();
   submit();
   await success();
   deny = true;
   const refresh = screen.getByRole('button', {
-    name: 'Teklif geçmişini ve katalogları yeniden oku',
+    name: 'Kayıtlı teklifleri yenile',
   });
   await waitFor(() => expect(refresh.hasAttribute('disabled')).toBe(false));
   fireEvent.click(refresh);
@@ -680,13 +696,19 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
     );
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
     openWorkspaceSections();
-    fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+    openWorkspaceSection('Teklifler');
+    {
+      const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+      if (read) fireEvent.click(read);
+    }
     await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' });
+    openWorkspaceSection('İletişim');
     fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydı ekle' }));
     fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
     fireEvent.change(screen.getByLabelText('İç not'), {
       target: { value: 'Korunan iletişim taslağı' },
     });
+    if (screen.queryByRole('button', { name: 'Teklifler' })) openWorkspaceSection('Teklifler');
     fireEvent.click(screen.getByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
     await screen.findByText(/İletişim\/görev taslağını açıkça kapatın/);
     expect(
@@ -695,11 +717,15 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
     expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe(
       'Korunan iletişim taslağı',
     );
+    openWorkspaceSection('İletişim');
     fireEvent.click(screen.getByRole('button', { name: 'Formu kapat ve taslağı bırak' }));
+    openWorkspaceSection('Teklifler');
+    openWorkspaceSection('Görev işlemleri');
     fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
     fireEvent.change(screen.getByLabelText('Yeni takip zamanı (İstanbul)'), {
       target: { value: '2099-01-01T12:00' },
     });
+    if (screen.queryByRole('button', { name: 'Teklifler' })) openWorkspaceSection('Teklifler');
     fireEvent.click(screen.getByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
     expect((screen.getByLabelText('Yeni takip zamanı (İstanbul)') as HTMLInputElement).value).toBe(
       '2099-01-01T12:00',
@@ -707,7 +733,10 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
     expect(
       screen.queryByLabelText('Gönderildi olarak kaydedilecek teklif ve güncel sürüm'),
     ).toBeNull();
+    openWorkspaceSection('Görev işlemleri');
     fireEvent.click(screen.getByRole('button', { name: 'Plan taslağını kapat' }));
+    openWorkspaceSection('Teklifler');
+    if (screen.queryByRole('button', { name: 'Teklifler' })) openWorkspaceSection('Teklifler');
     fireEvent.click(screen.getByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
     fireEvent.change(
       screen.getByLabelText('Gönderildi olarak kaydedilecek teklif ve güncel sürüm'),
@@ -717,7 +746,7 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
     await screen.findByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' });
     fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
     await screen.findByText(/Teklif işleminin belirsiz sonucu/);
-    fireEvent.click(screen.getByRole('link', { name: 'Klasik iş akışını aç' }));
+    expect(screen.queryByText(/Klasik çalışma alanı/)).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' }),
     ).toBeTruthy();
@@ -732,9 +761,7 @@ it('preserves communication/task drafts and pins an unresolved SENT attempt thro
     });
     expect(go).toHaveBeenCalledWith(1);
     history.replaceState({ idx: 7 }, '');
-    expect(
-      screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }).hasAttribute('disabled'),
-    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Yeni teklif' }).hasAttribute('disabled')).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' }));
     await success();
     const writes = view.fetcher.mock.calls.filter(([, i]) => i?.method);
@@ -754,7 +781,7 @@ it('blocks navigation during confirmed-write GET-only recovery without silently 
   let reads = 0;
   const view = fixture(
     (u, i) =>
-      u === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
+      u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
         ? response(null, 503)
         : undefined,
     true,
@@ -786,7 +813,10 @@ it.each(['post', 'readback'])(
       if (i?.method) posts++;
       if (
         (stage === 'post' && i?.method) ||
-        (stage === 'readback' && u === '/api/renewals/r/quotes' && !i?.method && posts)
+        (stage === 'readback' &&
+          u.split('?')[0] === '/api/renewals/r/quotes' &&
+          !i?.method &&
+          posts)
       ) {
         waiting = true;
         return delayed;
@@ -819,8 +849,11 @@ it.each(['post', 'readback'])(
 );
 it('preserves an open Phase4D quote-editing draft and blocks SENT until it is explicitly closed', async () => {
   const view = fixture();
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif' }));
   fireEvent.change(screen.getByLabelText('Teklif koşulları'), {
     target: { value: 'Korunan teklif taslağı' },
   });
@@ -845,14 +878,20 @@ it('updates the displayed current state after a later authorized refresh without
   q.status = 'DRAFT';
   q.version = 9;
   q.current_version_id = 'v2';
+  q.events = [];
+  h.historyMode = 'SUMMARY';
+  q.versionCount = 2;
+  h.hasMore = false;
+  h.nextCursor = null;
   q.versions.push({ ...baseVersion, id: 'v2', version_number: 2 });
   view.setHistory(h);
   const refresh = screen.getByRole('button', {
-    name: 'Teklif geçmişini ve katalogları yeniden oku',
+    name: 'Kayıtlı teklifleri yenile',
   });
   await waitFor(() => expect(refresh.hasAttribute('disabled')).toBe(false));
   fireEvent.click(refresh);
-  await screen.findByText('Sürüm 2 — Güncel kayıtlı sürüm');
+  openPriceHistory();
+  await screen.findByText('Güncel fiyat');
   expect((await success()).textContent).toContain('güncel teklif durumu: Taslak');
   expect(view.fetcher.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
 });
@@ -865,14 +904,19 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
     );
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
     openWorkspaceSections();
-    fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+    openWorkspaceSection('Teklifler');
+    {
+      const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+      if (read) fireEvent.click(read);
+    }
     await screen.findByRole('button', { name: 'Teklifi gönderildi olarak kaydet' });
     if (kind === 'quote-draft') {
-      fireEvent.click(screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Yeni teklif' }));
       fireEvent.change(screen.getByLabelText('Teklif koşulları'), {
         target: { value: 'Korunan Phase4F taslağı' },
       });
     } else {
+      if (screen.queryByRole('button', { name: 'Teklifler' })) openWorkspaceSection('Teklifler');
       fireEvent.click(screen.getByRole('button', { name: 'Teklifi gönderildi olarak kaydet' }));
       fireEvent.change(
         screen.getByLabelText('Gönderildi olarak kaydedilecek teklif ve güncel sürüm'),
@@ -883,6 +927,7 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
         await screen.findByRole('button', { name: 'Aynı gönderildi isteğini yeniden dene' });
       }
     }
+    openWorkspaceSection('Yenileme sonucu');
     fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }));
     await screen.findByText(/Önce iletişim\/görev\/teklif taslağını/);
     expect(screen.queryByRole('form', { name: 'LOST sonuçlandırma' })).toBeNull();
@@ -891,8 +936,9 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
         'Korunan Phase4F taslağı',
       );
     else {
+      openWorkspaceSection('Teklifler');
       expect(screen.getByRole('form', { name: 'Gönderildi durum kaydı' }).textContent).toContain(
-        '123.45',
+        '123,45',
       );
       if (kind === 'sent-unresolved')
         expect(
@@ -901,3 +947,13 @@ it.each(['quote-draft', 'sent-draft', 'sent-unresolved'])(
     }
   },
 );
+
+function openPriceHistory() {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  fireEvent.click(screen.getAllByRole('button', { name: /Fiyat geçmişi/ })[0]!);
+}

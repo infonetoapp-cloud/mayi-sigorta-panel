@@ -6,6 +6,14 @@ import { PolicyAuthorizationRaceError, PolicyConstraintError } from './policy-er
 
 export type PolicyRelationshipCommand =
   | {
+      readonly kind: 'policy.vehicle.set';
+      readonly policyId: string;
+      readonly customerId: string;
+      readonly expectedVersion: number;
+      readonly vehicleId: string | null;
+      readonly vehicleVersion: number | null;
+    }
+  | {
       readonly kind: 'policy_party.create';
       readonly policyId: string;
       readonly expectedVersion: number;
@@ -69,6 +77,8 @@ function permissionFor(command: PolicyRelationshipCommand): string {
 
 function auditEventFor(command: PolicyRelationshipCommand): string {
   switch (command.kind) {
+    case 'policy.vehicle.set':
+      return 'policy.vehicle.updated';
     case 'policy_party.create':
       return 'policy_party.created';
     case 'policy_party.deactivate':
@@ -84,6 +94,8 @@ function auditEventFor(command: PolicyRelationshipCommand): string {
 
 function targetFor(command: PolicyRelationshipCommand): { type: string; id: string } {
   switch (command.kind) {
+    case 'policy.vehicle.set':
+      return { type: 'policy_vehicle_snapshots', id: command.policyId };
     case 'policy_party.create':
     case 'policy_party.deactivate':
       return { type: 'policy_parties', id: command.partyId };
@@ -110,7 +122,8 @@ function createsPolicyChild(command: PolicyRelationshipCommand): boolean {
   return (
     command.kind === 'policy_party.create' ||
     command.kind === 'policy_amendment.create' ||
-    command.kind === 'policy_external_reference.create'
+    command.kind === 'policy_external_reference.create' ||
+    command.kind === 'policy.vehicle.set'
   );
 }
 
@@ -118,7 +131,15 @@ function parentVersionStatement(input: Input, now: string): D1PreparedStatement 
   return input.db
     .prepare(
       `UPDATE policies SET version=version+1,updated_at=?
-       WHERE agency_id=? AND id=? AND version=? AND archived_at IS NULL`,
+       WHERE agency_id=? AND id=? AND version=? AND archived_at IS NULL
+         ${
+           input.command.kind === 'policy.vehicle.set'
+             ? `AND EXISTS(
+           SELECT 1 FROM customers c JOIN insurance_branches b ON b.agency_id=policies.agency_id AND b.id=policies.branch_id
+           WHERE c.agency_id=policies.agency_id AND c.id=policies.customer_id
+             AND c.archived_at IS NULL AND b.supports_vehicle_details=1)`
+             : ''
+         }`,
     )
     .bind(now, input.agencyId, input.command.policyId, input.command.expectedVersion);
 }
@@ -161,7 +182,7 @@ function targetCustomerReadSql(customerId: string): string {
 function authorityStatement(input: Input): D1PreparedStatement {
   const required = permissionFor(input.command);
   const targetCustomerRead =
-    input.command.kind === 'policy_party.create'
+    input.command.kind === 'policy_party.create' || input.command.kind === 'policy.vehicle.set'
       ? ` AND ${targetCustomerReadSql(input.command.customerId)}`
       : '';
   const activeParent = input.command.kind === 'policy.archive' ? '' : ' AND p.archived_at IS NULL';
@@ -200,6 +221,29 @@ function authorityStatement(input: Input): D1PreparedStatement {
 function businessStatement(input: Input, now: string): D1PreparedStatement {
   const command = input.command;
   switch (command.kind) {
+    case 'policy.vehicle.set':
+      return command.vehicleId === null
+        ? input.db
+            .prepare('DELETE FROM policy_vehicle_snapshots WHERE agency_id=? AND policy_id=?')
+            .bind(input.agencyId, command.policyId)
+        : input.db
+            .prepare(
+              `INSERT INTO policy_vehicle_snapshots(policy_id,agency_id,customer_id,vehicle_id,vehicle_version,details_json,created_at,updated_at)
+          SELECT ?,v.agency_id,v.customer_id,v.id,v.version,v.details_json,?,? FROM customer_vehicles v JOIN customers c ON c.agency_id=v.agency_id AND c.id=v.customer_id
+          JOIN policies p ON p.agency_id=v.agency_id AND p.customer_id=v.customer_id AND p.id=?
+          WHERE v.agency_id=? AND v.customer_id=? AND v.id=? AND v.version=? AND v.status='ACTIVE' AND c.archived_at IS NULL
+          ON CONFLICT(policy_id) DO UPDATE SET customer_id=excluded.customer_id,vehicle_id=excluded.vehicle_id,vehicle_version=excluded.vehicle_version,details_json=excluded.details_json,updated_at=excluded.updated_at`,
+            )
+            .bind(
+              command.policyId,
+              now,
+              now,
+              command.policyId,
+              input.agencyId,
+              command.customerId,
+              command.vehicleId,
+              command.vehicleVersion,
+            );
     case 'policy_party.create':
       return input.db
         .prepare(
@@ -286,6 +330,8 @@ function businessStatement(input: Input, now: string): D1PreparedStatement {
 
 function auditMetadata(command: PolicyRelationshipCommand): Record<string, unknown> {
   switch (command.kind) {
+    case 'policy.vehicle.set':
+      return { customerId: command.customerId };
     case 'policy_party.create':
       return { customerId: command.customerId, safeCode: command.role };
     case 'policy_party.deactivate':

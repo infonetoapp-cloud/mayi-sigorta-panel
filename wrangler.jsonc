@@ -93,7 +93,7 @@
         },
       ],
       // Names only. Required-secret metadata is not provisioning or a live existence assertion.
-      "secrets": { "required": ["CSRF_SECRET"] },
+      "secrets": { "required": ["CSRF_SECRET", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET"] },
       // Invocation metrics only; never add body/password/verifier/header logging.
       "observability": {
         "enabled": true,

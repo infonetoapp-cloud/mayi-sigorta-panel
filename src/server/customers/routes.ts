@@ -28,6 +28,7 @@ import {
   updateCustomer,
   getCustomer,
   listCustomers,
+  listCustomerReferenceOptions,
   createCompanyContact,
   updateCompanyContact,
   setPrimaryCompanyContact,
@@ -40,6 +41,11 @@ import {
   listCustomerAssignmentOptions,
   createExternalReference,
   listExternalReferences,
+  listInsurerCustomerNumbers,
+  listCustomerVehicles,
+  saveCustomerVehicle,
+  listInsurerNumberOptions,
+  setInsurerCustomerNumber,
   CustomerNotFoundError,
   ContactNotFoundError,
   CustomerForbiddenError,
@@ -47,7 +53,7 @@ import {
   ValidationError,
   type ListCustomersQuery,
 } from './service';
-import { parseIdentityCryptoConfig } from '../security/identity-crypto';
+import { IdentityCryptoConfigError, parseIdentityCryptoConfig } from '../security/identity-crypto';
 import type { AppDependencies, Env } from '../index';
 import { createCustomerNote, listCustomerNotes, CustomerNoteError } from './notes';
 import { AuthHttpError, readBoundedJson } from '../auth/routes';
@@ -206,6 +212,18 @@ export function registerCustomerRoutes(
 
   // Ortak hata yakalama ve dönüştürme yardımcısı
   function handleError(c: Context<CustomerRouteEnv>, err: unknown) {
+    if (err instanceof IdentityCryptoConfigError)
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'Kimlik şifreleme altyapısı kullanılamıyor.',
+          },
+          timestamp: new Date().toISOString(),
+        },
+        503,
+      );
     if (err instanceof CustomerCoverageError)
       return c.json(
         {
@@ -317,6 +335,7 @@ export function registerCustomerRoutes(
           ? 404
           : err.code === 'MULTIPLE_ACTIVE_PRIMARY_CONTACTS_PROHIBITED' ||
               err.code === 'DUPLICATE_EXTERNAL_REFERENCE' ||
+              err.code === 'DUPLICATE_VEHICLE_PLATE' ||
               err.code === 'OPEN_DEPENDENCIES'
             ? 409
             : err.code === 'INDIVIDUAL_CONTACT_PROHIBITED'
@@ -345,6 +364,25 @@ export function registerCustomerRoutes(
     );
   }
 
+  app.get(`${API_PREFIX}/customers/reference-options`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      const params = new URL(c.req.url).searchParams;
+      if ([...params.keys()].some((key) => key !== 'cursor' || params.getAll(key).length !== 1))
+        throw new ValidationError('Geçersiz sayfalama.');
+      const data = await listCustomerReferenceOptions(
+        c.env.DB,
+        auth.context,
+        c.req.query('cursor'),
+      );
+      return c.json({ success: true, data, timestamp: new Date().toISOString() });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   // 1. GET /api/customers - Müşteri listeleme
   app.get(`${API_PREFIX}/customers`, async (c) => {
     c.header('Cache-Control', 'no-store');
@@ -359,8 +397,17 @@ export function registerCustomerRoutes(
         if (
           [...params.keys()].some(
             (key) =>
-              !['include', 'limit', 'cursor', 'sort', 'order', 'type', 'search'].includes(key) ||
-              params.getAll(key).length !== 1,
+              ![
+                'include',
+                'limit',
+                'cursor',
+                'sort',
+                'order',
+                'type',
+                'search',
+                'reference',
+                'referenceMembershipId',
+              ].includes(key) || params.getAll(key).length !== 1,
           )
         )
           throw new CustomerCoverageError(400);
@@ -368,6 +415,8 @@ export function registerCustomerRoutes(
         if (!/^(?:[1-9]|1[0-9]|20)$/.test(limit)) throw new CustomerCoverageError(400);
       }
       const query: ListCustomersQuery = {
+        reference: c.req.query('reference'),
+        referenceMembershipId: c.req.query('referenceMembershipId'),
         limit: c.req.query('limit') ? Number(c.req.query('limit')) : include ? 20 : undefined,
         cursor: c.req.query('cursor') || undefined,
         sort: c.req.query('sort') as ListCustomersQuery['sort'],
@@ -461,6 +510,7 @@ export function registerCustomerRoutes(
     try {
       const correlationId = crypto.randomUUID();
       const customer = await createCustomer(c.env.DB, auth.context, rawBody, {
+        identityCryptoConfig: () => parseIdentityCryptoConfig(c.env),
         correlationId,
         idempotencyKey: idempotencyKey.trim(),
       });
@@ -1200,6 +1250,137 @@ export function registerCustomerRoutes(
       return c.json({ success: true, data: archived, timestamp: new Date().toISOString() }, 200);
     } catch (err) {
       return handleError(c, err);
+    }
+  });
+
+  app.get(`${API_PREFIX}/customers/:id/vehicles`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      return c.json({
+        success: true,
+        data: await listCustomerVehicles(
+          c.env.DB,
+          auth.context,
+          c.req.param('id'),
+          c.req.query('after') ?? '',
+        ),
+      });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  });
+  for (const mode of ['create', 'update'] as const) {
+    const handler = async (c: Context<CustomerRouteEnv>) => {
+      c.header('Cache-Control', 'no-store');
+      const auth = await authenticateAndResolve(c);
+      if (auth.error) return auth.error;
+      const csrf = await checkCsrf(c, auth.principal.subject);
+      if (csrf) return csrf;
+      const key = c.req.header('Idempotency-Key')?.trim();
+      if (!key)
+        return c.json(
+          {
+            success: false,
+            error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'İşlem anahtarı zorunlu.' },
+          },
+          400,
+        );
+      let body: unknown;
+      try {
+        body = await c.req.json();
+      } catch {
+        return c.json(
+          { success: false, error: { code: 'MALFORMED_JSON', message: 'Geçersiz istek.' } },
+          400,
+        );
+      }
+      try {
+        const data = await saveCustomerVehicle(
+          c.env.DB,
+          auth.context,
+          c.req.param('id')!,
+          mode === 'update' ? c.req.param('vehicleId')! : null,
+          body,
+          { idempotencyKey: key, correlationId: crypto.randomUUID() },
+        );
+        return c.json({ success: true, data }, mode === 'create' ? 201 : 200);
+      } catch (e) {
+        return handleError(c, e);
+      }
+    };
+    if (mode === 'create') app.post(`${API_PREFIX}/customers/:id/vehicles`, handler);
+    else app.put(`${API_PREFIX}/customers/:id/vehicles/:vehicleId`, handler);
+  }
+  app.get(`${API_PREFIX}/customers/:id/insurer-number-options`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      return c.json({
+        success: true,
+        data: await listInsurerNumberOptions(
+          c.env.DB,
+          auth.context,
+          c.req.param('id'),
+          c.req.query('after') ?? '',
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+  app.get(`${API_PREFIX}/customers/:id/insurer-numbers`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    try {
+      return c.json({
+        success: true,
+        data: await listInsurerCustomerNumbers(c.env.DB, auth.context, c.req.param('id')),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+  app.put(`${API_PREFIX}/customers/:id/insurer-numbers/:insurerId`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if (auth.error) return auth.error;
+    const csrfError = await checkCsrf(c, auth.principal.subject);
+    if (csrfError) return csrfError;
+    const key = c.req.header('Idempotency-Key')?.trim();
+    if (!key)
+      return c.json(
+        {
+          success: false,
+          error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'İşlem anahtarı zorunludur.' },
+        },
+        400,
+      );
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(
+        { success: false, error: { code: 'MALFORMED_JSON', message: 'Geçersiz JSON gövdesi.' } },
+        400,
+      );
+    }
+    try {
+      const data = await setInsurerCustomerNumber(
+        c.env.DB,
+        auth.context,
+        c.req.param('id'),
+        c.req.param('insurerId'),
+        body,
+        { idempotencyKey: key, correlationId: crypto.randomUUID() },
+      );
+      return c.json({ success: true, data, timestamp: new Date().toISOString() });
+    } catch (error) {
+      return handleError(c, error);
     }
   });
 

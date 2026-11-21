@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TodayTasksResponseData } from '../../../shared/types';
+import type {
+  UnifiedTodayTasksResponseData as TodayTasksResponseData,
+  TodayTaskDto,
+} from '../../../shared/types';
 import type { TaskReadback } from './TaskOperationsSection';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 import type { WorkBookmark } from './work-navigation';
+import { taskQueueContextFor, taskQueueReadSchema } from './task-queue-read-schema';
 export type WorkQueue = 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
 interface Failure {
   restoreId?: string;
   url: string;
   queue: WorkQueue;
   append: boolean;
+  remaining: readonly string[];
   message: string;
 }
 interface State {
@@ -36,7 +41,13 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
     busy.current = false;
   }, []);
   const load = useCallback(
-    async (url: string, queue: WorkQueue, append: boolean, restoreId?: string) => {
+    async (
+      url: string,
+      queue: WorkQueue,
+      append: boolean,
+      targetId?: string,
+      remaining: readonly string[] = [],
+    ) => {
       if (busy.current) return;
       busy.current = true;
       const request = ++generation.current,
@@ -50,7 +61,7 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
       }));
       if (!append) pages.current.clear();
       try {
-        const raw = await readCustomerResource<TodayTasksResponseData>(url, c.signal);
+        const raw = await readCustomerResource(url, c.signal, taskQueueReadSchema);
         if (c.signal.aborted || request !== generation.current) return;
         if (
           (queue === 'UNASSIGNED' && (!owner || !raw.canSeeUnassigned)) ||
@@ -61,17 +72,19 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
         let unavailable: string | undefined;
         let contextUrl: string | undefined;
         let restored = raw;
+        const restoreId = remaining.length ? undefined : targetId;
         if (restoreId) {
-          contextUrl = `/api/tasks/${encodeURIComponent(restoreId)}/context?queue=${queue}`;
+          contextUrl = `/api/tasks/${encodeURIComponent(restoreId)}/context?queue=${queue}${owner && queue === 'WORK' ? '&unified=true' : ''}`;
           try {
-            const context = await readCustomerResource<TodayTasksResponseData>(
+            const context = await readCustomerResource(
               contextUrl,
               c.signal,
+              taskQueueContextFor(restoreId, queue === 'UNASSIGNED'),
             );
             if (c.signal.aborted || request !== generation.current) return;
             const rows = queue === 'UNASSIGNED' ? context.unassignedItems : context.items;
             const exact = rows.find((item) => item.taskId === restoreId);
-            if (!exact) throw new CustomerReadError(404);
+            if (!exact) throw new CustomerReadError(502, 'INVALID_RESPONSE');
             restoreTask = exact.taskId;
             restored = {
               ...raw,
@@ -115,7 +128,7 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
             (old.data.canSeeUnassigned !== fresh.canSeeUnassigned ||
               !!old.data.canSeeReassignment !== fresh.canSeeReassignment ||
               old.data.canAssign !== fresh.canAssign);
-          let data = fresh;
+          let data: TodayTasksResponseData = fresh;
           if (append && old.data && !revoked) {
             const prior = old.data;
             if (queue === 'UNASSIGNED')
@@ -175,10 +188,11 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
           failures: {
             ...(denied ? {} : old.failures),
             [queue]: {
-              restoreId,
+              restoreId: targetId,
               url,
               queue,
               append: append && !denied,
+              remaining: denied ? [] : remaining,
               message:
                 error instanceof CustomerReadError && [400, 409].includes(error.status)
                   ? 'Liste bağlamı değişti. Listeyi yenile ile baştan yetkili yükleme yapın.'
@@ -198,28 +212,35 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
     },
     [owner],
   );
-  const base = '/api/tasks/today?limit=20' + (reassignment ? '&needsReassignment=true' : '');
+  const restorePages = useCallback(
+    async (urls: readonly string[], queue: WorkQueue, append: boolean, taskId?: string) => {
+      for (const [index, url] of urls.entries()) {
+        const request = generation.current + 1;
+        const loaded = await load(url, queue, append || index > 0, taskId, urls.slice(index + 1));
+        if (!loaded || generation.current !== request) break;
+      }
+    },
+    [load],
+  );
+  const base =
+    '/api/tasks/today?limit=20' +
+    (reassignment ? '&needsReassignment=true' : owner && view === 'WORK' ? '&unified=true' : '');
   useEffect(() => {
-    let active = true;
     const saved = boot.current;
     boot.current = undefined;
     const urls = saved?.pageUrls.length ? saved.pageUrls.slice(0, 10) : [base];
-    void (async () => {
-      for (let index = 0; index < urls.length && active; index++) {
-        const loaded = await load(
-          urls[index]!,
-          saved?.queue ?? (reassignment ? 'REASSIGNMENT' : 'WORK'),
-          index > 0,
-          index === urls.length - 1 ? saved?.taskId : undefined,
-        );
-        if (loaded === false) break;
-      }
-    })();
-    return () => {
-      active = false;
-      cancel();
-    };
-  }, [base, reassignment, load, cancel]);
+    void restorePages(
+      urls.map((url) =>
+        owner && (saved?.queue ?? 'WORK') === 'WORK' && !url.includes('unified=')
+          ? url + '&unified=true'
+          : url,
+      ),
+      saved?.queue ?? (reassignment ? 'REASSIGNMENT' : 'WORK'),
+      false,
+      saved?.taskId,
+    );
+    return cancel;
+  }, [base, reassignment, owner, restorePages, cancel]);
   const failure =
     state.failures[view] ?? (!state.data ? Object.values(state.failures).find(Boolean) : undefined);
   return {
@@ -239,13 +260,17 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
         mode = view;
       if (!original) throw new Error('PROVENANCE_MISSING');
       let readUrl = original;
-      const currentPage = await readCustomerResource<TodayTasksResponseData>(original, signal)
+      const exactContext = original.startsWith('/api/tasks/') && original.includes('/context?');
+      const currentPage = await readCustomerResource(
+        original,
+        signal,
+        exactContext ? taskQueueContextFor(taskId, mode === 'UNASSIGNED') : taskQueueReadSchema,
+      )
         .catch(async (error) => {
           if (
             !signal.aborted &&
             request === generation.current &&
-            original.startsWith('/api/tasks/') &&
-            original.includes('/context?') &&
+            exactContext &&
             error instanceof CustomerReadError &&
             error.status === 404
           ) {
@@ -253,7 +278,7 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
             // A fresh authorized queue read is only display/readback; controllers still
             // require their original validated receipt and never infer write success here.
             readUrl = base;
-            return readCustomerResource<TodayTasksResponseData>(readUrl, signal);
+            return readCustomerResource(readUrl, signal, taskQueueReadSchema);
           }
           throw error;
         })
@@ -296,7 +321,9 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
       }
       const list = mode === 'UNASSIGNED' ? currentPage.unassignedItems : currentPage.items;
       return {
-        current: list.find((item) => item.taskId === taskId),
+        current: list.find(
+          (item): item is TodayTaskDto => item.kind !== 'GENERAL' && item.taskId === taskId,
+        ),
         apply() {
           if (signal.aborted || request !== generation.current) return;
           cancel();
@@ -344,7 +371,13 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
       void load(base, view, false);
     },
     retry() {
-      if (failure) void load(failure.url, failure.queue, failure.append, failure.restoreId);
+      if (failure)
+        void restorePages(
+          [failure.url, ...failure.remaining],
+          failure.queue,
+          failure.append,
+          failure.restoreId,
+        );
     },
     more() {
       if (!state.data) return;

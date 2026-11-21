@@ -133,6 +133,27 @@ export async function createRestoreFixture(validated = false): Promise<RestoreFi
       .bind(id, id, id, start, end)
       .run();
   }
+  const vehicleDetails = JSON.stringify({
+    plate: '34 SYN 001',
+    brand: 'Sentetik',
+    model: 'İlk model',
+    modelYear: 2020,
+    vin: null,
+    engineNumber: '000123',
+    registrationSerial: null,
+  });
+  await db
+    .prepare(
+      "INSERT INTO customer_vehicles(id,agency_id,customer_id,details_json,normalized_plate) VALUES('restore-vehicle','backup-agency','backup-customer',?,'34SYN001')",
+    )
+    .bind(vehicleDetails)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO policy_vehicle_snapshots(policy_id,agency_id,customer_id,vehicle_id,vehicle_version,details_json) VALUES('restore-old','backup-agency','backup-customer','restore-vehicle',1,?)",
+    )
+    .bind(vehicleDetails)
+    .run();
   await db
     .prepare(
       "INSERT INTO renewal_opportunities(id,agency_id,expiring_policy_id,assignee_membership_id) VALUES('restore-renewal','backup-agency','restore-old','backup-member')",
@@ -199,7 +220,7 @@ export async function createRestoreFixture(validated = false): Promise<RestoreFi
   const manifest = {
     format: 'mayi-local-restore-v1',
     appVersion: '0.1.0',
-    schemaVersion: '0022',
+    schemaVersion: '0040',
     createdAt: new Date().toISOString(),
     bookmark: 'synthetic-paused-native-export',
     dbExportSha256: createHash('sha256').update(exportSql).digest('hex'),

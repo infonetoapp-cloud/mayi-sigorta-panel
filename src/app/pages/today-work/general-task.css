@@ -1,0 +1,47 @@
+.general-task-page {
+  max-inline-size: 70rem;
+  margin-inline: auto;
+  min-inline-size: 0;
+}
+.general-task-page .customer-form-actions {
+  flex-wrap: wrap;
+  margin-block: 1rem;
+}
+.general-task-options {
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+.general-task-options > label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 3rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.general-task-options input[type='radio'] {
+  flex: 0 0 auto;
+  min-block-size: 0;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+.general-task-options > label:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--muted);
+}
+.general-task-page [data-slot='button'] {
+  min-block-size: 3rem;
+  white-space: normal;
+  text-align: center;
+}
+.general-task-page .sales-case-form textarea {
+  max-inline-size: 100%;
+}
+@media (max-width: 40rem) {
+  .general-task-page .customer-form-actions > [data-slot='button'] {
+    flex: 1 1 100%;
+  }
+}

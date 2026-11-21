@@ -4,6 +4,7 @@ import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
 import { Button } from '../../components/ui/button';
+import { RecordDetails } from '../../components/workspace/RecordDetails';
 import { Input } from '../../components/ui/input';
 import {
   canonicalOccurrence,
@@ -38,9 +39,11 @@ interface Result {
 export function RenewalInteractionsSection({
   renewalId,
   onRiskChange,
+  readOnly = false,
 }: {
   renewalId: string;
   onRiskChange: (risk: InteractionRisk) => void;
+  readOnly?: boolean;
 }) {
   const url = `/api/renewals/${encodeURIComponent(renewalId)}/interactions`;
   const [data, setData] = useState<InteractionHistory | null>(null),
@@ -305,15 +308,47 @@ export function RenewalInteractionsSection({
       <h3 ref={historyHeading} tabIndex={-1}>
         İletişim geçmişi
       </h3>
-      <details className="workspace-help">
-        <summary>İletişim kayıtları hakkında</summary>
+      {data && !readOnly && !blocked && !opened && !needsRead && (
+        <Button
+          disabled={locked}
+          onClick={() => {
+            setOpened(true);
+            setOutcome('');
+            setChannel('');
+            setNote('');
+            setContact('');
+            setOccurred(localOccurrence(new Date().toISOString()));
+            setComparison(false);
+            setReconfirmed(false);
+            setContactConfirmed(false);
+            setError('');
+            setSuccess('');
+            onRiskChange('draft');
+          }}
+        >
+          İletişim kaydı ekle
+        </Button>
+      )}
+      <RecordDetails title="İletişim kayıtları hakkında">
         <p className="today-clock">
           İletişim kayıtları için ayrıca yetki gerekir. Saatler İstanbul saatidir.
         </p>
-      </details>
-      {busy && <p role="status">İletişim bilgileri işleniyor…</p>}
+      </RecordDetails>
+      {busy && (
+        <span
+          className="crm-read-progress"
+          role="status"
+          aria-label={opened ? 'İletişim işlemi sürüyor' : 'İletişim yükleniyor'}
+        >
+          •••
+        </span>
+      )}
       {error && <p role="alert">{error}</p>}
-      {success && <p role="status">{success}</p>}
+      {success && (
+        <p role="status" data-tone="positive">
+          {success}
+        </p>
+      )}
       {pending && (
         <Button variant="outline" disabled={busy || blocked} onClick={() => void send(pending)}>
           Aynı iletişim isteğini yeniden dene
@@ -346,47 +381,29 @@ export function RenewalInteractionsSection({
               <dd>{interactionTime(data.lastAttemptAt) ?? 'Tarih bilgisi bulunmuyor'}</dd>
             </div>
           </dl>
-          <ul className="interaction-timeline" aria-label="İletişim geçmişi">
-            {data.interactions.map((row) => (
-              <li key={row.id}>
-                <strong>
-                  {interactionOutcomes[row.outcome ?? ''] ?? 'Sonuç bilgisi bulunmuyor'} —{' '}
-                  {interactionChannels[row.channel ?? ''] ?? 'Kanal bilgisi bulunmuyor'}
-                </strong>
-                {interactionTime(row.occurred_at) ? (
-                  <time dateTime={row.occurred_at!}>{interactionTime(row.occurred_at)}</time>
-                ) : (
-                  <p>Tarih bilgisi bulunmuyor</p>
-                )}
-                <p>Kaydeden: {row.author_name?.trim() || 'Çalışan adı mevcut değil'}</p>
-                {typeof row.note === 'string' && row.note.trim() && (
-                  <p className="interaction-note">{row.note}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+          <RecordDetails title={`İletişim geçmişi (${data.interactions.length})`}>
+            <ul className="interaction-timeline" aria-label="İletişim geçmişi">
+              {data.interactions.map((row) => (
+                <li key={row.id}>
+                  <strong>
+                    {interactionOutcomes[row.outcome ?? ''] ?? 'Sonuç bilgisi bulunmuyor'} —{' '}
+                    {interactionChannels[row.channel ?? ''] ?? 'Kanal bilgisi bulunmuyor'}
+                  </strong>
+                  {interactionTime(row.occurred_at) ? (
+                    <time dateTime={row.occurred_at!}>{interactionTime(row.occurred_at)}</time>
+                  ) : (
+                    <p>Tarih bilgisi bulunmuyor</p>
+                  )}
+                  <p>Kaydeden: {row.author_name?.trim() || 'Çalışan adı mevcut değil'}</p>
+                  {typeof row.note === 'string' && row.note.trim() && (
+                    <p className="interaction-note">{row.note}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </RecordDetails>
           {!data.interactions.length && <p>Henüz iletişim kaydı bulunmuyor.</p>}
-          {!opened && !needsRead && (
-            <Button
-              disabled={locked}
-              onClick={() => {
-                setOpened(true);
-                setOutcome('');
-                setChannel('');
-                setNote('');
-                setContact('');
-                setOccurred(localOccurrence(new Date().toISOString()));
-                setComparison(false);
-                setReconfirmed(false);
-                setContactConfirmed(false);
-                setError('');
-                setSuccess('');
-                onRiskChange('draft');
-              }}
-            >
-              İletişim kaydı ekle
-            </Button>
-          )}
+
           {opened && (
             <form
               className="interaction-form"

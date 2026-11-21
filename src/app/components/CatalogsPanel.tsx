@@ -1,8 +1,18 @@
-import React, { useState, useEffect, useCallback, useId } from 'react';
+import { CatalogPaymentFields } from './CatalogPaymentFields';
+import { Button } from './ui/button';
+import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
 import type { SelectableCatalogsDto, ApiResponse } from '../../shared/types';
+import { BRANCH_CLASSIFICATION_CORRECTION_REASONS } from '../../shared/constants';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
 
 type CatalogType = 'insurers' | 'branches' | 'products' | 'payment-methods' | 'loss-reasons';
+const CORRECTION_REASON_LABELS: Record<
+  (typeof BRANCH_CLASSIFICATION_CORRECTION_REASONS)[number],
+  string
+> = {
+  WRONG_INITIAL_CLASSIFICATION: 'İlk kayıtta yanlış sınıf seçildi',
+  LEGACY_IMPORT_CLASSIFICATION: 'Eski veri aktarımında yanlış sınıf geldi',
+};
 
 interface GenericCatalogItem {
   readonly id: string;
@@ -12,6 +22,11 @@ interface GenericCatalogItem {
   readonly version: number;
   readonly insurerId?: string;
   readonly branchId?: string;
+  readonly supportsInstallments?: boolean;
+  readonly maxInstallments?: number;
+  readonly dataClassification?: 'GENERAL' | 'HEALTH';
+  readonly canCorrectClassification?: boolean;
+  readonly supportsVehicleDetails?: boolean;
 }
 
 interface MutationSnapshot {
@@ -19,6 +34,44 @@ interface MutationSnapshot {
   readonly method: 'POST' | 'PATCH';
   readonly body: string;
   readonly idempotencyKey: string;
+}
+
+function CatalogDialog({
+  heading,
+  locked,
+  onDismiss,
+  children,
+}: {
+  heading: string;
+  locked: boolean;
+  onDismiss: () => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    const trigger = document.activeElement;
+    dialog?.showModal?.();
+    return () => {
+      dialog?.close?.();
+      if (trigger instanceof HTMLElement && trigger.isConnected)
+        trigger.focus({ preventScroll: true });
+    };
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="catalog-dialog"
+      open={typeof HTMLDialogElement.prototype.showModal !== 'function' ? true : undefined}
+      aria-labelledby={heading}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!locked) onDismiss();
+      }}
+    >
+      {children}
+    </dialog>
+  );
 }
 
 export const CatalogsPanel: React.FC = () => {
@@ -42,10 +95,18 @@ export const CatalogsPanel: React.FC = () => {
   const [editingItem, setEditingItem] = useState<GenericCatalogItem | null>(null);
   const [editName, setEditName] = useState<string>('');
   const [editBranchId, setEditBranchId] = useState<string>('');
+  const [correctionReason, setCorrectionReason] = useState<string | null>(null);
+
+  const [vehicleDetails, setVehicleDetails] = useState(false);
+  const [classification, setClassification] = useState<'' | 'GENERAL' | 'HEALTH'>('');
+  const [installments, setInstallments] = useState(false);
+  const [maximum, setMaximum] = useState('9');
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [mutationError, setMutationError] = useState<AppErrorInfo | null>(null);
   const [retryAttempt, setRetryAttempt] = useState<MutationSnapshot | null>(null);
+
+  const mutationLocked = submitting || retryAttempt !== null;
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -161,9 +222,13 @@ export const CatalogsPanel: React.FC = () => {
     }
   };
 
-  const handleCreate = (e?: React.FormEvent) => {
+  const handleCreate = (e?: React.FormEvent<HTMLFormElement>) => {
     if (e) e.preventDefault();
+    if (mutationLocked) return;
     if (!createCode.trim() || !createName.trim()) {
+      e?.currentTarget
+        .querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid')
+        ?.focus();
       setMutationError({
         message: 'Girdi doğrulama hatası: Kod ve isim zorunludur.',
         isRetryable: false,
@@ -172,10 +237,31 @@ export const CatalogsPanel: React.FC = () => {
       return;
     }
 
+    if (e && !e.currentTarget.checkValidity()) {
+      setMutationError({
+        message: 'Zorunlu alanları ve taksit sınırını kontrol edin.',
+        isRetryable: false,
+        category: 'VALIDATION',
+      });
+      e.currentTarget
+        .querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid')
+        ?.focus();
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       code: createCode.trim(),
       name: createName.trim(),
     };
+
+    if (activeCatalog === 'branches') {
+      payload.dataClassification = classification;
+      payload.supportsVehicleDetails = vehicleDetails;
+    }
+    if (activeCatalog === 'payment-methods') {
+      payload.supportsInstallments = installments;
+      if (installments) payload.maxInstallments = Number(maximum);
+    }
 
     if (activeCatalog === 'products') {
       if (!createInsurerId.trim() || !createBranchId.trim()) {
@@ -199,10 +285,35 @@ export const CatalogsPanel: React.FC = () => {
     void executeMutation(snapshot);
   };
 
-  const handleUpdate = (e?: React.FormEvent) => {
+  const handleUpdate = (e?: React.FormEvent<HTMLFormElement>) => {
     if (e) e.preventDefault();
+    if (mutationLocked) return;
     if (!editingItem) return;
+    if (correctionReason !== null) {
+      if (!correctionReason) {
+        setMutationError({
+          message: 'Düzeltme gerekçesini seçin.',
+          isRetryable: false,
+          category: 'VALIDATION',
+        });
+        e?.currentTarget.querySelector('select')?.focus();
+        return;
+      }
+      void executeMutation({
+        url: `/api/catalogs/branches/${encodeURIComponent(editingItem.id)}/correct-classification`,
+        method: 'POST',
+        body: JSON.stringify({
+          expectedVersion: editingItem.version,
+          reasonCode: correctionReason,
+        }),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      return;
+    }
     if (!editName.trim()) {
+      e?.currentTarget
+        .querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid')
+        ?.focus();
       setMutationError({
         message: 'Girdi doğrulama hatası: İsim zorunludur.',
         isRetryable: false,
@@ -211,10 +322,35 @@ export const CatalogsPanel: React.FC = () => {
       return;
     }
 
+    if (e && !e.currentTarget.checkValidity()) {
+      setMutationError({
+        message: 'Zorunlu alanları ve taksit sınırını kontrol edin.',
+        isRetryable: false,
+        category: 'VALIDATION',
+      });
+      e.currentTarget
+        .querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid')
+        ?.focus();
+      return;
+    }
+
     const payload: Record<string, unknown> = {
       expectedVersion: editingItem.version,
       name: editName.trim(),
     };
+
+    if (
+      activeCatalog === 'branches' &&
+      vehicleDetails !== (editingItem.supportsVehicleDetails ?? false)
+    )
+      payload.supportsVehicleDetails = vehicleDetails;
+
+    if (activeCatalog === 'payment-methods') {
+      if (installments !== editingItem.supportsInstallments)
+        payload.supportsInstallments = installments;
+      if (installments && Number(maximum) !== editingItem.maxInstallments)
+        payload.maxInstallments = Number(maximum);
+    }
 
     if (activeCatalog === 'products' && editBranchId) {
       payload.branchId = editBranchId;
@@ -230,6 +366,7 @@ export const CatalogsPanel: React.FC = () => {
   };
 
   const handleDeactivate = (item: GenericCatalogItem) => {
+    if (mutationLocked) return;
     const snapshot: MutationSnapshot = {
       url: `/api/catalogs/${activeCatalog}/${item.id}/deactivate`,
       method: 'POST',
@@ -265,6 +402,10 @@ export const CatalogsPanel: React.FC = () => {
   const openCreateModal = () => {
     setCreateCode('');
     setCreateName('');
+    setClassification('');
+    setVehicleDetails(false);
+    setInstallments(false);
+    setMaximum('9');
     if (selectable?.insurers && selectable.insurers.length > 0) {
       setCreateInsurerId(selectable.insurers[0]!.id);
     } else {
@@ -282,11 +423,34 @@ export const CatalogsPanel: React.FC = () => {
 
   const openEditModal = (item: GenericCatalogItem) => {
     setEditingItem(item);
+    setCorrectionReason(null);
     setEditName(item.name);
+    setVehicleDetails(item.supportsVehicleDetails ?? false);
+    setInstallments(item.supportsInstallments ?? false);
+    setMaximum(String(item.maxInstallments ?? 12));
     setEditBranchId(item.branchId || '');
     setMutationError(null);
     setRetryAttempt(null);
   };
+
+  const vehicleDetailsOption = (
+    <div className="catalog-classification">
+      <div className="flex items-center gap-2">
+        <input
+          id={`${formId}-vehicles`}
+          name="supportsVehicleDetails"
+          type="checkbox"
+          checked={vehicleDetails}
+          aria-describedby={`${formId}-vehicles-hint`}
+          onChange={(event) => setVehicleDetails(event.target.checked)}
+        />
+        <label htmlFor={`${formId}-vehicles`}>Poliçede araç bilgisi kullanılabilir</label>
+      </div>
+      <p id={`${formId}-vehicles-hint`} className="catalog-hint">
+        Kapatıldığında poliçedeki mevcut araç bilgileri geçmiş olarak görüntülenir.
+      </p>
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -309,7 +473,10 @@ export const CatalogsPanel: React.FC = () => {
             ['loss-reasons', 'Kayıp Nedenleri'],
           ] as const
         ).map(([key, label]) => (
-          <button
+          <Button
+            variant={activeCatalog === key ? 'default' : 'outline'}
+            aria-pressed={activeCatalog === key}
+            disabled={mutationLocked}
             key={key}
             type="button"
             onClick={() => {
@@ -317,19 +484,9 @@ export const CatalogsPanel: React.FC = () => {
               setMutationError(null);
               setRetryAttempt(null);
             }}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '0.375rem',
-              border: 'none',
-              backgroundColor: activeCatalog === key ? '#2563eb' : '#f1f5f9',
-              color: activeCatalog === key ? '#ffffff' : '#475569',
-              fontWeight: 600,
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-            }}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -366,22 +523,9 @@ export const CatalogsPanel: React.FC = () => {
           </label>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          style={{
-            backgroundColor: '#2563eb',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '0.375rem',
-            padding: '0.5rem 1rem',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
-        >
+        <Button variant="default" type="button" disabled={mutationLocked} onClick={openCreateModal}>
           + Yeni Ekle
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -414,135 +558,78 @@ export const CatalogsPanel: React.FC = () => {
         >
           <span>{mutationError.message}</span>
           {mutationError.isRetryable && (
-            <button
-              type="button"
-              onClick={handleRetry}
-              style={{
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.25rem',
-                padding: '0.25rem 0.625rem',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-              }}
-            >
+            <Button variant="outline" type="button" disabled={submitting} onClick={handleRetry}>
               Tekrar Dene
-            </button>
+            </Button>
           )}
         </div>
       )}
 
       {/* Tablo */}
-      <div
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '0.5rem',
-          border: '1px solid #e2e8f0',
-          overflowX: 'auto',
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-        }}
-      >
+      <div className="catalog-table" role="region" aria-label="Katalog kayıtları" tabIndex={0}>
         {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-            Katalog verileri yükleniyor...
+          <div className="catalog-feedback" role="status">
+            Katalog verileri yükleniyor…
           </div>
         ) : items.length === 0 ? (
-          <div
-            style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontStyle: 'italic' }}
-          >
-            Kayıt bulunamadı.
-          </div>
+          <div className="catalog-feedback">Kayıt bulunamadı.</div>
         ) : (
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              textAlign: 'left',
-              fontSize: '0.875rem',
-            }}
-          >
+          <table>
             <thead>
-              <tr
-                style={{
-                  borderBottom: '2px solid #e2e8f0',
-                  color: '#475569',
-                  backgroundColor: '#f8fafc',
-                }}
-              >
-                <th style={{ padding: '0.75rem 1rem' }}>Kod (Semantik)</th>
-                <th style={{ padding: '0.75rem 1rem' }}>İsim</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Durum</th>
-                <th style={{ padding: '0.75rem 1rem' }}>Versiyon</th>
-                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>İşlemler</th>
+              <tr>
+                <th scope="col">Ad</th>
+                <th scope="col">Kod</th>
+                <th scope="col">Durum</th>
+                <th scope="col">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td
-                    style={{
-                      padding: '0.875rem 1rem',
-                      fontFamily: 'monospace',
-                      fontWeight: 600,
-                      color: '#1e293b',
-                    }}
-                  >
-                    {item.code}
-                  </td>
-                  <td style={{ padding: '0.875rem 1rem', color: '#0f172a' }}>{item.name}</td>
-                  <td style={{ padding: '0.875rem 1rem' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '0.125rem 0.5rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        backgroundColor: item.status === 'ACTIVE' ? '#ecfdf5' : '#f1f5f9',
-                        color: item.status === 'ACTIVE' ? '#047857' : '#64748b',
-                        border: `1px solid ${item.status === 'ACTIVE' ? '#a7f3d0' : '#cbd5e1'}`,
-                      }}
-                    >
-                      {item.status}
+                <tr key={item.id}>
+                  <th scope="row">
+                    {item.name}
+                    {activeCatalog === 'payment-methods' && (
+                      <small className="catalog-row-detail">
+                        {item.supportsInstallments
+                          ? `En fazla ${item.maxInstallments} taksit`
+                          : 'Tek çekim / taksitsiz'}
+                      </small>
+                    )}
+                    {activeCatalog === 'branches' && (
+                      <small className="catalog-row-detail">
+                        {item.dataClassification === 'HEALTH'
+                          ? 'Sağlık sigortası'
+                          : item.dataClassification === 'GENERAL'
+                            ? 'Genel sigorta'
+                            : 'Veri sınıfı kullanılamıyor'}
+                      </small>
+                    )}
+                  </th>
+                  <td data-label="Kod">{item.code}</td>
+                  <td data-label="Durum">
+                    <span className="catalog-state" data-active={item.status === 'ACTIVE'}>
+                      {item.status === 'ACTIVE' ? 'Etkin' : 'Pasif'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.875rem 1rem', color: '#64748b' }}>v{item.version}</td>
-                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                      <button
+                  <td className="catalog-table-action">
+                    <div className="catalog-actions">
+                      <Button
+                        variant="outline"
                         type="button"
+                        disabled={mutationLocked}
                         onClick={() => openEditModal(item)}
-                        style={{
-                          backgroundColor: '#f8fafc',
-                          color: '#1e293b',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '0.25rem',
-                          padding: '0.25rem 0.625rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
                       >
                         Düzenle
-                      </button>
+                      </Button>
                       {item.status === 'ACTIVE' && (
-                        <button
+                        <Button
+                          variant="danger"
                           type="button"
+                          disabled={mutationLocked}
                           onClick={() => handleDeactivate(item)}
-                          style={{
-                            backgroundColor: '#fee2e2',
-                            color: '#991b1b',
-                            border: '1px solid #fecaca',
-                            borderRadius: '0.25rem',
-                            padding: '0.25rem 0.625rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                          }}
                         >
                           Pasifleştir
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -555,47 +642,30 @@ export const CatalogsPanel: React.FC = () => {
 
       {/* Oluşturma Modalı */}
       {showCreateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-            padding: '1rem',
-          }}
+        <CatalogDialog
+          heading={`${formId}-create-heading`}
+          locked={mutationLocked}
+          onDismiss={() => setShowCreateModal(false)}
         >
-          <div
+          <h3
+            id={`${formId}-create-heading`}
             style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '0.75rem',
-              maxWidth: '30rem',
-              width: '100%',
-              padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              fontSize: '1.125rem',
+              fontWeight: 700,
+              margin: '0 0 1rem 0',
+              color: '#0f172a',
             }}
           >
-            <h3
-              style={{
-                fontSize: '1.125rem',
-                fontWeight: 700,
-                margin: '0 0 1rem 0',
-                color: '#0f172a',
-              }}
-            >
-              Yeni {getCatalogTitle()} Ekle
-            </h3>
+            Yeni {getCatalogTitle()} Ekle
+          </h3>
 
-            <form
-              noValidate
-              onSubmit={handleCreate}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-            >
+          <form
+            noValidate
+            onSubmit={handleCreate}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            <fieldset className="catalog-fields" disabled={mutationLocked}>
+              <legend className="sr-only">Yeni katalog bilgileri</legend>
               {activeCatalog === 'products' && (
                 <>
                   <div>
@@ -737,188 +807,136 @@ export const CatalogsPanel: React.FC = () => {
                 />
               </div>
 
-              {mutationError && (
-                <div
-                  id={`${formId}-error`}
-                  role="alert"
-                  style={{ color: '#dc2626', fontSize: '0.8125rem' }}
-                >
-                  {mutationError.message}
-                  {mutationError.isRetryable && (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
-                      style={{
-                        marginLeft: '0.5rem',
-                        backgroundColor: '#2563eb',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.25rem',
-                        padding: '0.2rem 0.5rem',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Tekrar Dene
-                    </button>
-                  )}
+              {activeCatalog === 'payment-methods' && (
+                <CatalogPaymentFields
+                  id={`${formId}-payment`}
+                  enabled={installments}
+                  maximum={maximum}
+                  onEnabled={setInstallments}
+                  onMaximum={setMaximum}
+                />
+              )}
+              {activeCatalog === 'branches' && (
+                <div className="catalog-classification">
+                  <label htmlFor={`${formId}-classification`}>Branş veri sınıfı</label>
+                  <select
+                    id={`${formId}-classification`}
+                    required
+                    value={classification}
+                    onChange={(event) =>
+                      setClassification(event.target.value as typeof classification)
+                    }
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="GENERAL">Genel sigorta</option>
+                    <option value="HEALTH">Sağlık sigortası</option>
+                  </select>
+                  <p className="catalog-hint">
+                    Sağlık kayıtlarına yalnız sağlık verisi yetkisi olan çalışanlar erişir. Bu seçim
+                    sonradan bu ekrandan değiştirilemez.
+                  </p>
                 </div>
               )}
+              {activeCatalog === 'branches' && vehicleDetailsOption}
+            </fieldset>
 
+            {mutationError && (
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '0.5rem',
-                  marginTop: '0.5rem',
-                }}
+                id={`${formId}-error`}
+                role="alert"
+                style={{ color: '#dc2626', fontSize: '0.8125rem' }}
               >
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '0.375rem',
-                    padding: '0.5rem 1rem',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    padding: '0.5rem 1rem',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {submitting ? 'Kaydediliyor...' : 'Kaydet'}
-                </button>
+                {mutationError.message}
+                {mutationError.isRetryable && (
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={submitting}
+                    onClick={handleRetry}
+                  >
+                    Tekrar Dene
+                  </Button>
+                )}
               </div>
-            </form>
-          </div>
-        </div>
+            )}
+
+            <div className="catalog-dialog-actions">
+              <Button
+                variant="outline"
+                type="button"
+                disabled={mutationLocked}
+                onClick={() => setShowCreateModal(false)}
+              >
+                Vazgeç
+              </Button>
+              <Button variant="default" type="submit" disabled={mutationLocked}>
+                {submitting ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
+            </div>
+          </form>
+        </CatalogDialog>
       )}
 
       {/* Güncelleme Modalı */}
       {editingItem && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-            padding: '1rem',
-          }}
+        <CatalogDialog
+          heading={`${formId}-edit-heading`}
+          locked={mutationLocked}
+          onDismiss={() => setEditingItem(null)}
         >
-          <div
+          <h3
             style={{
-              backgroundColor: '#ffffff',
-              borderRadius: '0.75rem',
-              maxWidth: '30rem',
-              width: '100%',
-              padding: '1.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              fontSize: '1.125rem',
+              fontWeight: 700,
+              margin: '0 0 1rem 0',
+              color: '#0f172a',
             }}
+            id={`${formId}-edit-heading`}
           >
-            <h3
-              style={{
-                fontSize: '1.125rem',
-                fontWeight: 700,
-                margin: '0 0 1rem 0',
-                color: '#0f172a',
-              }}
-            >
-              {editingItem.name} Düzenle
-            </h3>
+            {correctionReason === null
+              ? `${editingItem.name} Düzenle`
+              : `${editingItem.name} · Veri sınıfını düzelt`}
+          </h3>
 
-            <form
-              noValidate
-              onSubmit={handleUpdate}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-            >
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    color: '#334155',
-                    marginBottom: '0.25rem',
-                  }}
-                  htmlFor={`${formId}-edit-code`}
-                >
-                  Kod (Değiştirilemez)
-                </label>
-                <input
-                  type="text"
-                  id={`${formId}-edit-code`}
-                  value={editingItem.code}
-                  readOnly
-                  disabled
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid #e2e8f0',
-                    backgroundColor: '#f1f5f9',
-                    color: '#64748b',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    color: '#334155',
-                    marginBottom: '0.25rem',
-                  }}
-                  htmlFor={`${formId}-edit-name`}
-                >
-                  İsim / Tanım
-                </label>
-                <input
-                  type="text"
-                  id={`${formId}-edit-name`}
-                  required
-                  aria-invalid={mutationError?.category === 'VALIDATION' && !editName.trim()}
-                  aria-describedby={mutationError ? `${formId}-error` : undefined}
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.375rem',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '0.875rem',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              {activeCatalog === 'products' && (
+          <form
+            noValidate
+            aria-labelledby={`${formId}-edit-heading`}
+            onSubmit={handleUpdate}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            {correctionReason !== null ? (
+              <fieldset className="catalog-fields" disabled={mutationLocked}>
+                <legend className="sr-only">Branş sınıfını düzelt</legend>
+                <p className="catalog-hint">
+                  Genel sigorta → Sağlık sigortası. Bu branşa bağlı işlemler sağlık veri izinlerine
+                  tabi olur.
+                </p>
+                <div className="catalog-classification">
+                  <label htmlFor={`${formId}-classification-reason`}>Düzeltme gerekçesi</label>
+                  <select
+                    id={`${formId}-classification-reason`}
+                    name="reasonCode"
+                    aria-describedby={mutationError ? `${formId}-error` : undefined}
+                    aria-invalid={mutationError?.category === 'VALIDATION'}
+                    value={correctionReason}
+                    onChange={(event) => {
+                      setCorrectionReason(event.target.value);
+                      setMutationError(null);
+                    }}
+                    required
+                  >
+                    <option value="">Gerekçe seçin</option>
+                    {BRANCH_CLASSIFICATION_CORRECTION_REASONS.map((reason) => (
+                      <option key={reason} value={reason}>
+                        {CORRECTION_REASON_LABELS[reason]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </fieldset>
+            ) : (
+              <fieldset className="catalog-fields" disabled={mutationLocked}>
+                <legend className="sr-only">Katalog bilgilerini düzenle</legend>
                 <div>
                   <label
                     style={{
@@ -928,103 +946,172 @@ export const CatalogsPanel: React.FC = () => {
                       color: '#334155',
                       marginBottom: '0.25rem',
                     }}
-                    htmlFor={`${formId}-edit-branch`}
+                    htmlFor={`${formId}-edit-code`}
                   >
-                    Sigorta Branşı
+                    Kod (Değiştirilemez)
                   </label>
-                  <select
-                    id={`${formId}-edit-branch`}
-                    value={editBranchId}
-                    onChange={(e) => setEditBranchId(e.target.value)}
+                  <input
+                    type="text"
+                    id={`${formId}-edit-code`}
+                    value={editingItem.code}
+                    readOnly
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: '#f1f5f9',
+                      color: '#64748b',
+                      fontSize: '0.875rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: '#334155',
+                      marginBottom: '0.25rem',
+                    }}
+                    htmlFor={`${formId}-edit-name`}
+                  >
+                    İsim / Tanım
+                  </label>
+                  <input
+                    type="text"
+                    id={`${formId}-edit-name`}
+                    required
+                    aria-invalid={mutationError?.category === 'VALIDATION' && !editName.trim()}
+                    aria-describedby={mutationError ? `${formId}-error` : undefined}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
                       borderRadius: '0.375rem',
                       border: '1px solid #cbd5e1',
                       fontSize: '0.875rem',
+                      boxSizing: 'border-box',
                     }}
-                  >
-                    {selectable?.branches.map((br) => (
-                      <option key={br.id} value={br.id}>
-                        {br.name} ({br.code})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
-              )}
 
-              {mutationError && (
-                <div
-                  id={`${formId}-error`}
-                  role="alert"
-                  style={{ color: '#dc2626', fontSize: '0.8125rem' }}
-                >
-                  {mutationError.message}
-                  {mutationError.isRetryable && (
-                    <button
-                      type="button"
-                      onClick={handleRetry}
+                {activeCatalog === 'products' && (
+                  <div>
+                    <label
                       style={{
-                        marginLeft: '0.5rem',
-                        backgroundColor: '#2563eb',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.25rem',
-                        padding: '0.2rem 0.5rem',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
+                        display: 'block',
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: '#334155',
+                        marginBottom: '0.25rem',
+                      }}
+                      htmlFor={`${formId}-edit-branch`}
+                    >
+                      Sigorta Branşı
+                    </label>
+                    <select
+                      id={`${formId}-edit-branch`}
+                      value={editBranchId}
+                      onChange={(e) => setEditBranchId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.875rem',
                       }}
                     >
-                      Tekrar Dene
-                    </button>
-                  )}
-                </div>
-              )}
+                      {selectable?.branches.map((br) => (
+                        <option key={br.id} value={br.id}>
+                          {br.name} ({br.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
+                {activeCatalog === 'payment-methods' && (
+                  <CatalogPaymentFields
+                    id={`${formId}-payment`}
+                    enabled={installments}
+                    maximum={maximum}
+                    onEnabled={setInstallments}
+                    onMaximum={setMaximum}
+                  />
+                )}
+                {activeCatalog === 'branches' && (
+                  <p className="catalog-hint">
+                    Veri sınıfı:{' '}
+                    {editingItem.dataClassification === 'HEALTH'
+                      ? 'Sağlık sigortası'
+                      : editingItem.dataClassification === 'GENERAL'
+                        ? 'Genel sigorta'
+                        : 'Bilgi kullanılamıyor'}
+                    .
+                  </p>
+                )}
+                {activeCatalog === 'branches' && editingItem.canCorrectClassification && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="self-start"
+                    onClick={() => {
+                      setCorrectionReason('');
+                      setMutationError(null);
+                    }}
+                  >
+                    Veri sınıfını düzelt
+                  </Button>
+                )}
+                {activeCatalog === 'branches' && vehicleDetailsOption}
+              </fieldset>
+            )}
+
+            {mutationError && (
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '0.5rem',
-                  marginTop: '0.5rem',
-                }}
+                id={`${formId}-error`}
+                role="alert"
+                style={{ color: '#dc2626', fontSize: '0.8125rem' }}
               >
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '0.375rem',
-                    padding: '0.5rem 1rem',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{
-                    backgroundColor: '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    padding: '0.5rem 1rem',
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {submitting ? 'Güncelleniyor...' : 'Güncelle'}
-                </button>
+                {mutationError.message}
+                {mutationError.isRetryable && (
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={submitting}
+                    onClick={handleRetry}
+                  >
+                    Tekrar Dene
+                  </Button>
+                )}
               </div>
-            </form>
-          </div>
-        </div>
+            )}
+
+            <div className="catalog-dialog-actions">
+              <Button
+                variant="outline"
+                type="button"
+                disabled={mutationLocked}
+                onClick={() => setEditingItem(null)}
+              >
+                Vazgeç
+              </Button>
+              <Button variant="default" type="submit" disabled={mutationLocked}>
+                {submitting
+                  ? 'Güncelleniyor...'
+                  : correctionReason === null
+                    ? 'Güncelle'
+                    : 'Sağlık sigortası olarak kaydet'}
+              </Button>
+            </div>
+          </form>
+        </CatalogDialog>
       )}
     </div>
   );

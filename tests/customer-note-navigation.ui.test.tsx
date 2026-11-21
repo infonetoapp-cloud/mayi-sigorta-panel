@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import CustomerProfilePage from '../src/app/pages/customers/CustomerProfilePage';
+import { customerDetailFixture } from './support/customer-detail-fixture';
 const reply = (data: unknown) => new Response(JSON.stringify({ success: true, data }));
 afterEach(() => {
   cleanup();
@@ -13,13 +14,7 @@ function mount() {
     reply(
       url.endsWith('/notes')
         ? { items: [], nextCursor: null, canCreate: true }
-        : {
-            id: url.split('/').at(-1),
-            displayName: 'Sentetik müşteri',
-            type: 'INDIVIDUAL',
-            archivedAt: null,
-            createdAt: '2026-01-01T00:00:00Z',
-          },
+        : customerDetailFixture(url.split('/').at(-1)!),
     ),
   );
   vi.stubGlobal('fetch', fetcher);

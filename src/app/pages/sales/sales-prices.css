@@ -1,0 +1,226 @@
+.sales-prices {
+  min-inline-size: 0;
+}
+.sales-prices .customer-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.sales-prices [data-slot='button'] {
+  min-block-size: 3rem;
+  white-space: normal;
+  text-align: center;
+}
+.sales-price-table-wrap {
+  container-type: inline-size;
+  overflow: auto;
+  max-inline-size: 100%;
+  max-block-size: min(38rem, 80dvh);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+.sales-price-table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.sales-price-table th,
+.sales-price-table td {
+  text-align: start;
+  padding: 1rem;
+  border-block-end: 1px solid var(--border);
+  vertical-align: middle;
+}
+.sales-price-table thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: #e7eef9;
+  color: #1b3558;
+}
+.sales-price-table tbody th {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--card);
+  z-index: 1;
+  min-inline-size: 11rem;
+}
+.sales-price-table tbody tr:nth-child(even) :is(th, td) {
+  background: #f6f9ff;
+}
+.sales-price-table td p {
+  margin-block: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+.sales-price-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+}
+.sales-price-source {
+  display: block;
+  margin-block-start: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.sales-price-badge {
+  display: inline-block;
+  border: 1px solid #9bb8e8;
+  background: #e1edff;
+  color: #154783;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
+.sales-price-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.sales-price-money-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(7rem, 1fr);
+  gap: 1rem;
+}
+.sales-price-money-fields > div {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  min-inline-size: 0;
+}
+.sales-price-form details {
+  margin-block: 1rem;
+  border: 1px solid var(--border);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+.sales-price-form summary {
+  cursor: pointer;
+  min-block-size: 3rem;
+  display: list-item;
+  padding-block: 0.5rem;
+}
+.sales-price-form :is(input, textarea, select) {
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+.sales-price-success {
+  background: #e1f5e9;
+  border-inline-start: 4px solid #188349;
+  padding: 0.75rem 1rem;
+  color: #125b34;
+}
+.sales-price-history {
+  margin-block-start: 1.25rem;
+  border-block-start: 2px solid var(--border);
+}
+.sales-price-revisions {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.sales-price-revisions li {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.sales-price-revisions li p {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@container (width < 42rem) {
+  .sales-price-table,
+  .sales-price-table tbody,
+  .sales-price-table tr,
+  .sales-price-table th,
+  .sales-price-table td {
+    display: block;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+  .sales-price-table thead {
+    display: none;
+  }
+  .sales-price-table tr {
+    border-block-end: 2px solid var(--border);
+  }
+  .sales-price-table tbody th {
+    inset-block-start: 0;
+    z-index: 1;
+    background: #e7eef9;
+  }
+  .sales-price-table td {
+    border: 0;
+    padding-block: 0.65rem;
+  }
+  .sales-price-table td::before {
+    content: attr(data-label) ': ';
+    display: block;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+    margin-block-end: 0.35rem;
+  }
+}
+@media (max-width: 40rem) {
+  .sales-price-money-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sales-prices .customer-form-actions > [data-slot='button'] {
+    flex: 1 1 100%;
+  }
+  .sales-price-actions > [data-slot='button'] {
+    flex: 1 1 100%;
+  }
+}
+
+.sales-price-state-customer_accepted {
+  background: #dcf3e4;
+  border-color: #71aa86;
+  color: #155f32;
+}
+.sales-price-state-acceptance_revoked {
+  background: #fff0d6;
+  border-color: #d7a24d;
+  color: #754600;
+}
+.sales-price-state-not_shared {
+  background: #edf0f5;
+  border-color: #a8b2c2;
+  color: #3d4b60;
+}
+.sales-price-events {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.sales-price-events h3 {
+  flex: 1 1 15rem;
+}
+.sales-price-events input[type='datetime-local'] {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  inline-size: 100%;
+  font: inherit;
+  min-block-size: 3rem;
+}
+.sales-price-event-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 3rem;
+}
+.sales-price-event-choice input[type='radio'] {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  accent-color: #1559c7;
+}
+.sales-price-event-choice label {
+  padding-block: 0.75rem;
+}

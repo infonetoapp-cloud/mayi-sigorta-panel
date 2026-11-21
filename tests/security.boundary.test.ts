@@ -17,6 +17,11 @@ import {
 } from '../src/server/security/index';
 import type { LocalSessionConfig } from '../src/server/auth/session';
 import type { LocalSessionVerifier } from '../src/server/auth/session';
+import {
+  getRequestSession,
+  IDLE_WRITE_INTERVAL_MS,
+  loadLocalSession,
+} from '../src/server/auth/session';
 import type {
   ApplicationIdentityResolver,
   AuthenticatedUserContext,
@@ -75,6 +80,8 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
     it.each([
       ['path içeren origin', `${TRUSTED_ORIGIN}/foo`],
       ['query içeren origin', `${TRUSTED_ORIGIN}?foo=bar`],
+      ['normalize edilen path', `${TRUSTED_ORIGIN}/foo/..`],
+      ['açık varsayılan port', `${TRUSTED_ORIGIN}:443`],
       ['credentials içeren origin', 'https://user:pass@panel.mayisigorta.com'],
       ['javascript URI', 'javascript:alert(1)'],
       ['boşluklu origin', ` ${TRUSTED_ORIGIN} `],
@@ -540,6 +547,96 @@ describe('M1-T08 Request Security Boundary & Headers', () => {
           return c.json({ success: true, message: 'mutated' }, 200);
         });
       });
+    });
+
+    it.each(['application/json', 'text/plain', 'multipart/form-data; boundary=forged'])(
+      'Content-Type %s olsa da JSON okuyucusundan önce 64 KiB sınırı uygulanır',
+      async (contentType) => {
+        const readBody = vi.fn(async (request: Request) => request.json());
+        const app = createApp({}, (subApp) => {
+          subApp.post('/api/test-body', async (c) => c.json(await readBody(c.req.raw)));
+        });
+        const response = await app.request(`${TRUSTED_ORIGIN}/api/test-body`, {
+          method: 'POST',
+          headers: { Origin: TRUSTED_ORIGIN, 'Content-Type': contentType },
+          body: JSON.stringify({ name: 'x'.repeat(65_536) }),
+        });
+        expect(response.status).toBe(413);
+        expect(response.headers.get('cache-control')).toContain('no-store');
+        expect(await response.json()).toMatchObject({ error: { code: 'INPUT_TOO_LARGE' } });
+        expect(readBody).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['error', 'malformed'] as const)(
+      'returns 503 before database access or KDF when the source limiter returns %s',
+      async (failure) => {
+        const prepare = vi.fn();
+        const verify = vi.fn();
+        const app = createApp({ passwordHasher: { hash: vi.fn(), verify } });
+        const response = await app.request(
+          `${TRUSTED_ORIGIN}/api/auth/login`,
+          {
+            method: 'POST',
+            headers: { Origin: TRUSTED_ORIGIN, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: 'synthetic@example.invalid',
+              password: 'synthetic passphrase',
+            }),
+          },
+          {
+            DB: { prepare } as unknown as D1Database,
+            AUTH_ACCOUNT_RATE_LIMITER: { limit: async () => ({ success: true }) },
+            AUTH_SOURCE_RATE_LIMITER: {
+              async limit() {
+                if (failure === 'error') throw new Error('synthetic limiter failure');
+                return { success: 'true' as unknown as boolean };
+              },
+            },
+          },
+        );
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({
+          error: { code: 'AUTH_PROTECTION_UNAVAILABLE' },
+        });
+        expect(prepare).not.toHaveBeenCalled();
+        expect(verify).not.toHaveBeenCalled();
+      },
+    );
+
+    it('logs a fixed code and denies the session if the idle timestamp write fails', async () => {
+      const request = new Request(`${TRUSTED_ORIGIN}/api/auth/session`, {
+        headers: { cookie: controlledSessionCookie('idle-write-failure') },
+      });
+      const now = Date.now();
+      const run = vi.fn().mockRejectedValue(new Error('synthetic private D1 diagnostic'));
+      const db = {
+        prepare: vi
+          .fn()
+          .mockReturnValueOnce({
+            bind: () => ({
+              first: async () => ({
+                created_at: now - IDLE_WRITE_INTERVAL_MS,
+                last_seen_at: now - IDLE_WRITE_INTERVAL_MS,
+                expires_at: now + 60_000,
+                kind: 'NORMAL',
+                must_change_password: 0,
+              }),
+            }),
+          })
+          .mockReturnValueOnce({ bind: () => ({ run }) }),
+      } as unknown as D1Database;
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        await expect(loadLocalSession(db, request, false, now)).rejects.toMatchObject({
+          code: 'CONFIGURATION_ERROR',
+        });
+        expect(run).toHaveBeenCalledOnce();
+        expect(log.mock.calls).toEqual([['SESSION_ACTIVITY_UPDATE_FAILED']]);
+        expect(getRequestSession(request)).toBeUndefined();
+      } finally {
+        log.mockRestore();
+      }
     });
 
     it('geçerli exact origin VE geçerli identity-bound CSRF token taşıyan mutasyonlar 200 ile başarılı olmalıdır', async () => {

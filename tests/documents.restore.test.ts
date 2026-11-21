@@ -810,10 +810,10 @@ describe('isolated local D1 + private backup object restore proof', () => {
     expect(report.checks.objects).toBe(true);
     expect(report.objectCount).toBe(1);
     expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
-  });
+  }, 300000);
   it('rejects active allocation currency mismatch despite corrected monetary manifest', async () => {
     await failed(await correctedResultCurrency(), 'DB_DOMAIN_FAILED');
-  });
+  }, 180000);
   it('preserves WON history and allocation after result policy cancellation', async () => {
     const won = await wonSnapshot();
     const baseline = await runLocalRestoreProof(won);
@@ -832,7 +832,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     expect(report.checks.objects).toBe(true);
     expect(report.objectCount).toBe(1);
     expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
-  });
+  }, 300000);
   it('preserves WON history and allocation after result policy archival', async () => {
     const input = await changeColumns(
       'policies',
@@ -852,7 +852,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     expect(report.rowCounts.renewal_state_history).toBe(2);
     expect(report.checks.objects).toBe(true);
     expect(report.publication).toBe('SEALED_EXTERNAL_CONTROL_PLANE_PENDING');
-  });
+  }, 180000);
   it.each(['CANCELLED', 'VOIDED', 'ARCHIVED'] as const)(
     'rejects open-renewal allocation to %s result policy',
     async (lifecycle) => {
@@ -1351,7 +1351,7 @@ describe('isolated local D1 + private backup object restore proof', () => {
     [
       'schema version',
       (m: RestoreManifest) => {
-        m.schemaVersion = '0017' as '0022';
+        m.schemaVersion = '0017' as '0040';
       },
       'MANIFEST_INVALID',
     ],

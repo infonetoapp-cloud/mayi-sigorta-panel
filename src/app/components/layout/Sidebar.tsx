@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router';
 import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
-import type { RefObject } from 'react';
+import type { RefObject, ReactNode } from 'react';
 import { Button } from '../ui/button';
+import { warmWorkspacePage } from '../../workspace-page-imports';
 import { navigation } from './navigation';
 
 export function Sidebar({
@@ -11,6 +12,7 @@ export function Sidebar({
   onCollapse,
   onClose,
   sidebarRef,
+  mobileAccountActions,
 }: {
   owner: boolean;
   collapsed: boolean;
@@ -18,15 +20,20 @@ export function Sidebar({
   onCollapse: () => void;
   onClose: () => void;
   sidebarRef: RefObject<HTMLElement | null>;
+  mobileAccountActions?: ReactNode;
 }) {
   const link = (item: (typeof navigation)[number]) => (
     <NavLink
       key={item.path}
       to={item.path}
-      end={item.path !== '/customers' && item.path !== '/policies' && item.path !== '/today-work'}
+      end={!['/customers', '/policies', '/today-work', '/renewals'].includes(item.path)}
       aria-label={item.label}
       title={collapsed ? item.label : undefined}
       onClick={onClose}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') warmWorkspacePage(item.path);
+      }}
+      onFocus={() => warmWorkspacePage(item.path)}
       className={({ isActive }) => `sidebar-link${isActive ? ' sidebar-link-active' : ''}`}
     >
       <item.icon size={19} aria-hidden="true" />
@@ -43,15 +50,20 @@ export function Sidebar({
       aria-label="Çalışma alanı menüsü"
     >
       <div className="sidebar-brand">
-        <span className="sidebar-brand-mark" aria-hidden="true">
-          M
-        </span>
-        <div className="sidebar-brand-copy">
-          <strong className="sidebar-wordmark">
-            Mayı <span>Sigorta</span>
-          </strong>
-          <span className="sidebar-caption">Acente çalışma alanı</span>
-        </div>
+        <img
+          className="sidebar-brand-wordmark"
+          src="/brand/mayi-logo-footer-white.png"
+          alt="Mayı Sigorta"
+          width={420}
+          height={175}
+        />
+        <img
+          className="sidebar-brand-mark"
+          src="/brand/favicon-32x32.png"
+          alt="Mayı Sigorta"
+          width={32}
+          height={32}
+        />
         <Button
           className="mobile-only"
           variant="ghost"
@@ -72,6 +84,7 @@ export function Sidebar({
           </>
         )}
       </nav>
+      {mobileOpen && mobileAccountActions}
       <div className="sidebar-footer">
         <Button
           variant="ghost"

@@ -14,7 +14,7 @@ import { useTaskQueue } from '../src/app/pages/today-work/use-task-queue';
 import { invalidateCsrfToken } from '../src/app/csrf';
 import { canonicalOccurrence } from '../src/app/pages/today-work/interaction-model';
 import { MemoryRouter } from 'react-router';
-import { openWorkspaceSections } from './support/workspace-disclosures';
+import { openWorkspaceSections, openWorkspaceSection } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 export const task: TodayTaskDto = {
   taskId: 't',
@@ -315,7 +315,7 @@ const queueData = (items: TodayTaskDto[]): TodayTasksResponseData => ({
   todayLocalDate: '2026-10-18',
 });
 it('re-reads the exact original later WORK cursor provenance, not the first page or a fictional task GET', async () => {
-  const base = '/api/tasks/today?limit=20',
+  const base = '/api/tasks/today?limit=20&unified=true',
     later = base + '&cursor=later%2Fpage';
   let reads = 0;
   const fetcher = vi.fn(async (url: string) => {
@@ -394,21 +394,26 @@ it('integrates the interaction draft guard and holds the operation key against q
   );
   fireEvent.click(await screen.findByRole('button', { name: /Sentetik/ }));
   openWorkspaceSections();
+  openWorkspaceSection('İletişim');
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Kaybolmamalı' } });
+  openWorkspaceSection('Görev işlemleri');
   plan();
   submit();
   await screen.findByText(/İletişim taslağını açıkça kapatın/);
   expect(posts).toBe(0);
   expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe('Kaybolmamalı');
+  openWorkspaceSection('İletişim');
   fireEvent.click(screen.getByRole('button', { name: 'Formu kapat ve taslağı bırak' }));
+  openWorkspaceSection('Görev işlemleri');
   submit();
   await screen.findByRole('button', { name: 'Aynı tamamlama isteğini yeniden dene' });
   fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
   await screen.findByText(/Görev işleminin sonucu çözülmeden/);
   expect(screen.getByRole('button', { name: 'Aynı tamamlama isteğini yeniden dene' })).toBeTruthy();
   expect(posts).toBe(1);
+  openWorkspaceSection('İletişim');
   expect(
     screen.getByRole('button', { name: 'İletişim kaydı ekle' }).closest('fieldset')?.disabled,
   ).toBe(true);

@@ -60,13 +60,21 @@ export type CatalogDomainCommand =
       readonly code: string;
       readonly name: string;
       readonly dataClassification?: 'GENERAL' | 'HEALTH';
+      readonly supportsVehicleDetails?: boolean;
     }
   | {
       readonly kind: 'branch.update';
       readonly branchId: string;
       readonly expectedVersion: number;
       readonly name?: string;
+      readonly supportsVehicleDetails?: boolean;
       readonly changedFields: readonly string[];
+    }
+  | {
+      readonly kind: 'branch.correct_classification';
+      readonly branchId: string;
+      readonly expectedVersion: number;
+      readonly reasonCode: string;
     }
   | {
       readonly kind: 'branch.deactivate';
@@ -187,6 +195,8 @@ function actionForCommandKind(kind: CatalogDomainCommandKind): string {
       return 'catalog.branch.create';
     case 'branch.update':
       return 'catalog.branch.update';
+    case 'branch.correct_classification':
+      return 'catalog.branch.correct_classification';
     case 'branch.deactivate':
       return 'catalog.branch.deactivate';
     case 'product.create':
@@ -434,8 +444,8 @@ async function planCommand(
       const insertStmt = db
         .prepare(
           `INSERT INTO insurance_branches (
-             id, agency_id, code, name, data_classification, status, version, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
+             id, agency_id, code, name, data_classification, supports_vehicle_details, status, version, created_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', 1, ?, ?)`,
         )
         .bind(
           command.branchId,
@@ -443,6 +453,7 @@ async function planCommand(
           command.code,
           command.name,
           command.dataClassification ?? 'GENERAL',
+          Number(command.supportsVehicleDetails ?? false),
           now,
           now,
         );
@@ -470,6 +481,12 @@ async function planCommand(
       const nextVersion = command.expectedVersion + 1;
       const updates: Array<{ col: string; val: unknown }> = [];
       if (command.name !== undefined) updates.push({ col: 'name', val: command.name });
+
+      if (command.supportsVehicleDetails !== undefined)
+        updates.push({
+          col: 'supports_vehicle_details',
+          val: Number(command.supportsVehicleDetails),
+        });
 
       const setClauses = updates
         .map((u) => `${u.col} = ?`)
@@ -501,6 +518,30 @@ async function planCommand(
             expectedChanges: 1,
             failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
           },
+        ],
+      };
+    }
+
+    case 'branch.correct_classification': {
+      const statement = db
+        .prepare(
+          `UPDATE insurance_branches
+           SET data_classification = 'HEALTH', version = version + 1, updated_at = ?
+           WHERE id = ? AND agency_id = ? AND version = ? AND data_classification = 'GENERAL'`,
+        )
+        .bind(now, command.branchId, agencyId, command.expectedVersion);
+      return {
+        action,
+        targetType: 'insurance_branches',
+        targetId: command.branchId,
+        auditMetadata: {
+          branchId: command.branchId,
+          targetVersion: command.expectedVersion + 1,
+          resultCode: 'GENERAL_TO_HEALTH',
+          reasonCode: command.reasonCode,
+        },
+        businessStatements: [
+          { statement, expectedChanges: 1, failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT' },
         ],
       };
     }
@@ -1135,6 +1176,14 @@ export async function executeCatalogDomainCommand<TResult>(
              AND a.status = 'ACTIVE'
              AND m.permission_version = ?
              AND (
+               ? <> 'catalog.branch.correct_classification'
+               OR 2 = (
+                 SELECT COUNT(DISTINCT permission_code) FROM membership_permissions h
+                 WHERE h.membership_id = m.id AND h.scope = 'UNSCOPED'
+                   AND h.permission_code IN ('sensitive.health.read', 'sensitive.health.write')
+               )
+             )
+             AND (
                m.type = 'OWNER'
                OR (
                  -- Action begins with catalog.* -> requires catalog.manage (UNSCOPED)
@@ -1169,6 +1218,7 @@ export async function executeCatalogDomainCommand<TResult>(
       agencyId,
       actorUserId,
       expectedPermissionVersion,
+      plan.action,
       plan.action,
       plan.action,
     );
@@ -1298,6 +1348,18 @@ export async function executeCatalogDomainCommand<TResult>(
       message.includes('operation_receipts')
     ) {
       if (message.includes('operation_receipts')) {
+        if (command.kind === 'branch.correct_classification') {
+          const concurrent = await lookupIdempotency<TResult>({
+            db,
+            agencyId,
+            actorUserId,
+            actorMembershipId,
+            idempotencyKey,
+            payload: input.payload,
+            commandKind: command.kind,
+          });
+          if (concurrent.replay) return concurrent.replay;
+        }
         throw new IdempotencyConflictError('IDEMPOTENCY_CONCURRENT_INSERT');
       }
       throw new DomainConstraintViolationError('DUPLICATE_ENTITY_CODE', message);

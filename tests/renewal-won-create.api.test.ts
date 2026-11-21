@@ -61,6 +61,7 @@ async function setup(validityMs = 120000) {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Kabul Süresi',
+        insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-C-${number}` },
       }),
       201,
     )
@@ -476,6 +477,7 @@ it.each(['foreign', 'archived', 'new-HEALTH', 'assigned-customer', 'assignee-rev
           type: 'INDIVIDUAL',
           firstName: 'Archived',
           lastName: 'Sentetik',
+          insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-ARCHIVED-${serial}` },
         }),
         201,
       );
@@ -551,3 +553,122 @@ it.each(['foreign', 'archived', 'new-HEALTH', 'assigned-customer', 'assignee-rev
     }
   },
 );
+
+it('D3 reads the actual primary task without exposing a different employees private task', async () => {
+  const s = await setup(),
+    url = `/api/renewals/${s.task.renewalId}/operation-context`;
+  expect(await data(await f.request(url, 'GET', cookie))).toMatchObject({
+    taskId: s.task.taskId,
+    renewalId: s.task.renewalId,
+    taskVersion: s.task.taskVersion,
+  });
+  await f.seed('d3-private-reader');
+  for (const code of ['customer.read', 'policy.read', 'renewal.read', 'task.read'])
+    await f.db
+      .prepare(
+        'INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,?)',
+      )
+      .bind(
+        crypto.randomUUID(),
+        'membership-d3-private-reader',
+        code,
+        code === 'task.read' ? 'ASSIGNED' : 'AGENCY',
+      )
+      .run();
+  const reader = (await f.session('d3-private-reader')).cookie;
+  expect((await f.request(`/api/renewals/${s.task.renewalId}`, 'GET', reader)).status).toBe(200);
+  const denied = await f.request(url, 'GET', reader);
+  expect(denied.status).toBe(404);
+  expect(await denied.text()).not.toContain(s.task.taskId);
+  expect((await f.request(url + '?taskId=forged', 'GET', cookie)).status).toBe(400);
+});
+it('D3 accepts a selected immutable sent quote for a nonannual new policy with explicit period difference and exact replay', async () => {
+  const s = await setup(),
+    original = await f.db
+      .prepare('SELECT start_date,end_date FROM policies WHERE id=?')
+      .bind(s.task.policyId)
+      .first();
+  const input = creation(s),
+    quoteBody = {
+      ...input,
+      acceptedQuoteVersionId: s.q.quoteVersionId,
+      result: {
+        ...input.result,
+        policy: {
+          ...input.result.policy,
+          endDate: new Date(Date.parse(input.result.policy.startDate) + 90 * 86400000)
+            .toISOString()
+            .slice(0, 10),
+        },
+      },
+    };
+  const url = `/api/renewals/${s.task.renewalId}/close-won`,
+    before = await snapshot();
+  expect((await post(url, quoteBody)).status).toBe(400);
+  expect(await snapshot()).toBe(before);
+  const body = { ...quoteBody, quoteDifferenceReasonCode: 'PERIOD_CHANGED' },
+    key = crypto.randomUUID();
+  const first = await data<{ createdPolicyId: string; acceptedQuoteVersionId: string }>(
+    await post(url, body, key),
+    201,
+  );
+  expect(first.acceptedQuoteVersionId).toBe(s.q.quoteVersionId);
+  expect(await data(await post(url, body, key))).toEqual(first);
+  expect(
+    await f.db
+      .prepare('SELECT start_date,end_date FROM policies WHERE id=?')
+      .bind(first.createdPolicyId)
+      .first(),
+  ).toEqual({ start_date: body.result.policy.startDate, end_date: body.result.policy.endDate });
+  expect(
+    await f.db
+      .prepare('SELECT start_date,end_date FROM policies WHERE id=?')
+      .bind(s.task.policyId)
+      .first(),
+  ).toEqual(original);
+  expect(
+    await f.db
+      .prepare(
+        'SELECT status,accepted_version_id,accepted_policy_id FROM renewal_quotes WHERE id=?',
+      )
+      .bind(s.q.quoteId)
+      .first(),
+  ).toEqual({
+    status: 'ACCEPTED',
+    accepted_version_id: s.q.quoteVersionId,
+    accepted_policy_id: first.createdPolicyId,
+  });
+  expect(
+    await data(
+      await f.request(`/api/renewals/${s.task.renewalId}/operation-context`, 'GET', cookie),
+    ),
+  ).toBeNull();
+});
+it('D3 keeps a waiting reason and next date in one replacement command without closing the renewal', async () => {
+  const s = await setup(),
+    url = `/api/renewals/${s.task.renewalId}/tasks/${s.task.taskId}/complete`,
+    key = crypto.randomUUID();
+  const body = {
+    expectedRenewalVersion: s.task.renewalVersion,
+    expectedTaskVersion: s.task.taskVersion,
+    replacementDueAt: new Date(Date.now() + 86400000).toISOString(),
+    followupReason: 'DOCUMENTS_PENDING',
+  };
+  const result = await data<{ replacementTaskId: string }>(await post(url, body, key));
+  expect(await data(await post(url, body, key))).toEqual(result);
+  expect(
+    await f.db
+      .prepare('SELECT title,due_at,status FROM tasks WHERE id=?')
+      .bind(result.replacementTaskId)
+      .first(),
+  ).toEqual({ title: 'Evrak / bilgi bekleniyor', due_at: body.replacementDueAt, status: 'OPEN' });
+  expect(
+    await f.db
+      .prepare('SELECT state,version,closed_at FROM renewal_opportunities WHERE id=?')
+      .bind(s.task.renewalId)
+      .first(),
+  ).toEqual({ state: s.task.renewalState, version: s.task.renewalVersion, closed_at: null });
+  const before = await snapshot();
+  expect((await post(url, { ...body, followupReason: 'FORGED' })).status).toBe(400);
+  expect(await snapshot()).toBe(before);
+});

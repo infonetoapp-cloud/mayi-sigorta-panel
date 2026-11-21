@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { beforeAll, afterAll, it, expect, vi } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import { createApp, createWorker } from '../src/server/index';
 import { createLocalSessionVerifier } from '../src/server/auth/session';
 import { createApplicationIdentityResolver } from '../src/server/auth/identity';
@@ -15,6 +19,7 @@ let f: Awaited<ReturnType<typeof localAuthFixture>>;
 beforeAll(async () => {
   f = await localAuthFixture();
   await f.seed('policy-root', 'OWNER');
+  await seedRegistrationInsurer(f.db, 'agency-auth-test', 'session-policy-registration');
   f.env.DB = { prepare: f.db.prepare.bind(f.db), batch: f.db.batch.bind(f.db) } as D1Database;
 });
 afterAll(async () => {
@@ -184,7 +189,12 @@ it('NORMAL customer.create commits once with audit when optional recent password
           'x-csrf-token': csrf,
           'idempotency-key': key,
         },
-        body: JSON.stringify({ type: 'INDIVIDUAL', firstName: 'Synthetic', lastName: 'Boundary' }),
+        body: JSON.stringify({
+          type: 'INDIVIDUAL',
+          firstName: 'Synthetic',
+          lastName: 'Boundary',
+          insurerNumber: registrationNumber('session-policy-registration'),
+        }),
       }),
       f.env,
     );
@@ -239,7 +249,12 @@ it.each(['expired', 'never', 'fresh'] as const)(
         '/api/customers',
         'POST',
         session.cookie,
-        { type: 'INDIVIDUAL', firstName: 'Synthetic', lastName: kind },
+        {
+          type: 'INDIVIDUAL',
+          firstName: 'Synthetic',
+          lastName: kind,
+          insurerNumber: registrationNumber('session-policy-registration'),
+        },
         csrf,
         { 'idempotency-key': key },
       );

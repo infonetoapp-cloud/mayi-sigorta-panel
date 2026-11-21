@@ -969,8 +969,13 @@ it.each(gateMatrix.map((flags, i) => [i, ...flags] as const))(
       '/secure/api/documents/synthetic-missing/download-confirmation',
     ]) {
       const r = await probe.check(path);
-      expect(r.status).toBe(pub ? 401 : 404);
-      expect(r.code).toBe(pub ? 'UNAUTHORIZED' : 'NOT_FOUND');
+      // The Queue fixture has no upload dispatch bindings, so that route fails closed at the edge.
+      const expected = !pub
+        ? { status: 404, code: 'NOT_FOUND' }
+        : path === '/api/documents'
+          ? { status: 503, code: 'SERVICE_UNAVAILABLE' }
+          : { status: 401, code: 'UNAUTHORIZED' };
+      expect(r).toEqual(expected);
     }
     const f = await fixture();
     const delivery = await deliver(f.message, target);

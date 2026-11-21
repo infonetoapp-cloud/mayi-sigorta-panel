@@ -469,52 +469,151 @@ function quoteResultFromReceipt(receipt: ReceiptRow): QuoteMutationResult {
   }
 }
 
+const quoteReadQuery = z
+  .strictObject({
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    cursor: z.string().max(1800).optional(),
+    quoteId: z.string().min(1).max(128).optional(),
+    versionId: z.string().min(1).max(128).optional(),
+    operationId: z.string().min(1).max(128).optional(),
+  })
+  .refine(
+    (q) =>
+      (!q.versionId || !!q.quoteId) &&
+      (!q.operationId || !!q.versionId) &&
+      (!q.quoteId || !q.cursor),
+  );
+type QuoteSummaryRow = {
+  id: string;
+  status: string;
+  current_version_id: string | null;
+  accepted_version_id: string | null;
+  accepted_policy_id: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  versionCount: number;
+};
+const quoteVersionColumns = `v.id,v.quote_id,v.version_number,v.insurer_id,insurer.name insurer_name,v.product_id,product.name product_name,
+ v.branch_id,v.payment_method_id,v.start_date,v.end_date,v.valid_until,v.gross_premium_minor,v.currency,v.installment_count,v.terms_summary,v.created_at`;
+const quoteVersionJoins = `JOIN insurance_products product ON product.agency_id=v.agency_id AND product.id=v.product_id
+ JOIN insurers insurer ON insurer.agency_id=v.agency_id AND insurer.id=v.insurer_id`;
+const quoteEventColumns = `e.id,e.quote_id,e.quote_version_id,e.event,e.operation_receipt_id,e.accepted_policy_id,e.occurred_at`;
+async function quoteCursorBinding(
+  context: AuthenticatedUserContext,
+  active: ActiveMembership,
+  renewalId: string,
+  kind: string,
+  limit: number,
+) {
+  return computePayloadHash({
+    user: context.userId,
+    agency: active.agencyId,
+    member: active.id,
+    pver: context.memberships[0]?.permissionVersion,
+    renewalId,
+    kind,
+    limit,
+  });
+}
+function decodeQuoteCursor(raw: string | undefined, binding: string): [string, string] | null {
+  if (!raw) return null;
+  try {
+    const c = z
+      .tuple([z.literal(binding), z.string().min(1).max(128), z.string().min(1).max(128)])
+      .parse(JSON.parse(atob(raw)));
+    return [c[1], c[2]];
+  } catch {
+    throw new RenewalCommandError('INVALID_CURSOR', 400);
+  }
+}
 export async function listRenewalQuotes(
   context: AuthenticatedUserContext,
   db: D1Database,
   renewalId: string,
-): Promise<{ quotes: unknown[]; defaultVersion: VersionPayload }> {
+  rawQuery: unknown = {},
+) {
+  const query = quoteReadQuery.parse(rawQuery);
   const { active, parent } = await authorizeParent(context, db, renewalId, 'quote.read');
-  const quotes = await db
-    .prepare(
-      `SELECT q.id,q.status,q.current_version_id,q.accepted_version_id,q.accepted_policy_id,
-              q.version,q.created_at,q.updated_at
-       FROM renewal_quotes q WHERE q.agency_id=? AND q.renewal_id=? ORDER BY q.created_at,q.id`,
-    )
-    .bind(active.agencyId, parent.id)
-    .all<{
-      id: string;
-      status: string;
-      current_version_id: string | null;
-      accepted_version_id: string | null;
-      accepted_policy_id: string | null;
-      version: number;
-      created_at: string;
-      updated_at: string;
-    }>();
+  const binding = await quoteCursorBinding(context, active, renewalId, 'quotes', query.limit),
+    cursor = decodeQuoteCursor(query.cursor, binding);
+  if (cursor && !canonicalTimestamp(cursor[0]))
+    throw new RenewalCommandError('INVALID_CURSOR', 400);
+  const args: unknown[] = [active.agencyId, parent.id];
+  let extra = '';
+  if (query.quoteId) {
+    extra += ' AND q.id=?';
+    args.push(query.quoteId);
+  }
+  if (cursor) {
+    extra += ' AND (q.created_at>? OR(q.created_at=? AND q.id>?))';
+    args.push(cursor[0], cursor[0], cursor[1]);
+  }
+  const rows = (
+    await db
+      .prepare(
+        `SELECT q.id,q.status,q.current_version_id,q.accepted_version_id,q.accepted_policy_id,q.version,q.created_at,q.updated_at,
+   (SELECT max(v.version_number) FROM renewal_quote_versions v WHERE v.agency_id=q.agency_id AND v.quote_id=q.id) versionCount
+   FROM renewal_quotes q WHERE q.agency_id=? AND q.renewal_id=? ${extra} ORDER BY q.created_at,q.id LIMIT ?`,
+      )
+      .bind(...args, query.quoteId ? 1 : query.limit + 1)
+      .all<QuoteSummaryRow>()
+  ).results;
+  const quotes = rows.slice(0, query.limit),
+    hasMore = rows.length > query.limit;
+  if (query.quoteId && !quotes.length) throw new RenewalCommandError('NOT_FOUND', 404);
   const results = [];
-  for (const quote of quotes.results) {
-    const versions = await db
-      .prepare(
-        `SELECT version.id,version.version_number,version.insurer_id,version.product_id,
-                product.name AS product_name,version.branch_id,version.payment_method_id,
-                version.start_date,version.end_date,version.valid_until,version.gross_premium_minor,
-                version.currency,version.installment_count,version.terms_summary,version.created_at
-         FROM renewal_quote_versions version
-         JOIN insurance_products product
-           ON product.agency_id=version.agency_id AND product.id=version.product_id
-         WHERE version.agency_id=? AND version.quote_id=? ORDER BY version.version_number`,
-      )
-      .bind(active.agencyId, quote.id)
-      .all();
-    const events = await db
-      .prepare(
-        `SELECT id,quote_version_id,event,operation_receipt_id,accepted_policy_id,occurred_at
-         FROM renewal_quote_events WHERE agency_id=? AND quote_id=? ORDER BY occurred_at,id`,
-      )
-      .bind(active.agencyId, quote.id)
-      .all();
-    results.push({ ...quote, versions: versions.results, events: events.results });
+  if (quotes.length) {
+    const slots = quotes.map(() => '?').join(','),
+      ids = quotes.map((q) => q.id);
+    if (query.operationId) {
+      const receipt = await db
+        .prepare(
+          `SELECT o.id FROM operation_receipts o WHERE o.agency_id=? AND o.id=? AND o.status='COMPLETED' AND
+    ((o.action IN ('renewal.quote.create','renewal.quote.version.create') AND json_extract(o.response_body,'$.quoteId')=? AND json_extract(o.response_body,'$.quoteVersionId')=?) OR
+     EXISTS(SELECT 1 FROM renewal_quote_events e WHERE e.agency_id=o.agency_id AND e.operation_receipt_id=o.id AND e.quote_id=? AND e.quote_version_id=?))`,
+        )
+        .bind(
+          active.agencyId,
+          query.operationId,
+          query.quoteId,
+          query.versionId,
+          query.quoteId,
+          query.versionId,
+        )
+        .first();
+      if (!receipt) throw new RenewalCommandError('REPLAY_NOT_AUTHORIZED', 404);
+    }
+    const versions = (
+      await db
+        .prepare(
+          `SELECT ${quoteVersionColumns} FROM renewal_quote_versions v ${quoteVersionJoins}
+    JOIN renewal_quotes q ON q.agency_id=v.agency_id AND q.id=v.quote_id WHERE v.agency_id=? AND q.renewal_id=? AND q.id IN (${slots})
+    AND (v.version_number=1 OR v.id=q.current_version_id OR v.id=q.accepted_version_id OR v.id=?) ORDER BY v.version_number`,
+        )
+        .bind(active.agencyId, renewalId, ...ids, query.versionId ?? null)
+        .all<Record<string, unknown>>()
+    ).results;
+    if (query.versionId && !versions.some((v) => v.id === query.versionId))
+      throw new RenewalCommandError('NOT_FOUND', 404);
+    const events = (
+      await db
+        .prepare(
+          `SELECT ${quoteEventColumns} FROM renewal_quote_events e
+    JOIN renewal_quotes q ON q.agency_id=e.agency_id AND q.id=e.quote_id WHERE e.agency_id=? AND q.renewal_id=? AND q.id IN (${slots}) AND
+    (e.id=(SELECT recent.id FROM renewal_quote_events recent WHERE recent.agency_id=q.agency_id AND recent.quote_id=q.id AND recent.quote_version_id=q.current_version_id AND recent.event='SENT' ORDER BY recent.occurred_at DESC,recent.id DESC LIMIT 1)
+     OR e.id=(SELECT recent.id FROM renewal_quote_events recent WHERE recent.agency_id=q.agency_id AND recent.quote_id=q.id AND recent.quote_version_id=q.accepted_version_id AND recent.event='ACCEPTED' ORDER BY recent.occurred_at DESC,recent.id DESC LIMIT 1)
+     OR e.operation_receipt_id=?) ORDER BY e.occurred_at,e.id`,
+        )
+        .bind(active.agencyId, renewalId, ...ids, query.operationId ?? null)
+        .all<Record<string, unknown>>()
+    ).results;
+    for (const q of quotes)
+      results.push({
+        ...q,
+        versions: versions.filter((v) => v.quote_id === q.id).map(({ quote_id: _, ...v }) => v),
+        events: events.filter((e) => e.quote_id === q.id).map(({ quote_id: _, ...e }) => e),
+      });
   }
   const nextStartDate = new Date(`${parent.policy_end_date}T00:00:00.000Z`);
   nextStartDate.setUTCDate(nextStartDate.getUTCDate() + 1);
@@ -523,6 +622,12 @@ export async function listRenewalQuotes(
   nextEndDate.setUTCDate(nextEndDate.getUTCDate() - 1);
   return {
     quotes: results,
+    historyMode: 'SUMMARY' as const,
+    selectedQuoteId: query.quoteId ?? null,
+    hasMore,
+    nextCursor: hasMore
+      ? btoa(JSON.stringify([binding, quotes.at(-1)!.created_at, quotes.at(-1)!.id]))
+      : null,
     defaultVersion: {
       insurerId: parent.policy_insurer_id,
       productId: parent.policy_product_id,
@@ -536,6 +641,79 @@ export async function listRenewalQuotes(
       installmentCount: parent.policy_installment_count,
       termsSummary: null,
     },
+  };
+}
+
+export async function readRenewalQuoteHistory(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  renewalId: string,
+  quoteId: string,
+  raw: unknown = {},
+) {
+  const q = z
+    .strictObject({
+      kind: z.enum(['versions', 'events']).default('versions'),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+      cursor: z.string().max(1800).optional(),
+    })
+    .parse(raw);
+  const { active } = await authorizeParent(context, db, renewalId, 'quote.read');
+  const quote = await db
+    .prepare('SELECT id FROM renewal_quotes WHERE agency_id=? AND renewal_id=? AND id=?')
+    .bind(active.agencyId, renewalId, quoteId)
+    .first();
+  if (!quote) throw new RenewalCommandError('NOT_FOUND', 404);
+  const binding = await quoteCursorBinding(
+      context,
+      active,
+      renewalId,
+      quoteId + ':' + q.kind,
+      q.limit,
+    ),
+    cursor = decodeQuoteCursor(q.cursor, binding),
+    args: unknown[] = [active.agencyId, quoteId];
+  let sql: string;
+  if (q.kind === 'versions') {
+    if (cursor) {
+      if (
+        !/^\d+$/.test(cursor[0]) ||
+        !Number.isSafeInteger(Number(cursor[0])) ||
+        Number(cursor[0]) < 1
+      )
+        throw new RenewalCommandError('INVALID_CURSOR', 400);
+      args.push(Number(cursor[0]), Number(cursor[0]), cursor[1]);
+    }
+    sql = `SELECT ${quoteVersionColumns} FROM renewal_quote_versions v ${quoteVersionJoins} WHERE v.agency_id=? AND v.quote_id=? ${cursor ? 'AND (v.version_number<? OR(v.version_number=? AND v.id<?))' : ''} ORDER BY v.version_number DESC,v.id DESC LIMIT ?`;
+  } else {
+    if (cursor && !canonicalTimestamp(cursor[0]))
+      throw new RenewalCommandError('INVALID_CURSOR', 400);
+    if (cursor) args.push(cursor[0], cursor[0], cursor[1]);
+    sql = `SELECT ${quoteEventColumns} FROM renewal_quote_events e WHERE e.agency_id=? AND e.quote_id=? ${cursor ? 'AND (e.occurred_at<? OR(e.occurred_at=? AND e.id<?))' : ''} ORDER BY e.occurred_at DESC,e.id DESC LIMIT ?`;
+  }
+  const rows = (
+      await db
+        .prepare(sql)
+        .bind(...args, q.limit + 1)
+        .all<Record<string, unknown>>()
+    ).results,
+    items = rows.slice(0, q.limit).map(({ quote_id: _, ...r }) => r),
+    hasMore = rows.length > q.limit,
+    last = items.at(-1);
+  return {
+    quoteId,
+    kind: q.kind,
+    items,
+    hasMore,
+    nextCursor: hasMore
+      ? btoa(
+          JSON.stringify([
+            binding,
+            String(q.kind === 'versions' ? last!.version_number : last!.occurred_at),
+            last!.id,
+          ]),
+        )
+      : null,
   };
 }
 

@@ -86,16 +86,23 @@ beforeAll(async () => {
   f = await localAuthFixture();
   await f.seed('qe-owner', 'OWNER');
   cookie = (await f.session('qe-owner')).cookie;
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('qe-i','agency-auth-test','QE','Sentetik')",
+    )
+    .run();
   customerId = (
     await data<{ id: string }>(
-      await post('/api/customers', { type: 'INDIVIDUAL', firstName: 'Sentetik', lastName: 'Süre' }),
+      await post('/api/customers', {
+        type: 'INDIVIDUAL',
+        firstName: 'Sentetik',
+        lastName: 'Süre',
+        insurerNumber: { insurerId: 'qe-i', customerNumber: 'QE-CUSTOMER' },
+      }),
       201,
     )
   ).id;
   await f.db.batch([
-    f.db.prepare(
-      "INSERT INTO insurers(id,agency_id,code,name) VALUES('qe-i','agency-auth-test','QE','Sentetik')",
-    ),
     f.db.prepare(
       "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('qe-b','agency-auth-test','QE','Sentetik','GENERAL')",
     ),

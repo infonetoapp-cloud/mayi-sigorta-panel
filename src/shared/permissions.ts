@@ -5,7 +5,7 @@
  * 1. Bu modül istemci ve sunucu arasında paylaşılan (src/shared) güvenli alandadır.
  * 2. Asla gizli anahtar, sunucuya özel import veya ortam değişkeni içeremez.
  * 3. İzin kataloğu çalışma zamanında tamamen değişmezdir (immutable).
- * 4. Yalnızca NIHAI_MIMARI_VE_UYGULAMA_PLANI.md Bölüm 4.2'deki 40 somut izin kodunu içerir.
+ * 4. Yalnızca NIHAI_MIMARI_VE_UYGULAMA_PLANI.md Bölüm 4.2'deki 44 somut izin kodunu içerir.
  * 5. Sınıflandırma (NORMAL / SENSITIVE) için örtük varsayılan (default/infer) yasaktır.
  * 6. Doğrulama fonksiyonu fail-closed çalışır; geçersiz meta veriyi derhal reddeder.
  */
@@ -56,6 +56,10 @@ export const PERMISSION_CODES = [
   'audit.read',
   'catalog.manage',
   'agency.settings.manage',
+  'finance.read',
+  'finance.manage',
+  'claim.read',
+  'claim.manage',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -779,6 +783,51 @@ const RAW_PERMISSION_CATALOG: readonly PermissionDefinition[] = [
     description: 'Sigortacı, ürün, ödeme yöntemi ve kayıp nedeni kataloglarını yönetme yetkisi',
   },
 
+  {
+    code: 'finance.read',
+    classification: 'NORMAL',
+    scopeKind: 'UNSCOPED',
+    sensitivityDomain: null,
+    dependencies: [],
+    scopeResolver: null,
+    assurance: 'NORMAL_SESSION',
+    title: 'Acente Alacak ve Tahsilatlarını Görüntüleme',
+    description: 'Ayrıca yetkili olunan müşteri ve poliçelerin acente alacaklarını okuma',
+  },
+  {
+    code: 'finance.manage',
+    classification: 'NORMAL',
+    scopeKind: 'UNSCOPED',
+    sensitivityDomain: null,
+    dependencies: ['finance.read'],
+    scopeResolver: null,
+    assurance: 'NORMAL_SESSION',
+    title: 'Acente Alacak ve Tahsilat Kaydı',
+    description:
+      'Alacak, kısmi tahsilat, gerekçeli düzeltme ve ters kayıt; ödeme çekme yetkisi değildir',
+  },
+  {
+    code: 'claim.read',
+    classification: 'NORMAL',
+    scopeKind: 'UNSCOPED',
+    sensitivityDomain: null,
+    dependencies: [],
+    scopeResolver: null,
+    assurance: 'NORMAL_SESSION',
+    title: 'Hasar Dosyalarını Görüntüleme',
+    description: 'Yetkili müşteri ve poliçelerin basit hasar takibi',
+  },
+  {
+    code: 'claim.manage',
+    classification: 'NORMAL',
+    scopeKind: 'UNSCOPED',
+    sensitivityDomain: null,
+    dependencies: ['claim.read'],
+    scopeResolver: null,
+    assurance: 'NORMAL_SESSION',
+    title: 'Hasar Dosyası Kaydı',
+    description: 'Hasar dosyası oluşturma ve gerekçeli durum/not güncelleme',
+  },
   // 13. Acente Ayarları (Agency Settings)
   {
     code: 'agency.settings.manage',

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import {
@@ -12,6 +12,12 @@ import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
 import { computePayloadHash } from '../src/server/mutations/canonical';
 import { createCompanyContact, createCustomer } from '../src/server/customers/service';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
+import type { Env } from '../src/server/index';
+import { parseIdentityCryptoConfig } from '../src/server/security/identity-crypto';
+import {
+  enableCompanyRegistration,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
@@ -21,6 +27,31 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
   let db: D1Database;
 
   const AGENCY_ID = 'ag-m2-t02-dom';
+  const registrationInsurerId = 'm2-t02-registration';
+  let env: Env;
+  let registrationSequence = 0;
+
+  function companyRegistration(companyTitle: string) {
+    const sequence = ++registrationSequence;
+    return {
+      type: 'COMPANY' as const,
+      companyTitle,
+      taxNumber: String(9300000000 + sequence),
+      insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-COMPANY-' + sequence },
+    };
+  }
+
+  function createFixtureCustomer(
+    database: D1Database,
+    context: AuthenticatedUserContext,
+    payload: unknown,
+    options: Parameters<typeof createCustomer>[3],
+  ) {
+    return createCustomer(database, context, payload, {
+      ...options,
+      identityCryptoConfig: () => parseIdentityCryptoConfig({ ...env }),
+    });
+  }
   const OTHER_AGENCY_ID = 'ag-m2-t02-other';
 
   const OWNER_USER_ID = 'usr-m2t02-owner';
@@ -47,19 +78,11 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     );
     db = await mf.getD1Database('DB');
 
-    // Apply the real customer archive schema required by lifecycle assertions.
-    for (const file of [
-      'db/migrations/0000_good_hammerhead.sql',
-      'db/migrations/0001_chunky_blazing_skull.sql',
-      'db/migrations/0002_productive_arclight.sql',
-      'db/migrations/0003_lonely_zzzax.sql',
-      'db/migrations/0004_thankful_pixie.sql',
-      'db/migrations/0005_graceful_northstar.sql',
-      'db/migrations/0006_parched_proteus.sql',
-      'db/migrations/0007_robust_scalphunter.sql',
-      'db/migrations/0008_fearless_giant_girl.sql',
-    ]) {
-      const sql = readFileSync(resolve(rootDir, file), 'utf8');
+    const migrations = resolve(rootDir, 'db/migrations');
+    for (const file of readdirSync(migrations)
+      .filter((name) => /^\d{4}_.*\.sql$/.test(name))
+      .sort()) {
+      const sql = readFileSync(resolve(migrations, file), 'utf8');
       const stmts = sql
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
@@ -115,6 +138,9 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     // Seed primary and other agencies
     await seedAgency(AGENCY_ID, OWNER_USER_ID, OWNER_MEM_ID, 'owner-m2t02@test.com');
     await seedAgency(OTHER_AGENCY_ID, 'usr-other-owner', 'mem-other-owner', 'other-owner@test.com');
+    env = { DB: db };
+    await seedRegistrationInsurer(db, AGENCY_ID, registrationInsurerId);
+    await enableCompanyRegistration({ db, env }, OWNER_MEM_ID);
 
     // Seed Member A
     await db
@@ -198,16 +224,6 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
           'INSERT INTO membership_permissions (id, membership_id, permission_code, scope) VALUES (?, ?, ?, ?)',
         )
         .bind(crypto.randomUUID(), MEMBER_B_MEM_ID, perm, scope)
-        .run();
-    }
-
-    // Permissions for Owner: sensitive grants
-    for (const perm of ['sensitive.identity.read', 'sensitive.identity.write']) {
-      await db
-        .prepare(
-          "INSERT INTO membership_permissions (id, membership_id, permission_code, scope) VALUES (?, ?, ?, 'UNSCOPED')",
-        )
-        .bind(crypto.randomUUID(), OWNER_MEM_ID, perm)
         .run();
     }
   });
@@ -303,10 +319,10 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
   }
 
   async function createReplayCompany(suffix: string) {
-    return createCustomer(
+    return createFixtureCustomer(
       db,
       ownerContext,
-      { type: 'COMPANY', companyTitle: `Contact Replay Company ${suffix}` },
+      companyRegistration(`Contact Replay Company ${suffix}`),
       {
         correlationId: `contact-replay-company-${suffix}`,
         idempotencyKey: `contact-replay-company-${suffix}`,
@@ -358,8 +374,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
 
   it('authorizes customer.create replay against the original live Customer record', async () => {
     const payload = {
-      type: 'COMPANY' as const,
-      companyTitle: 'Original Create Replay Company',
+      ...companyRegistration('Original Create Replay Company'),
       email: 'original-create@example.test',
       phone: '+905551112233',
       address: 'Synthetic address',
@@ -409,6 +424,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
           membershipId,
         )
         .run();
+      await enableCompanyRegistration({ db, env }, membershipId);
       return {
         userId,
         membershipId,
@@ -418,11 +434,11 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     };
     const scopeActor = await seedReplayMember('scope');
     const memberA = scopeActor.context;
-    const first = await createCustomer(db, memberA, payload, {
+    const first = await createFixtureCustomer(db, memberA, payload, {
       correlationId: 'create-replay-first',
       idempotencyKey: key,
     });
-    const immediateReplay = await createCustomer(db, memberA, payload, {
+    const immediateReplay = await createFixtureCustomer(db, memberA, payload, {
       correlationId: 'create-replay-immediate',
       idempotencyKey: key,
     });
@@ -461,7 +477,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       )?.scope,
     ).toBe('UNSCOPED');
     await expect(
-      createCustomer(db, memberA, payload, {
+      createFixtureCustomer(db, memberA, payload, {
         correlationId: 'create-replay-reassigned',
         idempotencyKey: key,
       }),
@@ -469,7 +485,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
 
     await db
       .prepare(
-        "UPDATE membership_permissions SET scope = 'AGENCY', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE membership_id = ? AND permission_code = 'customer.read'",
+        "UPDATE membership_permissions SET scope = 'AGENCY', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE membership_id = ? AND permission_code IN ('customer.read','customer.update')",
       )
       .bind(scopeActor.membershipId)
       .run();
@@ -485,7 +501,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       scopeActor.membershipId,
       3,
     );
-    const agencyReplay = await createCustomer(db, scopeActorAgencyScope, payload, {
+    const agencyReplay = await createFixtureCustomer(db, scopeActorAgencyScope, payload, {
       correlationId: 'create-replay-agency-scope',
       idempotencyKey: key,
     });
@@ -504,7 +520,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .bind(scopeActor.membershipId)
       .run();
     await expect(
-      createCustomer(
+      createFixtureCustomer(
         db,
         memberContext(scopeActor.userId, scopeActor.identityId, scopeActor.membershipId, 4),
         payload,
@@ -513,9 +529,9 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
     ).rejects.toThrow();
 
     const suspendedActor = await seedReplayMember('suspended');
-    const suspendedPayload = { type: 'COMPANY' as const, companyTitle: 'Suspended Replay' };
+    const suspendedPayload = companyRegistration('Suspended Replay');
     const suspendedKey = 'customer-create-replay-suspended';
-    await createCustomer(db, suspendedActor.context, suspendedPayload, {
+    await createFixtureCustomer(db, suspendedActor.context, suspendedPayload, {
       correlationId: 'create-suspended-first',
       idempotencyKey: suspendedKey,
     });
@@ -526,7 +542,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .bind(suspendedActor.membershipId)
       .run();
     await expect(
-      createCustomer(db, suspendedActor.context, suspendedPayload, {
+      createFixtureCustomer(db, suspendedActor.context, suspendedPayload, {
         correlationId: 'create-suspended-retry',
         idempotencyKey: suspendedKey,
       }),
@@ -534,11 +550,10 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
 
     const identityActor = await seedReplayMember('identity');
     const identityPayload = {
-      type: 'COMPANY' as const,
-      companyTitle: 'Revoked Identity Replay',
+      ...companyRegistration('Revoked Identity Replay'),
     };
     const identityKey = 'customer-create-replay-revoked-identity';
-    await createCustomer(db, identityActor.context, identityPayload, {
+    await createFixtureCustomer(db, identityActor.context, identityPayload, {
       correlationId: 'create-identity-first',
       idempotencyKey: identityKey,
     });
@@ -549,7 +564,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .bind(identityActor.identityId)
       .run();
     await expect(
-      createCustomer(db, identityActor.context, identityPayload, {
+      createFixtureCustomer(db, identityActor.context, identityPayload, {
         correlationId: 'create-identity-retry',
         idempotencyKey: identityKey,
       }),
@@ -866,7 +881,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       ),
     ).rejects.toMatchObject({ code: 'IDEMPOTENCY_PAYLOAD_MISMATCH' });
     await expect(
-      createCustomer(
+      createFixtureCustomer(
         db,
         ownerContext,
         { type: 'COMPANY', companyTitle: 'Wrong Action' },
@@ -920,7 +935,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .run();
 
     await expect(
-      createCustomer(db, ownerContext, payload, {
+      createFixtureCustomer(db, ownerContext, payload, {
         correlationId: 'create-malformed-receipt-retry',
         idempotencyKey: key,
       }),
@@ -976,7 +991,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       )
       .run();
     await expect(
-      createCustomer(db, ownerContext, auditlessPayload, {
+      createFixtureCustomer(db, ownerContext, auditlessPayload, {
         correlationId: 'create-auditless-receipt-retry',
         idempotencyKey: auditlessKey,
       }),
@@ -985,12 +1000,11 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
 
   it('fails closed when a completed Customer receipt contains an invalid email', async () => {
     const payload = {
-      type: 'COMPANY' as const,
-      companyTitle: 'Malformed Email Receipt',
+      ...companyRegistration('Malformed Email Receipt'),
       email: 'valid.customer@example.test',
     };
     const key = 'customer-create-malformed-email-receipt';
-    const original = await createCustomer(db, ownerContext, payload, {
+    const original = await createFixtureCustomer(db, ownerContext, payload, {
       correlationId: 'customer-create-malformed-email-first',
       idempotencyKey: key,
     });
@@ -1000,7 +1014,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .run();
 
     await expect(
-      createCustomer(db, ownerContext, payload, {
+      createFixtureCustomer(db, ownerContext, payload, {
         correlationId: 'customer-create-malformed-email-retry',
         idempotencyKey: key,
       }),
@@ -1012,12 +1026,13 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       type: 'INDIVIDUAL' as const,
       firstName: 'Receipt',
       lastName: 'Bounds',
+      insurerNumber: { insurerId: registrationInsurerId, customerNumber: '00-BOUNDS' },
       email: 'valid.bounds@example.test',
       phone: '5551234567',
       address: 'Kısa adres',
     };
     const key = 'customer-create-invalid-receipt-bounds';
-    const original = await createCustomer(db, ownerContext, payload, {
+    const original = await createFixtureCustomer(db, ownerContext, payload, {
       correlationId: 'customer-create-invalid-receipt-bounds-first',
       idempotencyKey: key,
     });
@@ -1044,19 +1059,16 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
         .bind(JSON.stringify(invalidDto), key)
         .run();
       await expect(
-        createCustomer(db, ownerContext, payload, {
+        createFixtureCustomer(db, ownerContext, payload, {
           correlationId: `customer-create-invalid-receipt-bounds-${index}`,
           idempotencyKey: key,
         }),
       ).rejects.toMatchObject({ code: 'REPLAY_AUTHORIZATION_DENIED' });
     }
 
-    const companyPayload = {
-      type: 'COMPANY' as const,
-      companyTitle: 'Company Receipt Bounds',
-    };
+    const companyPayload = companyRegistration('Company Receipt Bounds');
     const companyKey = 'customer-create-invalid-company-title-receipt';
-    const companyOriginal = await createCustomer(db, ownerContext, companyPayload, {
+    const companyOriginal = await createFixtureCustomer(db, ownerContext, companyPayload, {
       correlationId: 'customer-create-invalid-company-title-first',
       idempotencyKey: companyKey,
     });
@@ -1065,7 +1077,7 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       .bind(JSON.stringify({ ...companyOriginal, companyTitle: 'x'.repeat(256) }), companyKey)
       .run();
     await expect(
-      createCustomer(db, ownerContext, companyPayload, {
+      createFixtureCustomer(db, ownerContext, companyPayload, {
         correlationId: 'customer-create-invalid-company-title-retry',
         idempotencyKey: companyKey,
       }),
@@ -1073,12 +1085,12 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
   });
 
   it('concurrent service-level create retries with fresh generated IDs converge on one D1 effect', async () => {
-    const payload = { type: 'COMPANY' as const, companyTitle: 'Concurrent Create Replay' };
+    const payload = companyRegistration('Concurrent Create Replay');
     const key = 'customer-create-concurrent-service-replay';
     const options = (correlationId: string) => ({ correlationId, idempotencyKey: key });
     const [first, concurrentRetry] = await Promise.all([
-      createCustomer(db, ownerContext, payload, options('create-concurrent-a')),
-      createCustomer(db, ownerContext, payload, options('create-concurrent-b')),
+      createFixtureCustomer(db, ownerContext, payload, options('create-concurrent-a')),
+      createFixtureCustomer(db, ownerContext, payload, options('create-concurrent-b')),
     ]);
     expect(concurrentRetry).toEqual(first);
     expect(
@@ -1194,14 +1206,14 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       expect(replay.body).toEqual({ id: custId, hasIdentity: true });
     });
 
-    it('clears customer identity safely and sets all envelope fields to null', async () => {
+    it('clears individual identity safely and sets all envelope fields to null', async () => {
       const custId = 'cust-id-test-clear';
       await db
         .prepare(
           `INSERT INTO customers (
-             id, agency_id, type, display_name, assignee_membership_id,
+             id, agency_id, type, display_name, first_name, last_name, assignee_membership_id,
              identity_type, identity_ciphertext, identity_iv, identity_tag, identity_search_hash, identity_key_version, version
-           ) VALUES (?, ?, 'COMPANY', 'Company To Clear', ?, 'VKN', 'c', 'iv', 't', 'h', 1, 1)`,
+           ) VALUES (?, ?, 'INDIVIDUAL', 'Synthetic Customer', 'Synthetic', 'Customer', ?, 'TCKN', 'c', 'iv', 't', 'h', 1, 1)`,
         )
         .bind(custId, AGENCY_ID, OWNER_MEM_ID)
         .run();
@@ -1236,17 +1248,21 @@ describe('M2-T02 Customer Domain Mutations (Identity, Assign, External Reference
       expect(result.executed).toBe(true);
 
       const row = await db
-        .prepare('SELECT version, identity_type, identity_ciphertext FROM customers WHERE id = ?')
+        .prepare(
+          'SELECT version, identity_type, identity_ciphertext, identity_iv, identity_tag, identity_search_hash, identity_key_version FROM customers WHERE id = ?',
+        )
         .bind(custId)
-        .first<{
-          version: number;
-          identity_type: string | null;
-          identity_ciphertext: string | null;
-        }>();
+        .first();
 
-      expect(row?.version).toBe(2);
-      expect(row?.identity_type).toBeNull();
-      expect(row?.identity_ciphertext).toBeNull();
+      expect(row).toMatchObject({
+        version: 2,
+        identity_type: null,
+        identity_ciphertext: null,
+        identity_iv: null,
+        identity_tag: null,
+        identity_search_hash: null,
+        identity_key_version: null,
+      });
     });
 
     it('rejects stale version CAS with OptimisticConcurrencyError', async () => {

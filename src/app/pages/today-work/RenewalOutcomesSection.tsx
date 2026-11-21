@@ -1,3 +1,8 @@
+import { Link } from 'react-router';
+import { salesLossResultSchema } from '../../../shared/sales-loss';
+import { renewalLossCycleSchema } from '../../../shared/renewal-loss-cycle';
+import { canonicalOccurrence } from './interaction-model';
+import { readCloseCycle } from './renewal-cycle-context';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { ApiResponse, LossReasonDto, TodayTaskDto } from '../../../shared/types';
 import { Button } from '../../components/ui/button';
@@ -9,6 +14,7 @@ import { WonPolicyOperation } from './WonPolicyOperation';
 
 interface Props {
   task: TodayTaskDto;
+  cycleEnabled?: boolean;
   read: (signal: AbortSignal) => Promise<TaskReadback>;
   canOperate: () => boolean;
   onRisk: (risk: TaskOperationRisk) => void;
@@ -37,6 +43,7 @@ interface Result {
   renewalVersion: number;
   taskVersion: number;
   closedAt: string;
+  salesCycle?: unknown;
   lossReasonId?: string;
   voidReasonCode?: string;
 }
@@ -54,6 +61,26 @@ function validResult(value: unknown, a: Attempt): value is Result {
   if (!value || typeof value !== 'object') return false;
   const r = value as Result,
     b = JSON.parse(a.body);
+  if (b.salesCycle) {
+    const parsed = salesLossResultSchema.safeParse(r.salesCycle);
+    if (!parsed.success) return false;
+    const cycle = parsed.data,
+      next = b.salesCycle.nextCycle;
+    if (
+      cycle.caseId !== b.salesCycle.caseId ||
+      cycle.caseVersion !== b.salesCycle.expectedCaseVersion + 1 ||
+      cycle.taskId !== r.primaryTaskId ||
+      cycle.taskVersion !== r.taskVersion ||
+      cycle.closedAt !== r.closedAt ||
+      (next.mode === 'FOLLOW_UP'
+        ? !cycle.followup ||
+          cycle.followup.dueAt !== next.dueAt ||
+          cycle.followup.cycleDate !== next.cycleDate ||
+          cycle.followup.dateBasis !== next.dateBasis
+        : cycle.followup !== null)
+    )
+      return false;
+  }
   return (
     r.renewalId === a.target.renewalId &&
     r.primaryTaskId === a.target.taskId &&
@@ -134,6 +161,22 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
     [comparison, setComparison] = useState<TodayTaskDto | null>(null),
     [masked, setMasked] = useState(false),
     [error, setError] = useState('');
+  const [cycleContext, setCycleContext] = useState<Awaited<
+    ReturnType<typeof readCloseCycle>
+  > | null>(null);
+  const [nextMode, setNextMode] = useState('FOLLOW_UP'),
+    [nextDue, setNextDue] = useState(''),
+    [cycleDate, setCycleDate] = useState(''),
+    [exception, setException] = useState(''),
+    [cycleNotes, setCycleNotes] = useState('');
+  const cycleRequired = kind === 'LOST' && props.cycleEnabled;
+  const cycleMatches =
+    cycleContext &&
+    target &&
+    cycleContext.renewalId === target.renewalId &&
+    cycleContext.taskId === target.taskId &&
+    cycleContext.renewalVersion === target.renewalVersion &&
+    cycleContext.taskVersion === target.taskVersion;
   const lock = useRef(false),
     epoch = useRef(0),
     controllers = useRef(new Set<AbortController>()),
@@ -158,7 +201,11 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
     setBusy(true);
     setConfirmed(false);
     try {
-      const rows = await catalog(c.signal);
+      const [rows, cycle] = await Promise.all([
+        catalog(c.signal),
+        cycleRequired ? readCloseCycle(props.task.renewalId, c.signal) : null,
+      ]);
+      if (alive(e, c)) setCycleContext(cycle);
       if (!alive(e, c)) return;
       setReasons(rows);
       setError('');
@@ -177,6 +224,12 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
   }
   function open() {
     if (lock.current || pending || accepted || blocked() || !props.canOperate()) return;
+    setCycleContext(null);
+    setNextMode('FOLLOW_UP');
+    setNextDue('');
+    setCycleDate('');
+    setException('');
+    setCycleNotes('');
     setTarget({ ...props.task });
     setReason('');
     setNotes('');
@@ -199,13 +252,20 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
         );
         return;
       }
+      if (r.salesCycle) {
+        const cycle = salesLossResultSchema.parse(r.salesCycle);
+        const path = `/api/sales-cases/${encodeURIComponent(cycle.caseId)}/loss-operations/${encodeURIComponent(cycle.operationId)}`;
+        const proof = salesLossResultSchema.parse(await readCustomerResource(path, c.signal));
+        if (JSON.stringify(proof) !== JSON.stringify(cycle)) throw Error('INVALID_CYCLE_PROOF');
+        if (!alive(e, c)) return;
+      }
       setAccepted(null);
       setTarget(null);
       setConfirmed(false);
       setReason('');
       setNotes('');
       props.onApplied(
-        `${kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucu kaydedildi ve yenileme kaydı kontrol edildi. Birincil takibin kapatıldığı sunucu tarafından bildirildi. İş listesi ve istatistikler yenileniyor.`,
+        `${kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucu kaydedildi.${r.salesCycle && salesLossResultSchema.parse(r.salesCycle).followup ? ' Sonraki dönem takibi oluşturuldu.' : ''}`,
       );
     } catch (cause) {
       if (!alive(e, c)) return;
@@ -302,8 +362,12 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
     setConfirmed(false);
     setComparison(null);
     try {
-      const fresh = await props.read(c.signal),
-        rows = kind === 'LOST' ? await catalog(c.signal) : null;
+      const [fresh, rows, cycle] = await Promise.all([
+        props.read(c.signal),
+        kind === 'LOST' ? catalog(c.signal) : null,
+        cycleRequired ? readCloseCycle(target.renewalId, c.signal) : null,
+      ]);
+      if (alive(e, c)) setCycleContext(cycle);
       if (!alive(e, c)) return;
       const t = fresh.current;
       setReasons(rows);
@@ -360,6 +424,43 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
       return;
     }
     if (kind === 'VOIDED' && !Object.hasOwn(voidReasons, reason)) return;
+    let salesCycle;
+    if (cycleRequired) {
+      const current = cycleContext?.salesCycle;
+      const dueAt = canonicalOccurrence(nextDue);
+      if (!cycleMatches || !current) {
+        setError('Güncel teklif çalışmasını ve takip bilgilerini doğrulayın.');
+        return;
+      }
+      if (
+        nextMode === 'FOLLOW_UP' &&
+        (!current.canCreateFollowup || !dueAt || Date.parse(dueAt) <= Date.now())
+      ) {
+        setError('Yeni takip için uygun yetki ve gelecekte bir tarih gerekir.');
+        return;
+      }
+      const parsed = renewalLossCycleSchema.safeParse({
+        caseId: current.caseId,
+        expectedCaseVersion: current.expectedCaseVersion,
+        notes: cycleNotes.trim() || null,
+        nextCycle:
+          nextMode === 'FOLLOW_UP'
+            ? {
+                mode: nextMode,
+                cycleDate: cycleDate || null,
+                dateBasis: cycleDate ? 'KNOWN_END_DATE' : 'MANUAL',
+                dueAt,
+              }
+            : { mode: 'NO_FOLLOW_UP', exceptionCode: exception },
+      });
+      if (!parsed.success) {
+        setError(
+          'Takip bilgilerini kontrol edin. Takip açılmayacaksa neden ve kısa açıklama gerekir.',
+        );
+        return;
+      }
+      salesCycle = parsed.data;
+    }
     // Revalidate the selected catalog entry without silently replacing a stale selection.
     if (kind === 'LOST') {
       const e = epoch.current,
@@ -406,6 +507,7 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
         expectedPrimaryTaskId: snapshot.taskId,
         expectedRenewalVersion: snapshot.renewalVersion,
         expectedTaskVersion: snapshot.taskVersion,
+        ...(salesCycle ? { salesCycle } : {}),
         ...(kind === 'LOST'
           ? { lossReasonId: reason, lossReasonNotes: chosen!.code === 'OTHER' ? trimmed : null }
           : { voidReasonCode: reason }),
@@ -444,8 +546,9 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                 : 'Geçersiz sonucu yalnız hatalı veya uygun olmayan yenileme kaydı içindir. Müşteri geçerli bir teklifi reddettiyse Yenilenmedi sonucunu seçin.'}
             </p>
             <p>
-              Bu işlem yenilemeyi kapatır ve birincil takibini atomik olarak tamamlar. Yerine yeni
-              görev oluşturmaz.
+              {cycleRequired
+                ? 'Yenileme ve mevcut takip kapanır. Seçtiğiniz sonraki dönem planı aynı kayıtta uygulanır.'
+                : 'Yenileme ve mevcut takip kapanır.'}
             </p>
             {!masked && (
               <>
@@ -458,22 +561,8 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                     </dd>
                   </div>
                   <div>
-                    <dt>Durum / birincil takip</dt>
-                    <dd>
-                      {target.renewalState} / {target.title}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Sabit hedef</dt>
-                    <dd>
-                      {target.renewalId} / {target.taskId}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Sürümler</dt>
-                    <dd>
-                      Yenileme sürümü: {target.renewalVersion} — Görev sürümü: {target.taskVersion}
-                    </dd>
+                    <dt>Takip konusu</dt>
+                    <dd>{target.title}</dd>
                   </div>
                 </dl>
                 <fieldset disabled={unresolved || needsCompare}>
@@ -526,6 +615,78 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                       </p>
                     </>
                   )}
+                  {cycleRequired &&
+                    (cycleMatches && cycleContext?.salesCycle ? (
+                      <fieldset onChange={() => setConfirmed(false)}>
+                        <legend>Sonraki dönem</legend>
+                        <label>
+                          Takip planı
+                          <select value={nextMode} onChange={(e) => setNextMode(e.target.value)}>
+                            <option value="FOLLOW_UP">Sonraki dönem tekrar takip et</option>
+                            <option value="NO_FOLLOW_UP">Gerekçeli istisna: yeni takip açma</option>
+                          </select>
+                        </label>
+                        {nextMode === 'FOLLOW_UP' ? (
+                          <>
+                            {!cycleContext.salesCycle.canCreateFollowup && (
+                              <p>Bu bağlamda yeni takip oluşturma yetkiniz yok.</p>
+                            )}
+                            <label>
+                              Bilinen sonraki poliçe bitişi (isteğe bağlı)
+                              <input
+                                type="date"
+                                value={cycleDate}
+                                onChange={(e) => setCycleDate(e.target.value)}
+                              />
+                            </label>
+                            <label>
+                              Takip zamanı · İstanbul
+                              <input
+                                type="datetime-local"
+                                required
+                                value={nextDue}
+                                onChange={(e) => setNextDue(e.target.value)}
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <label>
+                            Takip açmama nedeni
+                            <select
+                              required
+                              value={exception}
+                              onChange={(e) => setException(e.target.value)}
+                            >
+                              <option value="">Neden seçin</option>
+                              <option value="NO_FURTHER_CONTACT">
+                                Müşteri tekrar iletişim istemiyor
+                              </option>
+                              <option value="DUPLICATE">Mükerrer çalışma</option>
+                              <option value="TECHNICAL_ERROR">Yanlış açılmış çalışma</option>
+                            </select>
+                          </label>
+                        )}
+                        <label>
+                          Takip açıklaması
+                          <textarea
+                            maxLength={500}
+                            required={nextMode === 'NO_FOLLOW_UP'}
+                            value={cycleNotes}
+                            onChange={(e) => setCycleNotes(e.target.value)}
+                          />
+                        </label>
+                      </fieldset>
+                    ) : cycleMatches ? (
+                      <p>
+                        Kesin kapanış için önce{' '}
+                        <Link to={`/renewals/${encodeURIComponent(target.renewalId)}`}>
+                          yenileme detayından teklif çalışması açın
+                        </Link>
+                        . Fiyat girmek zorunlu değildir.
+                      </p>
+                    ) : (
+                      <p>Güncel takip bilgisi doğrulanana kadar kayıt yapılamaz.</p>
+                    ))}
                   <p>
                     Seçili sonuç: {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'}; neden:{' '}
                     {kind === 'LOST'
@@ -541,7 +702,14 @@ function useOutcome(kind: Kind, props: Props, blocked: () => boolean) {
                     {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} sonucunu ve seçili nedeni
                     onaylıyorum
                   </label>
-                  <Button type="submit" disabled={kind === 'LOST' && !reasons}>
+                  <Button
+                    type="submit"
+                    data-tone="critical"
+                    disabled={
+                      (kind === 'LOST' && !reasons) ||
+                      (cycleRequired && (!cycleMatches || !cycleContext?.salesCycle))
+                    }
+                  >
                     {kind === 'LOST' ? 'Yenilenmedi' : 'Geçersiz'} olarak kaydet
                   </Button>
                 </fieldset>
@@ -649,11 +817,14 @@ export function RenewalOutcomesSection(props: Props) {
     <section aria-label="Yenileme sonuçlandırma" className="today-outcomes">
       <h3>Yenileme sonuçlandırma</h3>
       <p>
-        Yenilenmedi ve Geçersiz farklı sonuçlardır. Görünen seçenekler yetki vermez; canlı sunucu
-        izinleri ve görev kapsamı her yazımda denetlenir.
+        Düzenlenen poliçeyi kaydedin veya kesin kayıp nedenini belirtin. Evrak veya müşteri dönüşü
+        bekleniyorsa yenilemeyi kapatmadan takip planlayın.
       </p>
       {lost.panel()}
-      {voided.panel()}
+      <details>
+        <summary>Hatalı yenileme kaydını düzelt</summary>
+        {voided.panel()}
+      </details>
       <WonPolicyOperation
         {...props}
         blocked={() =>

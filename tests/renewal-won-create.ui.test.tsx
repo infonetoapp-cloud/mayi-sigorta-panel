@@ -96,6 +96,7 @@ function fixture(
     if (r) return r;
     if (url.endsWith('csrf-token')) return response({ token: 'csrf' });
     if (url === '/api/catalogs/selectable') return response(catalogs);
+    if (url.endsWith('/won-price-options')) return response({ options: [], nextAfter: null });
     if (url === '/api/policies/created') return response(policy);
     if (url.startsWith('/api/customers/c/renewals'))
       return response({ items: [{ id: 'r', state: 'WON', version: 4 }], nextCursor: null });
@@ -118,31 +119,103 @@ function fixture(
   return { fetcher, applied, read, view };
 }
 async function fill() {
-  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçelendir' }));
+  fireEvent.change(await screen.findByLabelText('Kayıtlı teklif *'), { target: { value: 'NONE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
   await screen.findByRole('option', { name: 'Sigortacı' });
   for (const [label, value] of [
     ['Sigorta şirketi', 'i'],
     ['Branş', 'b'],
     ['Ürün', 'p'],
     ['Ödeme yöntemi', 'm'],
-    ['Poliçe sorumlusu', 'self'],
     ['Yeni poliçe numarası', 'NEW-1'],
     ['Başlangıç tarihi', '2027-01-01'],
     ['Bitiş tarihi', '2027-12-31'],
     ['Brüt prim', '1250.50'],
   ] as const)
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçeyi gözden geçir' }));
-  await screen.findByText(/İncelenen yeni poliçe/);
+    fireEvent.change(screen.getByLabelText(new RegExp('^' + label)), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  await screen.findByText(/Poliçeyi kontrol edin/);
 }
 function submit() {
-  fireEvent.click(
-    screen.getByLabelText('Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum'),
-  );
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçe oluştur ve kazanıldı kaydet' }));
+  fireEvent.click(screen.getByLabelText('Poliçe ve ödeme bilgilerini kontrol ettim'));
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi kaydet' }));
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
+it('uses an accepted price, protects a stale draft and verifies the updated price evidence', async () => {
+  const first = {
+    kind: 'PRICE_REVISION',
+    caseId: 'case',
+    expectedCaseVersion: 3,
+    revisionId: 'v1',
+    acceptanceEventId: 'ev1',
+  };
+  const updated = { ...first, expectedCaseVersion: 5, revisionId: 'v2', acceptanceEventId: 'ev2' };
+  let stale = false;
+  const f = fixture((url, init) => {
+    if (url.endsWith('/won-price-options'))
+      return response({
+        options: [
+          {
+            source: stale ? updated : first,
+            insurerId: 'i',
+            insurerName: 'Sigortacı',
+            branchId: 'b',
+            amountMinor: 125050,
+            currency: 'TRY',
+            startDate: policy.startDate,
+            endDate: policy.endDate,
+          },
+        ],
+        nextAfter: null,
+      });
+    if (init?.method !== 'POST') return;
+    if (stale)
+      return response(
+        { ...result, acceptedPriceEvidence: { ...updated, policyId: 'created' } },
+        201,
+      );
+    stale = true;
+    return Response.json(
+      { success: false, error: { code: 'PRICE_ACCEPTANCE_INVALID' } },
+      { status: 409 },
+    );
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçelendir' }));
+  await screen.findByRole('option', { name: /Sigortacı ·/ });
+  const choose = (revision: string) => {
+    fireEvent.change(screen.getByLabelText('Kayıtlı teklif *'), {
+      target: { value: 'price:' + revision },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  };
+  choose('v1');
+  expect(screen.getByLabelText(/^Sigorta şirketi/).hasAttribute('disabled')).toBe(true);
+  expect((screen.getByLabelText(/^Brüt prim/) as HTMLInputElement).value).toBe('1250.50');
+  for (const [label, value] of [
+    ['Ürün', 'p'],
+    ['Ödeme yöntemi', 'm'],
+    ['Yeni poliçe numarası', 'NEW-1'],
+  ])
+    fireEvent.change(screen.getByLabelText(new RegExp('^' + label)), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  submit();
+  await screen.findByText(/müşteri kabulü geri alınmış/);
+  await waitFor(() =>
+    expect(screen.getByRole('option', { name: /Sigortacı ·/ }).getAttribute('value')).toBe(
+      'price:v2',
+    ),
+  );
+  choose('v2');
+  expect((screen.getByLabelText(/^Yeni poliçe numarası/) as HTMLInputElement).value).toBe('NEW-1');
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  submit();
+  await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
+  expect(writes(f).map(([, init]) => JSON.parse(init!.body as string).acceptedPriceSource)).toEqual(
+    [first, updated],
+  );
+});
 it('creates policy and WON only through one frozen atomic command with decimal string premium', async () => {
   const f = fixture();
   await fill();
@@ -185,9 +258,7 @@ it.each([408, 429, 500, 503])(
     submit();
     await screen.findByText(/Sonuç belirsiz/);
     expect(
-      screen
-        .getByRole('button', { name: 'Yeni poliçeyle kazanma taslağını açıkça kapat' })
-        .hasAttribute('disabled'),
+      screen.getByRole('button', { name: 'Poliçelendirmeden vazgeç' }).hasAttribute('disabled'),
     ).toBe(true);
     fireEvent.click(
       screen.getByRole('button', { name: 'Aynı poliçe oluşturma isteğini yeniden dene' }),
@@ -260,11 +331,11 @@ it('preserves draft and requires new review after catalog lifecycle changes befo
   );
   await fill();
   submit();
-  await screen.findByText(/Katalog veya seçim değişti/);
+  await screen.findByText(/Seçimler değişti/);
   expect(writes(f)).toHaveLength(0);
-  expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
-    'NEW-1',
-  );
+  expect(
+    (screen.getByLabelText('Yeni poliçe numarası *') as unknown as HTMLInputElement).value,
+  ).toBe('NEW-1');
 });
 it.each([
   ['Brüt prim', '1.005'],
@@ -274,9 +345,10 @@ it.each([
 ])('blocks invalid %s = %s before review or POST', async (label, value) => {
   const f = fixture();
   await fill();
-  fireEvent.change(screen.getByLabelText(label), { target: { value } });
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçeyi gözden geçir' }));
-  expect(screen.queryByText(/İncelenen yeni poliçe/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Geri' }));
+  fireEvent.change(screen.getByLabelText(new RegExp('^' + label)), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  expect(screen.queryByText(/Poliçeyi kontrol edin/)).toBeNull();
   expect(writes(f)).toHaveLength(0);
 });
 it('keeps duplicate409 definitive, preserves number, compares original target, and requires explicit re-review', async () => {
@@ -305,12 +377,12 @@ it('keeps duplicate409 definitive, preserves number, compares original target, a
   fireEvent.click(
     screen.getByRole('button', { name: 'Aynı takip ile oluşturma taslağını yeniden incele' }),
   );
-  expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
-    'NEW-1',
-  );
+  expect(
+    (screen.getByLabelText('Yeni poliçe numarası *') as unknown as HTMLInputElement).value,
+  ).toBe('NEW-1');
   expect(
     screen.queryByRole('checkbox', {
-      name: 'Yeni poliçe oluşturulmasını ve kazanıldı sonucunu onaylıyorum',
+      name: 'Poliçe ve ödeme bilgilerini kontrol ettim',
     }),
   ).toBeNull();
   expect(writes(f)).toHaveLength(1);
@@ -346,11 +418,13 @@ it('blocks catalog read failure while keeping decimal and policy-number drafts i
   await fill();
   failed = true;
   submit();
-  await screen.findByText(/Taslak korunur; yeni gönderim kapalıdır/);
-  expect((screen.getByLabelText('Brüt prim') as unknown as HTMLInputElement).value).toBe('1250.50');
-  expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
-    'NEW-1',
+  await screen.findByText(/Taslağınız korundu/);
+  expect((screen.getByLabelText('Brüt prim *') as unknown as HTMLInputElement).value).toBe(
+    '1250.50',
   );
+  expect(
+    (screen.getByLabelText('Yeni poliçe numarası *') as unknown as HTMLInputElement).value,
+  ).toBe('NEW-1');
   expect(writes(f)).toHaveLength(0);
 });
 it('permits explicit integer installments only for a supporting payment method', async () => {
@@ -363,14 +437,18 @@ it('permits explicit integer installments only for a supporting payment method',
   };
   const f = fixture((u) => (u === '/api/catalogs/selectable' ? response(cats) : undefined));
   await fill();
-  fireEvent.change(screen.getByLabelText('Ödeme yöntemi'), { target: { value: 'install' } });
-  fireEvent.change(screen.getByLabelText('Taksit sayısı'), { target: { value: '5' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçeyi gözden geçir' }));
-  expect(screen.queryByText(/İncelenen yeni poliçe/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Geri' }));
+  fireEvent.change(screen.getByLabelText('Ödeme yöntemi *'), { target: { value: 'install' } });
+  expect((screen.getByLabelText('Taksit sayısı *') as unknown as HTMLSelectElement).value).toBe('');
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  expect(screen.queryByText(/Poliçeyi kontrol edin/)).toBeNull();
+  fireEvent.change(screen.getByLabelText('Taksit sayısı *'), { target: { value: '5' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  expect(screen.queryByText(/Poliçeyi kontrol edin/)).toBeNull();
   expect(writes(f)).toHaveLength(0);
-  fireEvent.change(screen.getByLabelText('Taksit sayısı'), { target: { value: '4' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni poliçeyi gözden geçir' }));
-  await screen.findByText(/İncelenen yeni poliçe/);
+  fireEvent.change(screen.getByLabelText('Taksit sayısı *'), { target: { value: '4' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  await screen.findByText(/Poliçeyi kontrol edin/);
   expect(writes(f)).toHaveLength(0);
 });
 it('suppresses an old catalog401 after component unmount', async () => {
@@ -382,7 +460,7 @@ it('suppresses an old catalog401 after component unmount', async () => {
   document.addEventListener('mayi-session-ended', ended);
   try {
     const f = fixture((u) => (u === '/api/catalogs/selectable' ? promise : undefined));
-    fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Poliçelendir' }));
     f.view.unmount();
     resolve(response({}, 401));
     await promise;
@@ -399,4 +477,98 @@ it('loads catalogs and completes CREATE under the application StrictMode effect 
   submit();
   await waitFor(() => expect(f.applied).toHaveBeenCalled());
   expect(writes(f)).toHaveLength(1);
+});
+const selectedVersion = {
+  id: 'selected-v',
+  version_number: 1,
+  insurer_id: 'i',
+  product_id: 'p',
+  branch_id: 'b',
+  payment_method_id: 'm',
+  start_date: '2027-01-01',
+  end_date: '2027-12-31',
+  valid_until: new Date(Date.now() + 86400000).toISOString(),
+  gross_premium_minor: 125050,
+  currency: 'TRY',
+  installment_count: null,
+  terms_summary: null,
+};
+function selectedQuote(accepted = false) {
+  return {
+    id: 'selected-q',
+    status: accepted ? 'ACCEPTED' : 'SENT',
+    version: 2,
+    current_version_id: 'selected-v',
+    accepted_version_id: accepted ? 'selected-v' : null,
+    accepted_policy_id: accepted ? 'created' : null,
+    versions: [selectedVersion],
+    events: [
+      { id: 'sent', quote_version_id: 'selected-v', event: 'SENT', occurred_at: result.closedAt },
+      ...(accepted
+        ? [
+            {
+              id: 'accept',
+              quote_version_id: 'selected-v',
+              event: 'ACCEPTED',
+              occurred_at: result.closedAt,
+              accepted_policy_id: 'created',
+            },
+          ]
+        : []),
+    ],
+  };
+}
+async function chooseQuote() {
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçelendir' }));
+  await screen.findByRole('option', { name: /Sigortacı.*1.250,50/ });
+  expect((screen.getByLabelText('Kayıtlı teklif *') as unknown as HTMLSelectElement).value).toBe(
+    '',
+  );
+  fireEvent.change(screen.getByLabelText('Kayıtlı teklif *'), { target: { value: 'selected-v' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  fireEvent.change(screen.getByLabelText('Yeni poliçe numarası *'), { target: { value: 'NEW-1' } });
+}
+it('D3 prefills only an explicitly chosen quote and validates its accepted new policy readback', async () => {
+  let posted = false;
+  const f = fixture((url, init) => {
+    if (init?.method === 'POST') {
+      posted = true;
+      return response(
+        { ...result, acceptedQuoteVersionId: 'selected-v', acceptedPolicyId: 'created' },
+        201,
+      );
+    }
+    if (/\/quotes(?:\?.*)?$/.test(url)) return response({ quotes: [selectedQuote(posted)] });
+  });
+  await chooseQuote();
+  expect((screen.getByLabelText('Brüt prim *') as unknown as HTMLInputElement).value).toBe(
+    '1250.50',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  submit();
+  await waitFor(() => expect(f.applied).toHaveBeenCalledOnce());
+  expect(writes(f)).toHaveLength(1);
+  expect(JSON.parse(String(writes(f)[0]![1]!.body))).toMatchObject({
+    acceptedQuoteVersionId: 'selected-v',
+    expectedPrimaryTaskId: 't',
+    result: { kind: 'CREATE_POLICY' },
+  });
+});
+it('D3 preserves edited policy fields when going backwards and requires a human period difference choice', async () => {
+  const f = fixture((url) =>
+    /\/quotes(?:\?.*)?$/.test(url) ? response({ quotes: [selectedQuote()] }) : undefined,
+  );
+  await chooseQuote();
+  fireEvent.input(screen.getByLabelText('Bitiş tarihi *'), { target: { value: '2027-03-01' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  await screen.findByText('Teklif ile poliçe arasındaki farkın nedenini seçin.');
+  fireEvent.change(screen.getByLabelText('Farkın nedeni *'), {
+    target: { value: 'PERIOD_CHANGED' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Geri' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  expect((screen.getByLabelText('Bitiş tarihi *') as unknown as HTMLInputElement).value).toBe(
+    '2027-03-01',
+  );
+  expect(writes(f)).toHaveLength(0);
 });

@@ -5,6 +5,10 @@ import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { createApp, type Env } from '../src/server/index';
 import { closeRenewalLost, closeRenewalWon, voidRenewal } from '../src/server/renewals/commands';
+import {
+  executePolicyLifecycle,
+  policyCancellationContext,
+} from '../src/server/policies/cancellation';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
 import type { AuthenticatedPrincipal } from '../src/server/auth/types';
 
@@ -24,6 +28,32 @@ const actor: AuthenticatedUserContext = {
     },
   ],
 };
+
+async function cancelFixturePolicy(db: D1Database, policyId: string, key: string) {
+  const context = await policyCancellationContext(db, actor, policyId);
+  const previousTime = Date.now();
+  vi.setSystemTime(Math.max(previousTime, Date.parse(context.startDate + 'T12:00:00Z')));
+  try {
+    const result = await executePolicyLifecycle(
+      db,
+      actor,
+      policyId,
+      'cancel',
+      {
+        expectedPolicyVersion: context.policyVersion,
+        targetSetFingerprint: context.targetSetFingerprint,
+        cancellationDate: context.startDate,
+        reasonCode: 'CUSTOMER_REQUEST',
+        reasonNotes: null,
+      },
+      key,
+    );
+    expect(result.data.status).toBe('CANCELLED');
+  } finally {
+    vi.setSystemTime(previousTime);
+  }
+}
+
 const principal = { subject: 'terminal-subject' } as AuthenticatedPrincipal;
 const memberActor: AuthenticatedUserContext = {
   userId: 'terminal-member-user',
@@ -626,46 +656,6 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
     }
   });
 
-  it('replays a completed LOST receipt after its policy is later cancelled', async () => {
-    await db
-      .prepare(
-        `UPDATE policies SET status='CANCELLED',version=version+1,updated_at='2026-09-24T06:00:00.000Z'
-         WHERE id='terminal-old-policy'`,
-      )
-      .run();
-    try {
-      const replay = await closeRenewalLost(
-        actor,
-        db,
-        'terminal-renewal',
-        {
-          expectedPrimaryTaskId: 'terminal-primary-task',
-          expectedRenewalVersion: 1,
-          expectedTaskVersion: 1,
-          lossReasonId: 'terminal-loss-other',
-          lossReasonNotes: 'Renewal no longer needed',
-        },
-        'terminal-close-lost-key',
-      );
-      expect(replay.replayed).toBe(true);
-      expect(replay.data).toMatchObject({ state: 'LOST', renewalVersion: 2, taskVersion: 2 });
-      expect(
-        await db
-          .prepare(
-            "SELECT count(*) AS count FROM audit_events WHERE action='renewal.closed_lost' AND target_id='terminal-renewal'",
-          )
-          .first<{ count: number }>(),
-      ).toEqual({ count: 1 });
-    } finally {
-      await db
-        .prepare(
-          `UPDATE policies SET status='ACTIVE',version=version+1,updated_at='2026-09-24T06:00:00.000Z'
-           WHERE id='terminal-old-policy'`,
-        )
-        .run();
-    }
-  });
-
   it('reopens a LOST renewal to its previous state and atomically creates a new primary Task', async () => {
     const payload = {
       expectedRenewalVersion: 2,
@@ -958,6 +948,40 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
         .prepare(
           "SELECT count(*) AS count FROM renewal_state_history WHERE renewal_id='terminal-race-renewal' AND to_state='LOST'",
         )
+        .first<{ count: number }>(),
+    ).toEqual({ count: 1 });
+  });
+
+  it('replays a completed LOST receipt after its policy is later cancelled', async () => {
+    const renewalId = 'terminal-race-renewal';
+    const payload = {
+      expectedPrimaryTaskId: 'terminal-race-primary-task',
+      expectedRenewalVersion: 1,
+      expectedTaskVersion: 1,
+      lossReasonId: 'terminal-loss-price',
+      lossReasonNotes: null,
+    };
+    const policy = await db
+      .prepare('SELECT expiring_policy_id FROM renewal_opportunities WHERE id=?')
+      .bind(renewalId)
+      .first<{ expiring_policy_id: string }>();
+    if (!policy) throw new Error('LOST replay requires the closed synthetic renewal');
+    await cancelFixturePolicy(db, policy.expiring_policy_id, 'terminal-race-policy-cancel');
+    const replay = await closeRenewalLost(
+      actor,
+      db,
+      renewalId,
+      payload,
+      'terminal-race-close-lost-key',
+    );
+    expect(replay.replayed).toBe(true);
+    expect(replay.data).toMatchObject({ state: 'LOST', renewalVersion: 2, taskVersion: 2 });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS count FROM audit_events WHERE action='renewal.closed_lost' AND target_id=?",
+        )
+        .bind(renewalId)
         .first<{ count: number }>(),
     ).toEqual({ count: 1 });
   });
@@ -2215,11 +2239,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: firstBody.data,
       replayed: true,
     });
-    await db
-      .prepare(
-        `UPDATE policies SET status='CANCELLED',version=version+1 WHERE id='won-link-new-policy'`,
-      )
-      .run();
+    await cancelFixturePolicy(db, 'won-link-new-policy', 'won-link-new-policy-cancel');
     const originalWonReplayAfterPolicyCancellation = await close();
     expect(
       originalWonReplayAfterPolicyCancellation.status,
@@ -3711,8 +3731,9 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
               invalidPolicyInjected = true;
               await target
                 .prepare(
-                  `UPDATE policies SET status='CANCELLED',version=2,
-                     updated_at='2099-01-01T00:00:00.000Z' WHERE id='won-group-new-policy'`,
+                  `UPDATE policies SET archived_at='2099-01-01T00:00:00.000Z',archived_by_membership_id='terminal-membership',
+                     archive_reason='TEST_RACE',version=2,updated_at='2099-01-01T00:00:00.000Z'
+                     WHERE id='won-group-new-policy'`,
                 )
                 .run();
             }
@@ -3722,8 +3743,8 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
               if (invalidPolicyInjected) {
                 await target
                   .prepare(
-                    `UPDATE policies SET status='ACTIVE',version=1,updated_at=?
-                     WHERE id='won-group-new-policy'`,
+                    `UPDATE policies SET archived_at=NULL,archived_by_membership_id=NULL,archive_reason=NULL,
+                     version=1,updated_at=? WHERE id='won-group-new-policy'`,
                   )
                   .bind(now)
                   .run();
@@ -4457,11 +4478,7 @@ describe('M3-T03 explicit Renewal outcome commands on local D1', () => {
       data: winnerBody.data,
       replayed: true,
     });
-    await db
-      .prepare(
-        `UPDATE policies SET status='CANCELLED',version=version+1 WHERE id='won-group-new-policy'`,
-      )
-      .run();
+    await cancelFixturePolicy(db, 'won-group-new-policy', 'won-group-new-policy-cancel');
     const cancelledPolicyGroupReplay = await sendGroup(winnerKey, db, replayPayload, winnerToken);
     expect(cancelledPolicyGroupReplay.status, await cancelledPolicyGroupReplay.clone().text()).toBe(
       200,

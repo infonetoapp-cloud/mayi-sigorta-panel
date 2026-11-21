@@ -88,20 +88,23 @@ beforeAll(async () => {
       );
     cookies[actor] = (await f.session(actor)).cookie;
   }
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('tc-i','agency-auth-test','TC','TC')",
+    )
+    .run();
   customer = (
     await data<{ id: string }>(
       await post('/api/customers', {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Görev',
+        insurerNumber: { insurerId: 'tc-i', customerNumber: 'TC-CUSTOMER' },
       }),
       201,
     )
   ).id;
   await f.db.batch([
-    f.db.prepare(
-      "INSERT INTO insurers(id,agency_id,code,name) VALUES('tc-i','agency-auth-test','TC','TC')",
-    ),
     f.db.prepare(
       "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('tc-b','agency-auth-test','TC','TC','GENERAL')",
     ),

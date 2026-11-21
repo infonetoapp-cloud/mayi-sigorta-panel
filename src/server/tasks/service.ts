@@ -1,11 +1,13 @@
 import { evaluateAuthorization, type EffectiveScope } from '../auth/authorization';
+import { generalTaskSelect } from './general';
+import type { WorkTaskDto } from '../../shared/types';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import type {
   CustomerAssignmentOptionDto,
   RenewalTaskAssignmentDto,
   RenewalTaskReplacementCompletionDto,
   TodayTaskDto,
-  TodayTasksResponseData,
+  UnifiedTodayTasksResponseData as TodayTasksResponseData,
 } from '../../shared/types';
 import {
   executeRenewalTaskAssignment,
@@ -36,6 +38,8 @@ interface ActiveMembership {
 }
 
 interface TodayTaskRow {
+  task_kind: 'GENERAL' | 'RENEWAL_FOLLOWUP';
+  case_id: string | null;
   task_id: string;
   agency_id: string;
   customer_id: string;
@@ -51,6 +55,9 @@ interface TodayTaskRow {
   policy_id: string | null;
   policy_number: string;
   policy_end_date: string;
+  policy_branch_name: string;
+  policy_insurer_name: string;
+  policy_insurer_customer_number: string | null;
   can_read_policy: number;
   customer_display_name: string;
   customer_email: string | null;
@@ -189,7 +196,7 @@ async function authorizeTaskParents(
 }
 
 interface TaskCursorBinding {
-  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
+  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT' | 'UNIFIED';
   readonly agencyId: string;
   readonly membershipId: string;
   readonly permissionVersion: number;
@@ -276,7 +283,7 @@ function cursorFor(row: TodayTaskRow, binding: TaskCursorBinding): string {
 }
 
 interface TaskPage {
-  readonly items: readonly TodayTaskDto[];
+  readonly items: readonly WorkTaskDto[];
   readonly hasMore: boolean;
   readonly nextCursor: string | null;
 }
@@ -288,6 +295,7 @@ const needsReassignmentSql = `t.assignee_membership_id IS NOT NULL AND EXISTS(
     AND (previous_m.status IN ('SUSPENDED','INACTIVE') OR previous_u.status<>'ACTIVE'))`;
 
 async function loadTaskPage(input: {
+  readonly canReadRenewals: boolean;
   readonly exactTaskId?: string;
   readonly context: AuthenticatedUserContext;
   readonly db: D1Database;
@@ -300,12 +308,13 @@ async function loadTaskPage(input: {
   readonly canSeeUnassigned: boolean;
   readonly cursor: TaskCursor | null;
   readonly limit: number;
-  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT';
+  readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT' | 'UNIFIED';
   readonly now: Date;
   readonly todayLocalDate: string;
   readonly timezone: string;
 }): Promise<TaskPage> {
   const where = [
+    input.canReadRenewals ? '1=1' : '1=0',
     't.agency_id=?',
     "t.kind='RENEWAL_FOLLOWUP'",
     "t.status='OPEN'",
@@ -358,7 +367,7 @@ async function loadTaskPage(input: {
     where.push(`EXISTS(SELECT 1 FROM agency_memberships owner_m WHERE owner_m.id=?
       AND owner_m.agency_id=t.agency_id AND owner_m.type='OWNER' AND owner_m.status='ACTIVE')`);
     values.push(input.active.id);
-  } else if (input.canSeeUnassigned) {
+  } else if (input.canSeeUnassigned && input.queue === 'WORK') {
     where.push('t.assignee_membership_id IS NOT NULL');
   }
   if (input.active.type !== 'OWNER' || input.taskReadScope === 'ASSIGNED') {
@@ -395,12 +404,18 @@ async function loadTaskPage(input: {
   }
   values.push(input.limit + 1);
 
+  values.pop();
+  const general = generalTaskSelect(input.context, input.queue, input.cursor, input.exactTaskId);
   const statement = input.db
     .prepare(
-      `SELECT t.id AS task_id,t.agency_id,t.customer_id,t.renewal_id,t.title AS task_title,
+      `SELECT * FROM (SELECT t.id AS task_id,t.agency_id,t.customer_id,t.renewal_id,t.title AS task_title,
           t.due_at,t.assignee_membership_id AS task_assignee_membership_id,t.version AS task_version,
           r.assignee_membership_id AS renewal_assignee_membership_id,r.state AS renewal_state,
           r.version AS renewal_version,p.id AS policy_id,p.policy_number,p.end_date AS policy_end_date,
+          b.name AS policy_branch_name,i.name AS policy_insurer_name,
+          (SELECT CASE WHEN count(*)=1 THEN min(e.external_key) ELSE NULL END
+            FROM external_customer_references e WHERE e.agency_id=c.agency_id AND e.customer_id=c.id
+            AND e.source_namespace='insurer:'||i.id) AS policy_insurer_customer_number,
           CASE WHEN ${needsReassignmentSql} THEN 1 ELSE 0 END AS needs_reassignment,
           CASE
             WHEN b.data_classification='GENERAL' AND ?='AGENCY' THEN 1
@@ -412,18 +427,19 @@ async function loadTaskPage(input: {
             ELSE 0
           END AS can_read_policy,
           c.display_name AS customer_display_name,COALESCE(cc.email,c.email) AS customer_email,
-          COALESCE(cc.phone,c.phone) AS customer_phone
+          COALESCE(cc.phone,c.phone) AS customer_phone,'RENEWAL_FOLLOWUP' AS task_kind,NULL AS case_id
        FROM tasks t
        JOIN renewal_opportunities r ON r.agency_id=t.agency_id AND r.id=t.renewal_id
        JOIN policies p ON p.agency_id=r.agency_id AND p.id=r.expiring_policy_id
        JOIN customers c ON c.agency_id=t.agency_id AND c.id=t.customer_id
        JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
+       JOIN insurers i ON i.agency_id=p.agency_id AND i.id=p.insurer_id
        LEFT JOIN company_contacts cc ON cc.agency_id=c.agency_id AND cc.customer_id=c.id
          AND cc.status='ACTIVE' AND cc.is_primary=1
        WHERE ${where.join(' AND ')}
-       ORDER BY t.due_at ASC,t.id ASC LIMIT ?`,
+       UNION ALL ${general.sql}) ORDER BY due_at ASC,task_id ASC LIMIT ?`,
     )
-    .bind(...values);
+    .bind(...values, ...general.args, input.limit + 1);
   // The exact-context read uses the request-bound batch's live session assertion.
   // Ordinary queue semantics are unchanged; no portfolio scan or alternate-ID lookup.
   const result =
@@ -461,13 +477,35 @@ function toDto(
   now: Date,
   todayLocalDate: string,
   timezone: string,
-): TodayTaskDto {
+): WorkTaskDto {
   const dueDate = new Date(row.due_at);
   if (!Number.isFinite(dueDate.getTime()) || dueDate.toISOString() !== row.due_at) {
     throw new TaskValidationError('TASK_DATA_INVALID');
   }
   const localDueDate = localDate(dueDate, timezone);
+  if (row.task_kind === 'GENERAL')
+    return {
+      kind: 'GENERAL',
+      taskId: row.task_id,
+      caseId: row.case_id,
+      customerId: row.customer_id,
+      customerDisplayName: row.customer_display_name,
+      branchName: row.policy_branch_name ?? null,
+      title: row.task_title,
+      dueAt: row.due_at,
+      taskVersion: row.task_version,
+      assigneeMembershipId: row.task_assignee_membership_id,
+      bucket:
+        dueDate.getTime() < now.getTime()
+          ? 'OVERDUE'
+          : localDueDate === todayLocalDate
+            ? 'TODAY'
+            : 'UPCOMING',
+      isUnassigned: row.task_assignee_membership_id === null,
+      needsReassignment: row.needs_reassignment === 1,
+    };
   return {
+    kind: 'RENEWAL_FOLLOWUP',
     taskId: row.task_id,
     renewalId: row.renewal_id,
     customerId: row.customer_id,
@@ -477,6 +515,10 @@ function toDto(
     policyId: row.can_read_policy === 1 ? row.policy_id : null,
     policyNumber: row.can_read_policy === 1 ? row.policy_number : null,
     policyEndDate: row.can_read_policy === 1 ? row.policy_end_date : null,
+    policyBranchName: row.can_read_policy === 1 ? row.policy_branch_name : null,
+    policyInsurerName: row.can_read_policy === 1 ? row.policy_insurer_name : null,
+    policyInsurerCustomerNumber:
+      row.can_read_policy === 1 ? row.policy_insurer_customer_number : null,
     title: row.task_title,
     dueAt: row.due_at,
     assigneeMembershipId: row.task_assignee_membership_id,
@@ -503,9 +545,22 @@ export async function listTodayTasks(
 ): Promise<TodayTasksResponseData> {
   const active = activeMembership(context);
   const collectionResource = { agencyId: active.agencyId, isCollection: true };
-  const renewalRead = await authorize(db, context, 'renewal.read', collectionResource);
+  const renewalDecision = await evaluateAuthorization(db, {
+    context,
+    action: 'renewal.read',
+    resource: collectionResource,
+  });
+  const policyDecision = await evaluateAuthorization(db, {
+    context,
+    action: 'policy.read',
+    resource: collectionResource,
+  });
+  const canReadRenewals =
+    renewalDecision.decision === 'ALLOW' && policyDecision.decision === 'ALLOW';
+  // Fallback scope only shapes an empty renewal branch; it grants no rows.
+  const renewalRead = { effectiveScope: renewalDecision.effectiveScope ?? 'AGENCY' };
   const customerRead = await authorize(db, context, 'customer.read', collectionResource);
-  const policyRead = await authorize(db, context, 'policy.read', collectionResource);
+  const policyRead = { effectiveScope: policyDecision.effectiveScope ?? 'AGENCY' };
   const policyHealthRead = await evaluateAuthorization(db, {
     context,
     action: 'policy.health.read',
@@ -564,7 +619,7 @@ export async function listTodayTasks(
     policyReadScope: policyRead.effectiveScope as 'ASSIGNED' | 'AGENCY',
     policyHealthReadScope,
   };
-  const workQueue = query.needsReassignment ? 'REASSIGNMENT' : 'WORK';
+  const workQueue = query.needsReassignment ? 'REASSIGNMENT' : query.unified ? 'UNIFIED' : 'WORK';
   const workCursor = parseCursor(query.cursor, { ...cursorScopes, queue: workQueue });
   const unassignedCursor = parseCursor(query.unassignedCursor, {
     ...cursorScopes,
@@ -572,6 +627,7 @@ export async function listTodayTasks(
   });
   if (unassignedCursor && !canSeeUnassigned) throw new TaskForbiddenError();
   const pageInput = {
+    canReadRenewals,
     exactTaskId,
     context,
     db,
@@ -588,9 +644,10 @@ export async function listTodayTasks(
     timezone: agency.timezone,
   };
   const workPage = await loadTaskPage({ ...pageInput, cursor: workCursor, queue: workQueue });
-  const unassignedPage = canSeeUnassigned
-    ? await loadTaskPage({ ...pageInput, cursor: unassignedCursor, queue: 'UNASSIGNED' })
-    : { items: [], hasMore: false, nextCursor: null };
+  const unassignedPage =
+    canSeeUnassigned && !query.unified
+      ? await loadTaskPage({ ...pageInput, cursor: unassignedCursor, queue: 'UNASSIGNED' })
+      : { items: [], hasMore: false, nextCursor: null };
 
   return {
     items: workPage.items,
@@ -811,6 +868,7 @@ export async function completeRenewalTaskWithReplacement(
     replacementTaskId: replay?.replacementTaskId ?? crypto.randomUUID(),
     replacementDueAt: parsed.replacementDueAt,
     replacementAssigneeMembershipId: row.renewal_assignee_membership_id,
+    followupReason: parsed.followupReason,
     taskUpdateScope: taskUpdate.effectiveScope,
     taskReadScope: taskRead.effectiveScope,
     renewalReadScope: renewalRead.effectiveScope,

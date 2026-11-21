@@ -1,4 +1,4 @@
-import { it, expect, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { AuthShell, ReauthForm } from '../src/app/AuthShell';
 import { REAUTH_PAGE, REAUTH_SCRIPT } from '../src/server/auth/reauth-page';
@@ -6,11 +6,17 @@ vi.mock('../src/app/App', () => ({
   App: () => <div>Sentetik CRM</div>,
   invalidateCsrfToken: vi.fn(),
 }));
+vi.mock('../src/app/pages/OverviewPage', () => ({
+  default: () => <p>Sentetik genel bakış</p>,
+}));
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify({ data }), {
     status,
     headers: { 'content-type': 'application/json' },
   });
+beforeEach(() => {
+  window.history.replaceState(null, '', '/');
+});
 afterEach(() => {
   cleanup();
   document.body.innerHTML = '';
@@ -41,8 +47,11 @@ it.each([
     vi.stubGlobal('fetch', fetcher);
     if (view === 'reauth') render(<ReauthForm onSuccess={vi.fn()} onCancel={vi.fn()} />);
     else render(<AuthShell />);
-    if (view === 'normal')
-      fireEvent.click(await screen.findByRole('link', { name: 'Şifremi değiştir' }));
+    if (view === 'normal') {
+      await screen.findByText('Sentetik genel bakış');
+      fireEvent.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Şifremi değiştir' }));
+    }
     const input = (await screen.findByLabelText(label)) as HTMLInputElement;
     for (const element of document.querySelectorAll('input[type=password]'))
       expect(element.hasAttribute('maxlength')).toBe(false);

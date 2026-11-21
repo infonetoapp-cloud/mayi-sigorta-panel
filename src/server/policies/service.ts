@@ -1,4 +1,6 @@
 import type { AuthenticatedUserContext } from '../auth/identity';
+import { z } from 'zod';
+import { vehicleFieldsSchema, type PolicyVehicle } from '../../shared/vehicles';
 import { evaluateAuthorization, type AuthorizationResult } from '../auth/authorization';
 import type {
   PolicyAmendmentDto,
@@ -507,6 +509,8 @@ export async function createPolicy(
   if (completed) {
     return resolvePolicyCreateReplay(context, db, agencyId, data, idempotencyKey, completed);
   }
+  if (data.status !== 'ACTIVE')
+    throw new PolicyConstraintError('POLICY_LIFECYCLE_COMMAND_REQUIRED');
   const customer = await db
     .prepare(`SELECT id,assignee_membership_id FROM customers WHERE agency_id=? AND id=?`)
     .bind(agencyId, data.customerId)
@@ -651,7 +655,7 @@ export async function getPolicy(
   const detail = await db
     .prepare(
       `SELECT c.display_name,i.name insurer_name,i.status insurer_status,
-      p.name product_name,p.status product_status,b.name branch_name,b.status branch_status,b.data_classification,
+      p.name product_name,p.status product_status,b.name branch_name,b.status branch_status,b.data_classification,b.supports_vehicle_details,
       pm.name payment_name,pm.status payment_status
     FROM policies x
     JOIN customers c ON c.agency_id=x.agency_id AND c.id=x.customer_id
@@ -671,12 +675,26 @@ export async function getPolicy(
       branch_name: string;
       branch_status: string;
       data_classification: string;
+      supports_vehicle_details: number;
       payment_name: string;
       payment_status: string;
     }>();
   if (!detail) throw new PolicyNotFoundError();
+  const vehicle = await db
+    .prepare(
+      'SELECT vehicle_id,vehicle_version,details_json FROM policy_vehicle_snapshots WHERE agency_id=? AND policy_id=?',
+    )
+    .bind(active.agencyId, id)
+    .first<{ vehicle_id: string; vehicle_version: number; details_json: string }>();
   return {
     ...toDto(row),
+    vehicle: vehicle
+      ? {
+          vehicleId: vehicle.vehicle_id,
+          vehicleVersion: vehicle.vehicle_version,
+          details: vehicleFieldsSchema.parse(JSON.parse(vehicle.details_json)),
+        }
+      : null,
     customer: { id: row.customer_id, displayName: detail.display_name },
     insurer: {
       id: row.insurer_id,
@@ -693,6 +711,7 @@ export async function getPolicy(
       name: detail.branch_name,
       status: detail.branch_status as 'ACTIVE' | 'INACTIVE',
       dataClassification: detail.data_classification as 'GENERAL' | 'HEALTH',
+      supportsVehicleDetails: detail.supports_vehicle_details === 1,
     },
     paymentMethod: {
       id: row.payment_method_id,
@@ -735,6 +754,9 @@ export async function updatePolicy(
     await authorizeCurrentPolicyMutation(db, context, id, 'policy.update');
     return { data: completed.body as PolicyDto, status: completed.status, replayed: true };
   }
+  if (parsed.status !== undefined && parsed.status !== existing.status)
+    throw new PolicyConstraintError('POLICY_LIFECYCLE_COMMAND_REQUIRED');
+  if (existing.status !== 'ACTIVE') throw new PolicyConstraintError('POLICY_TERMINAL_READONLY');
   if (existing.archived_at !== null) throw new PolicyConstraintError('POLICY_ARCHIVED');
   const finalStart = parsed.startDate ?? existing.start_date,
     finalEnd = parsed.endDate ?? existing.end_date;
@@ -1114,6 +1136,15 @@ export async function listPolicies(
     action: 'policy.health.read',
     resource: { agencyId: active.agencyId, isCollection: true },
   });
+  const customerAccess = query.includeLabels
+    ? await evaluateAuthorization(db, {
+        context,
+        action: 'customer.read',
+        resource: { agencyId: active.agencyId, isCollection: true },
+      })
+    : null;
+  const customerScope =
+    customerAccess?.decision === 'ALLOW' ? (customerAccess.effectiveScope ?? 'NONE') : 'NONE';
   const where = ['p.agency_id=?'],
     values: unknown[] = [active.agencyId];
   if (access.effectiveScope === 'ASSIGNED') {
@@ -1135,12 +1166,21 @@ export async function listPolicies(
   }
   if (query.search) {
     const normalizedSearch = normalizePolicyNumber(query.search);
+    // The existing index orders policy numbers inside each insurer's partition.
+    if (!query.insurerId) {
+      where.push('p.insurer_id IN (SELECT id FROM insurers WHERE agency_id=?)');
+      values.push(active.agencyId);
+    }
     if (query.searchMode === 'exact') {
       where.push('p.normalized_policy_number = ?');
       values.push(normalizedSearch);
     } else {
-      where.push('p.normalized_policy_number LIKE ?');
-      values.push(`${normalizedSearch}%`);
+      // Normalized identifiers contain only letters and numbers, so the final code point has a successor.
+      const last = [...normalizedSearch].at(-1)!;
+      const upper =
+        normalizedSearch.slice(0, -last.length) + String.fromCodePoint(last.codePointAt(0)! + 1);
+      where.push('p.normalized_policy_number >= ? AND p.normalized_policy_number < ?');
+      values.push(normalizedSearch, upper);
     }
   }
   if (query.endFrom) {
@@ -1176,20 +1216,36 @@ export async function listPolicies(
   values.push(query.pageSize + 1);
   const result = await db
     .prepare(
-      `SELECT p.* ${query.includeLabels ? ',b.name AS branch_name,pr.name AS product_name,i.name AS insurer_name' : ''} FROM policies p
+      `SELECT p.* ${
+        query.includeLabels
+          ? `,b.name AS branch_name,pr.name AS product_name,i.name AS insurer_name,
+        CASE WHEN ?='AGENCY' OR (?='ASSIGNED' AND c.assignee_membership_id=?) THEN c.display_name ELSE NULL END AS customer_display_name,
+        json_extract(pv.details_json,'$.plate') AS snapshot_plate`
+          : ''
+      } FROM policies p${query.search ? ' INDEXED BY policies_candidate_uq' : ''}
     JOIN customers c ON c.agency_id=p.agency_id AND c.id=p.customer_id
     JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
-    ${query.includeLabels ? 'JOIN insurance_products pr ON pr.agency_id=p.agency_id AND pr.id=p.product_id JOIN insurers i ON i.agency_id=p.agency_id AND i.id=p.insurer_id' : ''}
+    ${query.includeLabels ? 'JOIN insurance_products pr ON pr.agency_id=p.agency_id AND pr.id=p.product_id JOIN insurers i ON i.agency_id=p.agency_id AND i.id=p.insurer_id LEFT JOIN policy_vehicle_snapshots pv ON pv.agency_id=p.agency_id AND pv.policy_id=p.id' : ''}
     WHERE ${where.join(' AND ')} ORDER BY ${sortColumn} ${desc ? 'DESC' : 'ASC'},p.id ${desc ? 'DESC' : 'ASC'} LIMIT ?`,
     )
-    .bind(...values)
-    .all<Row & { branch_name: string; product_name: string; insurer_name: string }>();
+    .bind(...(query.includeLabels ? [customerScope, customerScope, active.id] : []), ...values)
+    .all<
+      Row & {
+        branch_name: string;
+        product_name: string;
+        insurer_name: string;
+        customer_display_name: string | null;
+        snapshot_plate: string | null;
+      }
+    >();
   const hasMore = result.results.length > query.pageSize,
     items = result.results.slice(0, query.pageSize).map((row) => ({
       ...toDto(row),
       ...(query.includeLabels
         ? {
             labels: {
+              customerDisplayName: row.customer_display_name,
+              plate: row.snapshot_plate,
               branchName: row.branch_name,
               productName: row.product_name,
               insurerName: row.insurer_name,
@@ -1389,6 +1445,86 @@ function relationshipBase(
     permissionVersion: active.permissionVersion,
     idempotencyKey,
   };
+}
+
+export async function setPolicyVehicle(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  policyId: string,
+  raw: unknown,
+  idempotencyKey: string,
+) {
+  const data = z
+    .object({
+      expectedVersion: z.number().int().min(1),
+      vehicleId: z.string().min(1).max(128).nullable(),
+      vehicleVersion: z.number().int().min(1).nullable(),
+    })
+    .strict()
+    .refine((value) => (value.vehicleId === null) === (value.vehicleVersion === null))
+    .parse(raw);
+  const active = membership(context),
+    policy = await load(db, active.agencyId, policyId);
+  if (!policy) throw new PolicyNotFoundError();
+  await authorizeRelationshipMutation(db, context, 'policy.update', policy);
+  await authorize(db, context, 'customer.read', {
+    agencyId: active.agencyId,
+    id: policy.customer_id,
+    assigneeMembershipId: policy.customer_assignee_membership_id,
+  });
+  const base = relationshipBase(context, db, idempotencyKey),
+    command = {
+      kind: 'policy.vehicle.set' as const,
+      policyId,
+      customerId: policy.customer_id,
+      expectedVersion: data.expectedVersion,
+      vehicleId: data.vehicleId,
+      vehicleVersion: data.vehicleVersion,
+    };
+  const replay = await findPolicyRelationshipReplay({
+    ...base,
+    action: 'policy.vehicle.set',
+    target: policyId,
+    payload: raw,
+    version: data.expectedVersion,
+  });
+  if (replay) {
+    await authorizeCurrentRelationshipMutation(db, context, policyId, 'policy.update');
+    return { data: replay.body, status: replay.status, replayed: true };
+  }
+  const branch = await db
+    .prepare('SELECT supports_vehicle_details FROM insurance_branches WHERE agency_id=? AND id=?')
+    .bind(active.agencyId, policy.branch_id)
+    .first<{ supports_vehicle_details: number }>();
+  if (branch?.supports_vehicle_details !== 1)
+    throw new PolicyConstraintError(
+      'BRANCH_VEHICLE_DETAILS_DISABLED',
+      'Bu branşta araç bağlantısı düzenlenemez.',
+    );
+  let vehicle: PolicyVehicle | null = null;
+  if (data.vehicleId) {
+    const source = await db
+      .prepare(
+        "SELECT details_json,version FROM customer_vehicles WHERE agency_id=? AND customer_id=? AND id=? AND status='ACTIVE'",
+      )
+      .bind(active.agencyId, policy.customer_id, data.vehicleId)
+      .first<{ details_json: string; version: number }>();
+    if (!source || source.version !== data.vehicleVersion)
+      throw new PolicyConstraintError('VEHICLE_CHANGED_OR_UNAVAILABLE');
+    vehicle = {
+      vehicleId: data.vehicleId,
+      vehicleVersion: source.version,
+      details: vehicleFieldsSchema.parse(JSON.parse(source.details_json)),
+    };
+  }
+  const result = await executePolicyRelationshipCommand({
+    ...base,
+    payload: raw,
+    command,
+    result: { policyId, vehicle, version: data.expectedVersion + 1 },
+    status: 200,
+  });
+  return { data: result.body, status: result.status, replayed: result.replayed };
 }
 
 export async function createPolicyParty(

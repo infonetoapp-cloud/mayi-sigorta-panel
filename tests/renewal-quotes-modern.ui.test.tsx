@@ -15,7 +15,7 @@ import type {
   TodayTasksResponseData,
 } from '../src/shared/types';
 import { MemoryRouter } from 'react-router';
-import { openWorkspaceSections } from './support/workspace-disclosures';
+import { openWorkspaceSections, openWorkspaceSection } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import type { VersionPayload } from '../src/app/components/RenewalQuoteForm';
 const defaults: VersionPayload = {
@@ -101,7 +101,7 @@ function workspace(quoteStatus = 200) {
     if (u.startsWith('/api/tasks/today')) return response(queue);
     if (u.endsWith('csrf-token')) return response({ token: 'csrf' });
     if (u === '/api/catalogs/selectable') return response(catalogs);
-    if (u.endsWith('/quotes'))
+    if (/\/quotes(?:\?.*)?$/.test(u))
       return i?.method
         ? response(null, 503)
         : quoteStatus === 200
@@ -132,45 +132,58 @@ function workspace(quoteStatus = 200) {
   );
   return fetcher;
 }
-it('loads no eager quotes and preserves independently authorized communication/task sections when quote read is denied', async () => {
+it('opens quotes on selection and preserves independently authorized communication/task sections when quote read is denied', async () => {
   const f = workspace(403);
   fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
   openWorkspaceSections();
   await screen.findByText('Bağımsız izinli iletişim');
-  expect(f.mock.calls.some(([u]) => u.endsWith('/quotes'))).toBe(false);
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  expect(f.mock.calls.filter(([u]) => /\/quotes(?:\?.*)?$/.test(u))).toHaveLength(1);
+  openWorkspaceSection('Teklifler');
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
   await screen.findByText(/Teklif geçmişine erişilemiyor/);
   expect(screen.getByText('Bağımsız izinli iletişim')).toBeTruthy();
+  openWorkspaceSection('Görev işlemleri');
   fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
   expect(screen.getByLabelText('Yeni takip zamanı (İstanbul)')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Yeni teklif taslağı aç' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Yeni teklif' })).toBeNull();
 });
 it('preserves the communication draft, then pins an uncertain quote attempt through task/queue/refresh/legacy navigation', async () => {
   const f = workspace();
   fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
   openWorkspaceSections();
+  openWorkspaceSection('İletişim');
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Silinmeyecek taslak' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
+  openWorkspaceSection('Teklifler');
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif' }));
   await screen.findByText(/İletişim\/görev taslağını açıkça kapatın/);
   expect(screen.queryByRole('form', { name: 'Yeni teklif formu' })).toBeNull();
   expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe(
     'Silinmeyecek taslak',
   );
+  openWorkspaceSection('İletişim');
   fireEvent.click(screen.getByRole('button', { name: 'Formu kapat ve taslağı bırak' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }));
+  openWorkspaceSection('Teklifler');
+  fireEvent.click(screen.getByRole('button', { name: 'Yeni teklif' }));
   submit();
   await screen.findByRole('button', { name: 'Aynı teklif isteğini yeniden dene' });
-  for (const name of ['Listeyi yenile', 'Atanmamış işler', 'Görev listesine dön']) {
+  for (const name of ['Listeyi yenile', 'Görev listesine dön']) {
     fireEvent.click(screen.getByRole('button', { name }));
     await screen.findByText(/Teklif işleminin belirsiz sonucu/);
   }
-  fireEvent.click(screen.getByRole('link', { name: 'Klasik iş akışını aç' }));
+  expect(screen.queryByText(/Klasik çalışma alanı/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Aynı teklif isteğini yeniden dene' })).toBeTruthy();
   expect(screen.queryByText('Hedefi değiştirmeden önce')).toBeNull();
   expect(f.mock.calls.filter(([, i]) => i?.method)).toHaveLength(1);
+  openWorkspaceSection('Görev işlemleri');
   expect(
     screen.getByRole('button', { name: 'Yeni takip planını aç' }).closest('fieldset')?.disabled,
   ).toBe(true);
@@ -223,8 +236,12 @@ it('does not silently lose an unresolved quote through a sidebar link or browser
     workspace();
     fireEvent.click(await screen.findByRole('button', { name: /Seçili Sentetik Müşteri/ }));
     openWorkspaceSections();
-    fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
+    openWorkspaceSection('Teklifler');
+    {
+      const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+      if (read) fireEvent.click(read);
+    }
+    fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif' }));
     submit();
     await screen.findByRole('button', { name: 'Aynı teklif isteğini yeniden dene' });
     const click = new MouseEvent('click', { bubbles: true, cancelable: true });
@@ -306,8 +323,11 @@ it('loads quote history only on demand and creates an explicitly confirmed draft
     />,
   );
   expect(fetcher).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif taslağı aç' }));
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  fireEvent.click(await screen.findByRole('button', { name: 'Yeni teklif' }));
   fireEvent.click(await screen.findByLabelText('Yeni teklif kaydını oluşturmayı onaylıyorum'));
   fireEvent.click(screen.getByRole('button', { name: 'Teklifi oluştur' }));
   await screen.findByText('Teklif kaydedildi ve geçmiş güncellendi.');
@@ -424,10 +444,12 @@ function fixture(
   };
 }
 async function open(mode = 'create') {
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
   const button = await screen.findByRole('button', {
-    name:
-      mode === 'create' ? 'Yeni teklif taslağı aç' : 'Teklif 1 için yeni değişmez sürüm taslağı aç',
+    name: mode === 'create' ? 'Yeni teklif' : 'Teklif 1 için revizyon',
   });
   await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
   fireEvent.click(button);
@@ -442,11 +464,78 @@ function submit(mode = 'create') {
   );
   fireEvent.click(
     screen.getByRole('button', {
-      name: mode === 'create' ? 'Teklifi oluştur' : 'Yeni değişmez sürümü oluştur',
+      name: mode === 'create' ? 'Teklifi oluştur' : 'Revizyonu kaydet',
     }),
   );
 }
 const success = () => screen.findByText('Teklif kaydedildi ve geçmiş güncellendi.');
+it('loads the quote operation once on first activation, not on every visual switch', async () => {
+  const f = fixture('version');
+  expect(f.fetcher.mock.calls).toHaveLength(0);
+  f.rerender(<RenewalQuotesSection {...f.props} active />);
+  await screen.findByRole('row', { name: 'Teklif 1 güncel özet' });
+  const reads = f.fetcher.mock.calls.length;
+  f.rerender(<RenewalQuotesSection {...f.props} active={false} />);
+  f.rerender(<RenewalQuotesSection {...f.props} active />);
+  expect(f.fetcher.mock.calls.length).toBe(reads);
+});
+it('shows current quote summary and revision action without opening older history, keeping draft before history', async () => {
+  const f = fixture('version');
+  f.setHistory({
+    defaultVersion: defaults,
+    quotes: [
+      {
+        ...original(),
+        current_version_id: 'newer-v',
+        versions: [row(), row({ ...defaults, grossPremiumMinor: 1550 }, 'newer-v', 2)],
+      },
+    ],
+  });
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  const current = await screen.findByRole('row', { name: 'Teklif 1 güncel özet' });
+  expect(current.textContent).toContain('15,50');
+  expect(current.querySelector('.quote-comparison-price')?.textContent).not.toContain('10,50');
+  const historyTrigger = screen.getByRole('button', { name: 'Şirket · Fiyat geçmişi' });
+  const history = historyTrigger.nextElementSibling as HTMLDialogElement;
+  expect(history.open).toBe(false);
+  const oldVersion = history.querySelector('details');
+  const reads = f.fetcher.mock.calls.length;
+  fireEvent.click(historyTrigger);
+  fireEvent.click(screen.getByRole('button', { name: 'Ayrıntıları kapat' }));
+  expect(history.querySelector('details')).toBe(oldVersion);
+  expect(f.fetcher.mock.calls.length).toBe(reads);
+  fireEvent.click(screen.getByRole('button', { name: 'Teklif 1 için revizyon' }));
+  const form = screen.getByRole('form', { name: 'Teklif revizyon formu' });
+  const recordInfo = screen.getByRole('button', { name: 'Teklif kayıt bilgileri' })
+    .nextElementSibling as HTMLDialogElement;
+  expect(recordInfo.open).toBe(false);
+  expect(form.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Teklif brüt primi (ana birim)'), {
+    target: { value: '15.50' },
+  });
+  fireEvent.click(historyTrigger);
+  expect((screen.getByLabelText('Teklif brüt primi (ana birim)') as HTMLInputElement).value).toBe(
+    '15.50',
+  );
+  expect(f.fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
+it('does not invent a current quote summary from an older version when the current pointer is missing', async () => {
+  const f = fixture('version');
+  f.setHistory({
+    defaultVersion: defaults,
+    quotes: [{ ...original(), current_version_id: 'missing' }],
+  });
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  const current = await screen.findByRole('row', { name: 'Teklif 1 güncel özet' });
+  expect(current.textContent).toContain('Güncel sürüm bilgisi bulunamadı');
+  expect(current.querySelector('.quote-comparison-price')?.textContent).not.toContain('10,50');
+});
 it('locks insurer/product identity in immutable version mode; alternatives require a new quote', async () => {
   const expanded = {
     ...catalogs,
@@ -472,12 +561,17 @@ it('locks insurer/product identity in immutable version mode; alternatives requi
 });
 it('preserves authorized read-only quote history when catalog access is denied without inventing labels', async () => {
   fixture('version', (u) => (u === '/api/catalogs/selectable' ? response(null, 403) : undefined));
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-  await screen.findByText(/Şirket adı mevcut değil/);
-  expect(screen.getByText('Sürüm 1 — Güncel kayıtlı sürüm')).toBeTruthy();
-  expect(
-    screen.getByRole('button', { name: 'Yeni teklif taslağı aç' }).hasAttribute('disabled'),
-  ).toBe(true);
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
+  await screen.findByRole('row', { name: 'Teklif 1 güncel özet' });
+  expect(screen.getByRole('row', { name: 'Teklif 1 güncel özet' }).textContent).toContain(
+    'Şirket adı mevcut değil',
+  );
+  openPriceHistory();
+  expect(screen.getByText('Güncel fiyat')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Yeni teklif' }).hasAttribute('disabled')).toBe(true);
   expect(screen.queryByRole('form')).toBeNull();
 });
 it('keeps quote CAS separate from the historical version number', async () => {
@@ -505,8 +599,9 @@ it('creates a new immutable version with quote CAS only and never edits persiste
     version: defaults,
   });
   expect(JSON.stringify(view.getHistory().quotes[0]!.versions[0])).toBe(before);
-  expect(screen.getByText('Sürüm 1 — Tarihsel değişmez sürüm')).toBeTruthy();
-  expect(screen.getByText('Sürüm 2 — Güncel kayıtlı sürüm')).toBeTruthy();
+  openPriceHistory();
+  expect(screen.getByText('Önceki fiyat')).toBeTruthy();
+  expect(screen.getByText('Güncel fiyat')).toBeTruthy();
   expect(screen.queryByLabelText('Teklif brüt primi (ana birim)')).toBeNull();
 });
 it.each(['create', 'version'] as const)(
@@ -518,7 +613,7 @@ it.each(['create', 'version'] as const)(
     );
     await open(mode);
     const form = screen.getByRole('form', {
-      name: mode === 'create' ? 'Yeni teklif formu' : 'Yeni değişmez sürüm formu',
+      name: mode === 'create' ? 'Yeni teklif formu' : 'Teklif revizyon formu',
     });
     fireEvent.click(
       screen.getByLabelText(
@@ -548,7 +643,7 @@ it.each(['create', 'version'] as const)(
   async (mode) => {
     let reads = 0;
     const view = fixture(mode, (u, i) =>
-      u === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
+      u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
         ? response(null, 503)
         : undefined,
     );
@@ -574,7 +669,7 @@ it.each([
   async (field) => {
     let reads = 0;
     const view = fixture('create', (u, i) =>
-      u === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
+      u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method && ++reads === 2
         ? response({
             defaultVersion: defaults,
             quotes: [
@@ -628,7 +723,9 @@ it('rejects a different quote ID in version POST evidence as uncertain instead o
   await screen.findByRole('button', { name: 'Aynı sürüm isteğini yeniden dene' });
   expect(screen.queryByText('Teklif kaydedildi ve geçmiş güncellendi.')).toBeNull();
   expect(
-    view.fetcher.mock.calls.filter(([u, i]) => u === '/api/renewals/r/quotes' && !i?.method),
+    view.fetcher.mock.calls.filter(
+      ([u, i]) => u.split('?')[0] === '/api/renewals/r/quotes' && !i?.method,
+    ),
   ).toHaveLength(1);
 });
 it.each(['create', 'version'] as const)(
@@ -692,9 +789,9 @@ it('does not retarget a missing or accepted quote after an authorized conflict c
   view.setHistory({ defaultVersion: defaults, quotes: [{ ...original(), id: 'replacement' }] });
   fireEvent.click(screen.getByRole('button', { name: 'Güncel teklif durumunu karşılaştır' }));
   await screen.findByText(/Hedef veya yetkili görev artık uygun değil/);
-  expect(
-    screen.getByRole('button', { name: 'Yeni değişmez sürümü oluştur' }).hasAttribute('disabled'),
-  ).toBe(true);
+  expect(screen.getByRole('button', { name: 'Revizyonu kaydet' }).hasAttribute('disabled')).toBe(
+    true,
+  );
   expect(writes).toBe(1);
 });
 it.each([400, 403, 404])(
@@ -725,7 +822,10 @@ it('keeps accepted history read-only and excludes send/accept/reject actions', a
     defaultVersion: defaults,
     quotes: [{ ...original(), status: 'ACCEPTED', accepted_version_id: 'old-v' }],
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
+  {
+    const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+    if (read) fireEvent.click(read);
+  }
   await screen.findByText(/Kabul edilmiş teklif salt okunur/);
   expect(screen.queryByRole('button', { name: /yeni değişmez sürüm taslağı/ })).toBeNull();
   expect(screen.queryByRole('button', { name: /Gönder|Kabul et|Reddet/ })).toBeNull();
@@ -758,19 +858,23 @@ it.each(['history', 'csrf', 'post', 'readback'] as const)(
       const view = fixture('create', (u, i) => {
         if (i?.method) writes++;
         if (
-          (stage === 'history' && u === '/api/renewals/r/quotes') ||
+          (stage === 'history' && u.split('?')[0] === '/api/renewals/r/quotes') ||
           (stage === 'csrf' && u.endsWith('csrf-token')) ||
           (stage === 'post' && i?.method) ||
-          (stage === 'readback' && u === '/api/renewals/r/quotes' && !i?.method && writes)
+          (stage === 'readback' &&
+            u.split('?')[0] === '/api/renewals/r/quotes' &&
+            !i?.method &&
+            writes)
         ) {
           waiting = true;
           return delayed;
         }
         return undefined;
       });
-      if (stage === 'history')
-        fireEvent.click(screen.getByRole('button', { name: 'Teklif geçmişini aç' }));
-      else {
+      if (stage === 'history') {
+        const read = screen.queryByRole('button', { name: 'Teklif geçmişini aç' });
+        if (read) fireEvent.click(read);
+      } else {
         await open();
         submit();
       }
@@ -861,3 +965,13 @@ it('creates a different insurer/product alternative only as a new Quote, not a r
   expect(JSON.stringify(view.getHistory().quotes[0])).toBe(before);
   expect(view.getHistory().quotes).toHaveLength(2);
 });
+
+function openPriceHistory() {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  fireEvent.click(screen.getAllByRole('button', { name: /Fiyat geçmişi/ })[0]!);
+}

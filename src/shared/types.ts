@@ -59,6 +59,9 @@ export type CustomerType = 'INDIVIDUAL' | 'COMPANY';
 export type CompanyContactStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface CustomerDto {
+  readonly birthDate?: string | null;
+  readonly referenceMembershipId?: string | null;
+  readonly referenceName?: string | null;
   readonly coverage?: import('./customer-coverage').CustomerCoverageSummary;
   readonly id: string;
   readonly agencyId: string;
@@ -144,11 +147,13 @@ export interface InsurerDto {
 }
 
 export interface InsuranceBranchDto {
+  readonly canCorrectClassification?: boolean;
   readonly id: string;
   readonly agencyId: string;
   readonly code: string;
   readonly name: string;
   readonly dataClassification: 'GENERAL' | 'HEALTH';
+  readonly supportsVehicleDetails: boolean;
   readonly status: CatalogLifecycleStatus;
   readonly version: number;
   readonly createdAt: string;
@@ -215,6 +220,10 @@ export interface SelectableCatalogsDto {
 export type PolicyStatus = 'ACTIVE' | 'CANCELLED' | 'VOIDED';
 export interface PolicyDto {
   readonly labels?: {
+    /** Null when customer.read does not authorize this parent record. */
+    readonly customerDisplayName?: string | null;
+    /** Historical policy-period snapshot, never the customer's current vehicle. */
+    readonly plate?: string | null;
     readonly branchName: string;
     readonly productName: string;
     readonly insurerName: string;
@@ -282,6 +291,7 @@ export interface PolicyExternalReferenceDto {
 }
 
 export interface PolicyDetailDto extends PolicyDto {
+  readonly vehicle?: import('./vehicles').PolicyVehicle | null;
   readonly customer: { readonly id: string; readonly displayName: string };
   readonly insurer: {
     readonly id: string;
@@ -298,6 +308,7 @@ export interface PolicyDetailDto extends PolicyDto {
     readonly name: string;
     readonly status: CatalogLifecycleStatus;
     readonly dataClassification: 'GENERAL' | 'HEALTH';
+    readonly supportsVehicleDetails: boolean;
   };
   readonly paymentMethod: {
     readonly id: string;
@@ -326,6 +337,7 @@ export interface CustomerNotesPage {
 }
 
 export interface TodayTaskDto {
+  readonly kind?: 'RENEWAL_FOLLOWUP';
   readonly taskId: string;
   readonly renewalId: string;
   readonly customerId: string;
@@ -335,6 +347,9 @@ export interface TodayTaskDto {
   readonly policyId: string | null;
   readonly policyNumber: string | null;
   readonly policyEndDate: string | null;
+  readonly policyBranchName?: string | null;
+  readonly policyInsurerName?: string | null;
+  readonly policyInsurerCustomerNumber?: string | null;
   readonly title: string;
   readonly dueAt: string;
   readonly assigneeMembershipId: string | null;
@@ -370,6 +385,15 @@ export interface TodayTasksResponseData {
   readonly timezone: string;
   readonly todayLocalDate: string;
   readonly now: string;
+}
+export type WorkTaskDto = TodayTaskDto | import('./sales').SalesTaskDto;
+/** Current /tasks/today contract. The renewal-only interface above is retained for historical adapters. */
+export interface UnifiedTodayTasksResponseData extends Omit<
+  TodayTasksResponseData,
+  'items' | 'unassignedItems'
+> {
+  readonly items: readonly WorkTaskDto[];
+  readonly unassignedItems: readonly WorkTaskDto[];
 }
 
 export interface RenewalTaskAssignmentDto {

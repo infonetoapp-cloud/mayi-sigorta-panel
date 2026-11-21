@@ -706,7 +706,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
     expect(task?.status).toBe('OPEN');
   });
 
-  it('rejects silently cancelling a Policy with an open Renewal until an explicit outcome command exists', async () => {
+  it('requires the policy lifecycle command to cancel a Policy with an open Renewal', async () => {
     const created = await createPolicy(
       ownerContext,
       db,
@@ -723,7 +723,7 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
         { expectedVersion: 1, status: 'CANCELLED' },
         'owner-open-renewal-cancel',
       ),
-    ).rejects.toMatchObject({ code: 'OPEN_DEPENDENCIES' });
+    ).rejects.toMatchObject({ code: 'POLICY_LIFECYCLE_COMMAND_REQUIRED' });
     const row = await db
       .prepare('SELECT status,version FROM policies WHERE agency_id=? AND id=?')
       .bind('agency-a', created.data.id)
@@ -1091,10 +1091,11 @@ describe('M3-T01 idempotent renewal generation on local D1', () => {
           .bind(cleanupAt, 'member-a', cleanupAt, proof.renewalId),
         db
           .prepare(
-            `UPDATE policies SET status='CANCELLED',version=version+1,updated_at=?
+            `UPDATE policies SET archived_at=?,archived_by_membership_id='member-a',
+               archive_reason='TEST_CLEANUP',version=version+1,updated_at=?
              WHERE agency_id='agency-a' AND id=?`,
           )
-          .bind(cleanupAt, proof.policyId),
+          .bind(cleanupAt, cleanupAt, proof.policyId),
       ]),
     );
   });

@@ -1,9 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
+import { istanbulToday, validBirthDate } from '../../shared/customer-profile';
+import { CustomerReferenceField } from '../pages/customers/CustomerReferenceField';
+import { Button } from './ui/button';
 import type { ApiResponse, CustomerDetailDto, CustomerDto } from '../../shared/types';
 import { getCsrfToken, parseAppError } from '../App';
 
-const fields = ['email', 'phone', 'address'] as const;
+const fields = [
+  'email',
+  'phone',
+  'address',
+  'birthDate',
+  'referenceMembershipId',
+  'referenceName',
+] as const;
 type ContactFields = { -readonly [Field in (typeof fields)[number]]: CustomerDto[Field] };
 interface Attempt {
   readonly body: string;
@@ -31,7 +41,14 @@ export function CustomerContactSection({
   const [editing, setEditing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [base, setBase] = useState(customer);
-  const [draft, setDraft] = useState({ email: '', phone: '', address: '' });
+  const [draft, setDraft] = useState({
+    email: '',
+    phone: '',
+    address: '',
+    birthDate: '',
+    referenceMembershipId: '',
+    referenceName: '',
+  });
   const [latest, setLatest] = useState<CustomerDetailDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -163,7 +180,8 @@ export function CustomerContactSection({
       <>
         {confirmed && <p role="status">İletişim bilgileri kaydedildi.</p>}
         {customer.archivedAt === null ? (
-          <button
+          <Button
+            variant="outline"
             type="button"
             onClick={() => {
               setBase(customer);
@@ -171,6 +189,9 @@ export function CustomerContactSection({
                 email: customer.email ?? '',
                 phone: customer.phone ?? '',
                 address: customer.address ?? '',
+                birthDate: customer.birthDate ?? '',
+                referenceMembershipId: customer.referenceMembershipId ?? '',
+                referenceName: customer.referenceName ?? '',
               });
               setLatest(null);
               setError('');
@@ -184,7 +205,7 @@ export function CustomerContactSection({
             }}
           >
             {presentation === 'page' ? 'Düzenle' : 'İletişim bilgilerini düzenle'}
-          </button>
+          </Button>
         ) : null}
       </>
     );
@@ -214,6 +235,14 @@ export function CustomerContactSection({
             setError('Telefon en fazla 50, adres en fazla 1000 karakter olabilir.');
             return;
           }
+          if (
+            customer.type === 'INDIVIDUAL' &&
+            draft.birthDate &&
+            (!validBirthDate(draft.birthDate) || draft.birthDate > istanbulToday())
+          ) {
+            setError('Geçerli, gelecekte olmayan bir doğum tarihi girin.');
+            return;
+          }
           const snapshot =
             attempt.current?.body === body ? attempt.current : { body, key: crypto.randomUUID() };
           attempt.current = snapshot;
@@ -224,6 +253,32 @@ export function CustomerContactSection({
           disabled={busy || archived || blocked || saved}
           style={{ border: 0, padding: 0, display: 'grid', gap: '0.75rem' }}
         >
+          <legend className="sr-only">İletişim ve müşteri bilgileri</legend>
+          <CustomerReferenceField
+            membershipId={draft.referenceMembershipId}
+            name={draft.referenceName}
+            onChange={(referenceMembershipId, referenceName) =>
+              setDraft((old) => ({ ...old, referenceMembershipId, referenceName }))
+            }
+          />
+          {customer.type === 'INDIVIDUAL' && (
+            <label>
+              Doğum tarihi
+              <input
+                name="birthDate"
+                type="date"
+                autoComplete="bday"
+                max={istanbulToday()}
+                style={fieldStyle}
+                value={draft.birthDate}
+                onInput={(event) => {
+                  const birthDate = event.currentTarget.value;
+                  setDraft((old) => ({ ...old, birthDate }));
+                }}
+                onChange={(event) => setDraft((old) => ({ ...old, birthDate: event.target.value }))}
+              />
+            </label>
+          )}
           <label>
             E-posta
             <input
@@ -275,7 +330,13 @@ export function CustomerContactSection({
                       ? 'Güncel e-posta'
                       : field === 'phone'
                         ? 'Güncel telefon'
-                        : 'Güncel adres'}
+                        : field === 'address'
+                          ? 'Güncel adres'
+                          : field === 'birthDate'
+                            ? 'Güncel doğum tarihi'
+                            : field === 'referenceName'
+                              ? 'Güncel referans kişi'
+                              : 'Kayıtlı çalışan referansı'}
                   </dt>
                   <dd>{latest[field] || 'Belirtilmemiş'}</dd>
                 </div>
@@ -292,23 +353,23 @@ export function CustomerContactSection({
         {busy && <p role="status">İşlem sürüyor…</p>}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {!saved && (
-            <button type="submit" disabled={busy || archived || blocked || needsRefresh || !dirty}>
+            <Button type="submit" disabled={busy || archived || blocked || needsRefresh || !dirty}>
               {latest
                 ? 'Karşılaştırdım, iletişim bilgilerini kaydet'
                 : 'İletişim bilgilerini kaydet'}
-            </button>
+            </Button>
           )}
           {(needsRefresh || blocked || saved) && (
-            <button type="button" disabled={busy} onClick={() => void refresh()}>
+            <Button type="button" disabled={busy} onClick={() => void refresh()}>
               Güncel bilgileri yükle
-            </button>
+            </Button>
           )}
           {retry && retry.body === body && !needsRefresh && !blocked && !saved && (
-            <button type="button" disabled={busy || archived} onClick={() => void save(retry)}>
+            <Button type="button" disabled={busy || archived} onClick={() => void save(retry)}>
               Aynı isteği tekrar dene
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="button"
             disabled={busy}
             onClick={() => {
@@ -317,7 +378,7 @@ export function CustomerContactSection({
             }}
           >
             Vazgeç
-          </button>
+          </Button>
         </div>
       </form>
     </section>

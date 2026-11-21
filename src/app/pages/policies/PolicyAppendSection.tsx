@@ -8,6 +8,7 @@ import type {
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { readCustomerResource, useCustomerResource } from '../customers/customer-resource';
+import { readPolicyDetail } from './policy-read-schemas';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -58,8 +59,7 @@ export function PolicyAppendSection({
   policy: PolicyDetailDto;
   onUpdated: (policy: PolicyDetailDto) => void;
 }) {
-  const url = `/api/policies/${encodeURIComponent(policy.id)}/${kind}`,
-    base = `/api/policies/${encodeURIComponent(policy.id)}`;
+  const url = `/api/policies/${encodeURIComponent(policy.id)}/${kind}`;
   const initial = useCustomerResource<Row[]>(url),
     isAmendment = kind === 'amendments';
   const title = isAmendment ? 'Zeyiller' : 'Dış referanslar',
@@ -128,13 +128,12 @@ export function PolicyAppendSection({
     const view = epoch.current;
     setBusy(true);
     try {
-      const [fresh, list] = await Promise.all([get<PolicyDetailDto>(base), get<Row[]>(url)]);
+      const [fresh, list] = await Promise.all([
+        scoped((signal) => readPolicyDetail(policy.id, signal)),
+        get<Row[]>(url),
+      ]);
       if (view !== epoch.current) return;
-      if (
-        fresh.id !== policy.id ||
-        !Array.isArray(list) ||
-        list.some((row) => row.policyId !== policy.id)
-      )
+      if (!Array.isArray(list) || list.some((row) => row.policyId !== policy.id))
         throw new Error('INVALID_READBACK');
       setSnapshot({ policy: fresh, rows: list });
       onUpdated(fresh);

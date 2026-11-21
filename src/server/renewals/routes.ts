@@ -8,9 +8,11 @@ import { createLocalSessionVerifier } from '../auth/session';
 import type { AppDependencies, Env } from '../index';
 import { parseCsrfConfig } from '../config';
 import { verifyCsrfMutationGuard } from '../security/csrf';
+import { listWonPriceOptions } from '../sales/renewal-won-price';
 import {
   RenewalCommandError,
   closeRenewalLost,
+  renewalCycleContext,
   closeRenewalWon,
   reopenRenewal,
   voidRenewal,
@@ -43,9 +45,13 @@ import {
   listRenewalInteractions,
   listCustomerRenewals,
   listRenewalQuotes,
+  readRenewalQuoteHistory,
   sendRenewalQuote,
 } from './engagement';
 import { correctWonPolicyPremium, correctWonPolicyPremiumSchema } from './won-premium-correction';
+import { renewalBrowseQuery, browseRenewals, readRenewal } from './browsing';
+import { listTodayTasks } from '../tasks/service';
+import { TaskForbiddenError, TaskNotFoundError } from '../tasks/errors';
 
 type RenewalRouteEnv = { Bindings: Env };
 
@@ -730,13 +736,17 @@ export function registerRenewalCommandRoutes(
     } catch (error) {
       if (error instanceof RenewalCommandError) {
         const message =
-          error.status === 404
-            ? 'Kayıt bulunamadı.'
-            : error.status === 403
-              ? 'Erişim reddedildi.'
-              : error.status === 409
-                ? 'Kayıt güncel değil veya işlem çakıştı.'
-                : 'Geçersiz istek.';
+          error.code === 'SALES_CYCLE_REOPEN_REQUIRED'
+            ? 'Sonraki dönem takibini kontrol edip geri alma işlemini onaylayın.'
+            : error.code === 'SALES_CYCLE_SUCCESSOR_UNAVAILABLE'
+              ? 'Sonraki dönem takibi ilerlemiş veya başka bir çalışana ait. Yenileme yeniden açılamadı.'
+              : error.status === 404
+                ? 'Kayıt bulunamadı.'
+                : error.status === 403
+                  ? 'Erişim reddedildi.'
+                  : error.status === 409
+                    ? 'Kayıt güncel değil veya işlem çakıştı.'
+                    : 'Geçersiz istek.';
         return fail(c, error.status, error.code, message);
       }
       if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
@@ -744,23 +754,64 @@ export function registerRenewalCommandRoutes(
     }
   });
 
+  app.get(`${API_PREFIX}/renewals/:id/quotes/:quoteId/history`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    try {
+      for (const id of [c.req.param('id'), c.req.param('quoteId')])
+        if (!id || id !== id.trim() || id.length > 128)
+          return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      const data = await readRenewalQuoteHistory(
+        authenticated.context,
+        c.env.DB,
+        c.req.param('id'),
+        c.req.param('quoteId'),
+        c.req.query(),
+      );
+      return c.json({ success: true, data });
+    } catch (error) {
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      if (error instanceof RenewalCommandError)
+        return fail(
+          c,
+          error.status,
+          error.code,
+          error.status === 400
+            ? 'Liste bağlantısı değişmiş. İlk sayfadan başlayın.'
+            : 'Kayıt kullanılamıyor.',
+        );
+      return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
+    }
+  });
   app.get(`${API_PREFIX}/renewals/:id/quotes`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
     const authenticated = await authenticateAndResolve(c);
     if ('error' in authenticated) return authenticated.error;
     const renewalId = c.req.param('id');
     if (!renewalId || renewalId !== renewalId.trim() || renewalId.length > 128)
       return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
     try {
-      const result = await listRenewalQuotes(authenticated.context, c.env.DB, renewalId);
+      const result = await listRenewalQuotes(
+        authenticated.context,
+        c.env.DB,
+        renewalId,
+        c.req.query(),
+      );
       c.header('Cache-Control', 'private, no-store');
       return c.json({ success: true, data: result, timestamp: new Date().toISOString() }, 200);
     } catch (error) {
+      if (error instanceof z.ZodError) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
       if (error instanceof RenewalCommandError)
         return fail(
           c,
           error.status,
           error.code,
-          error.status === 403 ? 'Erişim reddedildi.' : 'Kayıt bulunamadı.',
+          error.status === 400
+            ? 'Liste bağlantısı değişmiş. İlk sayfadan başlayın.'
+            : error.status === 403
+              ? 'Erişim reddedildi.'
+              : 'Kayıt bulunamadı.',
         );
       return fail(c, 500, 'INTERNAL_ERROR', 'Beklenmeyen hata.');
     }
@@ -993,6 +1044,126 @@ export function registerRenewalCommandRoutes(
     }
   });
 
+  app.get(`${API_PREFIX}/renewals`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    const parsed = renewalBrowseQuery.safeParse(c.req.query());
+    if (!parsed.success) return fail(c, 400, 'VALIDATION_ERROR', 'Filtreleri kontrol edin.');
+    try {
+      return c.json({
+        success: true,
+        data: await browseRenewals(authenticated.context, c.env.DB, parsed.data),
+      });
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(c, error.status, error.code, 'Yenilemeler okunamadı.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Yenilemeler okunamadı.');
+    }
+  });
+  app.get(`${API_PREFIX}/renewals/:id/cycle-context`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if ('error' in auth) return auth.error;
+    const mode = c.req.query('mode');
+    if (mode !== 'close' && mode !== 'reopen')
+      return fail(c, 400, 'VALIDATION_ERROR', 'İşlem türü geçersiz.');
+    try {
+      return c.json({
+        success: true,
+        data: await renewalCycleContext(auth.context, c.env.DB, c.req.param('id'), mode),
+      });
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(c, error.status, error.code, 'Bu yenilemenin takip işlemi doğrulanamadı.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Takip bilgileri okunamadı.');
+    }
+  });
+  app.get(`${API_PREFIX}/renewals/:id/won-price-options`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if ('error' in auth) return auth.error;
+    const parsed = z
+      .strictObject({ after: z.string().min(1).max(128).optional() })
+      .safeParse(c.req.query());
+    if (!parsed.success) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+    try {
+      const renewal = await readRenewal(auth.context, c.env.DB, c.req.param('id'));
+      const data =
+        renewal.isOpen && !renewal.parentArchived && renewal.policy.status === 'ACTIVE'
+          ? await listWonPriceOptions(c.env.DB, auth.context, renewal.id, parsed.data.after ?? '')
+          : { options: [], nextAfter: null };
+      return c.json({ success: true, data });
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(c, error.status, error.code, 'Yenileme bilgileri okunamadı.');
+      return fail(c, 500, 'INTERNAL_ERROR', 'Kabul edilen fiyatlar okunamadı.');
+    }
+  });
+  app.get(`${API_PREFIX}/renewals/:id/operation-context`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const auth = await authenticateAndResolve(c);
+    if ('error' in auth) return auth.error;
+    try {
+      if (new URL(c.req.url).search) return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
+      const renewal = await readRenewal(auth.context, c.env.DB, c.req.param('id'));
+      if (!renewal.isOpen || renewal.parentArchived || renewal.policy.status !== 'ACTIVE')
+        return c.json({ success: true, data: null });
+      const membership = auth.context.memberships[0]!;
+      const task = await c.env.DB.prepare(
+        "SELECT id FROM tasks WHERE agency_id=? AND renewal_id=? AND customer_id=? AND kind='RENEWAL_FOLLOWUP' AND status='OPEN' LIMIT 2",
+      )
+        .bind(membership.agencyId, renewal.id, renewal.customer.id)
+        .all<{ id: string }>();
+      if (task.results.length === 0) return c.json({ success: true, data: null });
+      if (task.results.length !== 1)
+        return fail(c, 404, 'NOT_FOUND', 'İşlem için uygun takip bulunamadı.');
+      const page = await listTodayTasks(
+        auth.context,
+        c.env.DB,
+        { limit: 1, unified: 'true' },
+        task.results[0]!.id,
+      );
+      const current = page.items.find(
+        (t) => t.taskId === task.results[0]!.id && t.renewalId === renewal.id,
+      );
+      if (!current) return fail(c, 404, 'NOT_FOUND', 'İşlem için uygun takip bulunamadı.');
+      return c.json({ success: true, data: current });
+    } catch (error) {
+      if (!(
+        error instanceof RenewalCommandError ||
+        error instanceof TaskForbiddenError ||
+        error instanceof TaskNotFoundError
+      ))
+        return fail(c, 500, 'INTERNAL_ERROR', 'İşlem bilgileri okunamadı. Yeniden deneyin.');
+      return fail(
+        c,
+        404,
+        'NOT_FOUND',
+        'İşlem için uygun takip bulunamadı veya bu takibe erişiminiz yok.',
+      );
+    }
+  });
+  app.get(`${API_PREFIX}/renewals/:id`, async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const authenticated = await authenticateAndResolve(c);
+    if ('error' in authenticated) return authenticated.error;
+    try {
+      return c.json({
+        success: true,
+        data: await readRenewal(authenticated.context, c.env.DB, c.req.param('id')),
+      });
+    } catch (error) {
+      if (error instanceof RenewalCommandError)
+        return fail(
+          c,
+          error.status,
+          error.code,
+          'Yenileme kullanılamıyor veya bu kayda erişiminiz yok.',
+        );
+      return fail(c, 500, 'INTERNAL_ERROR', 'Yenileme okunamadı.');
+    }
+  });
   app.get(`${API_PREFIX}/customers/:id/renewals`, async (c) => {
     const authenticated = await authenticateAndResolve(c);
     if ('error' in authenticated) return authenticated.error;

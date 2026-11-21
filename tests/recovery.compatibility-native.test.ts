@@ -105,10 +105,11 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
     expect(pkg.phases.map((p) => p.sha256)).toEqual(
       preparePhasedD1Restore(Buffer.from(native), receiptFor(native)).phases.map((p) => p.sha256),
     );
-    const reference = new DatabaseSync(':memory:');
-    for (const file of readdirSync('db/migrations')
+    const migrationFiles = readdirSync('db/migrations')
       .filter((f) => /^\d{4}_.+\.sql$/u.test(f))
-      .sort())
+      .sort();
+    const reference = new DatabaseSync(':memory:');
+    for (const file of migrationFiles)
       reference.exec(readFileSync(resolve('db/migrations', file), 'utf8'));
     summary.canonicalGraph = inspectForeignKeyGraph(reference);
     reference.close();
@@ -154,9 +155,8 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
       const expectedHistory = (
         await source.db.prepare('SELECT id,name FROM d1_migrations ORDER BY id').all()
       ).results;
-      const historyExact =
-        history.length === 23 &&
-        canonicalizePayload(history) === canonicalizePayload(expectedHistory);
+      expect(history.map((migration) => migration.name)).toEqual(migrationFiles);
+      expect(history).toEqual(expectedHistory);
       let rowsExact = true;
       for (const table of schema.filter((r) => r.type === 'table')) {
         const a = (await source.db.prepare(`SELECT * FROM "${table.name}"`).all()).results;
@@ -184,18 +184,15 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
           schema.filter((r) => r.tbl_name !== 'd1_migrations' && r.type === kind).length,
         ]),
       );
-      expect(counts).toEqual({ table: 45, index: 174, trigger: 180, view: 3 });
-      expect(
-        schemaExact &&
-          historyExact &&
-          rowsExact &&
-          relation!.n === 0 &&
-          sessions!.n === 0 &&
-          fk === 0,
-      ).toBe(true);
+      expect(counts).toEqual({ table: 63, index: 243, trigger: 244, view: 3 });
+      expect(schemaExact, 'schema fingerprint').toBe(true);
+      expect(rowsExact, 'restored table contents').toBe(true);
+      expect(relation!.n, 'authentication relationships').toBe(0);
+      expect(sessions!.n, 'session relationships').toBe(0);
+      expect(fk, 'foreign key violations').toBe(0);
       return {
         foreignKeyViolations: fk,
-        schemaExact: schemaExact && historyExact,
+        schemaExact,
         rowsExact,
         domainExact: relation!.n === 0 && sessions!.n === 0,
       };
@@ -327,7 +324,7 @@ it('proves A/B/C LOCAL current-schema synthetic auth transports and captures saf
     }
     summary.sourceUnchanged = pkg.sourceExportSha256 === nativeExportSha256(Buffer.from(native));
     summary.currentSchemaHash = AUTH_RESTORE_SCHEMA_HASH;
-    summary.restoredMigrations = 21;
+    summary.restoredMigrations = migrationFiles.length;
     summary.everyAcceptedStrategyFKSchemaRowsDomainValidation = true;
     summary.productionRecoveryStatus = 'OPEN';
     writeFileSync(

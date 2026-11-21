@@ -93,6 +93,43 @@ it('closed login uses password-manager fields, generic failure and clears passwo
       .every((p) => p === '/api/auth/session' || p === '/api/auth/login'),
   ).toBe(true);
 });
+it('requires a fresh Turnstile token for each login attempt when configured', async () => {
+  let complete: ((token: string) => void) | undefined;
+  const remove = vi.fn();
+  const widget = vi.fn((_node: HTMLElement, options: { callback: (token: string) => void }) => {
+    complete = options.callback;
+    return 'synthetic-widget';
+  });
+  vi.stubGlobal('turnstile', { render: widget, remove });
+  const fetcher = vi.fn(async (path: string, _options?: RequestInit) => {
+    if (path === '/api/auth/session') {
+      const initial = response({}, 401);
+      initial.headers.set('X-Turnstile-Site-Key', 'synthetic-site-key');
+      return initial;
+    }
+    return response({ code: 'LOGIN_FAILED' }, 401);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  render(<AuthShell />);
+  const submit = (await screen.findByRole('button', { name: 'Giriş Yap' })) as HTMLButtonElement;
+  await waitFor(() => expect(widget).toHaveBeenCalledOnce());
+  fireEvent.change(screen.getByLabelText('E-posta'), {
+    target: { value: 'synthetic@example.invalid' },
+  });
+  fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: 'synthetic passphrase' } });
+  expect(submit.disabled).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  act(() => complete?.('synthetic-turnstile-token'));
+  expect(submit.disabled).toBe(false);
+  fireEvent.click(submit);
+  await screen.findByRole('alert');
+  expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toMatchObject({
+    turnstileToken: 'synthetic-turnstile-token',
+  });
+  expect(submit.disabled).toBe(true);
+  expect(remove).toHaveBeenCalledWith('synthetic-widget');
+  await waitFor(() => expect(widget).toHaveBeenCalledTimes(2));
+});
 it('restricted loader renders only forced password replacement and logout then reloads normal state', async () => {
   let activated = false;
   const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
@@ -126,7 +163,8 @@ it('restricted loader renders only forced password replacement and logout then r
   });
   fireEvent.click(screen.getByRole('button', { name: 'Şifreyi kaydet' }));
   await screen.findByRole('heading', { name: 'Genel Bakış' });
-  expect(screen.getByRole('button', { name: 'Çıkış Yap' })).toBeTruthy();
+  expect(screen.queryByRole('menuitem', { name: 'Çıkış Yap' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Hesap menüsü' })).toBeTruthy();
 });
 it('own-password reauth uses session CSRF and clears secret on failure and cancellation', async () => {
   vi.stubGlobal(

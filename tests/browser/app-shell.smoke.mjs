@@ -32,7 +32,9 @@ try {
     logLevel: 'silent',
   });
   const application = await import(pathToFileURL(bundle).href);
-  demo = await application.openDemo(passwords);
+  demo = await application.openDemo(passwords, {
+    companyRegistrationActors: application.DEMO_USERS.map(({ id }) => id),
+  });
   tls = await demoCertificate();
   server = await serveDemo(demo, tls);
   // Windows uses installed Edge; other platforms can install Chromium through Playwright.
@@ -64,7 +66,7 @@ try {
       await page
         .locator('.app-sidebar')
         .evaluate((el) => Math.round(el.getBoundingClientRect().width)),
-      248,
+      236,
     );
     await page.getByRole('button', { name: 'Menüyü daralt', exact: true }).click();
     assert.equal(
@@ -90,6 +92,28 @@ try {
       await page.screenshot({ path: join(directory, `overview-${index}-${width}.png`) });
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
+    stage = `operations-readiness-${index}`;
+    const readiness = page.getByRole('link', { name: 'İşletim durumu', exact: true });
+    if (index === 0) {
+      const result = page.waitForResponse(
+        (response) => new URL(response.url()).pathname === '/api/ops/readiness',
+      );
+      await readiness.click();
+      const response = await result;
+      assert.equal(response.status(), 503);
+      assert.ok(response.headers()['cache-control'].includes('no-store'));
+      const checks = page.getByRole('region', { name: 'İşletim kontrolleri' });
+      await checks.getByText('Otomatik yedek', { exact: true }).waitFor();
+      await checks.getByText('Belge işleri', { exact: true }).waitFor();
+      await checks
+        .locator('dt + dd', { hasText: /^Kapalı$/ })
+        .first()
+        .waitFor();
+    } else {
+      assert.equal(await readiness.count(), 0);
+      await page.goto('https://localhost:8443/ops/readiness');
+      await page.getByRole('heading', { name: 'Bu sayfaya erişiminiz yok', exact: true }).waitFor();
+    }
     stage = `compatibility-${index}`;
     await page.getByRole('link', { name: 'Müşteriler', exact: true }).click();
     await page.getByRole('link', { name: 'Yeni Müşteri', exact: true }).waitFor();
@@ -105,7 +129,16 @@ try {
       if (type === 'INDIVIDUAL') {
         await page.getByLabel('Ad', { exact: true }).fill('Sentetik');
         await page.getByLabel('Soyad', { exact: true }).fill(`Deneme${index}`);
-      } else await page.getByLabel('Şirket unvanı', { exact: true }).fill(name);
+      } else {
+        await page.getByLabel('Şirket unvanı', { exact: true }).fill(name);
+        await page.getByLabel('Vergi no (zorunlu)', { exact: true }).fill(`900000000${index}`);
+      }
+      await page
+        .getByLabel('Sigorta şirketi (zorunlu)', { exact: true })
+        .selectOption('demo-insurer');
+      await page
+        .getByLabel('Şirket müşteri no (zorunlu)', { exact: true })
+        .fill(`00-smoke-${index}-${type}`);
       for (const width of [1440, 768, 360]) {
         await page.setViewportSize({ width, height: 900 });
         assert.equal(
@@ -323,17 +356,31 @@ try {
           .waitFor();
       }
       if (index === 0 && type === 'COMPANY') {
-        stage = 'legacy-archive-modern-denial';
-        await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
+        stage = 'modern-archive-open-management';
+        await page.getByRole('link', { name: 'Diğer müşteri işlemleri', exact: true }).click();
+        stage = 'modern-archive-open-form';
+        await page.getByRole('heading', { name: 'Müşteri işlemleri', exact: true }).waitFor();
         await page.getByRole('button', { name: 'Müşteriyi Arşivle', exact: true }).click();
-        await page.getByLabel('Arşiv Nedeni', { exact: true }).fill('DEMO_CLOSED');
+        stage = 'modern-archive-select-reason';
+        await page.getByRole('combobox', { name: /Arşiv Nedeni/ }).selectOption('DATA_CLEANUP');
+        stage = 'modern-archive-write';
+        const archiveResponse = page.waitForResponse(
+          (res) => res.url().endsWith('/archive') && res.request().method() === 'POST',
+        );
         await page.getByRole('button', { name: 'Arşivlemeyi Onayla', exact: true }).click();
+        const archive = await archiveResponse;
+        if (archive.status() !== 200) {
+          const { error } = await archive.json();
+          console.error('SMOKE_ARCHIVE_RESULT', archive.status(), error?.code ?? 'UNKNOWN');
+        }
+        assert.equal(archive.status(), 200);
+        stage = 'modern-archive-readback';
         await page
           .getByText('Bu müşteri arşivlenmiştir. Geçmiş kayıtları korunur.', { exact: true })
           .waitFor();
-        await page.getByRole('button', { name: '✕', exact: true }).click();
-        await page.getByRole('link', { name: 'Modern müşteri profiline dön', exact: true }).click();
+        await page.getByRole('link', { name: 'Müşteri kartına dön', exact: true }).click();
         await page.getByRole('link', { name: 'İletişim', exact: true }).click();
+        stage = 'modern-archive-denial';
         await page
           .getByText('Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.', { exact: true })
           .waitFor();
@@ -352,10 +399,12 @@ try {
     stage = `compatibility-${index}`;
     await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).click();
     await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    stage = `compatibility-${index}-canonical-profile`;
     assert.equal(new URL(page.url()).pathname, '/customers/demo-customer-0');
     assert.equal(await page.locator('.legacy-workspace').count(), 0);
     await page.reload();
     await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    stage = `compatibility-${index}-notes`;
     await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
     await page.getByText('Kaydeden: Ahmet', { exact: true }).first().waitFor();
     await page.getByText('Kaydeden: Ayşe', { exact: true }).first().waitFor();
@@ -363,12 +412,20 @@ try {
       .getByLabel('Yeni müşteri notu', { exact: true })
       .fill(`Yerel profil denemesi ${index}`);
     await page.getByRole('button', { name: 'Notu kaydet', exact: true }).click();
-    await page.getByText(`Yerel profil denemesi ${index}`, { exact: true }).waitFor();
-    await page.getByText(`Kaydeden: ${user.name}`, { exact: true }).first().waitFor();
+    const savedNote = page
+      .getByRole('list', { name: 'Müşteri not geçmişi' })
+      .getByRole('listitem')
+      .filter({ has: page.getByText(`Yerel profil denemesi ${index}`, { exact: true }) });
+    await savedNote.getByText(`Kaydeden: ${user.name}`, { exact: true }).waitFor();
+    await page
+      .getByRole('button', { name: 'Notları yenile', exact: true })
+      .and(page.locator(':enabled'))
+      .waitFor();
     for (const width of [768, 360]) {
+      stage = `compatibility-${index}-profile-${width}`;
       await page.setViewportSize({ width, height: 900 });
       await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
-      await page.getByText(`Yerel profil denemesi ${index}`, { exact: true }).waitFor();
+      await savedNote.waitFor();
       assert.equal(
         await page.evaluate(
           () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
@@ -376,7 +433,19 @@ try {
         true,
       );
       await page.getByRole('link', { name: 'Müşteri listesine dön', exact: true }).click();
-      await page.getByRole('link', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+      await page.waitForURL('**/customers');
+      const customerLink = page.getByRole('link', { name: 'Deniz Yılmaz', exact: true });
+      try {
+        await customerLink.waitFor();
+      } catch (error) {
+        console.error(
+          'SMOKE_PROFILE_RETURN',
+          await customerLink.count(),
+          await page.getByRole('heading', { name: 'Müşteriler', exact: true }).count(),
+          await page.getByRole('alert').count(),
+        );
+        throw error;
+      }
       assert.equal(
         await page.evaluate(
           () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
@@ -391,41 +460,53 @@ try {
       await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
+    stage = `compatibility-${index}-policy-handoff`;
     await page.getByRole('link', { name: 'Poliçeler ve yenilemeler', exact: true }).click();
     await page.getByRole('heading', { name: 'Mevcut poliçeler', exact: true }).waitFor();
-    await page.getByRole('link', { name: 'DEMO-0', exact: true }).click();
+    const policyNumberLinks = page.getByRole('link', { name: 'DEMO-0', exact: true });
+    await policyNumberLinks.and(page.locator('a[href^="/renewals/"]')).waitFor();
+    await policyNumberLinks.and(page.locator('a[href="/policies/demo-policy-0"]')).click();
     await page.getByRole('heading', { name: 'DEMO-0', exact: true }).waitFor();
     await page.goBack();
     await page.getByRole('heading', { name: 'Mevcut poliçeler', exact: true }).waitFor();
-    await page.getByRole('link', { name: 'İleri müşteri işlemleri', exact: true }).click();
-    await page.getByText('Geçici klasik müşteri çalışma alanı', { exact: true }).waitFor();
-    await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).waitFor();
-    await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).click();
-    await page.waitForURL('**/policies/legacy?customerId=demo-customer-0');
-    // The legacy customer->policy hand-off must survive real route navigation.
-    await page.getByRole('heading', { name: 'Yeni Poliçe', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Diğer müşteri işlemleri', exact: true }).click();
+    await page.getByRole('heading', { name: 'Müşteri işlemleri', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Müşteri kartına dön', exact: true }).click();
+    await page.getByRole('link', { name: 'Poliçe ekle', exact: true }).click();
+    await page.waitForURL('**/policies/new?customerId=demo-customer-0');
+    await page.getByRole('heading', { name: 'Yeni poliçe', exact: true }).waitFor();
     stage = `modern-policies-${index}`;
     console.info('SMOKE_STAGE', stage);
     await page
-      .getByRole('option', { name: 'Deniz Yılmaz', exact: true })
-      .waitFor({ state: 'attached' });
-    assert.equal(await page.getByLabel('Müşteri', { exact: true }).inputValue(), 'demo-customer-0');
+      .getByRole('form', { name: 'Poliçe sözleşme formu' })
+      .getByText('Deniz Yılmaz', { exact: true })
+      .waitFor();
     const policyNumber = `MODERN-POL-${index}`;
-    await page.getByLabel('Poliçe Numarası', { exact: true }).fill(policyNumber);
-    await page.getByLabel('Başlangıç Tarihi', { exact: true }).fill('2027-01-01');
-    await page.getByLabel('Bitiş Tarihi', { exact: true }).fill('2027-12-31');
-    await page.getByLabel('Brüt Prim', { exact: true }).fill('1234.56');
+    for (const [label, value] of [
+      ['Sigorta şirketi', 'demo-insurer'],
+      ['Branş', 'demo-branch'],
+      ['Ürün', 'demo-product'],
+      ['Ödeme yöntemi', 'demo-payment'],
+    ]) {
+      await page.getByLabel(label, { exact: true }).selectOption(value);
+    }
+    await page.getByLabel('Poliçe numarası', { exact: true }).fill(policyNumber);
+    await page.getByLabel('Başlangıç tarihi', { exact: true }).fill('2027-01-01');
+    await page.getByLabel('Bitiş tarihi', { exact: true }).fill('2027-12-31');
+    await page.getByLabel('Brüt prim', { exact: true }).fill('1234.56');
     const savedResponse = page.waitForResponse(
       (res) => res.url().endsWith('/api/policies') && res.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: 'Poliçeyi Kaydet', exact: true }).click();
+    await page.getByRole('button', { name: 'Poliçeyi oluştur', exact: true }).click();
     const saved = await savedResponse;
     assert.equal(saved.status(), 201);
     const savedPolicy = (await saved.json()).data;
     assert.equal(savedPolicy.customerId, 'demo-customer-0');
-    await page.getByRole('link', { name: 'Modern poliçe listesine dön', exact: true }).click();
+    await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
+    await page.goto('https://localhost:8443/policies');
     await page.getByRole('heading', { name: 'Poliçeler', exact: true }).waitFor();
     await page.getByLabel('Poliçe numarası', { exact: true }).fill(policyNumber);
+    await page.getByText('Tarih ve diğer filtreler', { exact: true }).click();
     await page.getByLabel('Eşleştirme', { exact: true }).selectOption('exact');
     await page.getByRole('button', { name: 'Filtrele', exact: true }).click();
     await page.getByRole('link', { name: policyNumber, exact: true }).waitFor();
@@ -439,7 +520,7 @@ try {
       );
       assert.equal(
         await page
-          .locator('.policy-table tr')
+          .locator('.policy-directory-table tr')
           .last()
           .evaluate((row) => globalThis.getComputedStyle(row).display),
         width === 1440 ? 'table-row' : 'grid',
@@ -474,9 +555,7 @@ try {
     await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('link', { name: 'Bugünkü İşler', exact: true }).click();
-    await page
-      .getByRole('button', { name: 'Görev istatistiklerini göster', exact: true })
-      .waitFor();
+    await page.getByRole('button', { name: 'İş yükü özeti', exact: true }).waitFor();
     const work = await page.evaluate(async () =>
       (await globalThis.fetch('/api/tasks/today')).json(),
     );
@@ -528,7 +607,10 @@ try {
         .bind(Math.floor(Date.now() / 1000), 'demo-user-' + user.id)
         .run();
       await page.getByRole('link', { name: 'Sigortalılar ve lehtarlar', exact: true }).click();
-    } else await page.getByRole('button', { name: 'Çıkış Yap', exact: true }).click();
+    } else {
+      await page.getByRole('button', { name: 'Hesap menüsü', exact: true }).click();
+      await page.getByText('Çıkış Yap', { exact: true }).click();
+    }
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: policyNumber, exact: true }).count(), 0);
     await page.goto('https://localhost:8443/customers');
@@ -537,12 +619,13 @@ try {
     await context.close();
   }
   console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer/company contacts; modern policy list/detail + filters + related reads; 1440/768/360; history/direct refresh/back-forward; legacy policy creation with correct originating customer; private tasks; owner denial; logout/live policy revocation cleanup; CSP/runtime.',
+    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer/company contacts; modern policy list/detail + filters + related reads; 1440/768/360; history/direct refresh/back-forward; policy creation with correct originating customer; private tasks; owner denial; logout/live policy revocation cleanup; CSP/runtime.',
   );
-} catch {
+} catch (error) {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.
+  const location = error instanceof Error && error.stack?.match(/app-shell\.smoke\.mjs:\d+:\d+/);
   console.error(
-    `FRONTEND_BROWSER_SMOKE FAIL at ${stage}. No credentials or raw diagnostics logged.`,
+    `FRONTEND_BROWSER_SMOKE FAIL at ${stage}${location ? ` (${location[0]})` : ''}. No credentials or raw diagnostics logged.`,
   );
   process.exitCode = 1;
 } finally {

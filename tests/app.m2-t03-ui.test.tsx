@@ -42,6 +42,7 @@ describe('M2-T03 UI Kabul Testleri (Catalogs & Agency Settings)', () => {
       code: 'KASKO',
       name: 'Kasko Branşı',
       dataClassification: 'GENERAL',
+      supportsVehicleDetails: false,
       status: 'ACTIVE',
       version: 1,
       createdAt: '2026-09-20T10:00:00.000Z',
@@ -53,6 +54,7 @@ describe('M2-T03 UI Kabul Testleri (Catalogs & Agency Settings)', () => {
       code: 'TSS',
       name: 'Tamamlayıcı Sağlık',
       dataClassification: 'HEALTH',
+      supportsVehicleDetails: false,
       status: 'INACTIVE',
       version: 1,
       createdAt: '2026-09-20T10:00:00.000Z',
@@ -155,7 +157,7 @@ describe('M2-T03 UI Kabul Testleri (Catalogs & Agency Settings)', () => {
     expect(screen.queryByText('Allianz Sigorta')).toBeNull();
   });
 
-  it('2. "İnaktifleri Göster" seçildiğinde include_inactive=true ile çağrı yapılmalı ve INACTIVE rozeti gösterilmelidir', async () => {
+  it('2. "İnaktifleri Göster" seçildiğinde include_inactive=true ile çağrı yapılmalı ve Pasif rozeti gösterilmelidir', async () => {
     let capturedUrl = '';
     global.fetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('/api/catalogs/insurers')) {
@@ -192,7 +194,7 @@ describe('M2-T03 UI Kabul Testleri (Catalogs & Agency Settings)', () => {
 
     await screen.findByText('Allianz Sigorta');
     expect(capturedUrl).toContain('include_inactive=true');
-    expect(screen.getAllByText('INACTIVE').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Pasif').length).toBeGreaterThanOrEqual(1);
   });
 
   it('3. Sigortacı oluşturma POST /api/catalogs/insurers ile yapılmalıdır', async () => {

@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AuthShell } from '../src/app/AuthShell';
 import { PersonnelPanel } from '../src/app/components/PersonnelPanel';
+import { invalidateCsrfToken } from '../src/app/csrf';
 vi.mock('../src/app/App', () => ({
   App: () => <div>CRM workspace</div>,
   invalidateCsrfToken: vi.fn(),
@@ -12,22 +13,27 @@ const response = (data: unknown) =>
   });
 afterEach(() => {
   cleanup();
+  invalidateCsrfToken();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-it('opens standalone NORMAL reauth and returns without a business request or secret persistence', async () => {
+it('opens standalone NORMAL reauth without additional business requests or secret persistence', async () => {
   const log = vi.spyOn(console, 'log');
   const storage = vi.spyOn(Storage.prototype, 'setItem');
   const fetcher = vi.fn(async (path: string) => {
     if (path === '/api/auth/session')
       return response({ state: 'NORMAL', email: 'owner@example.invalid', isOwner: true });
-    if (path === '/api/auth/csrf-token') return response({ token: crypto.randomUUID() });
+    if (path === '/api/auth/csrf-token' || path === '/api/csrf-token')
+      return response({ token: crypto.randomUUID() });
     if (path === '/api/auth/reauth') return response({ state: 'NORMAL' });
+    if (path === '/api/tasks/today?limit=20&unified=true') return response({});
     throw new Error('Unexpected endpoint');
   });
   vi.stubGlobal('fetch', fetcher);
   render(<AuthShell />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Şifremi doğrula' }));
+  await screen.findByRole('heading', { name: 'Genel Bakış' });
+  fireEvent.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Şifremi doğrula' }));
   expect(screen.getByRole('dialog')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: crypto.randomUUID() } });
   fireEvent.click(screen.getByRole('button', { name: 'Doğrula' }));
@@ -36,24 +42,38 @@ it('opens standalone NORMAL reauth and returns without a business request or sec
   expect(fetcher.mock.calls.filter(([path]) => path === '/api/auth/reauth')).toHaveLength(1);
   expect(
     fetcher.mock.calls.every(([path]) =>
-      ['/api/auth/session', '/api/auth/csrf-token', '/api/auth/reauth'].includes(path),
+      [
+        '/api/auth/session',
+        '/api/auth/csrf-token',
+        '/api/auth/reauth',
+        '/api/tasks/today?limit=20&unified=true',
+      ].includes(path),
     ),
   ).toBe(true);
+  expect(
+    fetcher.mock.calls.filter(([path]) => path.startsWith('/api/tasks/today')).length,
+  ).toBeLessThanOrEqual(1);
   expect(log).not.toHaveBeenCalled();
   expect(storage).not.toHaveBeenCalled();
 });
 it('cancels standalone reauth without a mutation and discards the entered value', async () => {
-  const fetcher = vi.fn(async () =>
+  const fetcher = vi.fn(async (_path: string) =>
     response({ state: 'NORMAL', email: 'owner@example.invalid', isOwner: true }),
   );
   vi.stubGlobal('fetch', fetcher);
   render(<AuthShell />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Şifremi doğrula' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Şifremi doğrula' }));
   fireEvent.change(screen.getByLabelText('Şifre'), { target: { value: crypto.randomUUID() } });
   fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(fetcher).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Şifremi doğrula' }));
+  expect(
+    fetcher.mock.calls.every(
+      ([path]) => path === '/api/auth/session' || path === '/api/tasks/today?limit=20&unified=true',
+    ),
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Hesap menüsü' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Şifremi doğrula' }));
   expect((screen.getByLabelText('Şifre') as HTMLInputElement).value).toBe('');
 });
 it('does not offer standalone reauth in ACTIVATION', async () => {
@@ -87,7 +107,8 @@ it('preserves personnel pending-command continuation after its own reauth', asyn
         ],
         nextCursor: null,
       });
-    if (path === '/api/auth/csrf-token') return response({ token: crypto.randomUUID() });
+    if (path === '/api/auth/csrf-token' || path === '/api/csrf-token')
+      return response({ token: crypto.randomUUID() });
     if (path === '/api/auth/reauth') {
       verified = true;
       return response({});

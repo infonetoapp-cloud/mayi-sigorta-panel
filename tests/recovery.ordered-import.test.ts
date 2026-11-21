@@ -21,6 +21,31 @@ const native = [
 ].join('\n');
 
 describe('canonical ordered native recovery transport', () => {
+  it('allows compilation of the official ledger default only with all literal columns supplied', () => {
+    const schema =
+      'CREATE TABLE d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL);';
+    const sql =
+      schema +
+      "INSERT INTO d1_migrations(id,name,applied_at) VALUES(24,'0023_customer_reference_birth_date.sql','2026-09-01T00:00:00.000Z');";
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(orderedD1Import(sql));
+      expect(db.prepare('SELECT applied_at FROM d1_migrations').get()?.applied_at).toBe(
+        '2026-09-01T00:00:00.000Z',
+      );
+    } finally {
+      db.close();
+    }
+    expect(() =>
+      orderedD1Import(schema + "INSERT INTO d1_migrations(id,name) VALUES(24,'missing');"),
+    ).toThrow('SOURCE_DEFAULTS_DENIED');
+    expect(() =>
+      orderedD1Import(
+        schema +
+          "INSERT INTO d1_migrations(id,name,applied_at) VALUES(24,'runtime',CURRENT_TIMESTAMP);",
+      ),
+    ).toThrow('SOURCE_VALUE_DENIED');
+  });
   it('decodes the exact bounded native newline constructors without admitting general expressions', () => {
     const input =
       "CREATE TABLE note_text(value TEXT PRIMARY KEY);INSERT INTO note_text VALUES(replace(replace('İlk\\r\\nİkinci O''Brien','\\n',char(10)),'\\r',char(13)));";

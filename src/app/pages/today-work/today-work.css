@@ -2,7 +2,7 @@
   min-width: 0;
 }
 .today-summary {
-  padding-block: 0.5rem 1.25rem;
+  padding-block: 0.4rem 0.85rem;
 }
 .today-summary-heading {
   display: flex;
@@ -58,7 +58,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 1.15rem 0.25rem;
+  padding: 0.85rem 0.25rem;
   border: 0;
   background: transparent;
   color: var(--foreground);
@@ -94,7 +94,7 @@
   transform: rotate(180deg);
 }
 .workspace-section-body {
-  padding: 0.25rem 0 1.5rem;
+  padding: 0.25rem 0 1rem;
 }
 .workspace-section-body[hidden] {
   display: none;
@@ -152,6 +152,70 @@
 }
 .today-overview > [data-slot='card-content'] {
   padding-top: 0;
+}
+.today-summary .today-task-facts {
+  gap: 0.65rem 1rem;
+  margin-block: 0.75rem;
+}
+.today-summary .today-stage {
+  padding: 0;
+  background: transparent;
+}
+.today-summary .workspace-help {
+  margin-block: 0.35rem;
+}
+.today-summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+.quote-current-summary p {
+  margin-block: 0.3rem;
+}
+.quote-current-price {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.quote-current-price span {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.quote-record-history {
+  margin-top: 0.65rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+.quote-record-history > summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+.quote-section > [data-slot='button'] {
+  margin-block: 0.4rem;
+}
+.quote-current-summary + [data-slot='button'] {
+  margin-top: 0.65rem;
+}
+.quote-form {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 1rem;
+  background: var(--surface-subtle);
+  margin-bottom: 1.25rem;
+}
+.quote-form > [data-slot='button'][type='submit'] {
+  justify-self: start;
+}
+.workspace-context-return {
+  justify-self: start;
+  color: var(--primary);
+}
+@media (min-width: 1100px) {
+  .today-summary .today-task-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (max-width: 480px) {
   .today-summary .today-task-facts {

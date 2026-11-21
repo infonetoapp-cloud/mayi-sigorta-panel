@@ -1,0 +1,617 @@
+// Visible local Edge review; keep the personal localhost:8443 demo isolated.
+/* global document, innerWidth, getComputedStyle, fetch, scrollY, scrollTo */
+import assert from 'node:assert/strict';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
+import console from 'node:console';
+import { randomBytes, createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { pathToFileURL, URL } from 'node:url';
+import { build } from 'esbuild';
+import { chromium } from 'playwright';
+const baseline = process.argv.includes('--baseline');
+const keepOpen = process.argv.includes('--keep-open');
+const previewOnly = process.argv.includes('--preview-only');
+assert.ok(!previewOnly || (keepOpen && !baseline));
+const only = process.argv.find((arg) => arg.startsWith('--cell='))?.slice(7);
+const run = process.env.PHASE3_RUN;
+assert.match(run ?? '', /^[a-z0-9-]+$/);
+await mkdir(resolve('phase3-today-evidence'), { recursive: true });
+const directory = resolve('phase3-today-evidence', run);
+await mkdir(directory, { recursive: false });
+const client = resolve(process.env.PHASE3_CLIENT ?? 'node_modules/.cache/phase3-client');
+const origin = 'https://localhost:18443';
+const rows = [];
+const passwords = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
+let demo, tls, server, browser;
+try {
+  const bundle = join(directory, 'application.mjs');
+  await build({
+    entryPoints: ['scripts/demo/application.ts'],
+    outfile: bundle,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    packages: 'external',
+    logLevel: 'silent',
+  });
+  await writeFile(
+    bundle,
+    (await readFile(bundle, 'utf8')).replaceAll('https://localhost:8443', origin),
+  );
+  const app = await import(pathToFileURL(bundle).href);
+  const adapter = join(directory, 'https.mjs');
+  await writeFile(
+    adapter,
+    (await readFile('scripts/demo/https-server.mjs', 'utf8'))
+      .replaceAll('localhost:8443', 'localhost:18443')
+      .replace('server.listen(8443,', 'server.listen(18443,')
+      .replace("resolve('dist/client')", JSON.stringify(client)),
+  );
+  const https = await import(pathToFileURL(adapter).href);
+  demo = await app.openDemo(passwords);
+  tls = await https.demoCertificate();
+  server = await https.serveDemo(demo, tls);
+  browser = await chromium.launch({ channel: 'msedge', headless: false });
+  for (const [index, user] of app.DEMO_USERS.entries())
+    for (const width of [1440, 768, 360]) {
+      if (previewOnly) continue;
+      if (only && only !== `${user.id}:${width}`) continue;
+      const row = { actor: user.id, width, passed: false, checks: [], screenshots: [] };
+      rows.push(row);
+      const context = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width, height: 1000 },
+        hasTouch: width < 901,
+      });
+      const page = await context.newPage();
+      page.setDefaultTimeout(20000);
+      const runtimeErrors = [];
+      page.on('pageerror', () => runtimeErrors.push('runtime'));
+      page.on('console', (message) => {
+        if (
+          message.type() === 'error' &&
+          /content security policy|violates.*directive/i.test(message.text())
+        )
+          runtimeErrors.push('csp');
+      });
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      await authenticate(page, user, passwords[index]);
+      await page.goto(origin + '/today-work');
+      if (!baseline) {
+        await page.locator('.today-task-row').first().waitFor();
+        if (user.id === 'owner') {
+          await button('Atanmamış işler').click();
+          await page
+            .getByText('Bu kuyrukta gösterilecek takip bulunmuyor.', { exact: true })
+            .waitFor();
+          await button('Açık işler').click();
+          await page.locator('.today-task-row').first().waitFor();
+        } else assert.equal(await button('Atanmamış işler').count(), 0);
+        const tasks = page.locator('.today-task-row');
+        if ((await tasks.count()) > 1) {
+          await tasks.first().focus();
+          await page.keyboard.press('ArrowDown');
+          assert.equal(await tasks.nth(1).evaluate((el) => document.activeElement === el), true);
+          await page.keyboard.press('Enter');
+          assert.equal(await tasks.nth(1).getAttribute('aria-pressed'), 'true');
+          await button('Görev listesine dön').click();
+          assert.equal(
+            await page
+              .locator('.today-queue [tabindex="-1"]')
+              .evaluate((el) => document.activeElement === el),
+            true,
+          );
+        }
+        row.checks.push('role-queue-boundary-and-keyboard-task-selection');
+      }
+      await page.locator('.today-task-row').first().click();
+      await page.getByRole('button', { name: 'İletişim kaydı ekle', exact: true }).waitFor();
+      const measure = () =>
+        page.locator('.today-overview').evaluate((el) => ({
+          panelHeight: Math.round(el.getBoundingClientRect().height),
+          visibleButtons: [...el.querySelectorAll('button,a')].filter(
+            (n) => n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden',
+          ).length,
+          visibleSummaries: [...el.querySelectorAll('summary')].filter(
+            (n) => n.getClientRects().length > 0,
+          ).length,
+          visibleTextLength: (el.innerText ?? '').length,
+          documentWidth: document.documentElement.scrollWidth,
+          viewport: innerWidth,
+        }));
+      row.initial = await measure();
+      assert.ok(row.initial.documentWidth <= width);
+      const shot = async (name) => {
+        const file = join(directory, `${user.id}-${width}-${name}.png`);
+        await page.screenshot({ path: file, fullPage: true });
+        row.screenshots.push(file);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      };
+      await shot(baseline ? 'before' : 'after');
+      await button('Teklifler').click();
+      await button('Teklif geçmişini aç').click();
+      await page.locator('.quote-history').waitFor();
+      row.quoteOverview = await measure();
+      if (!baseline) {
+        const details = page.locator('.quote-record-history').first();
+        assert.equal(await details.getAttribute('open'), null);
+        const old = await details.elementHandle();
+        await details.locator(':scope > summary').click();
+        await details.locator(':scope > summary').click();
+        assert.equal(await details.evaluate((el, old) => el === old, old), true);
+      }
+
+      await shot(baseline ? 'before-quotes' : 'after-quotes');
+      const revision = page.getByRole('button', {
+        name: /Teklif 1 için yeni değişmez sürüm taslağı aç/,
+      });
+      const historyScroll = await page.evaluate(() => scrollY);
+      await revision.click();
+      await page.getByRole('form', { name: 'Yeni değişmez sürüm formu', exact: true }).waitFor();
+      const premium = page.getByLabel('Teklif brüt primi (ana birim)', { exact: true });
+      await premium.fill('14500.00');
+      row.revision = await measure();
+      row.revisionGeometry = await page.evaluate(() => {
+        const form = document.querySelector('.quote-form');
+        const context = document.querySelector('.today-summary');
+        const submit = form.querySelector('button[type="submit"]');
+        return {
+          formTop: Math.round(form.getBoundingClientRect().top + scrollY),
+          contextToSubmit: Math.round(
+            submit.getBoundingClientRect().bottom - context.getBoundingClientRect().top,
+          ),
+          documentHeight: document.documentElement.scrollHeight,
+          scrollY,
+        };
+      });
+      row.workflowInteractions = {
+        openQuoteGroup: 1,
+        authorizedRead: 1,
+        openRevision: 1,
+        editPremium: 1,
+        extraHistoryDisclosureForRevision: 0,
+        note: 'Semantic activations/field fills, not keystrokes or human wheel counts.',
+      };
+      await shot(baseline ? 'before-revision' : 'after-revision');
+      if (!baseline) {
+        const originalInput = await premium.elementHandle();
+        const disclosure = button('Teklifler');
+        assert.equal(await disclosure.getAttribute('aria-disabled'), 'true');
+        await disclosure.focus();
+        await page.keyboard.press('Enter');
+        assert.equal(await premium.inputValue(), '14500.00');
+        const routeBefore = page.url();
+        await button('Müşteri ve poliçe özetine dön').click();
+        assert.equal(page.url(), routeBefore);
+        assert.equal(
+          await page.locator('.today-summary').evaluate((el) => document.activeElement === el),
+          true,
+        );
+        assert.equal(await premium.inputValue(), '14500.00');
+
+        assert.equal(await premium.evaluate((el, old) => el === old, originalInput), true);
+      }
+      if (!baseline && process.argv.includes('--exercise-writes')) {
+        await page
+          .getByLabel('Mevcut sürümü değiştirmeden yeni sürüm oluşturmayı onaylıyorum', {
+            exact: true,
+          })
+          .check();
+        await button('Yeni değişmez sürümü oluştur').click();
+        await page.getByText('Teklif kaydedildi ve geçmiş güncellendi.', { exact: true }).waitFor();
+        await button('Yeni teklif taslağı aç').click();
+        await page.getByLabel('Teklif brüt primi (ana birim)', { exact: true }).fill('15500.00');
+        await page
+          .getByLabel('Yeni teklif kaydını oluşturmayı onaylıyorum', { exact: true })
+          .check();
+        await button('Teklifi oluştur').click();
+        await page.getByText('Teklif kaydedildi ve geçmiş güncellendi.', { exact: true }).waitFor();
+        assert.equal(await page.locator('.quote-current-summary').count(), 2);
+        row.checks.push('real-Worker-quote-revision-and-new-alternative-create');
+      } else await button('Teklif taslağını açıkça bırak').click();
+      await button('Teklifler').click();
+      await page.evaluate(() => scrollTo(0, 0));
+      void historyScroll;
+      if (!baseline) {
+        for (const title of ['Teklifler', 'Görev işlemleri', 'Yenileme sonucu'])
+          assert.equal(
+            await page
+              .getByRole('button', { name: title, exact: true })
+              .getAttribute('aria-expanded'),
+            'false',
+          );
+        assert.equal(
+          await page
+            .getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur', exact: true })
+            .isVisible(),
+          false,
+        );
+        row.checks.push('three-secondary-groups-initially-collapsed');
+        await openSection(page, 'İletişim');
+        await button('İletişim kaydı ekle').click();
+        await page
+          .getByRole('combobox', { name: 'Görüşme sonucu', exact: true })
+          .selectOption('NOTE');
+        await page
+          .getByLabel('İç not', { exact: true })
+          .fill('Bölüm geçişinde korunan sentetik taslak');
+        await cannotCollapse(page, 'İletişim');
+        if (width < 901) await button('Teklifler').tap();
+        else await button('Teklifler').click();
+        assert.equal(
+          await page.getByLabel('İç not', { exact: true }).inputValue(),
+          'Bölüm geçişinde korunan sentetik taslak',
+        );
+        await button('Teklifler').click();
+        if (width < 901) await button('Menüyü aç').tap();
+        await page.getByRole('link', { name: 'Müşteriler', exact: true }).click();
+        await button('Bu ekranda kal').waitFor();
+        assert.equal(await page.locator('#app-sidebar').getAttribute('data-mobile-open'), 'false');
+        await page.keyboard.press('Escape');
+        assert.equal(
+          await page.getByLabel('İç not', { exact: true }).inputValue(),
+          'Bölüm geçişinde korunan sentetik taslak',
+        );
+        row.checks.push('draft-pinned-and-sidebar-escape-keeps-content');
+        await shot('draft-pinned');
+        await button('Formu kapat ve taslağı bırak').click();
+        if (process.argv.includes('--exercise-writes')) {
+          await openSection(page, 'İletişim');
+          await button('İletişim kaydı ekle').click();
+          await page
+            .getByRole('combobox', { name: 'Görüşme sonucu', exact: true })
+            .selectOption('NOTE');
+          const message = `Sentetik Faz3 ${user.id} ${width}`;
+          await page.getByLabel('İç not', { exact: true }).fill(message);
+          await button('İletişim kaydını kaydet').click();
+          await page.getByText(message, { exact: true }).waitFor();
+          row.checks.push('real-Worker-internal-note-not-a-contact-confirmation');
+        }
+        await openSection(page, 'İletişim');
+        await button('İletişim').click();
+        assert.equal(await button('İletişim').getAttribute('aria-expanded'), 'false');
+        await button('Teklifler').focus();
+        await page.keyboard.press('Enter');
+        assert.equal(await button('Teklifler').getAttribute('aria-expanded'), 'true');
+        let quoteReads = 0;
+        const readObserver = (req) => {
+          if (
+            req.method() === 'GET' &&
+            /\/api\/renewals\/[^/]+\/quotes$/.test(new URL(req.url()).pathname)
+          )
+            quoteReads++;
+        };
+        page.on('request', readObserver);
+        await button('Teklif geçmişini ve katalogları yeniden oku').click();
+        await page.locator('.quote-history').waitFor();
+        const history = await page.locator('.quote-history').elementHandle();
+        const reads = quoteReads;
+        await button('Teklifler').click();
+        assert.equal(await page.locator('.quote-history').isVisible(), false);
+        await button('Teklifler').click();
+        assert.equal(
+          await page.locator('.quote-history').evaluate((el, old) => el === old, history),
+          true,
+        );
+        assert.equal(quoteReads, reads);
+        page.off('request', readObserver);
+        row.checks.push('keyboard-disclosure-history-mounted-no-refetch');
+        await button('Teklifler').click();
+        await button('Yenileme sonucu').click();
+        await button('Kazanıldı — yeni poliçe oluştur').click();
+        await page.getByLabel('Yeni poliçe numarası', { exact: true }).fill('SADECE-INCELEME');
+        await cannotCollapse(page, 'Yenileme sonucu');
+        assert.equal(
+          await page.getByLabel('Yeni poliçe numarası', { exact: true }).inputValue(),
+          'SADECE-INCELEME',
+        );
+        await button('Görev işlemleri').click();
+        assert.equal(await button('Yeni takip planını aç').isDisabled(), true);
+        await shot('create-draft-pinned');
+        await button('Yeni poliçeyle kazanma taslağını açıkça kapat').click();
+        await button('Görev işlemleri').click();
+        row.checks.push('create-policy-draft-visible-and-cross-operation-guard');
+        if (width !== 1440) {
+          const task = await page.evaluate(async () => {
+            const r = await fetch('/api/tasks/today?limit=20');
+            return (await r.json()).data.items[0];
+          });
+          await openSection(page, 'Yenileme sonucu');
+          await button('Yenilenmedi olarak sonuçlandır').click();
+          await page
+            .getByRole('combobox', { name: 'Kayıp nedeni', exact: true })
+            .selectOption('demo-loss-price');
+          await page
+            .getByLabel('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum', { exact: true })
+            .check();
+          const path = `/api/renewals/${task.renewalId}/close-lost`;
+          const attempts = [];
+          let first = true,
+            blockRead = width === 360;
+          await page.route('**' + path, async (route) => {
+            const req = route.request();
+            attempts.push({ body: req.postData(), key: req.headers()['idempotency-key'] });
+            const response = await route.fetch();
+            if (width === 768 && first) {
+              first = false;
+              return route.abort('failed');
+            }
+            return route.fulfill({ response });
+          });
+          const readPattern = `**/api/customers/${task.customerId}/renewals*`;
+          if (width === 360)
+            await page.route(readPattern, (route) =>
+              blockRead
+                ? route.fulfill({
+                    status: 503,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ success: false }),
+                  })
+                : route.continue(),
+            );
+          await button('Yenilenmedi olarak kaydet').click();
+          if (width === 768) await button('Aynı LOST isteğini yeniden dene').waitFor();
+          else await button('Yalnız yenileme okumasını yeniden dene').waitFor();
+          await cannotCollapse(page, 'Yenileme sonucu');
+          await shot('pending-proof-pinned');
+          await page.getByRole('link', { name: 'Poliçeyi aç', exact: true }).click();
+          assert.equal(new URL(page.url()).pathname, '/today-work');
+          assert.equal(await button('Ayrılmayı onayla').count(), 0);
+          if (width === 768) await button('Aynı LOST isteğini yeniden dene').click();
+          else {
+            blockRead = false;
+            await button('Yalnız yenileme okumasını yeniden dene').click();
+          }
+          await page.getByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/).waitFor();
+          assert.equal(attempts.length, width === 768 ? 2 : 1);
+          assert.ok(attempts[0].key);
+          assert.equal(JSON.parse(attempts[0].body).expectedPrimaryTaskId, task.taskId);
+          if (width === 768) {
+            assert.equal(attempts[0].body, attempts[1].body);
+            assert.equal(attempts[0].key, attempts[1].key);
+          }
+          assert.equal(
+            (await demo.db.prepare('SELECT status FROM tasks WHERE id=?').bind(task.taskId).first())
+              .status,
+            'COMPLETED',
+          );
+          await page.unroute('**' + path);
+          if (width === 360) await page.unroute(readPattern);
+          row.checks.push(
+            width === 768
+              ? 'uncertain-exact-retry-cannot-be-hidden'
+              : 'accepted-write-get-only-cannot-be-hidden',
+          );
+        }
+        if (width === 1440) {
+          await button('Menüyü daralt').click();
+          assert.equal(await page.locator('.app-shell').getAttribute('data-collapsed'), 'true');
+          await button('Menüyü genişlet').click();
+        }
+        row.checks.push('all-actions-preserved-no-horizontal-overflow');
+      }
+      if (!baseline && process.argv.includes('--navigation-and-completion')) {
+        const taskId = new URL(page.url()).searchParams.get('task');
+        assert.ok(taskId);
+        await page.getByRole('link', { name: 'Müşteri profilini aç', exact: true }).click();
+        await page.getByRole('region', { name: 'Sigorta özeti', exact: true }).waitFor();
+        await page.getByText(/yürürlükte poliçe/).waitFor();
+        await page.getByRole('link', { name: 'Seçili takibe dön', exact: true }).click();
+        assert.equal(new URL(page.url()).searchParams.get('task'), taskId);
+        await page.getByRole('link', { name: 'Poliçeyi aç', exact: true }).click();
+        await page.getByRole('link', { name: 'Seçili takibe dön', exact: true }).click();
+        assert.equal(new URL(page.url()).searchParams.get('task'), taskId);
+        row.checks.push('Phase2-live-coverage-and-exact-Task-customer-policy-return');
+        await openSection(page, 'Görev işlemleri');
+        await button('Yeni takip planını aç').click();
+        await page
+          .getByLabel('Yeni takip zamanı (İstanbul)', { exact: true })
+          .fill('2098-10-21T11:30');
+        await page
+          .getByLabel('Mevcut takibi tamamlayıp yenisini planlamayı onaylıyorum', { exact: true })
+          .check();
+        let posts = 0,
+          committed = false,
+          failedRead = false;
+        await page.route('**/api/renewals/*/tasks/*/complete', async (route) => {
+          posts++;
+          const r = await route.fetch();
+          assert.ok(r.ok());
+          committed = true;
+          await route.fulfill({ response: r });
+        });
+        await page.route('**/api/tasks/*/context*', async (route) => {
+          if (committed && !failedRead) {
+            failedRead = true;
+            await route.fulfill({
+              status: 503,
+              contentType: 'application/json',
+              body: '{"success":false}',
+            });
+          } else await route.continue();
+        });
+        await button('Takibi tamamla ve planla').click();
+        await button('Yalnız tamamlama kuyruğunu yeniden oku').click();
+        await page
+          .getByText(
+            'Takip tamamlandı ve yeni takip oluşturuldu. İş listeniz güncellendi. Yenileme henüz sonuçlandırılmadı.',
+            { exact: true },
+          )
+          .waitFor();
+        assert.equal(posts, 1);
+        assert.equal(await page.locator('.today-task-row[aria-pressed="true"]').count(), 0);
+        const old = await demo.db
+          .prepare('SELECT status,renewal_id FROM tasks WHERE id=?')
+          .bind(taskId)
+          .first();
+        assert.equal(old.status, 'COMPLETED');
+        const replacements = await demo.db
+          .prepare(
+            "SELECT id FROM tasks WHERE renewal_id=? AND status='OPEN' AND kind='RENEWAL_FOLLOWUP'",
+          )
+          .bind(old.renewal_id)
+          .all();
+        assert.equal(replacements.results.length, 1);
+        assert.notEqual(replacements.results[0].id, taskId);
+        row.checks.push('real-task-completion-replacement-B-not-auto-selected-accepted-GET-only');
+      }
+      assert.equal(runtimeErrors.length, 0);
+      row.runtimeErrors = 0;
+      row.passed = true;
+      await writeFile(
+        join(directory, 'progress.json'),
+        JSON.stringify({ baseline, rows }, null, 2),
+      );
+      console.info('AIRY_CELL', user.id, width);
+      await context.close();
+    }
+  assert.equal(rows.length, previewOnly ? 0 : only ? 1 : 9);
+  assert.ok(rows.every((r) => r.passed));
+  await writeFile(
+    join(directory, 'result.json'),
+    JSON.stringify(
+      { baseline, previewOnly, browser: browser.version(), visible: true, rows },
+      null,
+      2,
+    ),
+  );
+  console.info('AIRY_RESULT', directory);
+  if (keepOpen && !baseline) {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: null });
+    const page = await context.newPage();
+    await authenticate(page, app.DEMO_USERS[0], passwords[0]);
+    passwords.fill('');
+    await page.goto(origin + '/today-work');
+    await page.locator('.today-task-row').first().click();
+    await page.bringToFront();
+    await buttonPreview(page, 'Teklifler');
+    await page.getByRole('button', { name: 'Teklifler', exact: true }).click();
+    await page.getByRole('button', { name: 'Teklif geçmişini aç', exact: true }).click();
+    await page.getByRole('region', { name: 'Teklif 1 güncel özet', exact: true }).waitFor();
+    // Keep quotes as the dominant clean operation in the visual preview.
+    await page.locator('.today-summary').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(directory, 'owner-visible-candidate.png'), fullPage: true });
+    const browserCdp = await browser.newBrowserCDPSession();
+    const procs = await browserCdp.send('SystemInfo.getProcessInfo');
+    const pid = procs.processInfo.find((p) => p.type === 'browser').id;
+    const ps = `Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);' -Name AiryWindow -Namespace Native; $p=Get-Process -Id ${pid}; if($p.MainWindowHandle -eq 0 -or -not [Native.AiryWindow]::IsWindowVisible($p.MainWindowHandle)){exit 2}; Write-Output 'VISIBLE_WINDOW_VERIFIED'`;
+    assert.match(
+      execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')],
+        { encoding: 'utf8', windowsHide: true },
+      ),
+      /VISIBLE_WINDOW_VERIFIED/,
+    );
+    const ui = await page.evaluate(() => ({
+      sidebar: getComputedStyle(document.querySelector('#app-sidebar')).backgroundColor,
+      font: getComputedStyle(document.body).fontFamily,
+      groups: document.querySelectorAll('.workspace-section').length,
+      quoteSummaries: document.querySelectorAll('.quote-current-summary').length,
+    }));
+    assert.equal(ui.sidebar, 'rgb(20, 44, 67)');
+    assert.equal(ui.groups, 4);
+    assert.ok(ui.quoteSummaries > 0);
+    const css = await page.evaluate(async () => {
+      const url = document.querySelector('link[rel="stylesheet"]').href;
+      return { path: new URL(url).pathname, text: await (await fetch(url)).text() };
+    });
+    assert.ok(css.path.startsWith('/assets/'));
+    assert.equal(
+      createHash('sha256').update(css.text).digest('hex'),
+      createHash('sha256')
+        .update(await readFile(resolve(client, css.path.slice(1))))
+        .digest('hex'),
+    );
+    ui.servedCssMatchesBuild = true;
+    await writeFile(
+      join(directory, 'preview.json'),
+      JSON.stringify(
+        { url: page.url(), owner: true, visible: true, pid: process.pid, browserPid: pid, ui },
+        null,
+        2,
+      ),
+    );
+    console.info('AIRY_PREVIEW_READY', directory);
+    await new Promise((resolve) => {
+      browser.once('disconnected', resolve);
+      page.once('close', resolve);
+      process.once('SIGINT', resolve);
+      process.once('SIGTERM', resolve);
+    });
+  }
+} catch (error) {
+  await writeFile(
+    join(directory, 'failed.json'),
+    JSON.stringify(
+      {
+        baseline,
+        rows,
+        error: error.name,
+        message: error.message.split('\n')[0],
+        trace: error.stack
+          ?.split('\n')
+          .filter((line) => /^\s+at /.test(line))
+          .slice(0, 4),
+      },
+      null,
+      2,
+    ),
+  );
+  console.error('AIRY_FAILED', directory, error.name);
+  process.exitCode = 1;
+} finally {
+  passwords.fill('');
+  await browser?.close();
+  await server?.close();
+  await demo?.dispose();
+  await tls?.dispose();
+  await rm(join(directory, 'application.mjs'), { force: true });
+}
+async function cannotCollapse(page, title) {
+  const control = page.getByRole('button', { name: title, exact: true });
+  assert.equal(await control.getAttribute('aria-disabled'), 'true');
+  await control.focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await control.getAttribute('aria-expanded'), 'true');
+}
+async function buttonPreview(page, title) {
+  await page.getByRole('button', { name: title, exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole('button', { name: title, exact: true }).getAttribute('aria-expanded'),
+    'false',
+  );
+}
+async function authenticate(page, user, password) {
+  await page.goto(origin + '/');
+  await page.getByLabel('E-posta', { exact: true }).fill(user.email);
+  await page.getByLabel('Şifre', { exact: true }).fill(password);
+  const response = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/auth/login',
+  );
+  await page.getByRole('button', { name: 'Giriş Yap', exact: true }).click();
+  assert.equal((await response).status(), 200);
+  await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
+  const auth = await page.evaluate(async () => {
+    const r = await fetch('/api/auth/session', { cache: 'no-store' });
+    const j = await r.json();
+    return {
+      status: r.status,
+      email: j.data?.email,
+      state: j.data?.state,
+      isOwner: j.data?.isOwner,
+    };
+  });
+  assert.equal(auth.status, 200);
+  assert.equal(auth.email, user.email);
+  assert.equal(auth.state, 'NORMAL');
+  assert.equal(auth.isOwner, user.id === 'owner');
+}
+
+async function openSection(page, title) {
+  const toggle = page.getByRole('button', { name: title, exact: true });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+}

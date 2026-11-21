@@ -61,6 +61,7 @@ async function setup(validityMs = 120000) {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Kabul Süresi',
+        insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-CUSTOMER-${number}` },
       }),
       201,
     )
@@ -154,13 +155,17 @@ it.each(['self', 'stale-policy', 'wrong-customer', 'incomplete', 'overflow'])(
   async (kind) => {
     const s = await setup(),
       b = body(s) as {
+        quoteDifferenceReasonCode?: 'CUSTOMER_CONFIRMED';
         result: {
           newPolicyId: string;
           expectedPolicyVersion: number;
           allocatedNewPremiumMinor: number;
         };
       };
-    if (kind === 'self') b.result.newPolicyId = s.task.policyId!;
+    if (kind === 'self') {
+      b.result.newPolicyId = s.task.policyId!;
+      b.quoteDifferenceReasonCode = 'CUSTOMER_CONFIRMED';
+    }
     if (kind === 'stale-policy') b.result.expectedPolicyVersion = 999;
     if (kind === 'incomplete') b.result.allocatedNewPremiumMinor = 1;
     if (kind === 'overflow') b.result.allocatedNewPremiumMinor = 1001;
@@ -170,6 +175,7 @@ it.each(['self', 'stale-policy', 'wrong-customer', 'incomplete', 'overflow'])(
           type: 'INDIVIDUAL',
           firstName: 'Diğer',
           lastName: 'Sentetik',
+          insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-OTHER-${serial}` },
         }),
         201,
       );

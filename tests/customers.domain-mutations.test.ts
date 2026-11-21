@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import miniflare from 'miniflare';
 import { executeCustomerDomainCommand } from '../src/server/mutations/internal/customer-domain-executor';
@@ -8,6 +8,8 @@ import { IdempotencyConflictError } from '../src/server/mutations/idempotency';
 import { OptimisticConcurrencyError } from '../src/server/db/optimistic';
 import { executeProtectedPermissionMutation } from '../src/server/mutations/internal/protected-permission-executor';
 import type { AuthenticatedUserContext } from '../src/server/auth/identity';
+import { encryptIdentity, parseIdentityCryptoConfig } from '../src/server/security/identity-crypto';
+import { seedRegistrationInsurer } from './support/customer-registration-fixture';
 
 const { Miniflare, convertV4MiniflareOptions } = miniflare;
 const rootDir = resolve(__dirname, '..');
@@ -17,6 +19,40 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
   let db: D1Database;
 
   const AGENCY_ID = 'ag-test-domain';
+  const registrationInsurerId = 'customer-domain-registration';
+  const identityConfig = parseIdentityCryptoConfig({
+    IDENTITY_ENCRYPTION_KEY: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(
+      'hex',
+    ),
+    IDENTITY_HMAC_KEY: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex'),
+    IDENTITY_KEY_VERSION: '1',
+  });
+  const companyIdentities = new Map<string, ReturnType<typeof encryptIdentity>>();
+
+  function companyIdentity(customerId: string) {
+    const existing = companyIdentities.get(customerId);
+    if (existing) return existing;
+    const syntheticTaxNumber = String(9200000000 + companyIdentities.size);
+    const encrypted = encryptIdentity(syntheticTaxNumber, identityConfig);
+    companyIdentities.set(customerId, encrypted);
+    return encrypted;
+  }
+
+  function insurerNumber(customerId: string) {
+    return { insurerId: registrationInsurerId, customerNumber: '00-' + customerId };
+  }
+
+  async function grantCompanyIdentity(membershipId: string) {
+    await db.batch(
+      ['sensitive.identity.read', 'sensitive.identity.write'].map((permission) =>
+        db
+          .prepare(
+            "INSERT INTO membership_permissions (id, membership_id, permission_code, scope) VALUES (?,?,?,'UNSCOPED')",
+          )
+          .bind(crypto.randomUUID(), membershipId, permission),
+      ),
+    );
+  }
   const OWNER_USER_ID = 'usr-owner-dom';
   const OWNER_MEM_ID = 'mem-owner-dom';
 
@@ -38,21 +74,11 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
     );
     db = await mf.getD1Database('DB');
 
-    // Customer lifecycle guards require the archived-parent schema from 0008.
-    const migrationFiles = [
-      'db/migrations/0000_good_hammerhead.sql',
-      'db/migrations/0001_chunky_blazing_skull.sql',
-      'db/migrations/0002_productive_arclight.sql',
-      'db/migrations/0003_lonely_zzzax.sql',
-      'db/migrations/0004_thankful_pixie.sql',
-      'db/migrations/0005_graceful_northstar.sql',
-      'db/migrations/0006_parched_proteus.sql',
-      'db/migrations/0007_robust_scalphunter.sql',
-      'db/migrations/0008_fearless_giant_girl.sql',
-    ];
-
-    for (const file of migrationFiles) {
-      const sql = readFileSync(resolve(rootDir, file), 'utf8');
+    const migrations = resolve(rootDir, 'db/migrations');
+    for (const file of readdirSync(migrations)
+      .filter((name) => /^\d{4}_.*\.sql$/.test(name))
+      .sort()) {
+      const sql = readFileSync(resolve(migrations, file), 'utf8');
       const stmts = sql
         .split('--> statement-breakpoint')
         .map((s) => s.trim())
@@ -67,6 +93,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
       .prepare("INSERT INTO agencies (id, status, version) VALUES (?, 'PROVISIONING', 1)")
       .bind(AGENCY_ID)
       .run();
+    await seedRegistrationInsurer(db, AGENCY_ID, registrationInsurerId);
     await db
       .prepare("INSERT INTO users (id, status, version) VALUES (?, 'INACTIVE', 1)")
       .bind(OWNER_USER_ID)
@@ -196,6 +223,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
       )
       .bind(OTHER_MEMBER_MEM_ID, OTHER_MEMBER_MEM_ID)
       .run();
+    await grantCompanyIdentity(OWNER_MEM_ID);
   });
 
   afterAll(async () => {
@@ -225,8 +253,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
       archivedAt: null,
       archivedByMembershipId: null,
       archiveReasonCode: null,
-      hasIdentity: false,
-      identityMasked: null,
+      hasIdentity: true,
+      identityMasked: '***',
       version: 1,
       createdAt,
       updatedAt: createdAt,
@@ -246,6 +274,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: custId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(custId),
+        identity: await companyIdentity(custId),
         displayName: 'Concurrent Co',
         companyTitle: 'Concurrent Co',
       },
@@ -266,6 +296,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: custId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(custId),
+        identity: await companyIdentity(custId),
         displayName: 'Concurrent Co',
         companyTitle: 'Concurrent Co',
       },
@@ -311,6 +343,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: 'cust-action-first',
         type: 'INDIVIDUAL',
+        insurerNumber: insurerNumber('cust-action-first'),
         displayName: 'Action First',
         firstName: 'Action',
         lastName: 'First',
@@ -358,7 +391,10 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: companyId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(companyId),
+        identity: await companyIdentity(companyId),
         displayName: 'Target Co',
+        companyTitle: 'Target Co',
       },
       resultProducer: () => ({ status: 201, body: { id: companyId } }),
     });
@@ -399,7 +435,10 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: otherCompanyId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(otherCompanyId),
+        identity: await companyIdentity(otherCompanyId),
         displayName: 'Other Co',
+        companyTitle: 'Other Co',
       },
       resultProducer: () => ({ status: 201, body: { id: otherCompanyId } }),
     });
@@ -466,7 +505,10 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
           kind: 'customer.create',
           customerId,
           type: 'INDIVIDUAL',
+          insurerNumber: insurerNumber(customerId),
           displayName: 'Same body',
+          firstName: 'Same',
+          lastName: 'Body',
         },
         resultProducer: () => ({ status: 201, body: { id: customerId } }),
       });
@@ -516,6 +558,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: custId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(custId),
+        identity: await companyIdentity(custId),
         displayName: 'CAS Co',
         companyTitle: 'CAS Co',
       },
@@ -582,6 +626,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: otherCustId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(otherCustId),
+        identity: await companyIdentity(otherCustId),
         displayName: 'Other Member Cust',
         companyTitle: 'Other Member Cust',
       },
@@ -670,6 +716,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
             kind: 'customer.create',
             customerId: custId,
             type: 'INDIVIDUAL',
+            insurerNumber: insurerNumber(custId),
             displayName: 'Mehmet AuditFail',
             firstName: 'Mehmet',
             lastName: 'AuditFail',
@@ -726,6 +773,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: custId,
         type: 'INDIVIDUAL',
+        insurerNumber: insurerNumber(custId),
         displayName: 'Mehmet AuditFail',
         firstName: 'Mehmet',
         lastName: 'AuditFail',
@@ -776,6 +824,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: compId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(compId),
+        identity: await companyIdentity(compId),
         displayName: 'Concurrent Primary Race Co',
         companyTitle: 'Concurrent Primary Race Co',
       },
@@ -938,6 +988,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: compId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(compId),
+        identity: await companyIdentity(compId),
         displayName: 'Same Contact Race Co',
         companyTitle: 'Same Contact Race Co',
       },
@@ -1127,6 +1179,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: targetCustId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(targetCustId),
+        identity: await companyIdentity(targetCustId),
         displayName: 'Target Corp',
         companyTitle: 'Target Corp',
       },
@@ -1221,7 +1275,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
       .bind(noReadMemId)
       .run();
 
-    // Only customer.create granted, customer.read dependency is MISSING
+    // Grant company identity and create authority while leaving customer.read absent.
     await db
       .prepare(
         `
@@ -1231,6 +1285,7 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
       )
       .bind(noReadMemId)
       .run();
+    await grantCompanyIdentity(noReadMemId);
 
     const targetCustId = 'cust-noread-test';
     const createKey = 'ik-noread-attempt';
@@ -1249,6 +1304,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
           kind: 'customer.create',
           customerId: targetCustId,
           type: 'COMPANY',
+          insurerNumber: insurerNumber(targetCustId),
+          identity: await companyIdentity(targetCustId),
           displayName: 'No Read Corp',
           companyTitle: 'No Read Corp',
         },
@@ -1292,6 +1349,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: raceCustId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(raceCustId),
+        identity: await companyIdentity(raceCustId),
         displayName: 'Race Assignee Co',
         companyTitle: 'Race Assignee Co',
       },
@@ -1370,6 +1429,8 @@ describe('M2-T01 Domain Mutations & Invariants Focused Real D1 Tests', () => {
         kind: 'customer.create',
         customerId: custId,
         type: 'COMPANY',
+        insurerNumber: insurerNumber(custId),
+        identity: await companyIdentity(custId),
         displayName: 'Perm Ver Co',
         companyTitle: 'Perm Ver Co',
       },

@@ -24,8 +24,11 @@ it('starts with a compact workspace and never collapses a real communication dra
                       renewalId: 'r',
                       customerId: 'c',
                       customerDisplayName: 'Deneme',
+                      customerEmail: null,
+                      customerPhone: null,
                       policyId: 'p',
                       policyNumber: 'P-1',
+                      policyEndDate: '2026-10-25',
                       title: 'Takip',
                       dueAt: '2026-10-20T09:00:00.000Z',
                       taskVersion: 1,
@@ -39,6 +42,11 @@ it('starts with a compact workspace and never collapses a real communication dra
                   ],
                   unassignedItems: [],
                   hasMore: false,
+                  nextCursor: null,
+                  unassignedHasMore: false,
+                  unassignedNextCursor: null,
+                  canSeeUnassigned: false,
+                  canAssign: false,
                   timezone: 'Europe/Istanbul',
                   todayLocalDate: '2026-10-20',
                   now: '2026-10-20T09:00:00.000Z',
@@ -64,14 +72,27 @@ it('starts with a compact workspace and never collapses a real communication dra
   expect(screen.queryByRole('button', { name: 'Teklif geçmişini aç' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Yeni takip planını aç' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Teklifler' }));
+  expect(screen.getByRole('button', { name: 'İletişim' }).getAttribute('aria-pressed')).toBe(
+    'false',
+  );
+  expect(screen.getByRole('button', { name: 'Teklifler' }).getAttribute('aria-pressed')).toBe(
+    'true',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'İletişim' }));
+  expect(screen.getByRole('button', { name: 'Teklifler' }).getAttribute('aria-pressed')).toBe(
+    'false',
+  );
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Kaybolmayan taslak' } });
   const disclosure = screen.getByRole('button', { name: 'İletişim' });
   fireEvent.click(disclosure);
-  expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+  expect(disclosure.getAttribute('aria-pressed')).toBe('true');
   expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe('Kaybolmayan taslak');
   fireEvent.click(screen.getByRole('button', { name: 'Görev işlemleri' }));
+  expect(screen.getByText('İşlem korunuyor')).toBeTruthy();
+  expect(screen.queryByRole('textbox', { name: 'İç not' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
   fireEvent.change(screen.getByLabelText('Yeni takip zamanı (İstanbul)'), {
     target: { value: '2099-01-01T11:15' },

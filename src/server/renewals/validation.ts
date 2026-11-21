@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { renewalLossCycleSchema } from '../../shared/renewal-loss-cycle';
 
 const version = z.number().int().min(1).max(1_000_000_000);
 const membershipOrEntityId = z.string().trim().min(1).max(128);
@@ -17,6 +18,7 @@ export const closeRenewalLostSchema = z
     expectedTaskVersion: version,
     lossReasonId: membershipOrEntityId,
     lossReasonNotes: note,
+    salesCycle: renewalLossCycleSchema.optional(),
   })
   .strict();
 
@@ -36,6 +38,17 @@ const renewalWonPolicyResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('EXISTING_LINKS') }).strict(),
 ]);
 
+export const acceptedPriceSourceSchema = z.strictObject({
+  kind: z.literal('PRICE_REVISION'),
+  caseId: membershipOrEntityId,
+  expectedCaseVersion: version,
+  revisionId: membershipOrEntityId,
+  acceptanceEventId: membershipOrEntityId,
+});
+export const acceptedPriceEvidenceSchema = acceptedPriceSourceSchema.extend({
+  policyId: membershipOrEntityId,
+});
+
 export const closeRenewalWonSchema = z
   .object({
     expectedPrimaryTaskId: primaryTaskId,
@@ -43,6 +56,7 @@ export const closeRenewalWonSchema = z
     expectedTaskVersion: version,
     result: renewalWonPolicyResultSchema,
     acceptedQuoteVersionId: membershipOrEntityId.optional(),
+    acceptedPriceSource: acceptedPriceSourceSchema.optional(),
     quoteDifferenceReasonCode: quoteDifferenceReasonCode.optional(),
   })
   .strict();
@@ -80,6 +94,14 @@ export const reopenRenewalSchema = z
     expectedTaskVersion: version,
     replacementDueAt: z.string().datetime({ offset: true }),
     reopenReasonCode: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+    salesCycle: z
+      .strictObject({
+        caseId: membershipOrEntityId,
+        expectedCaseVersion: version,
+        resultRevisionId: membershipOrEntityId,
+        successorCaseId: membershipOrEntityId.nullable(),
+      })
+      .optional(),
   })
   .strict();
 

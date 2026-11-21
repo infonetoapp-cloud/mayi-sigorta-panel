@@ -64,6 +64,7 @@ async function setup(validityMs = 120000) {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Kabul Süresi',
+        insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-CUSTOMER-${number}` },
       }),
       201,
     )

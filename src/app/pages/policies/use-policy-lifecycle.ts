@@ -8,6 +8,7 @@ import type {
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { readCustomerResource } from '../customers/customer-resource';
+import { readPolicyDetail } from './policy-read-schemas';
 interface Attempt {
   url: string;
   method: 'POST';
@@ -68,15 +69,13 @@ export function usePolicyLifecycle(
     setBusy(true);
     try {
       const [fresh, options] = await Promise.all([
-        get<PolicyDetailDto>(base),
+        scoped((signal) => readPolicyDetail(policy.id, signal)),
         kind === 'assign'
           ? get<CustomerAssignmentOptionDto[]>(base + '/assignment-options')
           : Promise.resolve(undefined),
       ]);
       if (view !== epoch.current) return;
       if (
-        fresh.id !== policy.id ||
-        !Number.isSafeInteger(fresh.version) ||
         (completed.current && fresh.version < completed.current.version) ||
         (completed.current && kind === 'archive' && !fresh.archivedAt)
       )

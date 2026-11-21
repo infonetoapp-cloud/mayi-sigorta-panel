@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useLocation } from 'react-router';
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { matchPath, useLocation, useNavigationType } from 'react-router';
 import type { AuthSessionDto } from '../../AuthShell';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { AccountMenu, MobileAccountActions } from './AccountMenu';
 import { PageContainer } from './PageContainer';
 import { navigation } from './navigation';
 export function AppShell({
@@ -24,6 +25,13 @@ export function AppShell({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const location = useLocation();
+  const navigationType = useNavigationType();
+  const focusPage = useEffectEvent(() => {
+    mainRef.current?.focus({ preventScroll: true });
+    if (navigationType !== 'POP') {
+      document.scrollingElement?.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  });
   useEffect(() => {
     // A capture-phase page guard intentionally prevents the sidebar link's
     // onClick. Close the drawer explicitly without navigating or moving focus
@@ -33,8 +41,22 @@ export function AppShell({
     return () => document.removeEventListener('mayi-navigation-attention', attention);
   }, []);
   useEffect(() => {
-    document.title = `${navigation.find((item) => item.path === location.pathname)?.label ?? (location.pathname.startsWith('/customers/') ? 'Müşteri çalışma alanı' : location.pathname === '/account/password' ? 'Şifremi değiştir' : 'Sayfa bulunamadı')} · Mayı Sigorta`;
-    mainRef.current?.focus();
+    const { pathname } = location;
+    const detailTitles = [
+      ['/customers/*', 'Müşteri çalışma alanı'],
+      ['/policies/:id/*', 'Poliçe çalışma alanı'],
+      ['/renewals/:id', 'Yenileme detayı'],
+      ['/today-work/*', 'Bugünkü İşler'],
+      ['/tasks/:taskId', 'Görev detayı'],
+      ['/sales-cases/:caseId', 'Teklif çalışması'],
+      ['/account/password', 'Şifremi değiştir'],
+    ] as const;
+    const title =
+      navigation.find((item) => item.path === pathname)?.label ??
+      detailTitles.find(([pattern]) => matchPath(pattern, pathname))?.[1] ??
+      'Sayfa bulunamadı';
+    document.title = `${title} · Mayı Sigorta`;
+    focusPage();
   }, [location.pathname]);
   useEffect(() => {
     if (!mobileOpen) return;
@@ -74,22 +96,27 @@ export function AppShell({
         sidebarRef={sidebarRef}
         onCollapse={() => setCollapsed((value) => !value)}
         onClose={() => setMobileOpen(false)}
+        mobileAccountActions={
+          <MobileAccountActions
+            busy={busy}
+            onReauth={onReauth}
+            onLogout={onLogout}
+            onClose={() => setMobileOpen(false)}
+          />
+        }
       />
       <div className="app-body">
         <Header
-          session={session}
-          busy={busy}
           mobileOpen={mobileOpen}
           toggleRef={toggleRef}
           onToggle={() => setMobileOpen((value) => !value)}
-          onReauth={onReauth}
-          onLogout={onLogout}
         />
         <main id="main-content" ref={mainRef} tabIndex={-1} className="app-main">
           <PageContainer>{children}</PageContainer>
         </main>
         <footer className="app-footer">Mayı Sigorta · Birlikte, güvenle.</footer>
       </div>
+      <AccountMenu session={session} busy={busy} onReauth={onReauth} onLogout={onLogout} />
     </div>
   );
 }

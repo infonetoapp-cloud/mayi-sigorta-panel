@@ -1,6 +1,19 @@
+import { verifyRenewalWonPriceRecovery } from './renewal-won-price-proof';
+import { verifySalesIssuePolicyRecovery } from './sales-issue-policy-proof';
+import { verifySalesVoidRecovery } from './sales-void-proof';
+import { verifySalesPriceEventRecovery } from './sales-price-event-proof';
+import { verifySalesLossRecovery } from './sales-loss-proof';
+import { verifyClaimRecovery } from './claim-data-proof';
+import { verifyPolicyLifecycleRecovery } from './policy-lifecycle-proof';
+import { verifySalesRecovery } from './sales-data-proof';
+import { verifyGeneralTaskRecovery } from './general-task-proof';
+import { verifySalesPriceRecovery } from './sales-price-proof';
+import { verifyFinanceRecovery } from './finance-data-proof';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { canonicalizePayload } from '../../src/server/mutations/canonical';
+import { validBirthDate, referenceSearchKey } from '../../src/shared/customer-profile';
+import { vehicleFieldsSchema, normalizePlate } from '../../src/shared/vehicles';
 
 // Offline, read-only retrospective checks. Imported triggers protect future writes,
 // not historical rows loaded before those triggers. This grants no publication.
@@ -54,6 +67,71 @@ const note = z.strictObject({
 
 export async function verifyOperationalRecovery(query: Query): Promise<void> {
   try {
+    await verifyFinanceRecovery(query);
+    await verifyClaimRecovery(query);
+    await verifyPolicyLifecycleRecovery(query);
+    await verifySalesRecovery(query);
+    await verifySalesPriceRecovery(query);
+    await verifySalesPriceEventRecovery(query);
+    await verifySalesLossRecovery(query);
+    await verifySalesIssuePolicyRecovery(query);
+    await verifySalesVoidRecovery(query);
+    await verifyRenewalWonPriceRecovery(query);
+    await verifyGeneralTaskRecovery(query);
+    for (const row of await query('SELECT * FROM customer_vehicles')) {
+      if (typeof row.details_json !== 'string') reject();
+      const details = vehicleFieldsSchema.parse(JSON.parse(row.details_json as string));
+      if (
+        row.normalized_plate !== normalizePlate(details.plate) ||
+        !['ACTIVE', 'INACTIVE'].includes(String(row.status)) ||
+        !Number.isSafeInteger(row.version) ||
+        Number(row.version) < 1
+      )
+        reject();
+    }
+    for (const row of await query(`SELECT s.*,p.customer_id AS policy_customer,v.version AS live_vehicle_version
+      FROM policy_vehicle_snapshots s LEFT JOIN policies p ON p.agency_id=s.agency_id AND p.id=s.policy_id
+      LEFT JOIN customer_vehicles v ON v.agency_id=s.agency_id AND v.customer_id=s.customer_id AND v.id=s.vehicle_id`)) {
+      if (typeof row.details_json !== 'string') reject();
+      vehicleFieldsSchema.parse(JSON.parse(row.details_json as string));
+      if (
+        row.policy_customer !== row.customer_id ||
+        !Number.isSafeInteger(row.vehicle_version) ||
+        Number(row.vehicle_version) < 1 ||
+        !row.live_vehicle_version ||
+        Number(row.vehicle_version) > Number(row.live_vehicle_version)
+      )
+        reject();
+      // Snapshot details intentionally need not equal the vehicle's current details.
+    }
+    for (const row of await query(
+      `SELECT c.birth_date,c.type,c.reference_membership_id,c.reference_name,c.reference_search_key,m.id AS reference_id FROM customers c LEFT JOIN agency_memberships m ON m.agency_id=c.agency_id AND m.id=c.reference_membership_id`,
+    )) {
+      if (
+        row.birth_date != null &&
+        (row.type !== 'INDIVIDUAL' ||
+          typeof row.birth_date !== 'string' ||
+          !validBirthDate(row.birth_date))
+      )
+        reject();
+      if (
+        row.reference_name != null &&
+        (typeof row.reference_name !== 'string' ||
+          !row.reference_name.trim() ||
+          row.reference_name !== row.reference_name.trim() ||
+          row.reference_name.length > 120)
+      )
+        reject();
+      if (
+        row.reference_search_key !==
+        (typeof row.reference_name === 'string' ? referenceSearchKey(row.reference_name) : null)
+      )
+        reject();
+      if (row.reference_membership_id != null && (!row.reference_id || !row.reference_name))
+        reject();
+      // Historical reference names and inactive memberships remain valid; never
+      // replace their snapshot with today's employee name during recovery.
+    }
     const notes = await query(`SELECT n.*,m.user_id AS membership_user_id,
       r.agency_id AS receipt_agency,r.actor_user_id AS receipt_user,r.actor_membership_id AS receipt_member,
       r.action AS receipt_action,r.status AS receipt_status,r.response_status,r.response_body,r.created_at AS receipt_created_at,r.payload_fingerprint,

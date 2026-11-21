@@ -33,7 +33,10 @@ function limiter(maximum: number): RateLimit {
 
 /** Offline CLI-only composition. Fresh in-memory D1; no config, dotenv, remote
  * adapter, existing persistence directory, credential bypass or session seed. */
-export async function openDemo(passwords: readonly string[]) {
+export async function openDemo(
+  passwords: readonly string[],
+  options: { companyRegistrationActors?: readonly (typeof DEMO_USERS)[number]['id'][] } = {},
+) {
   if (passwords.length !== 3) throw new Error('Üç farklı demo hesabı parolası gereklidir.');
   const verifiers: string[] = [];
   for (const [index, user] of DEMO_USERS.entries())
@@ -124,6 +127,17 @@ export async function openDemo(passwords: readonly string[]) {
               ),
           ),
         );
+      if (options.companyRegistrationActors?.includes(user.id)) {
+        await db.batch(
+          ['sensitive.identity.read', 'sensitive.identity.write'].map((permission) =>
+            db
+              .prepare(
+                "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,'UNSCOPED')",
+              )
+              .bind(crypto.randomUUID(), 'demo-member-' + user.id, permission),
+          ),
+        );
+      }
       contexts.push({
         userId: 'demo-user-' + user.id,
         identityId: 'demo-identity-' + user.id,
@@ -262,6 +276,11 @@ export async function openDemo(passwords: readonly string[]) {
       APP_ENV: 'development',
       PANEL_ORIGIN: DEMO_ORIGIN,
       CSRF_SECRET: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex'),
+      IDENTITY_ENCRYPTION_KEY: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(
+        'hex',
+      ),
+      IDENTITY_HMAC_KEY: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex'),
+      IDENTITY_KEY_VERSION: '1',
       DOCUMENTS_ENABLED: 'false',
       DOCUMENT_JOBS_ENABLED: 'false',
       DOCUMENT_CRON_ENABLED: 'false',

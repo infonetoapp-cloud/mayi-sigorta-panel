@@ -8,6 +8,7 @@ import type {
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { readCustomerResource, useCustomerResource } from '../customers/customer-resource';
+import { readPolicyDetail } from './policy-read-schemas';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { PolicyReadNotice } from './policy-display';
@@ -103,15 +104,11 @@ export function PolicyPartiesSection({
     setBusy(true);
     try {
       const [fresh, rows] = await Promise.all([
-        get<PolicyDetailDto>(base),
+        read((signal) => readPolicyDetail(policy.id, signal)),
         get<PolicyPartyDto[]>(base + '/parties'),
       ]);
       if (view !== epoch.current) return;
-      if (
-        fresh.id !== policy.id ||
-        !Array.isArray(rows) ||
-        rows.some((p) => p.policyId !== policy.id)
-      )
+      if (!Array.isArray(rows) || rows.some((p) => p.policyId !== policy.id))
         throw new Error('INVALID_READBACK');
       setSnapshot({ policy: fresh, parties: rows });
       onUpdated(fresh);

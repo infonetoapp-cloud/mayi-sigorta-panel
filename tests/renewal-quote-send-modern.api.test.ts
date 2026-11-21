@@ -104,6 +104,9 @@ async function counts() {
 }
 beforeAll(async () => {
   f = await localAuthFixture();
+  f.env.IDENTITY_ENCRYPTION_KEY = '11'.repeat(32);
+  f.env.IDENTITY_HMAC_KEY = '22'.repeat(32);
+  f.env.IDENTITY_KEY_VERSION = '1';
   for (const actor of ['qs-owner', 'qs-ahmet', 'qs-ayse', 'qs-foreign']) {
     const member = await f.seed(
       actor,
@@ -123,16 +126,6 @@ beforeAll(async () => {
       );
     cookies[actor] = (await f.session(actor)).cookie;
   }
-  customerId = (
-    await data<{ id: string }>(
-      await post('/api/customers', {
-        type: 'INDIVIDUAL',
-        firstName: 'Sentetik',
-        lastName: 'Gönderildi',
-      }),
-      201,
-    )
-  ).id;
   await f.db.batch([
     f.db.prepare(
       "INSERT INTO insurers(id,agency_id,code,name) VALUES('qs-i','agency-auth-test','QS','Sentetik')",
@@ -147,6 +140,17 @@ beforeAll(async () => {
       "INSERT INTO payment_methods(id,agency_id,code,name) VALUES('qs-m','agency-auth-test','QS','Sentetik')",
     ),
   ]);
+  customerId = (
+    await data<{ id: string }>(
+      await post('/api/customers', {
+        type: 'INDIVIDUAL',
+        insurerNumber: { insurerId: 'qs-i', customerNumber: 'QS-SYNTHETIC-CUSTOMER' },
+        firstName: 'Sentetik',
+        lastName: 'Gönderildi',
+      }),
+      201,
+    )
+  ).id;
 }, 90000);
 afterAll(async () => {
   await f?.mf.dispose();
@@ -337,7 +341,13 @@ it('preserves exact historical SENT replay after a later immutable revision and 
     ).status,
   ).toBe(409);
   expect(await snapshot()).toBe(before);
-  const q = (await history(s.url)).quotes[0]!;
+  const summary = (await history(s.url)).quotes[0]!;
+  expect(summary.events).toHaveLength(0);
+  const q = (
+    await history(
+      `${s.url}?quoteId=${result.quoteId}&versionId=${result.quoteVersionId}&operationId=${result.operationId}`,
+    )
+  ).quotes[0]!;
   expect(q).toMatchObject({ status: 'DRAFT', version: 3, current_version_id: next.quoteVersionId });
   expect(q.events).toHaveLength(1);
   expect(q.events[0]).toMatchObject({
