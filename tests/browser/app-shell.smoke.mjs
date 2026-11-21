@@ -530,7 +530,7 @@ try {
     await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
     await page.reload();
     await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
-    await page.getByText('1.234,56 TRY', { exact: true }).waitFor();
+    await page.getByText('1.234,56 ₺', { exact: true }).waitFor();
     for (const width of [1440, 768, 360]) {
       await page.setViewportSize({ width, height: 900 });
       for (const name of ['Sigortalılar ve lehtarlar', 'Zeyiller', 'Dış referanslar']) {
