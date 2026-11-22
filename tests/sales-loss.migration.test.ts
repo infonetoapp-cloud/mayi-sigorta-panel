@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { writeMigrationEvidence } from './support/migration-evidence';
 import { expect, it } from 'vitest';
 import { authSchemaHash } from '../scripts/recovery/local-auth-restore-proof';
 it('adds loss/successor pointers without rebuilding existing data or losing deferred case/Task foreign keys', () => {
@@ -71,10 +72,7 @@ it('adds loss/successor pointers without rebuilding existing data or losing defe
       hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]),
       counts,
     };
-    writeFileSync(
-      'audit-evidence/ux-review-2026-11-17/p03c-schema.json',
-      JSON.stringify(evidence, null, 2),
-    );
+    writeMigrationEvidence('p03c-schema.json', evidence);
     expect(schema.filter(({ type }) => type === 'table').map(({ name }) => name)).toEqual(
       [
         ...before.map(({ name }) => name).filter((name) => name !== 'sqlite_sequence'),
