@@ -2,13 +2,13 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { customerListReturnState } from './customer-list-context';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { ArrowLeft, Settings2, Mail, Phone, MapPin } from 'lucide-react';
+import { ArrowLeft, Settings2 } from 'lucide-react';
 import type { CustomerDetailDto, RenewalStateCode } from '../../../shared/types';
-import { PageHeader } from '../../components/layout/PageContainer';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { CustomerNoteWorkspace } from './CustomerNoteWorkspace';
 import { CustomerContactSection } from '../../components/CustomerContactSection';
+import { CustomerEditDialog } from '../../components/CustomerEditDialog';
 import { CompanyContactsSection } from '../../components/CompanyContactsSection';
 import { CustomerArchiveSection } from '../../components/CustomerArchiveSection';
 import { CustomerIdentitySection } from '../../components/CustomerIdentitySection';
@@ -27,12 +27,12 @@ import { CustomerInsurerNumbers } from './CustomerInsurerNumbers';
 import { CustomerVehicles } from './CustomerVehicles';
 import { SalesCasesSection } from '../sales/SalesCases';
 const sections = [
-  ['general', 'Genel bilgiler'],
+  ['general', 'Genel bilgiler', 'Genel'],
   ['contact', 'İletişim'],
-  ['notes', 'Müşteri notları'],
-  ['policies', 'Poliçeler ve yenilemeler'],
+  ['policies', 'Poliçeler ve yenilemeler', 'Poliçeler'],
   ['vehicles', 'Araçlar'],
-  ['sales', 'Teklif çalışmaları'],
+  ['sales', 'Teklif çalışmaları', 'Teklif'],
+  ['notes', 'Müşteri notları', 'Notlar'],
 ] as const;
 function relatedPageParams(
   current: URLSearchParams,
@@ -155,7 +155,7 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
     VOIDED: 'Geçersiz',
   };
   return (
-    <Card className="mt-6">
+    <Card>
       <CardHeader>
         <CardTitle>Yenilemeler</CardTitle>
       </CardHeader>
@@ -213,17 +213,28 @@ function RelatedRenewals({ customerId }: { customerId: string }) {
   );
 }
 function ManagementOption({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
   const [visited, setVisited] = useState(false);
   return (
-    <details
-      className="customer-management-option"
-      onToggle={(event) => {
-        if (event.currentTarget.open) setVisited(true);
-      }}
-    >
-      <summary>{title}</summary>
-      {visited && children}
-    </details>
+    <>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setVisited(true);
+          setOpen(true);
+        }}
+      >
+        {title}
+      </Button>
+      {visited && (
+        <CustomerEditDialog title={title} open={open} onDismiss={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Kapat
+          </Button>
+          {children}
+        </CustomerEditDialog>
+      )}
+    </>
   );
 }
 function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDetailDto }) {
@@ -252,13 +263,31 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
   const [notesVisited, setNotesVisited] = useState(section === 'notes');
   const [numbersVisited, setNumbersVisited] = useState(section === 'general');
   const [vehiclesVisited, setVehiclesVisited] = useState(section === 'vehicles');
+  const navigation = useRef<HTMLElement>(null);
   useEffect(() => {
     if (section === 'notes') setNotesVisited(true);
     if (section === 'general') setNumbersVisited(true);
     if (section === 'vehicles') setVehiclesVisited(true);
   }, [section]);
+  useEffect(() => {
+    const nav = navigation.current;
+    const current = nav?.querySelector('[aria-current="page"]');
+    if (!nav || !current) return;
+    const track = nav.getBoundingClientRect();
+    const link = current.getBoundingClientRect();
+    if (link.left < track.left) nav.scrollLeft -= track.left - link.left;
+    if (link.right > track.right) nav.scrollLeft += link.right - track.right;
+  }, [section]);
+  const initials = customer.displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => Array.from(word)[0] ?? '')
+    .join('')
+    .toLocaleUpperCase('tr-TR');
+  const customerType = customer.type === 'COMPANY' ? 'Kurumsal müşteri' : 'Bireysel müşteri';
   return (
-    <div className="customer-modern">
+    <div className="customer-modern customer-profile">
       <ReturnToWork />
       <Link
         className="customer-back"
@@ -268,14 +297,38 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
         <ArrowLeft size={17} aria-hidden="true" />
         Müşteri listesine dön
       </Link>
-      <PageHeader
-        title={customer.displayName}
-        description={customer.type === 'COMPANY' ? 'Kurumsal müşteri' : 'Bireysel müşteri'}
-        action={
-          <div className="customer-form-actions">
+      <div className="customer-profile-top">
+        <header className="customer-profile-header">
+          <div className="customer-profile-identity">
+            <span className="customer-profile-initials" aria-hidden="true">
+              {initials}
+            </span>
+            <div>
+              <h1>{customer.displayName}</h1>
+              <p>
+                {customerType}
+                {customer.archivedAt && <span> · Arşivlenmiş</span>}
+              </p>
+            </div>
+          </div>
+          <div className="customer-profile-actions">
             <Button asChild variant="outline">
-              <Link to={`/claims?customerId=${encodeURIComponent(customer.id)}`}>
-                Hasar dosyaları
+              <Link
+                to={`/claims?customerId=${encodeURIComponent(customer.id)}`}
+                aria-label="Hasar dosyaları"
+              >
+                <span className="customer-profile-action-full">Hasar dosyaları</span>
+                <span className="customer-profile-action-short">Hasar</span>
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link
+                to={`/customers/${encodeURIComponent(customer.id)}/advanced`}
+                state={route.state}
+                aria-label="Diğer müşteri işlemleri"
+              >
+                <Settings2 aria-hidden="true" />
+                İşlemler
               </Link>
             </Button>
             {!customer.archivedAt && (
@@ -285,186 +338,180 @@ function ProfileWorkspace({ customer: initialCustomer }: { customer: CustomerDet
                 </Link>
               </Button>
             )}
-            <Button asChild variant="outline">
-              <Link to={`/customers/${encodeURIComponent(customer.id)}/advanced`}>
-                <Settings2 aria-hidden="true" />
-                Diğer müşteri işlemleri
-              </Link>
-            </Button>
           </div>
-        }
-      />
-      <div className="customer-profile-summary">
-        <span className={`customer-badge ${customer.archivedAt ? '' : 'customer-badge-active'}`}>
-          {customer.archivedAt ? 'Arşivlenmiş müşteri' : 'Aktif müşteri'}
-        </span>
-        <span>
-          <Mail size={15} aria-hidden="true" />
-          {customer.email || 'E-posta belirtilmedi'}
-        </span>
-        <span>
-          <Phone size={15} aria-hidden="true" />
-          {customer.phone || 'Telefon belirtilmedi'}
-        </span>
+        </header>
+        <nav ref={navigation} className="customer-profile-nav" aria-label="Müşteri bölümleri">
+          {sections.map(([key, label, short]) => (
+            <Link
+              key={key}
+              to={`/customers/${encodeURIComponent(customer.id)}?section=${key}`}
+              state={route.state}
+              aria-label={short ? label : undefined}
+              aria-current={key === section ? 'page' : undefined}
+            >
+              {short ?? label}
+            </Link>
+          ))}
+        </nav>
       </div>
-      {section !== 'general' && section !== 'management' && (
-        <CustomerCoverage customerId={customer.id} />
-      )}
-      <nav className="customer-section-nav" aria-label="Müşteri bölümleri">
-        {sections.map(([key, label]) => (
-          <Link
-            key={key}
-            to={`/customers/${encodeURIComponent(customer.id)}?section=${key}`}
-            state={route.state}
-            aria-current={key === section ? 'page' : undefined}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      {section === 'management' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Müşteri işlemleri</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Yalnız seçtiğiniz müşterinin bilgilerini yönetiyorsunuz.</p>
-            <Button asChild variant="outline">
-              <Link to={`/customers/${encodeURIComponent(customer.id)}`}>Müşteri kartına dön</Link>
-            </Button>
-            {!customer.archivedAt && (
-              <>
-                <ManagementOption
-                  title={
-                    customer.type === 'COMPANY'
-                      ? customer.hasIdentity
-                        ? 'Vergi numarası'
-                        : 'Vergi numarası eksik'
-                      : 'Kimlik bilgileri'
-                  }
-                >
-                  <CustomerIdentitySection
-                    customer={customer}
-                    styles={{}}
-                    onCustomerReload={reloadCustomer}
-                  />
-                </ManagementOption>
-                <ManagementOption title="Kaynak müşteri numaraları">
-                  <CustomerExternalReferencesSection
-                    customer={customer}
-                    onCustomerReload={reloadCustomer}
-                  />
-                </ManagementOption>
-              </>
-            )}
-            <CustomerArchiveSection customer={customer} onCustomerReload={reloadCustomer} />
-          </CardContent>
-        </Card>
-      )}
-      {(section === 'general' || section === 'contact') && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Müşteri ve iletişim bilgileri</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="customer-info-grid">
-              <div>
-                <dt>Referans kişi</dt>
-                <dd>{customer.referenceName || 'Belirtilmedi'}</dd>
+      <div className="customer-profile-content">
+        {section === 'management' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Müşteri işlemleri</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="customer-profile-management-actions">
+                <Link to={`/customers/${encodeURIComponent(customer.id)}`} state={route.state}>
+                  Müşteri kartına dön
+                </Link>
+                {!customer.archivedAt && (
+                  <>
+                    <ManagementOption
+                      title={
+                        customer.type === 'COMPANY'
+                          ? customer.hasIdentity
+                            ? 'Vergi numarası'
+                            : 'Vergi numarası eksik'
+                          : 'Kimlik bilgileri'
+                      }
+                    >
+                      <CustomerIdentitySection
+                        customer={customer}
+                        styles={{}}
+                        onCustomerReload={reloadCustomer}
+                      />
+                    </ManagementOption>
+                    <ManagementOption title="Kaynak müşteri numaraları">
+                      <CustomerExternalReferencesSection
+                        customer={customer}
+                        onCustomerReload={reloadCustomer}
+                      />
+                    </ManagementOption>
+                  </>
+                )}
               </div>
-              {customer.type === 'INDIVIDUAL' && (
-                <div>
-                  <dt>Doğum tarihi</dt>
-                  <dd>
-                    {customer.birthDate
-                      ? customer.birthDate.split('-').reverse().join('.')
-                      : 'Belirtilmedi'}
-                  </dd>
+              <CustomerArchiveSection customer={customer} onCustomerReload={reloadCustomer} />
+            </CardContent>
+          </Card>
+        )}
+        <div
+          className={section === 'general' ? 'customer-profile-overview' : undefined}
+          hidden={section !== 'general' && section !== 'contact' && section !== 'policies'}
+        >
+          {(section === 'general' || section === 'policies') && (
+            <CustomerCoverage customerId={customer.id} showAllLink={section === 'general'} />
+          )}
+          {(section === 'general' || section === 'contact') && (
+            <Card
+              className={section === 'general' ? 'customer-profile-contact-summary' : undefined}
+            >
+              <CardHeader>
+                <CardTitle>{section === 'general' ? 'İletişim' : 'İletişim bilgileri'}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="customer-profile-facts">
+                  <div>
+                    <dt>Telefon</dt>
+                    <dd>
+                      {customer.phone ? (
+                        <a href={`tel:${customer.phone}`}>{customer.phone}</a>
+                      ) : (
+                        'Belirtilmedi'
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>E-posta</dt>
+                    <dd>
+                      {customer.email ? (
+                        <a href={`mailto:${customer.email}`}>{customer.email}</a>
+                      ) : (
+                        'Belirtilmedi'
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Referans kişi</dt>
+                    <dd>{customer.referenceName || 'Belirtilmedi'}</dd>
+                  </div>
+                  {section === 'contact' && customer.type === 'INDIVIDUAL' && (
+                    <div>
+                      <dt>Doğum tarihi</dt>
+                      <dd>
+                        {customer.birthDate
+                          ? customer.birthDate.split('-').reverse().join('.')
+                          : 'Belirtilmedi'}
+                      </dd>
+                    </div>
+                  )}
+                  {section === 'contact' && (
+                    <div>
+                      <dt>Adres</dt>
+                      <dd>{customer.address || 'Belirtilmedi'}</dd>
+                    </div>
+                  )}
+                </dl>
+                <div className="customer-inline-edit">
+                  <CustomerContactSection
+                    key={customer.id}
+                    customer={customer}
+                    presentation="page"
+                    onUpdated={(current) =>
+                      setCustomer((previous) => (previous.id === current.id ? current : previous))
+                    }
+                  />
+                  {customer.archivedAt && (
+                    <p>Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.</p>
+                  )}
                 </div>
-              )}
-              <div>
-                <dt>
-                  <Mail size={16} aria-hidden="true" />
-                  E-posta
-                </dt>
-                <dd>{customer.email || 'Belirtilmedi'}</dd>
-              </div>
-              <div>
-                <dt>
-                  <Phone size={16} aria-hidden="true" />
-                  Telefon
-                </dt>
-                <dd>{customer.phone || 'Belirtilmedi'}</dd>
-              </div>
-              <div>
-                <dt>
-                  <MapPin size={16} aria-hidden="true" />
-                  Adres
-                </dt>
-                <dd>{customer.address || 'Belirtilmedi'}</dd>
-              </div>
-            </dl>
-            <div className="customer-inline-edit">
-              <CustomerContactSection
-                key={customer.id}
-                customer={customer}
-                presentation="page"
-                onUpdated={(current) =>
-                  setCustomer((previous) => (previous.id === current.id ? current : previous))
-                }
-              />
-              {customer.archivedAt && (
-                <p>Arşivlenmiş müşterinin iletişim bilgileri düzenlenemez.</p>
-              )}
-            </div>
-            {customer.type === 'COMPANY' && section === 'contact' && (
-              <>
-                <CompanyContactsSection
-                  key={customer.id}
-                  customer={customer}
-                  onUpdated={(current) =>
-                    setCustomer((previous) => (previous.id === current.id ? current : previous))
-                  }
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-      {(numbersVisited || section === 'general') && (
-        <CustomerInsurerNumbers
-          key={'insurer-numbers:' + customer.id}
-          customer={customer}
-          onCustomerReload={reloadCustomer}
-          visible={section === 'general'}
-        />
-      )}
-      {section === 'general' && <RelatedPolicies customerId={customer.id} />}
-      {section === 'sales' && (
-        <SalesCasesSection key={`sales:${customer.id}`} customer={customer} />
-      )}
-      {(vehiclesVisited || section === 'vehicles') && (
-        <CustomerVehicles
-          key={'vehicles:' + customer.id}
-          customer={customer}
-          onReload={reloadCustomer}
-          visible={section === 'vehicles'}
-        />
-      )}
-      {(notesVisited || section === 'notes') && (
-        <CustomerNoteWorkspace
-          key={customer.id}
-          customerId={customer.id}
-          archived={customer.archivedAt != null}
-          visible={section === 'notes'}
-        />
-      )}
-      {section === 'policies' && (
-        <>
-          <RelatedPolicies customerId={customer.id} />
-          <RelatedRenewals customerId={customer.id} />
-        </>
-      )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        {customer.type === 'COMPANY' && section === 'contact' && (
+          <CompanyContactsSection
+            key={customer.id}
+            customer={customer}
+            onUpdated={(current) =>
+              setCustomer((previous) => (previous.id === current.id ? current : previous))
+            }
+          />
+        )}
+        {(numbersVisited || section === 'general') && (
+          <CustomerInsurerNumbers
+            key={'insurer-numbers:' + customer.id}
+            customer={customer}
+            onCustomerReload={reloadCustomer}
+            visible={section === 'general'}
+          />
+        )}
+        {section === 'sales' && (
+          <SalesCasesSection key={`sales:${customer.id}`} customer={customer} />
+        )}
+        {(vehiclesVisited || section === 'vehicles') && (
+          <CustomerVehicles
+            key={'vehicles:' + customer.id}
+            customer={customer}
+            onReload={reloadCustomer}
+            visible={section === 'vehicles'}
+          />
+        )}
+        {(notesVisited || section === 'notes') && (
+          <CustomerNoteWorkspace
+            key={customer.id}
+            customerId={customer.id}
+            archived={customer.archivedAt != null}
+            visible={section === 'notes'}
+          />
+        )}
+        {section === 'policies' && (
+          <>
+            <RelatedPolicies customerId={customer.id} />
+            <RelatedRenewals customerId={customer.id} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

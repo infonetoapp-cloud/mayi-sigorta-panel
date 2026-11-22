@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { istanbulToday, validBirthDate } from '../../shared/customer-profile';
 import { CustomerReferenceField } from '../pages/customers/CustomerReferenceField';
 import { Button } from './ui/button';
+import { CustomerEditDialog } from './CustomerEditDialog';
 import type { ApiResponse, CustomerDetailDto, CustomerDto } from '../../shared/types';
 import { getCsrfToken, parseAppError } from '../App';
 
@@ -175,53 +176,60 @@ export function CustomerContactSection({
     }
   }
 
-  if (!editing)
-    return (
-      <>
-        {confirmed && <p role="status">İletişim bilgileri kaydedildi.</p>}
-        {customer.archivedAt === null ? (
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              setBase(customer);
-              setDraft({
-                email: customer.email ?? '',
-                phone: customer.phone ?? '',
-                address: customer.address ?? '',
-                birthDate: customer.birthDate ?? '',
-                referenceMembershipId: customer.referenceMembershipId ?? '',
-                referenceName: customer.referenceName ?? '',
-              });
-              setLatest(null);
-              setError('');
-              setNeedsRefresh(false);
-              setBlocked(false);
-              setSaved(false);
-              setRetry(null);
-              attempt.current = null;
-              setConfirmed(false);
-              setEditing(true);
-            }}
-          >
-            {presentation === 'page' ? 'Düzenle' : 'İletişim bilgilerini düzenle'}
-          </Button>
-        ) : null}
-      </>
-    );
+  const trigger = (
+    <>
+      {confirmed && <p role="status">İletişim bilgileri kaydedildi.</p>}
+      {customer.archivedAt === null ? (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() => {
+            setBase(customer);
+            setDraft({
+              email: customer.email ?? '',
+              phone: customer.phone ?? '',
+              address: customer.address ?? '',
+              birthDate: customer.birthDate ?? '',
+              referenceMembershipId: customer.referenceMembershipId ?? '',
+              referenceName: customer.referenceName ?? '',
+            });
+            setLatest(null);
+            setError('');
+            setNeedsRefresh(false);
+            setBlocked(false);
+            setSaved(false);
+            setRetry(null);
+            attempt.current = null;
+            setConfirmed(false);
+            setEditing(true);
+          }}
+        >
+          {presentation === 'page' ? 'Düzenle' : 'İletişim bilgilerini düzenle'}
+        </Button>
+      ) : null}
+    </>
+  );
+  function cancel() {
+    generation.current++;
+    setEditing(false);
+  }
 
-  return (
+  const editor = editing && (
     <section
       aria-label="İletişim bilgilerini düzenleme"
-      className={presentation === 'page' ? 'customer-edit-form' : undefined}
-      style={{
-        padding: '1rem',
-        border: '1px solid #e2e8f0',
-        borderRadius: '0.5rem',
-        background: '#f8fafc',
-      }}
+      className={presentation === 'page' ? 'customer-edit-dialog-form' : undefined}
+      style={
+        presentation
+          ? undefined
+          : {
+              padding: '1rem',
+              border: '1px solid #e2e8f0',
+              borderRadius: '0.5rem',
+              background: '#f8fafc',
+            }
+      }
     >
-      <h3>İletişim bilgileri</h3>
+      {!presentation && <h3>İletişim bilgileri</h3>}
       <form
         noValidate
         onSubmit={(event) => {
@@ -351,7 +359,10 @@ export function CustomerContactSection({
         {archived && <p role="alert">Bu müşteri arşivlenmiş; iletişim bilgileri düzenlenemez.</p>}
         {error && <p role="alert">{error}</p>}
         {busy && <p role="status">İşlem sürüyor…</p>}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div
+          className="customer-edit-actions"
+          style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
+        >
           {!saved && (
             <Button type="submit" disabled={busy || archived || blocked || needsRefresh || !dirty}>
               {latest
@@ -371,16 +382,28 @@ export function CustomerContactSection({
           )}
           <Button
             type="button"
+            variant={presentation ? 'outline' : 'default'}
             disabled={busy}
-            onClick={() => {
-              generation.current++;
-              setEditing(false);
-            }}
+            onClick={cancel}
           >
             Vazgeç
           </Button>
         </div>
       </form>
     </section>
+  );
+  if (!presentation) return editing ? editor : trigger;
+  return (
+    <>
+      {trigger}
+      {editing && (
+        <CustomerEditDialog
+          title="İletişim bilgilerini düzenle"
+          onDismiss={!busy && !dirty && !retry && !saved ? cancel : undefined}
+        >
+          {editor}
+        </CustomerEditDialog>
+      )}
+    </>
   );
 }

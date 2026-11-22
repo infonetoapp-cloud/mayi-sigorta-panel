@@ -468,21 +468,6 @@ html:has(.catalog-dialog:modal) {
   color: #145db4;
   box-shadow: 0 1px 4px #18345515;
 }
-.customer-management-option {
-  border: 1px solid #dce3ed;
-  border-radius: 8px;
-  margin-block: 12px;
-  padding: 0 16px;
-}
-.customer-management-option > summary {
-  padding: 14px 0;
-  cursor: pointer;
-  font-weight: 600;
-  color: #34445a;
-}
-.customer-management-option[open] {
-  padding-bottom: 16px;
-}
 .employee-workspace .today-toolbar {
   justify-content: flex-end;
 }

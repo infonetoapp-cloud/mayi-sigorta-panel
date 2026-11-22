@@ -112,10 +112,6 @@
   gap: 1rem;
   flex-wrap: wrap;
 }
-.company-contacts-heading h3 {
-  margin: 0.35rem 0;
-  font-size: 1.1rem;
-}
 .company-contacts-list {
   display: grid;
   gap: 0.8rem;
@@ -129,8 +125,7 @@
 .company-contact-row > div {
   min-width: 0;
 }
-.company-contact-row h4,
-.company-contact-form h4 {
+.company-contact-row h4 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
 }
@@ -149,14 +144,6 @@
 .company-contact-badges {
   margin-top: 0.75rem;
 }
-.company-contact-form {
-  border: 1px solid var(--border);
-  background: var(--background);
-  padding: 1.25rem;
-  border-radius: var(--radius);
-  margin-top: 1rem;
-  min-width: 0;
-}
 .company-contact-comparison {
   border-left: 3px solid var(--primary);
   padding: 0.75rem 1rem;
@@ -164,13 +151,6 @@
   margin-top: 1rem;
   font-size: 0.85rem;
   overflow-wrap: anywhere;
-}
-.customer-edit-form .company-primary-choice {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  font-weight: 400;
 }
 .company-contacts > [role='alert'] {
   color: #9f1239;
@@ -181,8 +161,7 @@
   font-size: 0.85rem;
 }
 @media (max-width: 600px) {
-  .company-contact-row,
-  .company-contact-form {
+  .company-contact-row {
     padding: 1rem;
   }
   .company-contact-actions {
@@ -424,22 +403,6 @@
   margin-bottom: 1.5rem;
   text-decoration: none;
 }
-.customer-profile-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.9rem 1.5rem;
-  color: var(--muted-foreground);
-  font-size: 0.85rem;
-  margin-bottom: 1.5rem;
-}
-.customer-profile-summary > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
 .customer-section-nav {
   display: flex;
   flex-wrap: wrap;
@@ -639,9 +602,6 @@
   }
   .customer-section-nav a {
     padding: 0.6rem;
-  }
-  .customer-profile-summary {
-    display: grid;
   }
 }
 .customer-reference-field {

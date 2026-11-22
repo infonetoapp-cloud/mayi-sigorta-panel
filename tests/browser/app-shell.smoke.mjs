@@ -18,6 +18,155 @@ let stage = 'setup',
   server,
   directory;
 const passwords = Array.from({ length: 3 }, () => randomBytes(24).toString('hex'));
+const profileEvidence = resolve('dist/release-audit/customer-profile');
+const profileOnly = process.argv.includes('--profile-only');
+
+async function checkCustomerProfile(page) {
+  const nav = page.getByRole('navigation', { name: 'Müşteri bölümleri' });
+  const tabs = {
+    'Genel bilgiler': 'Sigorta özeti',
+    İletişim: 'İletişim bilgileri',
+    'Poliçeler ve yenilemeler': 'Mevcut poliçeler',
+    Araçlar: 'Araçlar',
+    'Teklif çalışmaları': 'Teklif çalışmaları',
+    'Müşteri notları': 'Müşteri Notları',
+  };
+  const edge = (a, b) => {
+    if (Math.abs(a - b) > 1) console.error('CUSTOMER_PROFILE_GEOMETRY', stage, a, b);
+    assert.ok(Math.abs(a - b) <= 1);
+  };
+  await mkdir(profileEvidence, { recursive: true });
+  for (const width of [1440, 1024, 768, 390, 360]) {
+    stage = `profile-overview-${width}`;
+    await page.setViewportSize({ width, height: 900 });
+    await nav.getByRole('link', { name: 'Genel bilgiler' }).click();
+    await page
+      .getByRole('region', { name: 'Sigorta özeti' })
+      .getByText(/yürürlükte poliçe/)
+      .waitFor();
+    const measure = () =>
+      page.locator('.customer-profile').evaluate((profile) => {
+        const box = (selector) => profile.querySelector(selector)?.getBoundingClientRect().toJSON();
+        return {
+          header: box('.customer-profile-top'),
+          navigation: box('.customer-profile-nav'),
+          content: box('.customer-profile-content'),
+          coverage: box('.coverage-summary'),
+          contact: box('.customer-profile-contact-summary'),
+          actionTops: [...profile.querySelectorAll('.customer-profile-actions a')].map(
+            (link) => link.getBoundingClientRect().top,
+          ),
+          actionWidths: [...profile.querySelectorAll('.customer-profile-actions a')].map(
+            (link) => link.getBoundingClientRect().width,
+          ),
+          columns: globalThis.getComputedStyle(
+            profile.querySelector('.customer-profile-overview') ?? profile,
+          ).gridTemplateColumns,
+          maxScroll: globalThis.document.documentElement.scrollWidth - globalThis.innerWidth,
+        };
+      });
+    const overview = await measure();
+    edge(overview.header.left, overview.content.left);
+    edge(overview.header.right, overview.content.right);
+    edge(overview.coverage.left, overview.content.left);
+    edge(overview.content.top - overview.header.bottom, 16);
+    if (overview.columns.split(' ').length === 12) {
+      edge(overview.coverage.top, overview.contact.top);
+      edge(overview.coverage.bottom, overview.contact.bottom);
+      edge(overview.contact.left - overview.coverage.right, 16);
+    } else {
+      edge(overview.contact.left, overview.coverage.left);
+      edge(overview.contact.top - overview.coverage.bottom, 16);
+    }
+    edge(overview.contact.right, overview.content.right);
+    if (width <= 390) {
+      edge(Math.min(...overview.actionTops), Math.max(...overview.actionTops));
+      edge(Math.min(...overview.actionWidths), Math.max(...overview.actionWidths));
+    }
+    if (width === 1440 || width === 390)
+      await page.screenshot({
+        path: join(profileEvidence, `overview-${width}.png`),
+        fullPage: true,
+      });
+    for (const [tab, heading] of Object.entries(tabs)) {
+      stage = `profile-section-${Object.keys(tabs).indexOf(tab)}-${width}`;
+      const link = nav.getByRole('link', { name: tab, exact: true });
+      await link.click();
+      await nav.locator('a[aria-current="page"]').and(link).waitFor();
+      await page.getByRole('heading', { name: heading, exact: true }).first().waitFor();
+      const section = await measure();
+      assert.ok(section.maxScroll <= 0, `${tab} overflows at ${width}px`);
+      edge(
+        section.navigation.top - section.header.top,
+        overview.navigation.top - overview.header.top,
+      );
+      edge(section.content.left, overview.content.left);
+      edge(section.content.right, overview.content.right);
+    }
+    await page.goBack();
+    await nav
+      .locator('a[aria-current="page"]')
+      .and(nav.getByRole('link', { name: 'Teklif çalışmaları' }))
+      .waitFor();
+    await nav.getByRole('link', { name: 'İletişim' }).click();
+    stage = `profile-dialog-${width}`;
+    const trigger = page.getByRole('button', { name: 'Düzenle', exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'İletişim bilgilerini düzenle' });
+    const panel = await dialog.boundingBox();
+    assert.ok(panel);
+    edge(panel.width, width < 520 ? width : 480);
+    edge(panel.x + panel.width, width);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    assert.ok(await trigger.evaluate((button) => globalThis.document.activeElement === button));
+    await trigger.click();
+    await dialog.getByLabel('E-posta', { exact: true }).fill('taslak@demo.invalid');
+    await page.keyboard.press('Escape');
+    assert.equal(await dialog.getByLabel('E-posta').inputValue(), 'taslak@demo.invalid');
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: join(profileEvidence, `contact-panel-${width}.png`) });
+    await dialog.getByRole('button', { name: 'Vazgeç' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+  }
+  stage = 'profile-vehicle';
+  await nav.getByRole('link', { name: 'Araçlar' }).click();
+  await page.getByRole('button', { name: 'Araç ekle', exact: true }).click();
+  const vehicle = page.getByRole('dialog', { name: 'Araç ekle' });
+  await vehicle.getByLabel('Plaka (isteğe bağlı)').fill('34 TST 21');
+  await vehicle.getByRole('button', { name: 'Aracı kaydet' }).click();
+  await page.getByText('Araç bilgisi kaydedildi ve güncel kayıt doğrulandı.').waitFor();
+  await page.getByRole('button', { name: '34 TST 21 aracını düzenle' }).click();
+  const editVehicle = page.getByRole('dialog', { name: 'Aracı düzenle' });
+  assert.equal(await editVehicle.getByLabel('Plaka (isteğe bağlı)').inputValue(), '34 TST 21');
+  await editVehicle.getByRole('button', { name: 'Vazgeç' }).click();
+
+  stage = 'profile-insurer-number';
+  await nav.getByRole('link', { name: 'Genel bilgiler' }).click();
+  await page.getByRole('button', { name: 'Müşteri numarası ekle / düzelt' }).click();
+  const insurerNumber = page.getByRole('dialog', { name: 'Müşteri numarası ekle veya düzelt' });
+  await insurerNumber
+    .getByLabel('Sigorta şirketi (zorunlu)')
+    .selectOption({ label: 'Anadolu Sigorta' });
+  await insurerNumber.getByLabel('Şirket müşteri no (zorunlu)').fill('00421');
+  await insurerNumber.getByRole('button', { name: 'Numarayı kaydet' }).click();
+  await insurerNumber.waitFor({ state: 'hidden' });
+  await page.getByText('00421', { exact: true }).waitFor();
+
+  stage = 'profile-management';
+  await page.getByRole('link', { name: 'Diğer müşteri işlemleri' }).click();
+  const management = page.getByRole('button', { name: 'Kaynak müşteri numaraları' });
+  await management.click();
+  const managementDialog = page.getByRole('dialog', { name: 'Kaynak müşteri numaraları' });
+  await managementDialog.getByRole('button', { name: 'Kapat', exact: true }).click();
+  await managementDialog.waitFor({ state: 'hidden' });
+  await page.getByRole('link', { name: 'Müşteri kartına dön' }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.info(
+    'CUSTOMER_PROFILE_LAYOUT PASS: 30 section checks at 1440/1024/768/390/360; geometry, history, dialog dimensions, focus, draft, vehicle, insurer number and management.',
+  );
+}
+
 try {
   await mkdir('node_modules/.cache', { recursive: true });
   directory = await mkdtemp(resolve('node_modules/.cache/frontend-smoke-'));
@@ -61,6 +210,13 @@ try {
     await page.getByLabel('Şifre', { exact: true }).fill(passwords[index]);
     await page.getByRole('button', { name: 'Giriş Yap', exact: true }).click();
     await page.getByRole('heading', { name: 'Genel Bakış', exact: true }).waitFor();
+    if (profileOnly) {
+      await page.goto('https://localhost:8443/customers/demo-customer-0');
+      await checkCustomerProfile(page);
+      assert.deepEqual(failures, []);
+      await context.close();
+      break;
+    }
     stage = `responsive-${index}`;
     assert.equal(
       await page
@@ -404,6 +560,10 @@ try {
     assert.equal(await page.locator('.legacy-workspace').count(), 0);
     await page.reload();
     await page.getByRole('heading', { name: 'Deniz Yılmaz', exact: true }).waitFor();
+    if (index === 0) {
+      stage = 'profile-layout-matrix';
+      await checkCustomerProfile(page);
+    }
     stage = `compatibility-${index}-notes`;
     await page.getByRole('link', { name: 'Müşteri notları', exact: true }).click();
     await page.getByText('Kaydeden: Ahmet', { exact: true }).first().waitFor();
@@ -618,9 +778,10 @@ try {
     assert.equal(failures.length, 0);
     await context.close();
   }
-  console.info(
-    'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer/company contacts; modern policy list/detail + filters + related reads; 1440/768/360; history/direct refresh/back-forward; policy creation with correct originating customer; private tasks; owner denial; logout/live policy revocation cleanup; CSP/runtime.',
-  );
+  if (!profileOnly)
+    console.info(
+      'FRONTEND_BROWSER_SMOKE PASS: 3 real logins; modern customer/company contacts; modern policy list/detail + filters + related reads; 1440/768/360; history/direct refresh/back-forward; policy creation with correct originating customer; private tasks; owner denial; logout/live policy revocation cleanup; CSP/runtime.',
+    );
 } catch (error) {
   // Never print raw Playwright errors: call arguments can include synthetic secrets.
   const location = error instanceof Error && error.stack?.match(/app-shell\.smoke\.mjs:\d+:\d+/);

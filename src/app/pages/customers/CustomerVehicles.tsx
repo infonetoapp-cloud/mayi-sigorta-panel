@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   vehicleFieldsSchema,
   vehicleLabel,
@@ -7,6 +7,7 @@ import {
 } from '../../../shared/vehicles';
 import type { CustomerDetailDto } from '../../../shared/types';
 import { Button } from '../../components/ui/button';
+import { CustomerEditDialog } from '../../components/CustomerEditDialog';
 import { useCustomerResource } from './customer-resource';
 import { CustomerNumberGuard } from './CustomerNumberGuard';
 import { useVehicleWrite } from './use-vehicle-write';
@@ -52,10 +53,6 @@ export function CustomerVehicles({
     setEditing(null);
     setValidation('');
   });
-  const form = useRef<HTMLFormElement | null>(null);
-  useEffect(() => {
-    if (editing) form.current?.querySelector<HTMLInputElement>('input')?.focus();
-  }, [editing]);
   function edit(vehicle: CustomerVehicle | 'new') {
     setEditing(vehicle);
     setDraft(vehicle === 'new' ? { ...emptyVehicleDraft } : vehicleDraft(vehicle.details));
@@ -81,6 +78,23 @@ export function CustomerVehicles({
       },
     );
   }
+  const writeStatus = (
+    <>
+      {write.error && <p role="alert">{write.error}</p>}
+      {write.message && <p role="status">{write.message}</p>}
+      {write.busy && <p role="status">Araç bilgileri işleniyor…</p>}
+      {write.pending && (
+        <Button variant="outline" disabled={write.busy} onClick={write.retry}>
+          Aynı araç kaydını yeniden dene
+        </Button>
+      )}
+      {(write.saved || write.blocked) && (
+        <Button variant="outline" disabled={write.busy} onClick={write.refresh}>
+          Güncel araç bilgilerini yükle
+        </Button>
+      )}
+    </>
+  );
   return (
     <>
       <CustomerNumberGuard
@@ -95,7 +109,7 @@ export function CustomerVehicles({
       >
         <div className="customer-number-heading">
           <h2>Araçlar</h2>
-          {!editing && !customer.archivedAt && (
+          {!customer.archivedAt && (
             <Button variant="outline" onClick={() => edit('new')}>
               Araç ekle
             </Button>
@@ -114,7 +128,7 @@ export function CustomerVehicles({
               <h3>
                 {vehicleLabel(row.details)} · {row.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}
               </h3>
-              {!editing && !customer.archivedAt && (
+              {!customer.archivedAt && (
                 <Button
                   variant="outline"
                   aria-label={vehicleLabel(row.details) + ' aracını düzenle'}
@@ -141,46 +155,43 @@ export function CustomerVehicles({
             Araçları yeniden yükle
           </Button>
         )}
-        {editing && (
-          <form ref={form} method="post" action={root} aria-label="Araç kaydı" onSubmit={submit}>
-            <VehicleFieldsEditor
-              draft={draft}
-              onChange={setDraft}
-              disabled={write.locked || !!customer.archivedAt}
-            />
-            <label className="vehicle-active">
-              <input
-                type="checkbox"
-                checked={active}
+        {editing && visible && (
+          <CustomerEditDialog title={editing === 'new' ? 'Araç ekle' : 'Aracı düzenle'}>
+            <form
+              className="customer-edit-dialog-form"
+              method="post"
+              action={root}
+              aria-label="Araç kaydı"
+              onSubmit={submit}
+            >
+              <VehicleFieldsEditor
+                draft={draft}
+                onChange={setDraft}
                 disabled={write.locked || !!customer.archivedAt}
-                onChange={(event) => setActive(event.target.checked)}
               />
-              Aktif araç
-            </label>
-            {validation && <p role="alert">{validation}</p>}
-            <div className="customer-form-actions">
-              <Button type="submit" disabled={write.locked || !!customer.archivedAt}>
-                Aracı kaydet
-              </Button>
-              <Button variant="ghost" disabled={write.locked} onClick={() => setEditing(null)}>
-                Vazgeç
-              </Button>
-            </div>
-          </form>
+              <label className="vehicle-active">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={write.locked || !!customer.archivedAt}
+                  onChange={(event) => setActive(event.target.checked)}
+                />
+                Aktif araç
+              </label>
+              {validation && <p role="alert">{validation}</p>}
+              <div className="customer-edit-actions">
+                <Button type="submit" disabled={write.locked || !!customer.archivedAt}>
+                  Aracı kaydet
+                </Button>
+                <Button variant="ghost" disabled={write.locked} onClick={() => setEditing(null)}>
+                  Vazgeç
+                </Button>
+              </div>
+            </form>
+            {writeStatus}
+          </CustomerEditDialog>
         )}
-        {write.error && <p role="alert">{write.error}</p>}
-        {write.message && <p role="status">{write.message}</p>}
-        {write.busy && <p role="status">Araç bilgileri işleniyor…</p>}
-        {write.pending && (
-          <Button variant="outline" disabled={write.busy} onClick={write.retry}>
-            Aynı araç kaydını yeniden dene
-          </Button>
-        )}
-        {(write.saved || write.blocked) && (
-          <Button variant="outline" disabled={write.busy} onClick={write.refresh}>
-            Güncel araç bilgilerini yükle
-          </Button>
-        )}
+        {!editing && writeStatus}
       </section>
     </>
   );

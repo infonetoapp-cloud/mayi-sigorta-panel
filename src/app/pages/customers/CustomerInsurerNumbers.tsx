@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { CustomerDetailDto, ApiResponse } from '../../../shared/types';
 import type { InsurerNumberOptions } from '../../../shared/insurer-customer-number';
 import { Button } from '../../components/ui/button';
+import { CustomerEditDialog } from '../../components/CustomerEditDialog';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { readCustomerResource, useCustomerResource } from './customer-resource';
 import { insurerNumberOptionsSchema, insurerNumbersSchema } from './customer-read-schemas';
@@ -211,6 +212,29 @@ export function CustomerInsurerNumbers({
       body: JSON.stringify({ expectedVersion: customer.version, customerNumber: number.trim() }),
     });
   }
+  function cancel() {
+    setEditing(false);
+    setInsurer('');
+    setNumber('');
+    setError('');
+  }
+  const writeStatus = (
+    <>
+      {error && <p role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
+      {pending && (
+        <Button variant="outline" disabled={busy} onClick={() => void send(pending)}>
+          Aynı kaydı yeniden dene
+        </Button>
+      )}
+      {(saved || conflict) && (
+        <Button variant="outline" disabled={busy} onClick={() => void refresh()}>
+          {saved ? 'Kayıtlı bilgileri doğrula' : 'Güncel bilgileri yükle'}
+        </Button>
+      )}
+      {busy && <p role="status">Bilgiler işleniyor…</p>}
+    </>
+  );
   return (
     <>
       <CustomerNumberGuard dirty={dirty} unresolved={!!pending || saved || busy} />
@@ -221,7 +245,7 @@ export function CustomerInsurerNumbers({
       >
         <div className="customer-number-heading">
           <h2>Şirket müşteri numaraları</h2>
-          {!editing && !customer.archivedAt && (
+          {!customer.archivedAt && (
             <Button
               variant="outline"
               onClick={() => {
@@ -262,97 +286,83 @@ export function CustomerInsurerNumbers({
             )}
           </>
         )}
-        {editing && (
-          <form
-            aria-labelledby={id + '-title'}
-            action={root + '/insurer-numbers/' + encodeURIComponent(insurer)}
-            method="post"
-            onSubmit={submit}
+        {editing && visible && (
+          <CustomerEditDialog
+            title="Müşteri numarası ekle veya düzelt"
+            onDismiss={!dirty && !busy && !pending && !saved && !conflict ? cancel : undefined}
           >
-            <h3 id={id + '-title'}>Müşteri numarası ekle veya düzelt</h3>
-            <fieldset disabled={busy || !!pending || saved || conflict || !!customer.archivedAt}>
-              <legend>Şirket ve numara</legend>
-              <label htmlFor={id + '-insurer'}>Sigorta şirketi (zorunlu)</label>
-              <select
-                id={id + '-insurer'}
-                name="insurerId"
-                required
-                value={insurer}
-                onChange={(e) => {
-                  setInsurer(e.target.value);
-                  setNumber(
-                    rows?.find((r) => r.insurerId === e.target.value)?.customerNumber ?? '',
-                  );
-                  setError('');
-                }}
-              >
-                <option value="">Şirket seçin</option>
-                {options.items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-              {optionsError && <p role="alert">{optionsError}</p>}
-              <Button variant="ghost" onClick={() => void loadOptions(options.nextCursor ?? '')}>
-                {options.nextCursor && !optionsError
-                  ? 'Diğer şirketleri yükle'
-                  : 'Şirket listesini yeniden yükle'}
-              </Button>
-              <label htmlFor={id + '-number'}>Şirket müşteri no (zorunlu)</label>
-              <input
-                id={id + '-number'}
-                name="customerNumber"
-                type="text"
-                required
-                maxLength={100}
-                value={number}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                aria-describedby={id + '-help'}
-                onChange={(e) => {
-                  setNumber(e.target.value);
-                  setError('');
-                }}
-              />
-              <p id={id + '-help'}>
-                Baştaki sıfırlar korunur. Seçili şirkette kayıt varsa yeni numara eskisinin yerine
-                kaydedilir.
-              </p>
-              <div className="customer-form-actions">
-                <Button type="submit" disabled={!rows}>
-                  Numarayı kaydet
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setEditing(false);
-                    setInsurer('');
-                    setNumber('');
+            <form
+              className="customer-edit-dialog-form"
+              aria-labelledby={id + '-title'}
+              action={root + '/insurer-numbers/' + encodeURIComponent(insurer)}
+              method="post"
+              onSubmit={submit}
+            >
+              <fieldset disabled={busy || !!pending || saved || conflict || !!customer.archivedAt}>
+                <legend id={id + '-title'}>Şirket ve numara</legend>
+                <label htmlFor={id + '-insurer'}>Sigorta şirketi (zorunlu)</label>
+                <select
+                  id={id + '-insurer'}
+                  name="insurerId"
+                  required
+                  value={insurer}
+                  onChange={(e) => {
+                    setInsurer(e.target.value);
+                    setNumber(
+                      rows?.find((r) => r.insurerId === e.target.value)?.customerNumber ?? '',
+                    );
                     setError('');
                   }}
                 >
-                  Vazgeç
+                  <option value="">Şirket seçin</option>
+                  {options.items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </select>
+                {optionsError && <p role="alert">{optionsError}</p>}
+                <Button variant="ghost" onClick={() => void loadOptions(options.nextCursor ?? '')}>
+                  {options.nextCursor && !optionsError
+                    ? 'Diğer şirketleri yükle'
+                    : 'Şirket listesini yeniden yükle'}
                 </Button>
-              </div>
-            </fieldset>
-          </form>
+                <label htmlFor={id + '-number'}>Şirket müşteri no (zorunlu)</label>
+                <input
+                  id={id + '-number'}
+                  name="customerNumber"
+                  type="text"
+                  required
+                  maxLength={100}
+                  value={number}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-describedby={id + '-help'}
+                  onChange={(e) => {
+                    setNumber(e.target.value);
+                    setError('');
+                  }}
+                />
+                <p id={id + '-help'}>
+                  Baştaki sıfırlar korunur. Seçili şirkette kayıt varsa yeni numara eskisinin yerine
+                  kaydedilir.
+                </p>
+                <div className="customer-edit-actions">
+                  <Button type="submit" disabled={!rows}>
+                    Numarayı kaydet
+                  </Button>
+                  <Button variant="ghost" onClick={cancel}>
+                    Vazgeç
+                  </Button>
+                </div>
+              </fieldset>
+            </form>
+            {writeStatus}
+          </CustomerEditDialog>
         )}
-        {error && <p role="alert">{error}</p>}
-        {message && <p role="status">{message}</p>}
-        {pending && (
-          <Button variant="outline" disabled={busy} onClick={() => void send(pending)}>
-            Aynı kaydı yeniden dene
-          </Button>
-        )}
-        {(saved || conflict) && (
-          <Button variant="outline" disabled={busy} onClick={() => void refresh()}>
-            {saved ? 'Kayıtlı bilgileri doğrula' : 'Güncel bilgileri yükle'}
-          </Button>
-        )}
-        {busy && <p role="status">Bilgiler işleniyor…</p>}
+        {!editing && writeStatus}
       </section>
     </>
   );

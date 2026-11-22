@@ -6,6 +6,7 @@ import { parseAppError } from '../App';
 import { readCustomerResource } from '../pages/customers/customer-resource';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { CustomerEditDialog } from './CustomerEditDialog';
 
 const empty = { firstName: '', lastName: '', role: '', email: '', phone: '' };
 type Draft = typeof empty;
@@ -56,7 +57,6 @@ export function CompanyContactsSection({
     readSequence = useRef(0),
     saving = useRef(false);
   const completed = useRef<Kind | null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
   useEffect(
     () => () => {
       generation.current++;
@@ -64,9 +64,6 @@ export function CompanyContactsSection({
     },
     [],
   );
-  useEffect(() => {
-    if (mode) heading.current?.focus();
-  }, [mode]);
   const current = refreshed?.source === customer ? refreshed.data : customer;
   const archived = customer.archivedAt != null || current.archivedAt != null;
   const locked = busy || !!pending || awaitingRead || needsRefresh || blocked || archived;
@@ -301,21 +298,8 @@ export function CompanyContactsSection({
       )}
     </div>
   );
-  return (
-    <section className="company-contacts" aria-label="Şirket yetkilisi yönetimi">
-      <div className="company-contacts-heading">
-        <h3>Şirket yetkilileri</h3>
-        {!archived && !unavailable && (
-          <Button onClick={() => open({ kind: 'create' })} disabled={locked || !!mode}>
-            Yetkili ekle
-          </Button>
-        )}
-      </div>
-      <p className="customer-legacy-hint">
-        Bunlar müşterinin şirket yetkilileridir; kişisel günlük görev ataması veya CRM kullanıcı
-        hesabı değildir.
-      </p>
-      {archived && <p>Arşivlenmiş müşterinin yetkili geçmişi salt okunurdur.</p>}
+  const feedback = (
+    <>
       {error && <p role="alert">{error}</p>}
       {success && <p role="status">{success}</p>}
       {busy && <p role="status">İşlem sürüyor…</p>}
@@ -333,102 +317,122 @@ export function CompanyContactsSection({
           Aynı işlemi yeniden dene
         </Button>
       )}
+    </>
+  );
+  const editorTitle =
+    mode?.kind === 'create'
+      ? 'Yeni şirket yetkilisi'
+      : mode?.kind === 'edit'
+        ? 'Yetkili bilgilerini düzenle'
+        : mode?.kind === 'primary'
+          ? 'Birincil yetkili onayı'
+          : 'Yetkili pasifleştirme onayı';
+  return (
+    <section className="company-contacts" aria-label="Şirket yetkilisi yönetimi">
+      <div className="company-contacts-heading">
+        <h2>Şirket yetkilileri</h2>
+        {!archived && !unavailable && (
+          <Button
+            variant="outline"
+            disabled={locked && !mode}
+            onClick={() => open({ kind: 'create' })}
+          >
+            Yetkili ekle
+          </Button>
+        )}
+      </div>
+      {archived && <p>Arşivlenmiş müşterinin yetkili geçmişi salt okunurdur.</p>}
+      {!mode && feedback}
       {mode && (
-        <form
-          className="customer-edit-form company-contact-form"
-          onSubmit={submit}
-          noValidate
-          aria-label="Şirket yetkilisi işlemi"
-        >
-          <h4 ref={heading} tabIndex={-1}>
-            {mode.kind === 'create'
-              ? 'Yeni şirket yetkilisi'
-              : mode.kind === 'edit'
-                ? 'Yetkili bilgilerini düzenle'
-                : mode.kind === 'primary'
-                  ? 'Birincil yetkili onayı'
-                  : 'Yetkili pasifleştirme onayı'}
-          </h4>
-          {mode.kind === 'create' || mode.kind === 'edit' ? (
-            <fieldset disabled={locked || targetMissing}>
-              <div className="customer-form-grid">
-                {field('firstName', 'Yetkili adı', 100)}
-                {field('lastName', 'Yetkili soyadı', 100)}
-                {field('role', 'Görev / unvan', 100)}
-                {field('email', 'Yetkili e-postası', undefined, 'email')}
-                {field('phone', 'Yetkili telefonu', 50, 'tel')}
+        <CustomerEditDialog title={editorTitle}>
+          {feedback}
+          <form
+            className="customer-edit-dialog-form"
+            onSubmit={submit}
+            noValidate
+            aria-label="Şirket yetkilisi işlemi"
+          >
+            {mode.kind === 'create' || mode.kind === 'edit' ? (
+              <fieldset disabled={locked || targetMissing}>
+                <div className="customer-form-grid">
+                  {field('firstName', 'Yetkili adı', 100)}
+                  {field('lastName', 'Yetkili soyadı', 100)}
+                  {field('role', 'Görev / unvan', 100)}
+                  {field('email', 'Yetkili e-postası', undefined, 'email')}
+                  {field('phone', 'Yetkili telefonu', 50, 'tel')}
+                </div>
+                {mode.kind === 'create' && (
+                  <label className="company-primary-choice">
+                    <input
+                      type="checkbox"
+                      checked={primary}
+                      onChange={(event) => setPrimary(event.target.checked)}
+                    />
+                    Birincil yetkili olarak ata
+                  </label>
+                )}
+              </fieldset>
+            ) : (
+              <p>
+                {mode.target.firstName} {mode.target.lastName}
+                {mode.kind === 'primary'
+                  ? ' birincil yetkili yapılacak; önceki birincil seçimi kaldırılacak.'
+                  : ' pasifleştirilecek. Geçmiş bilgiler silinmez; birincil ise birincil seçimi kaldırılır.'}
+              </p>
+            )}
+            {compared && mode.kind !== 'create' && comparison && (
+              <div className="company-contact-comparison" role="status">
+                <strong>Sunucudan alınan karşılaştırma kaydı</strong>
+                <p>
+                  {comparison.firstName} {comparison.lastName} ·{' '}
+                  {comparison.role || 'Görev belirtilmedi'} ·{' '}
+                  {comparison.email || 'E-posta belirtilmedi'} ·{' '}
+                  {comparison.phone || 'Telefon belirtilmedi'} ·{' '}
+                  {comparison.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}
+                </p>
+                <p>
+                  Taslağınız korundu. Farkları kontrol ederek işlemi yeniden onaylayın; yalnız
+                  değiştirdiğiniz alanlar gönderilir.
+                </p>
               </div>
-              {mode.kind === 'create' && (
-                <label className="company-primary-choice">
-                  <input
-                    type="checkbox"
-                    checked={primary}
-                    onChange={(event) => setPrimary(event.target.checked)}
-                  />
-                  Birincil yetkili olarak ata
-                </label>
-              )}
-            </fieldset>
-          ) : (
-            <p>
-              {mode.target.firstName} {mode.target.lastName}
-              {mode.kind === 'primary'
-                ? ' birincil yetkili yapılacak; önceki birincil seçimi kaldırılacak.'
-                : ' pasifleştirilecek. Geçmiş bilgiler silinmez; birincil ise birincil seçimi kaldırılır.'}
-            </p>
-          )}
-          {compared && mode.kind !== 'create' && comparison && (
-            <div className="company-contact-comparison" role="status">
-              <strong>Sunucudan alınan karşılaştırma kaydı</strong>
-              <p>
-                {comparison.firstName} {comparison.lastName} ·{' '}
-                {comparison.role || 'Görev belirtilmedi'} ·{' '}
-                {comparison.email || 'E-posta belirtilmedi'} ·{' '}
-                {comparison.phone || 'Telefon belirtilmedi'} ·{' '}
-                {comparison.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}
-              </p>
-              <p>
-                Taslağınız korundu. Farkları kontrol ederek işlemi yeniden onaylayın; yalnız
-                değiştirdiğiniz alanlar gönderilir.
-              </p>
+            )}
+            {targetMissing && (
+              <p role="alert">Seçilen yetkili artık kullanılamıyor. Yeni bir işlem seçin.</p>
+            )}
+            <div className="customer-edit-actions">
+              <Button
+                type="submit"
+                disabled={
+                  locked ||
+                  targetMissing ||
+                  ((mode.kind === 'primary' || mode.kind === 'deactivate') &&
+                    target?.status !== 'ACTIVE')
+                }
+              >
+                {mode.kind === 'create'
+                  ? 'Yetkiliyi kaydet'
+                  : mode.kind === 'edit'
+                    ? compared
+                      ? 'Karşılaştırdım, değişiklikleri kaydet'
+                      : 'Değişiklikleri kaydet'
+                    : mode.kind === 'primary'
+                      ? 'Birincil yapmayı onayla'
+                      : 'Pasifleştirmeyi onayla'}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy || !!pending || awaitingRead}
+                onClick={() => {
+                  setMode(null);
+                  setDraft(empty);
+                  setFieldErrors({});
+                }}
+              >
+                Vazgeç
+              </Button>
             </div>
-          )}
-          {targetMissing && (
-            <p role="alert">Seçilen yetkili artık kullanılamıyor. Yeni bir işlem seçin.</p>
-          )}
-          <div className="customer-form-actions">
-            <Button
-              type="submit"
-              disabled={
-                locked ||
-                targetMissing ||
-                ((mode.kind === 'primary' || mode.kind === 'deactivate') &&
-                  target?.status !== 'ACTIVE')
-              }
-            >
-              {mode.kind === 'create'
-                ? 'Yetkiliyi kaydet'
-                : mode.kind === 'edit'
-                  ? compared
-                    ? 'Karşılaştırdım, değişiklikleri kaydet'
-                    : 'Değişiklikleri kaydet'
-                  : mode.kind === 'primary'
-                    ? 'Birincil yapmayı onayla'
-                    : 'Pasifleştirmeyi onayla'}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={busy || !!pending || awaitingRead}
-              onClick={() => {
-                setMode(null);
-                setDraft(empty);
-                setFieldErrors({});
-              }}
-            >
-              Vazgeç
-            </Button>
-          </div>
-        </form>
+          </form>
+        </CustomerEditDialog>
       )}
       {!unavailable && (
         <div className="company-contacts-list">
@@ -462,7 +466,7 @@ export function CompanyContactsSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={locked || !!mode}
+                    disabled={locked && !mode}
                     onClick={() => open({ kind: 'edit', target: contact })}
                   >
                     Yetkiliyi düzenle
@@ -473,7 +477,7 @@ export function CompanyContactsSection({
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={locked || !!mode}
+                          disabled={locked && !mode}
                           onClick={() => open({ kind: 'primary', target: contact })}
                         >
                           Birincil yap
@@ -482,7 +486,7 @@ export function CompanyContactsSection({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={locked || !!mode}
+                        disabled={locked && !mode}
                         onClick={() => open({ kind: 'deactivate', target: contact })}
                       >
                         Pasifleştir

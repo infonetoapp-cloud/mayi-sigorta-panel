@@ -52,7 +52,7 @@ it('opens only the selected customer in management without fetching the director
   expect(fetcher.mock.calls).toHaveLength(1);
   expect(fetcher).toHaveBeenCalledWith('/api/customers/a', expect.anything());
 });
-it('edits contact fields inline and refreshes the profile header only after confirmed readback', async () => {
+it('edits contact fields in a dialog and displays the confirmed email once', async () => {
   let current = customer('a');
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('csrf-token')) return reply({ token: 'synthetic-csrf' });
@@ -66,10 +66,14 @@ it('edits contact fields inline and refreshes the profile header only after conf
   profile();
   fireEvent.click(await screen.findByRole('link', { name: 'İletişim' }));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  const dialog = screen.getByRole('dialog', { name: 'İletişim bilgilerini düzenle' });
   fireEvent.change(screen.getByLabelText('E-posta'), { target: { value: 'modern@demo.invalid' } });
   fireEvent.click(screen.getByRole('button', { name: 'İletişim bilgilerini kaydet' }));
   await screen.findByText('İletişim bilgileri kaydedildi.');
-  expect(screen.getAllByText('modern@demo.invalid')).toHaveLength(2);
+  expect(dialog.isConnected).toBe(false);
+  expect(screen.getByRole('link', { name: 'modern@demo.invalid' }).getAttribute('href')).toBe(
+    'mailto:modern@demo.invalid',
+  );
   const write = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
   expect(JSON.parse(String(write[1]!.body))).toEqual({
     expectedVersion: 1,
