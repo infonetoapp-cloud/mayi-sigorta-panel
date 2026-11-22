@@ -251,6 +251,22 @@ it.each([
   expect(f.writes.some((k) => k.endsWith('COMPLETE.json'))).toBe(false);
   expect(f.requests.length).toBeLessThanOrEqual(MAX_POLLS + 1);
 });
+it.each([
+  ['sql-write', 'storage-write', 'local-failure'],
+  ['empty', 'download', 'invalid-length'],
+  ['poll-limit', 'export-poll', 'poll-limit'],
+] as const)(
+  'classifies %s without disclosing credential values',
+  async (failure, stage, classification) => {
+    const f = fixture(failure);
+    await expect(
+      runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime),
+    ).rejects.toMatchObject({
+      diagnostic: { stage, classification },
+      message: expect.not.stringContaining(f.env.CLOUDFLARE_API_KEY),
+    });
+  },
+);
 it('duplicate completed generation is not overwritten or re-exported', async () => {
   const f = fixture();
   await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router';
 import { AppShell } from '../src/app/components/layout/AppShell';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
+import { openWorkspaceSection } from './support/workspace-disclosures';
 const reply = (data: unknown) =>
   new Response(JSON.stringify({ success: true, data }), { status: 200 });
 afterEach(() => {
@@ -21,6 +22,8 @@ it('closes the mobile drawer before the dirty navigation decision and keeps the 
               renewalId: 'r',
               customerId: 'c',
               customerDisplayName: 'Deneme',
+              customerEmail: null,
+              customerPhone: null,
               policyId: 'p',
               policyNumber: 'POL-1',
               policyEndDate: '2026-10-25',
@@ -38,6 +41,10 @@ it('closes the mobile drawer before the dirty navigation decision and keeps the 
           unassignedItems: [],
           hasMore: false,
           nextCursor: null,
+          unassignedHasMore: false,
+          unassignedNextCursor: null,
+          canSeeUnassigned: false,
+          canAssign: false,
           timezone: 'Europe/Istanbul',
           todayLocalDate: '2026-10-20',
           now: '2026-10-20T09:00:00.000Z',
@@ -72,7 +79,8 @@ it('closes the mobile drawer before the dirty navigation decision and keeps the 
   expect(screen.getByRole('link', { name: 'Müşteri profilini aç' }).getAttribute('href')).toBe(
     '/customers/c',
   );
-  expect(screen.getByText('Kayıtlı iş aşaması')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'İş aşaması ve faaliyet kayıtları' })).toBeTruthy();
+  openWorkspaceSection('İletişim');
   fireEvent.click(await screen.findByRole('button', { name: 'İletişim kaydı ekle' }));
   fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
   fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Korunan taslak' } });

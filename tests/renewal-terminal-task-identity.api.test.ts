@@ -149,20 +149,23 @@ beforeAll(async () => {
     cookies[actor] = (await f.session(actor)).cookie;
   }
   await f.seed('ti-backup', 'OWNER');
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('ti-i','agency-auth-test','TI','Sentetik')",
+    )
+    .run();
   customerId = (
     await data<{ id: string }>(
       await post('/api/customers', {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Görev Kimliği',
+        insurerNumber: { insurerId: 'ti-i', customerNumber: 'TI-CUSTOMER' },
       }),
       201,
     )
   ).id;
   await f.db.batch([
-    f.db.prepare(
-      "INSERT INTO insurers(id,agency_id,code,name) VALUES('ti-i','agency-auth-test','TI','Sentetik')",
-    ),
     f.db.prepare(
       "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('ti-b','agency-auth-test','TI','Sentetik','GENERAL')",
     ),

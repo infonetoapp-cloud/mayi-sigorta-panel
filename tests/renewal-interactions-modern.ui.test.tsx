@@ -4,6 +4,7 @@ import { RenewalInteractionsSection } from '../src/app/pages/today-work/RenewalI
 import { invalidateCsrfToken } from '../src/app/csrf';
 import { MemoryRouter } from 'react-router';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
+import { openWorkspaceSection } from './support/workspace-disclosures';
 import type { TodayTaskDto, TodayTasksResponseData } from '../src/shared/types';
 import {
   localOccurrence,
@@ -449,6 +450,7 @@ it('guards dirty navigation, retains submitted interaction attempts and ignores 
       </MemoryRouter>,
     );
     fireEvent.click(await screen.findByRole('button', { name: /Kuyruk a/ }));
+    openWorkspaceSection('İletişim');
     await draft();
     fireEvent.click(screen.getByRole('button', { name: /Kuyruk b/ }));
     await screen.findByText('Hedefi değiştirmeden önce');
@@ -463,7 +465,7 @@ it('guards dirty navigation, retains submitted interaction attempts and ignores 
       within(screen.getByRole('region', { name: 'Seçili görev özeti' })).getByText('Kuyruk a'),
     ).toBeTruthy();
     expect((screen.getByLabelText('İç not') as HTMLTextAreaElement).value).toBe('Taslak not');
-    fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Görev listesine dön' }));
     expect(screen.getByRole('region', { name: 'Yenileme iletişim geçmişi ve kaydı' })).toBeTruthy();
     mounted.unmount();
     await act(async () => release(response(null, 401)));

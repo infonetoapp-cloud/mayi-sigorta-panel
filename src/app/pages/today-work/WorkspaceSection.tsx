@@ -7,6 +7,7 @@ export function WorkspaceSection({
   description,
   initialOpen = false,
   pinned = false,
+  active,
   onOpenChange,
   children,
 }: {
@@ -14,12 +15,13 @@ export function WorkspaceSection({
   description: string;
   initialOpen?: boolean;
   pinned?: boolean;
+  active?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
   const id = useId();
   const [expanded, setExpanded] = useState(initialOpen);
-  const open = expanded || pinned;
+  const open = (active ?? expanded) || pinned;
   useEffect(() => {
     if (pinned) setExpanded(true);
   }, [pinned]);
@@ -36,7 +38,7 @@ export function WorkspaceSection({
           onClick={() => {
             if (!pinned) {
               setExpanded((value) => !value);
-              onOpenChange?.(!expanded);
+              onOpenChange?.(!open);
             }
           }}
         >

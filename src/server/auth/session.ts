@@ -107,12 +107,18 @@ export async function loadLocalSession(
     throw new SessionVerificationError('SESSION_EXPIRED');
   }
   if (now - row.last_seen_at >= IDLE_WRITE_INTERVAL_MS) {
-    await db
-      .prepare(
-        'UPDATE local_sessions SET last_seen_at=? WHERE token_hash=? AND revoked_at IS NULL AND last_seen_at=? AND expires_at>?',
-      )
-      .bind(now, tokenHash, row.last_seen_at, now)
-      .run();
+    try {
+      const result = await db
+        .prepare(
+          'UPDATE local_sessions SET last_seen_at=? WHERE token_hash=? AND revoked_at IS NULL AND last_seen_at=? AND expires_at>?',
+        )
+        .bind(now, tokenHash, row.last_seen_at, now)
+        .run();
+      if (result.success !== true) throw new Error('SESSION_ACTIVITY_UPDATE_FAILED');
+    } catch {
+      console.error('SESSION_ACTIVITY_UPDATE_FAILED');
+      throw new SessionVerificationError('CONFIGURATION_ERROR');
+    }
   }
   requestSessions.set(request, Object.freeze({ ...row }));
   return row;

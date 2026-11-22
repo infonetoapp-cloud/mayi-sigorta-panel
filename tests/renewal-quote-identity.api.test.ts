@@ -84,22 +84,24 @@ beforeAll(async () => {
   f = await localAuthFixture();
   await f.seed('qi-owner', 'OWNER');
   cookie = (await f.session('qi-owner')).cookie;
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('qi-i',?,'QI','Sentetik'),('qi-alt-i',?,'QI_ALT','Alternatif')",
+    )
+    .bind(agencyId, agencyId)
+    .run();
   customerId = (
     await data<{ id: string }>(
       await post('/api/customers', {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Kimlik',
+        insurerNumber: { insurerId: 'qi-i', customerNumber: 'QI-CUSTOMER' },
       }),
       201,
     )
   ).id;
   await f.db.batch([
-    f.db
-      .prepare(
-        "INSERT INTO insurers(id,agency_id,code,name) VALUES('qi-i',?,'QI','Sentetik'),('qi-alt-i',?,'QI_ALT','Alternatif')",
-      )
-      .bind(agencyId, agencyId),
     f.db
       .prepare(
         "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('qi-b',?,'QI','Sentetik','GENERAL')",
@@ -303,8 +305,15 @@ it('pins to v1 rather than a divergent historical latest/current version', async
   );
   expect(result.versionNumber).toBe(3);
   const q = (await quotes(s.url))[0]!;
-  expect(q.versions[1]).toMatchObject({ id: divergentId, insurer_id: 'qi-alt-i' });
-  expect(q.versions[2]).toMatchObject({ insurer_id: 'qi-i', product_id: 'qi-p' });
+  expect(q.versions.map(({ id }) => id)).toEqual([s.quote.quoteVersionId, result.quoteVersionId]);
+  expect(q.versions[1]).toMatchObject({ insurer_id: 'qi-i', product_id: 'qi-p' });
+  const requested = (
+    await quotes(s.url + '?' + new URLSearchParams({ quoteId: q.id, versionId: divergentId }))
+  )[0]!;
+  expect(requested.versions.find(({ id }) => id === divergentId)).toMatchObject({
+    insurer_id: 'qi-alt-i',
+    product_id: 'qi-alt-p',
+  });
 });
 
 it('replays exact historical receipts before mutable lifecycle/catalog checks and rejects changed-key payloads', async () => {

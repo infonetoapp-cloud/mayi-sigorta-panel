@@ -21,6 +21,7 @@ export const todayTasksQuerySchema = z
     cursor: z.string().trim().min(1).max(1024).optional(),
     unassignedCursor: z.string().trim().min(1).max(1024).optional(),
     needsReassignment: z.literal('true').optional(),
+    unified: z.literal('true').optional(),
   })
   .strict();
 
@@ -37,6 +38,14 @@ export const renewalTaskCompleteSchema = z
     expectedRenewalVersion: versionSchema,
     expectedTaskVersion: versionSchema,
     replacementDueAt: canonicalUtcDateTimeSchema,
+    followupReason: z
+      .enum([
+        'DOCUMENTS_PENDING',
+        'CUSTOMER_RESPONSE_PENDING',
+        'PRICE_REVISION_PENDING',
+        'CALL_AGAIN',
+      ])
+      .optional(),
   })
   .strict();
 

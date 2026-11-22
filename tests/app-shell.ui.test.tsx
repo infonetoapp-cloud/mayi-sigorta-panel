@@ -9,10 +9,24 @@ const reply = (data: unknown, status = 200) =>
   });
 let owner = false;
 let state = 'NORMAL';
+const workPage = {
+  items: [],
+  unassignedItems: [],
+  nextCursor: null,
+  hasMore: false,
+  unassignedNextCursor: null,
+  unassignedHasMore: false,
+  canSeeUnassigned: false,
+  canAssign: false,
+  timezone: 'Europe/Istanbul',
+  todayLocalDate: '2026-11-21',
+  now: '2026-11-21T09:00:00Z',
+};
 const fetcher = vi.fn(async (path: string) => {
   if (path === '/api/auth/session')
     return reply({ state, email: 'staff@demo.invalid', isOwner: owner });
   if (path.endsWith('csrf-token')) return reply({ token: 'synthetic-csrf' });
+  if (path.startsWith('/api/tasks/today')) return reply(workPage);
   if (path.startsWith('/api/customers'))
     return reply({ items: [], hasMore: false, nextCursor: null });
   if (path.startsWith('/api/personnel')) return reply({ personnel: [], nextCursor: null });
@@ -29,18 +43,40 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-it('opens a nontechnical overview with real links without domain data requests', async () => {
+it('opens an operational overview with one bounded authorized queue request', async () => {
   render(<AuthShell />);
   await screen.findByRole('heading', { name: 'Genel Bakış' });
-  expect(screen.getByRole('link', { name: 'Müşterilere git' }).getAttribute('href')).toBe(
+  expect((await screen.findByRole('link', { name: 'Müşterilere git' })).getAttribute('href')).toBe(
     '/customers',
   );
   expect(screen.getByRole('link', { name: 'Bugünkü işleri aç' }).getAttribute('href')).toBe(
     '/today-work',
   );
   expect(screen.queryByText(/M1-T01|FAIL-CLOSED|INDIVIDUAL|Sistem Temeli/)).toBeNull();
-  expect(fetcher.mock.calls.map((call) => call[0])).toEqual(['/api/auth/session']);
+  await screen.findByText('Gecikmiş veya bugün yapılacak takip görünmüyor.');
+  expect(fetcher.mock.calls.map((call) => call[0])).toEqual([
+    '/api/auth/session',
+    '/api/tasks/today?limit=20',
+  ]);
+  expect(screen.queryByRole('menuitem', { name: 'Çıkış Yap' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Hesap menüsü' }));
   expect(screen.getByText('staff@demo.invalid')).toBeTruthy();
+});
+it('shows a recoverable overview failure and retries the same bounded owner queue', async () => {
+  owner = true;
+  fetcher.mockImplementationOnce(async () =>
+    reply({ state, email: 'owner@demo.invalid', isOwner: true }),
+  );
+  fetcher.mockImplementationOnce(async () => reply({}, 503));
+  render(<AuthShell />);
+  await screen.findByText('Takipler yüklenemedi.');
+  fireEvent.click(screen.getByRole('button', { name: 'Yeniden dene' }));
+  await screen.findByText('Gecikmiş veya bugün yapılacak takip görünmüyor.');
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+    '/api/auth/session',
+    '/api/tasks/today?limit=20&unified=true',
+    '/api/tasks/today?limit=20&unified=true',
+  ]);
 });
 it('navigates the existing customer workflow with browser history and direct-link refresh', async () => {
   window.history.replaceState(null, '', '/customers');
@@ -58,6 +94,11 @@ it('navigates the existing customer workflow with browser history and direct-lin
     window.history.forward();
   });
   await screen.findByRole('heading', { name: 'Genel Bakış' });
+});
+it('names the quote workspace when opened directly', async () => {
+  window.history.replaceState(null, '', '/sales-cases/test-case');
+  render(<AuthShell />);
+  await waitFor(() => expect(document.title).toBe('Teklif çalışması · Mayı Sigorta'));
 });
 it('denies employee personnel deep links without fetching management APIs', async () => {
   window.history.replaceState(null, '', '/personnel');
@@ -84,8 +125,12 @@ it('has accessible collapse/mobile disclosure, closes on Escape and navigation',
   const toggle = screen.getByRole('button', { name: 'Menüyü aç' });
   fireEvent.click(toggle);
   expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(screen.getByRole('region', { name: 'Hesap işlemleri' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Çıkış Yap' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Şifremi değiştir' })).toBeTruthy();
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(screen.queryByRole('region', { name: 'Hesap işlemleri' })).toBeNull();
   fireEvent.click(toggle);
   fireEvent.click(screen.getByRole('link', { name: 'Müşteriler' }));
   await screen.findByRole('link', { name: 'Yeni Müşteri' });
@@ -105,7 +150,8 @@ it('removes the shell immediately on session end and never exposes activation na
 });
 it('keeps logout CSRF protocol and clears the shell', async () => {
   render(<AuthShell />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Çıkış Yap' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Hesap menüsü' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Çıkış Yap' }));
   await screen.findByRole('button', { name: 'Giriş Yap' });
   await waitFor(() =>
     expect(fetcher.mock.calls.some((call) => call[0] === '/api/auth/logout')).toBe(true),

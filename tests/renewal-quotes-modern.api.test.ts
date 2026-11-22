@@ -76,6 +76,9 @@ async function snapshot() {
 }
 beforeAll(async () => {
   f = await localAuthFixture();
+  f.env.IDENTITY_ENCRYPTION_KEY = '11'.repeat(32);
+  f.env.IDENTITY_HMAC_KEY = '22'.repeat(32);
+  f.env.IDENTITY_KEY_VERSION = '1';
   for (const actor of ['qq-owner', 'qq-ahmet', 'qq-ayse', 'qq-foreign']) {
     const m = await f.seed(
       actor,
@@ -95,16 +98,6 @@ beforeAll(async () => {
       );
     cookies[actor] = (await f.session(actor)).cookie;
   }
-  customer = (
-    await data<{ id: string }>(
-      await post('/api/customers', {
-        type: 'INDIVIDUAL',
-        firstName: 'Sentetik',
-        lastName: 'Teklif',
-      }),
-      201,
-    )
-  ).id;
   await f.db.batch([
     f.db.prepare(
       "INSERT INTO insurers(id,agency_id,code,name) VALUES('qq-i','agency-auth-test','QQ','QQ')",
@@ -122,6 +115,17 @@ beforeAll(async () => {
       "INSERT INTO loss_reasons(id,agency_id,code,name) VALUES('qq-loss','agency-auth-test','QQ','Sentetik')",
     ),
   ]);
+  customer = (
+    await data<{ id: string }>(
+      await post('/api/customers', {
+        type: 'INDIVIDUAL',
+        insurerNumber: { insurerId: 'qq-i', customerNumber: 'QQ-SYNTHETIC-CUSTOMER' },
+        firstName: 'Sentetik',
+        lastName: 'Teklif',
+      }),
+      201,
+    )
+  ).id;
 }, 90000);
 afterAll(async () => {
   await f?.mf.dispose();

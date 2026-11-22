@@ -1,6 +1,8 @@
 const MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   LOGIN_FAILED: 'E-posta veya şifre hatalı.',
   RATE_LIMITED: 'Çok fazla deneme. Bir dakika sonra tekrar deneyin.',
+  TURNSTILE_REQUIRED: 'Robot doğrulamasını yeniden tamamlayın.',
+  TURNSTILE_UNAVAILABLE: 'Robot doğrulaması şu anda kullanılamıyor. Tekrar deneyin.',
   REAUTH_FAILED: 'Şifre doğrulaması başarısız.',
   CURRENT_PASSWORD_FAILED: 'Mevcut şifre hatalı.',
   PASSWORD_POLICY: 'Parola 15–128 karakter olmalı ve kolay tahmin edilmemelidir.',

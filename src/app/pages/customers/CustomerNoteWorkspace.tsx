@@ -4,6 +4,7 @@ import { CustomerNotesSection } from '../../components/CustomerNotesSection';
 import { NavigationDecision } from '../../components/layout/NavigationDecision';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { registerQuotePopGuard } from '../today-work/quote-navigation';
+import { customerListReturnState } from './customer-list-context';
 
 /** Profile-local guard. Same-customer sections may hide, never unmount, this owner. */
 export function CustomerNoteWorkspace({
@@ -17,6 +18,7 @@ export function CustomerNoteWorkspace({
 }) {
   const navigate = useNavigate();
   const route = useLocation();
+  const listKey: unknown = route.state?.listPositionKey;
   const risk = useRef({ dirty: false, unresolved: false });
   const [leave, setLeave] = useState<(() => void) | null>(null);
   const [message, setMessage] = useState('');
@@ -55,8 +57,12 @@ export function CustomerNoteWorkspace({
       document.dispatchEvent(new Event('mayi-navigation-attention'));
       if (risk.current.unresolved) return hold();
       setLeave(() => () => {
-        if (url.origin === location.origin) void navigate(url.pathname + url.search + url.hash);
-        else location.assign(url.href);
+        if (url.origin === location.origin) {
+          const target = url.pathname + url.search + url.hash;
+          void navigate(target, {
+            state: target === '/customers' ? customerListReturnState(listKey) : undefined,
+          });
+        } else location.assign(url.href);
       });
     };
     const pop = (event: PopStateEvent) => {
@@ -101,7 +107,7 @@ export function CustomerNoteWorkspace({
       removeEventListener('beforeunload', unload);
       remove();
     };
-  }, [navigate, route.key, route.pathname]);
+  }, [navigate, route.key, route.pathname, listKey]);
   useEffect(() => {
     if (message) notice.current?.focus();
   }, [message]);

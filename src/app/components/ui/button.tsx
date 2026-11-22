@@ -11,6 +11,7 @@ const buttonVariants = cva(
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         outline: 'border-border bg-card text-foreground hover:bg-muted',
+        danger: 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100',
         ghost: 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
       },
       size: { default: 'h-10 px-4 py-2', sm: 'h-9 px-3', icon: 'size-10 p-0' },
@@ -30,6 +31,8 @@ export function Button({
   return (
     <Comp
       data-slot="button"
+      data-variant={variant ?? 'default'}
+      data-size={size ?? 'default'}
       type={asChild ? undefined : type}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

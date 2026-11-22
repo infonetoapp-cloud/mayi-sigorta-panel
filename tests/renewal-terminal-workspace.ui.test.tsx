@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { openWorkspaceSections } from './support/workspace-disclosures';
+import { openWorkspaceSections, openWorkspaceSection } from './support/workspace-disclosures';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { installQuotePopBoundary } from '../src/app/pages/today-work/quote-navigation';
 import { invalidateCsrfToken } from '../src/app/csrf';
@@ -40,6 +40,16 @@ const queue: TodayTasksResponseData = {
   todayLocalDate: '2026-10-19',
   now: '2026-10-19T08:00:00.000Z',
 };
+const cycleResult = {
+  operationId: '00000000-0000-4000-8000-000000000001',
+  caseId: 'case',
+  caseVersion: 2,
+  resultRevisionId: 'result',
+  taskId: 't',
+  taskVersion: 8,
+  closedAt: '2026-10-19T09:00:00.000Z',
+  followup: null,
+};
 const response = (data: unknown, status = 200) =>
   new Response(
     JSON.stringify(
@@ -68,6 +78,15 @@ function fixture(
         branches: [],
         paymentMethods: [],
       });
+    if (u.endsWith('/cycle-context?mode=close'))
+      return response({
+        renewalId: 'r',
+        renewalVersion: 3,
+        taskId: 't',
+        taskVersion: 7,
+        salesCycle: { caseId: 'case', expectedCaseVersion: 1, canCreateFollowup: true },
+      });
+    if (u.includes('/loss-operations/')) return response(cycleResult);
     if (u.endsWith('/interactions'))
       return response({
         interactions: [],
@@ -88,6 +107,7 @@ function fixture(
         taskVersion: 8,
         closedAt: '2026-10-19T09:00:00.000Z',
         lossReasonId: 'price',
+        salesCycle: cycleResult,
       });
     return response(null, 403);
   });
@@ -109,6 +129,14 @@ async function open() {
   await screen.findByRole('option', { name: 'Fiyat' });
 }
 function submit() {
+  fireEvent.change(screen.getByLabelText('Takip planı'), { target: { value: 'NO_FOLLOW_UP' } });
+  fireEvent.change(screen.getByLabelText('Takip açmama nedeni'), {
+    target: { value: 'NO_FURTHER_CONTACT' },
+  });
+  fireEvent.change(screen.getByLabelText('Takip açıklaması'), {
+    target: { value: 'Müşteri takip istemiyor.' },
+  });
+
   fireEvent.change(screen.getByLabelText('Kayıp nedeni'), { target: { value: 'price' } });
   fireEvent.click(screen.getByLabelText('Yenilenmedi sonucunu ve seçili nedeni onaylıyorum'));
   fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak kaydet' }));
@@ -118,6 +146,7 @@ it('preserves a terminal draft through refresh prompt and blocks other workspace
   await select();
   await open();
   fireEvent.change(screen.getByLabelText('Kayıp nedeni'), { target: { value: 'price' } });
+  openWorkspaceSection('Görev işlemleri');
   expect(screen.getByRole('button', { name: 'Yeni takip planını aç' }).matches(':disabled')).toBe(
     true,
   );
@@ -127,7 +156,9 @@ it('preserves a terminal draft through refresh prompt and blocks other workspace
   expect((screen.getByLabelText('Kayıp nedeni') as unknown as HTMLSelectElement).value).toBe(
     'price',
   );
+  openWorkspaceSection('Yenileme sonucu');
   fireEvent.click(screen.getByRole('button', { name: 'Bu sonuç taslağını açıkça kapat' }));
+  openWorkspaceSection('Görev işlemleri');
   expect(
     (screen.getByRole('button', { name: 'Yeni takip planını aç' }) as HTMLButtonElement).disabled,
   ).toBe(false);
@@ -138,15 +169,18 @@ it.each(['communication', 'task'])(
     fixture();
     await select();
     if (kind === 'communication') {
+      openWorkspaceSection('İletişim');
       fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydı ekle' }));
       fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
       fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Korunan taslak' } });
     } else {
+      openWorkspaceSection('Görev işlemleri');
       fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
       fireEvent.change(screen.getByLabelText('Yeni takip zamanı (İstanbul)'), {
         target: { value: '2099-01-01T12:00' },
       });
     }
+    openWorkspaceSection('Yenileme sonucu');
     fireEvent.click(screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }));
     await screen.findByText(/Önce iletişim\/görev\/teklif taslağını/);
     expect(screen.queryByRole('form', { name: 'LOST sonuçlandırma' })).toBeNull();
@@ -211,9 +245,9 @@ it('preserves original queue cursor provenance for later-page 409 comparison', a
   };
   let conflict = false;
   const f = fixture((u, i) => {
-    if (u === '/api/tasks/today?limit=20')
+    if (u === '/api/tasks/today?limit=20&unified=true')
       return response({ ...queue, items: [first], hasMore: true, nextCursor: 'original-cursor' });
-    if (u === '/api/tasks/today?limit=20&cursor=original-cursor')
+    if (u === '/api/tasks/today?limit=20&unified=true&cursor=original-cursor')
       return response({
         ...queue,
         items: [{ ...task, ...(conflict ? { renewalVersion: 4, taskVersion: 8 } : {}) }],
@@ -232,9 +266,13 @@ it('preserves original queue cursor provenance for later-page 409 comparison', a
   fireEvent.click(screen.getByRole('button', { name: 'Güncel aynı hedefi karşılaştır' }));
   await screen.findByText(/Önceki yenileme\/görev: 3\/7; güncel: 4\/8/);
   expect(
-    f.fetcher.mock.calls.filter(([u]) => u === '/api/tasks/today?limit=20&cursor=original-cursor'),
+    f.fetcher.mock.calls.filter(
+      ([u]) => u === '/api/tasks/today?limit=20&unified=true&cursor=original-cursor',
+    ),
   ).toHaveLength(2);
-  expect(f.fetcher.mock.calls.filter(([u]) => u === '/api/tasks/today?limit=20')).toHaveLength(1);
+  expect(
+    f.fetcher.mock.calls.filter(([u]) => u === '/api/tasks/today?limit=20&unified=true'),
+  ).toHaveLength(1);
 });
 it('refreshes queue after verified closure, removes the old selected task and does not claim a task-detail GET', async () => {
   let closed = false;
@@ -249,7 +287,7 @@ it('refreshes queue after verified closure, removes the old selected task and do
   await select();
   await open();
   submit();
-  await screen.findByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/);
+  await screen.findByText(/Yenilenmedi sonucu kaydedildi/);
   await screen.findByText('Bu kuyrukta gösterilecek takip bulunmuyor.');
   expect(screen.queryByRole('form', { name: 'LOST sonuçlandırma' })).toBeNull();
   expect(
@@ -280,9 +318,9 @@ it('does not present an old terminal success banner as evidence for a newly sele
   await select();
   await open();
   submit();
-  await screen.findByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/);
+  await screen.findByText(/Yenilenmedi sonucu kaydedildi/);
   fireEvent.click(await screen.findByRole('button', { name: /Sonraki Müşteri/ }));
-  expect(screen.queryByText(/sonucu kaydedildi ve yenileme kaydı kontrol edildi/)).toBeNull();
+  expect(screen.queryByText(/Yenilenmedi sonucu kaydedildi/)).toBeNull();
 });
 it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDED/task/quote operations', async () => {
   fixture((u) =>
@@ -324,14 +362,17 @@ it('keeps WON dirty snapshot through queue refresh guard and disables LOST/VOIDE
   expect(
     screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }).matches(':disabled'),
   ).toBe(true);
+  openWorkspaceSection('Görev işlemleri');
   expect(screen.getByRole('button', { name: 'Yeni takip planını aç' }).matches(':disabled')).toBe(
     true,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
   await screen.findByText('Hedefi değiştirmeden önce');
   fireEvent.click(screen.getByRole('button', { name: 'Bu ekranda kal' }));
+  openWorkspaceSection('Yenileme sonucu');
   expect(screen.getByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı taslağını açıkça kapat' }));
+  openWorkspaceSection('Yenileme sonucu');
   expect(
     screen.getByRole('button', { name: 'Yenilenmedi olarak sonuçlandır' }).matches(':disabled'),
   ).toBe(false);
@@ -342,16 +383,19 @@ it.each(['communication', 'task', 'LOST', 'VOIDED'])(
     fixture();
     await select();
     if (kind === 'communication') {
+      openWorkspaceSection('İletişim');
       fireEvent.click(screen.getByRole('button', { name: 'İletişim kaydı ekle' }));
       fireEvent.change(screen.getByLabelText('Görüşme sonucu'), { target: { value: 'NOTE' } });
       fireEvent.change(screen.getByLabelText('İç not'), { target: { value: 'Korunan taslak' } });
     } else if (kind === 'task') {
+      openWorkspaceSection('Görev işlemleri');
       fireEvent.click(screen.getByRole('button', { name: 'Yeni takip planını aç' }));
       fireEvent.change(screen.getByLabelText('Yeni takip zamanı (İstanbul)'), {
         target: { value: '2099-01-01T12:00' },
       });
     } else if (kind === 'LOST') await open();
     else fireEvent.click(screen.getByRole('button', { name: 'Geçersiz olarak işaretle' }));
+    openWorkspaceSection('Yenileme sonucu');
     fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }));
     expect(screen.queryByRole('form', { name: 'WON mevcut poliçe bağlama' })).toBeNull();
     if (kind === 'communication')
@@ -370,15 +414,19 @@ it('keeps CREATE draft exclusive with LINK_POLICY and other terminal branches th
           paymentMethods: [],
           lossReasons: [],
         })
-      : undefined,
+      : /\/quotes(?:\?.*)?$/.test(u)
+        ? response({ quotes: [] })
+        : undefined,
   );
   await select();
-  fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı — yeni poliçe oluştur' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçelendir' }));
+  fireEvent.change(await screen.findByLabelText('Kayıtlı teklif *'), { target: { value: 'NONE' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
   await screen.findByRole('option', { name: 'I' });
   await act(async () => {
     await Promise.resolve();
   });
-  fireEvent.change(screen.getByLabelText('Yeni poliçe numarası'), {
+  fireEvent.change(screen.getByLabelText('Yeni poliçe numarası *'), {
     target: { value: 'DRAFT-ONLY' },
   });
   expect(
@@ -390,12 +438,10 @@ it('keeps CREATE draft exclusive with LINK_POLICY and other terminal branches th
   fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
   await screen.findByText('Hedefi değiştirmeden önce');
   fireEvent.click(screen.getByRole('button', { name: 'Bu ekranda kal' }));
-  expect((screen.getByLabelText('Yeni poliçe numarası') as unknown as HTMLInputElement).value).toBe(
-    'DRAFT-ONLY',
-  );
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Yeni poliçeyle kazanma taslağını açıkça kapat' }),
-  );
+  expect(
+    (screen.getByLabelText('Yeni poliçe numarası *') as unknown as HTMLInputElement).value,
+  ).toBe('DRAFT-ONLY');
+  fireEvent.click(screen.getByRole('button', { name: 'Poliçelendirmeden vazgeç' }));
   expect(
     screen.getByRole('button', { name: 'Kazanıldı — mevcut poliçeyi bağla' }).matches(':disabled'),
   ).toBe(false);

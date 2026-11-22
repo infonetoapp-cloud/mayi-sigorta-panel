@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { z } from 'zod';
+import { taxNumberSchema, manualCustomerNumberSchema } from '../../../shared/customer-registration';
+import { istanbulToday, validBirthDate } from '../../../shared/customer-profile';
+import { CustomerReferenceField } from './CustomerReferenceField';
 import type { ApiResponse, CustomerDto, CustomerType } from '../../../shared/types';
 import { getCsrfToken, invalidateCsrfToken, parseAppError } from '../../App';
 import { PageHeader } from '../../components/layout/PageContainer';
@@ -11,6 +14,12 @@ import { NavigationDecision } from '../../components/layout/NavigationDecision';
 import { registerQuotePopGuard } from '../today-work/quote-navigation';
 
 const initial = {
+  taxNumber: '',
+  insurerId: '',
+  customerNumber: '',
+  birthDate: '',
+  referenceName: '',
+  referenceMembershipId: '',
   firstName: '',
   lastName: '',
   companyTitle: '',
@@ -20,6 +29,7 @@ const initial = {
 };
 type Fields = typeof initial;
 interface Attempt {
+  next?: 'profile' | 'policy';
   body: string;
   key: string;
 }
@@ -28,6 +38,29 @@ export default function CustomerCreatePage() {
   const [type, setType] = useState<CustomerType>('INDIVIDUAL');
   const [draft, setDraft] = useState(initial);
   const [errors, setErrors] = useState<Partial<Fields>>({});
+  const [insurers, setInsurers] = useState<{ id: string; name: string }[]>([]);
+  const [insurerError, setInsurerError] = useState('');
+  const [insurerLoad, setInsurerLoad] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setInsurerError('');
+    void fetch('/api/catalogs/insurers', { signal: controller.signal, cache: 'no-store' })
+      .then(async (response) => {
+        const result = (await response.json()) as ApiResponse<{ id: string; name: string }[]>;
+        if (controller.signal.aborted) return;
+        if (!response.ok || !result.success || !Array.isArray(result.data))
+          throw new Error('Insurers unavailable');
+        setInsurers(result.data);
+        if (!result.data.length)
+          setInsurerError('Aktif sigorta şirketi yok. Katalogdan bir şirket eklenmesi gerekiyor.');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setInsurerError('Sigorta şirketleri yüklenemedi. Yeniden deneyin.');
+      });
+    return () => controller.abort();
+  }, [insurerLoad]);
+
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Attempt | null>(null);
@@ -172,12 +205,19 @@ export default function CustomerCreatePage() {
           envelope && !envelope.success ? envelope.error : null,
         );
         if (info.isRetryable || response.status === 429) throw new Error('UNCERTAIN');
+        const duplicateNumber =
+          response.status === 409 &&
+          envelope &&
+          !envelope.success &&
+          envelope.error.code === 'DUPLICATE_EXTERNAL_REFERENCE';
         setPending(null);
-        setBlocked([403, 404, 409].includes(response.status));
+        setBlocked(!duplicateNumber && [403, 404, 409].includes(response.status));
         setError(
-          response.status === 409
-            ? 'Kayıt isteği çakıştı veya daha önce işlendi. Yeni kayıt göndermeden müşteri listesini kontrol edin.'
-            : info.message,
+          duplicateNumber
+            ? 'Bu sigorta şirketindeki müşteri no başka bir müşteride kayıtlı. Numarayı kontrol edin veya mevcut müşteri kaydını açın.'
+            : response.status === 409
+              ? 'Kayıt isteği çakıştı veya daha önce işlendi. Yeni kayıt göndermeden müşteri listesini kontrol edin.'
+              : info.message,
         );
         attempt.current = null;
         return;
@@ -185,7 +225,12 @@ export default function CustomerCreatePage() {
       if (!envelope?.success || typeof envelope.data?.id !== 'string' || !envelope.data.id)
         throw new Error('UNCERTAIN');
       created.current = true;
-      void navigate(`/customers/${encodeURIComponent(envelope.data.id)}`, { replace: true });
+      void navigate(
+        current.next === 'policy'
+          ? `/policies/new?customerId=${encodeURIComponent(envelope.data.id)}`
+          : `/customers/${encodeURIComponent(envelope.data.id)}`,
+        { replace: true, state: { customerCreated: true } },
+      );
     } catch {
       if (view !== generation.current) return;
       setPending(current);
@@ -214,26 +259,58 @@ export default function CustomerCreatePage() {
     } else if (!values.companyTitle) invalid.companyTitle = 'Şirket unvanı zorunludur.';
     else if (values.companyTitle.length > 255)
       invalid.companyTitle = 'Unvan en fazla 255 karakter olabilir.';
+    if (type === 'COMPANY' && !taxNumberSchema.safeParse(values.taxNumber).success)
+      invalid.taxNumber = values.taxNumber
+        ? 'Vergi no 10 rakamdan oluşmalıdır.'
+        : 'Vergi no zorunludur.';
+    if (!values.insurerId || !insurers.some((insurer) => insurer.id === values.insurerId))
+      invalid.insurerId = 'Sigorta şirketi seçin.';
+    if (!manualCustomerNumberSchema.safeParse(values.customerNumber).success)
+      invalid.customerNumber = 'Geçerli bir müşteri no girin (en fazla 100 karakter).';
     if (values.email && !z.email().safeParse(values.email).success)
       invalid.email = 'Geçerli bir e-posta adresi girin.';
     if (values.phone.length > 50) invalid.phone = 'Telefon en fazla 50 karakter olabilir.';
     if (values.address.length > 1000) invalid.address = 'Adres en fazla 1000 karakter olabilir.';
+    if (
+      type === 'INDIVIDUAL' &&
+      values.birthDate &&
+      (!validBirthDate(values.birthDate) || values.birthDate > istanbulToday())
+    )
+      invalid.birthDate = 'Geçerli, gelecekte olmayan bir doğum tarihi girin.';
     setErrors(invalid);
     setError('');
-    if (Object.keys(invalid).length) return;
+    if (Object.keys(invalid).length) {
+      document.getElementById('new-' + Object.keys(invalid)[0])?.focus();
+      return;
+    }
     const body = JSON.stringify({
       type,
       ...(type === 'INDIVIDUAL'
         ? { firstName: values.firstName, lastName: values.lastName }
-        : { companyTitle: values.companyTitle }),
+        : { companyTitle: values.companyTitle, taxNumber: values.taxNumber }),
+      insurerNumber: { insurerId: values.insurerId, customerNumber: values.customerNumber },
       email: values.email || null,
       phone: values.phone || null,
       address: values.address || null,
+      ...(type === 'INDIVIDUAL' && values.birthDate ? { birthDate: values.birthDate } : {}),
+      ...(values.referenceMembershipId
+        ? { referenceMembershipId: values.referenceMembershipId }
+        : {}),
+      ...(values.referenceName ? { referenceName: values.referenceName } : {}),
     });
-    const snapshot =
+    const snapshot: Attempt =
       attempt.current?.body === body ? attempt.current : { body, key: crypto.randomUUID() };
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    snapshot.next =
+      submitter instanceof HTMLElement && submitter.dataset.next === 'policy'
+        ? 'policy'
+        : 'profile';
     attempt.current = snapshot;
     void send(snapshot);
+  }
+  function changeField(name: keyof Fields, value: string) {
+    setDraft((previous) => ({ ...previous, [name]: value }));
+    setErrors((previous) => (previous[name] ? { ...previous, [name]: undefined } : previous));
   }
   const field = (name: keyof Fields, label: string, maximum?: number, inputType = 'text') => (
     <div className={name === 'address' ? 'customer-form-wide' : ''}>
@@ -246,21 +323,50 @@ export default function CustomerCreatePage() {
           maxLength={maximum}
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? `error-${name}` : undefined}
-          onChange={(event) =>
-            setDraft((previous) => ({ ...previous, [name]: event.target.value }))
-          }
+          onChange={(event) => changeField(name, event.target.value)}
         />
       ) : (
         <Input
           id={`new-${name}`}
           type={inputType}
+          name={name}
+          max={inputType === 'date' ? istanbulToday() : undefined}
+          autoComplete={
+            name === 'birthDate'
+              ? 'bday'
+              : name === 'firstName'
+                ? 'given-name'
+                : name === 'lastName'
+                  ? 'family-name'
+                  : name === 'email'
+                    ? 'email'
+                    : name === 'phone'
+                      ? 'tel'
+                      : undefined
+          }
+          required={[
+            'firstName',
+            'lastName',
+            'companyTitle',
+            'taxNumber',
+            'customerNumber',
+          ].includes(name)}
+          inputMode={name === 'taxNumber' ? 'numeric' : undefined}
+          pattern={name === 'taxNumber' ? '[0-9]{10}' : undefined}
+          spellCheck={name === 'taxNumber' || name === 'customerNumber' ? false : undefined}
           value={draft[name]}
           maxLength={maximum}
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? `error-${name}` : undefined}
-          onChange={(event) =>
-            setDraft((previous) => ({ ...previous, [name]: event.target.value }))
+          onInput={
+            inputType === 'date'
+              ? (event) => {
+                  const value = event.currentTarget.value;
+                  changeField(name, value);
+                }
+              : undefined
           }
+          onChange={(event) => changeField(name, event.target.value)}
         />
       )}
       {errors[name] && (
@@ -326,6 +432,7 @@ export default function CustomerCreatePage() {
             aria-label="Yeni müşteri oluşturma"
           >
             <fieldset disabled={locked}>
+              <legend className="sr-only">Müşteri bilgileri</legend>
               <div>
                 <label htmlFor="new-type">Müşteri türü</label>
                 <select
@@ -345,18 +452,68 @@ export default function CustomerCreatePage() {
                   <>
                     {field('firstName', 'Ad', 100)}
                     {field('lastName', 'Soyad', 100)}
+                    {field('birthDate', 'Doğum tarihi', undefined, 'date')}
                   </>
                 ) : (
-                  field('companyTitle', 'Şirket unvanı', 255)
+                  <>
+                    {field('companyTitle', 'Şirket unvanı', 255)}
+                    {field('taxNumber', 'Vergi no (zorunlu)', 10)}
+                  </>
                 )}
+                <div>
+                  <label htmlFor="new-insurerId">Sigorta şirketi (zorunlu)</label>
+                  <select
+                    id="new-insurerId"
+                    name="insurerId"
+                    required
+                    value={draft.insurerId}
+                    aria-invalid={!!errors.insurerId}
+                    aria-describedby={errors.insurerId ? 'error-insurerId' : undefined}
+                    onChange={(event) => changeField('insurerId', event.target.value)}
+                  >
+                    <option value="">Sigorta şirketi seçin</option>
+                    {insurers.map((insurer) => (
+                      <option key={insurer.id} value={insurer.id}>
+                        {insurer.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.insurerId && (
+                    <p id="error-insurerId" className="customer-field-error">
+                      {errors.insurerId}
+                    </p>
+                  )}
+                  {insurerError && (
+                    <p role="alert">
+                      {insurerError}{' '}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setInsurerLoad((v) => v + 1)}
+                      >
+                        Şirketleri yeniden yükle
+                      </Button>
+                    </p>
+                  )}
+                </div>
+                {field('customerNumber', 'Şirket müşteri no (zorunlu)', 100)}
+                <CustomerReferenceField
+                  membershipId={draft.referenceMembershipId}
+                  name={draft.referenceName}
+                  onChange={(referenceMembershipId, referenceName) =>
+                    setDraft((old) => ({ ...old, referenceMembershipId, referenceName }))
+                  }
+                />
                 {field('email', 'E-posta', undefined, 'email')}
                 {field('phone', 'Telefon', 50, 'tel')}
                 {field('address', 'Adres', 1000)}
               </div>
             </fieldset>
             <p className="customer-legacy-hint">
-              Ad ve soyad veya şirket unvanı zorunludur. İletişim bilgileri isteğe bağlıdır. Bu
-              forma kimlik numarası, sağlık bilgisi veya parola yazmayın.
+              Müşteri no, seçilen sigorta şirketinin verdiği numaradır; elle girilir, başındaki
+              sıfırlar korunur. Kurumsal müşteride vergi no da zorunludur. Başka şirketlerin müşteri
+              numaraları müşteri kartından eklenebilir. İletişim bilgileri isteğe bağlıdır. Serbest
+              metin alanlarına kimlik, sağlık bilgisi veya parola yazmayın.
             </p>
             {error && <p role="alert">{error}</p>}
             {navigationMessage && (
@@ -368,6 +525,9 @@ export default function CustomerCreatePage() {
             <div className="customer-form-actions">
               <Button type="submit" disabled={locked}>
                 Müşteriyi kaydet
+              </Button>
+              <Button type="submit" data-next="policy" variant="outline" disabled={locked}>
+                Kaydet ve poliçe ekle
               </Button>
               {pending && (
                 <Button variant="outline" disabled={busy} onClick={() => void send(pending)}>

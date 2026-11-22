@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import './support/workspace-disclosures';
 import { cleanup, fireEvent, render, screen, waitFor, act, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Routes, Route } from 'react-router';
+import { WorkNavigationProvider, ReturnToWork } from '../src/app/pages/today-work/work-navigation';
 import TodayWorkPage from '../src/app/pages/today-work/TodayWorkPage';
 import { AuthenticatedApp } from '../src/app/AuthenticatedApp';
 import { Sidebar } from '../src/app/components/layout/Sidebar';
@@ -8,6 +10,9 @@ import type { TodayTaskDto, TodayTasksResponseData } from '../src/shared/types';
 // Phase4A tests isolate browsing; the real operational child is covered by the4B suite.
 vi.mock('../src/app/pages/today-work/RenewalInteractionsSection', () => ({
   RenewalInteractionsSection: () => null,
+}));
+vi.mock('../src/app/pages/today-work/RenewalQuotesSection', () => ({
+  RenewalQuotesSection: () => null,
 }));
 const task = (id: string, bucket: TodayTaskDto['bucket'] = 'OVERDUE'): TodayTaskDto => ({
   taskId: id,
@@ -63,22 +68,145 @@ function mount(owner = true, key = 'first') {
     </MemoryRouter>,
   );
 }
+it('renders a mixed daily page and filters policy-free work by its real branch without opening renewal controls', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response({
+        ...base,
+        items: [
+          ...base.items,
+          {
+            kind: 'GENERAL',
+            caseId: 'real-case',
+            taskId: 'real-general',
+            customerId: 'c-new',
+            customerDisplayName: 'Poliçesiz yeni müşteri',
+            branchName: 'Kasko',
+            title: 'Teklif çalışması',
+            dueAt: '2027-01-10T06:00:00.000Z',
+            taskVersion: 1,
+            assigneeMembershipId: 'member',
+            bucket: 'UPCOMING',
+            isUnassigned: false,
+          },
+        ],
+      }),
+    ),
+  );
+  mount(false);
+  const link = await screen.findByRole('link', { name: 'Poliçesiz yeni müşteri' });
+  expect(link.getAttribute('href')).toBe('/sales-cases/real-case');
+  fireEvent.change(screen.getByLabelText('Yüklü takiplerde ara'), { target: { value: 'Kasko' } });
+  expect(screen.getByRole('link', { name: 'İşi aç ›' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Müşteri a/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Poliçelendir' })).toBeNull();
+});
+it('restores a GENERAL daily return with its search, time filter and loaded page context', async () => {
+  const general = {
+    kind: 'GENERAL',
+    caseId: null,
+    taskId: 'general-return',
+    customerId: 'return-customer',
+    customerDisplayName: 'Genel müşteri',
+    branchName: null,
+    title: 'Müşteriyi ara',
+    dueAt: '2027-01-10T06:00:00.000Z',
+    taskVersion: 1,
+    assigneeMembershipId: 'member',
+    bucket: 'UPCOMING',
+    isUnassigned: false,
+  };
+  const reads = vi.fn(async () =>
+    response({ ...base, items: [...base.items, general], hasMore: false, nextCursor: null }),
+  );
+  vi.stubGlobal('fetch', reads);
+  render(
+    <MemoryRouter initialEntries={['/today-work']}>
+      <WorkNavigationProvider>
+        <Routes>
+          <Route path="/today-work" element={<TodayWorkPage owner={false} />} />
+          <Route
+            path="/tasks/:taskId"
+            element={
+              <>
+                <h1>Gerçek genel takip</h1>
+                <ReturnToWork fallback />
+              </>
+            }
+          />
+        </Routes>
+      </WorkNavigationProvider>
+    </MemoryRouter>,
+  );
+  await screen.findByRole('link', { name: 'Genel müşteri' });
+  fireEvent.change(screen.getByLabelText('Yüklü takiplerde ara'), {
+    target: { value: 'Genel müşteri' },
+  });
+  fireEvent.change(screen.getByLabelText('Takip zamanı'), { target: { value: 'UPCOMING' } });
+  fireEvent.click(screen.getByRole('link', { name: 'İşi aç ›' }));
+  await screen.findByRole('heading', { name: 'Gerçek genel takip' });
+  const back = screen.getByRole('link', { name: 'Seçili takibe dön' });
+  expect(back.getAttribute('href')).toContain('task=general-return');
+  fireEvent.click(back);
+  await screen.findByRole('link', { name: 'Genel müşteri' });
+  expect((screen.getByLabelText('Yüklü takiplerde ara') as HTMLInputElement).value).toBe(
+    'Genel müşteri',
+  );
+  expect(
+    screen.getByLabelText('Takip zamanı').querySelector('option:checked')?.getAttribute('value'),
+  ).toBe('UPCOMING');
+  expect(screen.queryByRole('button', { name: /Müşteri a/ })).toBeNull();
+  expect(reads.mock.calls.length).toBeGreaterThan(1);
+});
+it('moves keyboard focus across general and renewal rows in their visible order', async () => {
+  const general = {
+    ...task('g', 'TODAY'),
+    kind: 'GENERAL',
+    caseId: null,
+    branchName: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response({
+        ...base,
+        items: [base.items[2], general, base.items[0]],
+      }),
+    ),
+  );
+  mount(false);
+  const first = await screen.findByRole('button', { name: 'Müşteri a Takip a' });
+  const between = screen.getByRole('link', { name: 'Müşteri g' });
+  const last = screen.getByRole('button', { name: 'Müşteri c Takip c' });
+  first.focus();
+  fireEvent.keyDown(first, { key: 'ArrowDown' });
+  expect(document.activeElement).toBe(between);
+  fireEvent.keyDown(between, { key: 'End' });
+  expect(document.activeElement).toBe(last);
+  fireEvent.keyDown(last, { key: 'Home' });
+  expect(document.activeElement).toBe(first);
+});
 it('mounts the real today route and replaces private selection when the authenticated employee changes', async () => {
   let calls = 0;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      response(
-        ++calls === 1
-          ? base
-          : {
-              ...base,
-              items: [task('employee-b')],
-              unassignedItems: [],
-              canSeeUnassigned: false,
-              canSeeReassignment: false,
-            },
-      ),
+    vi.fn(async (url: string) =>
+      url.startsWith('/api/tasks/a/context')
+        ? response(null, 404)
+        : response(
+            ++calls === 1
+              ? base
+              : {
+                  ...base,
+                  items: [task('employee-b')],
+                  unassignedItems: [],
+                  unassignedHasMore: false,
+                  unassignedNextCursor: null,
+                  canSeeUnassigned: false,
+                  canSeeReassignment: false,
+                },
+          ),
     ),
   );
   const page = (email: string) => (
@@ -121,6 +249,29 @@ it('keeps today navigation active for the explicit legacy compatibility route', 
     'page',
   );
 });
+it('redirects old daily-work addresses into the single current workspace', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => response(base)),
+  );
+  render(
+    <MemoryRouter initialEntries={['/today-work/legacy']}>
+      <AuthenticatedApp
+        session={{ state: 'NORMAL', email: 'synthetic@example.invalid', isOwner: true }}
+        busy={false}
+        onLogout={() => {}}
+        onReauth={() => {}}
+        renderPassword={() => null}
+        error=""
+        reauth={null}
+      />
+    </MemoryRouter>,
+  );
+  await screen.findByRole('heading', { name: 'Bugünkü İşler' });
+  expect(screen.queryByText(/klasik çalışma alanı/i)).toBeNull();
+  expect(screen.queryByText(/Modern iş kuyruğuna dön/)).toBeNull();
+  await screen.findByRole('button', { name: /Müşteri a/ });
+});
 it('ends the current session when the reused statistics endpoint returns401', async () => {
   const ended = vi.fn();
   document.addEventListener('mayi-session-ended', ended);
@@ -133,7 +284,7 @@ it('ends the current session when the reused statistics endpoint returns401', as
     );
     mount();
     await screen.findByRole('button', { name: /Müşteri a/ });
-    fireEvent.click(screen.getByRole('button', { name: 'Görev istatistiklerini göster' }));
+    fireEvent.click(screen.getByRole('button', { name: 'İş yükü özeti' }));
     await screen.findByText(/Görev istatistikleri yüklenemedi/);
     expect(ended).toHaveBeenCalledOnce();
   } finally {
@@ -148,18 +299,21 @@ it('shows compact buckets and selects only loaded DTO data without a task detail
   const overview = screen.getByRole('region', { name: 'Seçili görev özeti' });
   expect(within(overview).getByText('a@example.test')).toBeTruthy();
   expect(within(overview).getByText(/00:10/, { selector: 'dd' })).toBeTruthy();
-  fireEvent.click(screen.getByText('Diğer yenileme işlemleri', { selector: 'summary' }));
-  expect(screen.getByRole('link', { name: 'Klasik iş akışını aç' }).getAttribute('href')).toBe(
-    '/today-work/legacy',
-  );
+  expect(screen.queryByRole('button', { name: 'Diğer yenileme işlemleri' })).toBeNull();
+  expect(screen.queryByRole('link', { name: /Klasik/ })).toBeNull();
   expect(f.mock.calls).toHaveLength(1);
 });
-it('keeps independent cursors and retries the exact failed page', async () => {
+it('uses one unified cursor and retries the exact failed page', async () => {
   let failed = false;
   const f = vi.fn(async (url: string) => {
     if (url.includes('cursor=work-2') && !failed) {
       failed = true;
-      return response(null, 503);
+      return response({
+        ...base,
+        items: [{ ...task('malformed'), taskVersion: 'bad-version' }],
+        hasMore: false,
+        nextCursor: null,
+      });
     }
     if (url.includes('cursor=work-2'))
       return response({ ...base, items: [task('d')], hasMore: false, nextCursor: null });
@@ -174,16 +328,18 @@ it('keeps independent cursors and retries the exact failed page', async () => {
   });
   vi.stubGlobal('fetch', f);
   mount();
+  fireEvent.click(await screen.findByRole('button', { name: /Müşteri a/ }));
   fireEvent.click(await screen.findByRole('button', { name: 'Daha fazla iş yükle' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Aynı sayfayı yeniden dene' }));
+  const retry = await screen.findByRole('button', { name: 'Aynı sayfayı yeniden dene' });
+  expect(screen.getByText('a@example.test')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Müşteri malformed/ })).toBeNull();
+  fireEvent.click(retry);
   await screen.findByRole('button', { name: /Müşteri d/ });
-  fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Daha fazla iş yükle' }));
-  await screen.findByRole('button', { name: /Müşteri u2/ });
   const urls = f.mock.calls.map(([u]) => u);
   expect(urls[1]).toBe(urls[2]);
-  expect(urls.at(-1)).toContain('unassignedCursor=unassigned-2');
-  expect(urls.at(-1)).not.toContain('cursor=work-2');
+  expect(urls.at(-1)).toContain('cursor=work-2');
+  expect(urls.every((url) => url.includes('unified=true'))).toBe(true);
+  expect(screen.queryByText('Ekip işlemleri')).toBeNull();
 });
 it.each([400, 401, 403, 404, 409])(
   'clears selected task, cached queues and statistics on invalidated/denied paging %i',
@@ -211,31 +367,20 @@ it.each([400, 401, 403, 404, 409])(
     }
   },
 );
-it('clears selection when changing queues and never selects an unloaded task or auto-reassigns history', async () => {
-  const f = vi.fn(async (url: string) =>
-    response(
-      url.includes('needsReassignment=true')
-        ? {
-            ...base,
-            items: [{ ...task('old'), needsReassignment: true, assigneeMembershipId: 'suspended' }],
-          }
-        : base,
-    ),
+it('shows assigned and unassigned work together without team selectors or automatic reassignment', async () => {
+  const f = vi.fn(async () =>
+    response({ ...base, items: [...base.items, ...base.unassignedItems] }),
   );
   vi.stubGlobal('fetch', f);
   mount();
   fireEvent.click(await screen.findByRole('button', { name: /Müşteri a/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
-  expect(screen.queryByText('a@example.test')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Atanmamış işler' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Yeniden atama gerekenler' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: /Müşteri u/ }));
   expect(screen.getByText('u@example.test')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Yeniden atama gerekenler' }));
-  await screen.findByRole('button', { name: /Müşteri old/ });
-  expect(screen.queryByText('u@example.test')).toBeNull();
-  expect(f.mock.calls.some(([url]) => url.includes('needsReassignment=true'))).toBe(true);
-  expect(f.mock.calls.every(([url]) => url.startsWith('/api/tasks/today'))).toBe(true);
+  expect(f).toHaveBeenCalledTimes(1);
 });
-it('ignores late401 paging after queue change without clearing the current session or new selection', async () => {
+it('ignores late401 paging after refresh without clearing the current session or new selection', async () => {
   let release!: (r: Response) => void;
   const deferred = new Promise<Response>((resolve) => {
     release = resolve;
@@ -249,11 +394,11 @@ it('ignores late401 paging after queue change without clearing the current sessi
     );
     mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Daha fazla iş yükle' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Atanmamış işler' }));
-    fireEvent.click(screen.getByRole('button', { name: /Müşteri u/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Müşteri b/ }));
     await act(async () => release(response(null, 401)));
     expect(ended).not.toHaveBeenCalled();
-    expect(screen.getByText('u@example.test')).toBeTruthy();
+    expect(screen.getByText('b@example.test')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   } finally {
     document.removeEventListener('mayi-session-ended', ended);
@@ -278,6 +423,21 @@ it('clears selection on refresh and retries the failed base URL, not an old next
   expect(
     within(screen.getByRole('region', { name: 'Seçili görev özeti' })).getByText('Bir takip seçin'),
   ).toBeTruthy();
+});
+it('filters only the loaded authorized queue without additional reads or changing the selected task', async () => {
+  const f = vi.fn(async () => response(base));
+  vi.stubGlobal('fetch', f);
+  mount();
+  await screen.findByRole('button', { name: /Müşteri a/ });
+  fireEvent.change(screen.getByLabelText('Yüklü takiplerde ara'), {
+    target: { value: 'Müşteri b' },
+  });
+  expect(screen.queryByRole('button', { name: /Müşteri a/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /Müşteri b/ }));
+  fireEvent.change(screen.getByLabelText('Takip zamanı'), { target: { value: 'OVERDUE' } });
+  expect(screen.getByText('b@example.test')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Müşteri b/ })).toBeNull();
+  expect(f.mock.calls).toHaveLength(1);
 });
 it('supports keyboard focus and switches selected overview without detail requests', async () => {
   const f = vi.fn(async () => response(base));
@@ -304,7 +464,8 @@ it('does not offer privileged queues to a MEMBER even if unrelated capabilities 
   );
   mount(false);
   await screen.findByRole('button', { name: /Müşteri a/ });
-  expect(screen.getByRole('button', { name: 'Kendi işlerim' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Kendi işlerim' })).toBeTruthy();
+  expect(screen.queryByText('Ekip işlemleri')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Atanmamış işler' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Yeniden atama gerekenler' })).toBeNull();
 });
@@ -317,17 +478,21 @@ it('does not reuse old employee data or late errors after the session-keyed page
   const f = vi.fn(async (url: string) =>
     url.includes('cursor=')
       ? deferred
-      : response(
-          ++requests === 1
-            ? base
-            : {
-                ...base,
-                items: [task('employee-b')],
-                canSeeUnassigned: false,
-                canSeeReassignment: false,
-                unassignedItems: [],
-              },
-        ),
+      : url.startsWith('/api/tasks/a/context')
+        ? response(null, 404)
+        : response(
+            ++requests === 1
+              ? base
+              : {
+                  ...base,
+                  items: [task('employee-b')],
+                  canSeeUnassigned: false,
+                  canSeeReassignment: false,
+                  unassignedItems: [],
+                  unassignedHasMore: false,
+                  unassignedNextCursor: null,
+                },
+          ),
   );
   vi.stubGlobal('fetch', f);
   const view = mount(false, 'employee-a');
@@ -359,16 +524,16 @@ const stats = (view: 'self' | 'team', canSeeTeam: boolean) => ({
   nextCursor: null,
 });
 it('uses server statistical totals rather than visible page counts and keeps MEMBER self-only', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) =>
-      response(url.includes('statistics') ? stats('self', false) : base),
-    ),
+  const reads = vi.fn(async (url: string) =>
+    response(url.includes('statistics') ? stats('self', false) : base),
   );
+  vi.stubGlobal('fetch', reads);
   mount(false);
   await screen.findByRole('button', { name: /Müşteri a/ });
-  fireEvent.click(screen.getByRole('button', { name: 'Görev istatistiklerini göster' }));
+  expect(reads.mock.calls.some(([url]) => url.includes('statistics'))).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'İş yükü özeti' }));
   await screen.findByText('42');
+  expect(screen.queryByRole('button', { name: 'Görev istatistiklerini göster' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Ekip özeti' })).toBeNull();
   expect(screen.getByText('Kendi görev özetim')).toBeTruthy();
 });
@@ -393,9 +558,9 @@ it('suppresses a late statistics401 after the statistics view is unmounted', asy
     );
     mount();
     await screen.findByRole('button', { name: /Müşteri a/ });
-    fireEvent.click(screen.getByRole('button', { name: 'Görev istatistiklerini göster' }));
+    fireEvent.click(screen.getByRole('button', { name: 'İş yükü özeti' }));
     await waitFor(() => expect(pending).toBe(true));
-    fireEvent.click(screen.getByRole('button', { name: 'Görev istatistiklerini gizle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ayrıntıları kapat' }));
     await act(async () => release(response(null, 401)));
     expect(ended).not.toHaveBeenCalled();
     expect(screen.queryByRole('alert')).toBeNull();

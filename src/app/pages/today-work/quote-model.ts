@@ -9,6 +9,7 @@ export interface QuoteVersion {
   insurer_id: string;
   product_id: string;
   product_name?: string;
+  insurer_name?: string;
   branch_id: string;
   payment_method_id: string;
   start_date: string;
@@ -28,6 +29,7 @@ export interface QuoteRecord {
   accepted_version_id: string | null;
   created_at?: string;
   updated_at?: string;
+  versionCount?: number;
   versions: QuoteVersion[];
   events: {
     id: string;
@@ -40,6 +42,10 @@ export interface QuoteRecord {
 export interface QuoteHistory {
   quotes: QuoteRecord[];
   defaultVersion: VersionPayload;
+  historyMode?: 'SUMMARY';
+  selectedQuoteId?: string | null;
+  hasMore?: boolean;
+  nextCursor?: string | null;
 }
 export type QuoteDraft = Omit<
   VersionPayload,
@@ -167,3 +173,16 @@ export const quoteStatuses: Record<string, string> = {
   REJECTED: 'Reddedildi',
   EXPIRED: 'Süresi doldu',
 };
+
+/** Exact selection is independent of the current list page. Never search successive pages for proof. */
+export function exactQuoteUrl(
+  root: string,
+  quoteId: string,
+  versionId?: string,
+  operationId?: string,
+) {
+  const q = new URLSearchParams({ quoteId });
+  if (versionId) q.set('versionId', versionId);
+  if (operationId) q.set('operationId', operationId);
+  return `${root}?${q}`;
+}

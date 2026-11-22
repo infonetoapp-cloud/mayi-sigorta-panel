@@ -10,6 +10,7 @@ import {
   useWorkNavigation,
 } from '../src/app/pages/today-work/work-navigation';
 import type { CustomerCoverageSummary } from '../src/shared/customer-coverage';
+import { customerDetailFixture } from './support/customer-detail-fixture';
 const policy = {
   policyId: 'p-1',
   policyNumber: 'SENTETIK-1',
@@ -39,20 +40,15 @@ const coverage: CustomerCoverageSummary = {
   nearestExpiry: policy,
   policies: [policy],
 };
-const customer = {
-  id: 'a',
-  displayName: 'Sentetik müşteri',
-  type: 'INDIVIDUAL',
-  email: null,
-  phone: null,
-  address: null,
-  archivedAt: null,
-  version: 1,
-  createdAt: '2026-01-01T00:00:00Z',
-  coverage,
-};
+const customer = customerDetailFixture('a', { coverage });
 const reply = (data: unknown, status = 200) =>
   new Response(JSON.stringify({ success: status < 400, data }), { status });
+const emptyRelated = { items: [], nextCursor: null, hasMore: false };
+function profileFixture(url: string) {
+  return url.includes('/renewals') || url.startsWith('/api/policies?')
+    ? emptyRelated
+    : { ...customer, id: url.split('/').at(-1) };
+}
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -71,10 +67,10 @@ it('shows compact real types and exact count in a customer row without per-row p
   expect(within(row).getByText('+1')).toBeTruthy();
   expect(fetcher.mock.calls).toHaveLength(1);
 });
-it('shows linked named policies immediately in the profile, before choosing a section', async () => {
+it('shows linked named policies in the profile policy section', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => reply(url.endsWith('/coverage') ? coverage : customer)),
+    vi.fn(async (url: string) => reply(url.endsWith('/coverage') ? coverage : profileFixture(url))),
   );
   render(
     <MemoryRouter initialEntries={['/customers/a']}>
@@ -83,6 +79,7 @@ it('shows linked named policies immediately in the profile, before choosing a se
       </Routes>
     </MemoryRouter>,
   );
+  fireEvent.click(await screen.findByRole('link', { name: 'Poliçeler ve yenilemeler' }));
   const summary = await screen.findByRole('region', { name: 'Sigorta özeti' });
   expect(await within(summary).findByText('25 yürürlükte poliçe')).toBeTruthy();
   expect(
@@ -118,10 +115,10 @@ it.each([false, true])(
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string) => reply(url.endsWith('/coverage') ? value : customer)),
+      vi.fn(async (url: string) => reply(url.endsWith('/coverage') ? value : profileFixture(url))),
     );
     render(
-      <MemoryRouter initialEntries={['/customers/a']}>
+      <MemoryRouter initialEntries={['/customers/a?section=policies']}>
         <Routes>
           <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
         </Routes>
@@ -144,11 +141,11 @@ it('does not label a failed summary as zero coverage and retries only its read',
       ? ++calls === 1
         ? reply(null, 503)
         : reply(coverage)
-      : reply(customer),
+      : reply(profileFixture(url)),
   );
   vi.stubGlobal('fetch', fetcher);
   render(
-    <MemoryRouter initialEntries={['/customers/a']}>
+    <MemoryRouter initialEntries={['/customers/a?section=policies']}>
       <Routes>
         <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
       </Routes>
@@ -169,15 +166,13 @@ it('never renders a late coverage summary for a previously selected customer', a
       url === '/api/customers/a/coverage'
         ? pending
         : reply(
-            url.endsWith('/coverage')
-              ? { ...coverage, activePolicyCount: 1 }
-              : { ...customer, id: url.split('/').at(-1) },
+            url.endsWith('/coverage') ? { ...coverage, activePolicyCount: 1 } : profileFixture(url),
           ),
     ),
   );
   render(
-    <MemoryRouter initialEntries={['/customers/a']}>
-      <Link to="/customers/b">Müşteri B</Link>
+    <MemoryRouter initialEntries={['/customers/a?section=policies']}>
+      <Link to="/customers/b?section=policies">Müşteri B</Link>
       <Routes>
         <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
       </Routes>
@@ -198,7 +193,9 @@ it('keeps the Phase1 Task return through complete related policy pagination', as
       reply(
         url.includes('/api/policies?')
           ? {
-              items: [{ ...policy, id: 'p-1', status: 'ACTIVE', archivedAt: null }],
+              items: [
+                { ...policy, id: 'p-1', customerId: 'a', status: 'ACTIVE', archivedAt: null },
+              ],
               hasMore: true,
               nextCursor: 'next',
             }
@@ -231,6 +228,80 @@ it('keeps the Phase1 Task return through complete related policy pagination', as
   expect(
     (await screen.findByRole('link', { name: 'Seçili takibe dön' })).getAttribute('href'),
   ).toContain('task=task-a');
+});
+it('contains malformed successful reads in each section and retries the exact page independently', async () => {
+  let broken = true;
+  const related = {
+    ...policy,
+    id: 'related-policy',
+    customerId: 'a',
+    policyNumber: 'RELATED-1',
+    endDate: '2026-02-31',
+    status: 'ACTIVE',
+    archivedAt: null,
+  };
+  const renewal = {
+    id: 'r-1',
+    policyNumber: 'RENEWAL-1',
+    policyEndDate: '2026-11-30',
+    state: 'WON',
+  };
+  const fetcher = vi.fn<(url: string, request?: RequestInit) => Promise<Response>>(async (url) => {
+    if (url.startsWith('/api/policies?'))
+      return reply({
+        items: [broken ? { ...related, customerId: 'other' } : related],
+        hasMore: true,
+        nextCursor: 'policy-next',
+      });
+    if (url.includes('/renewals'))
+      return reply({ items: broken ? null : [renewal], nextCursor: null });
+    if (url.endsWith('/coverage'))
+      return reply(broken ? { ...coverage, policies: [null] } : coverage);
+    return reply(customer);
+  });
+  vi.stubGlobal('fetch', fetcher);
+  render(
+    <MemoryRouter
+      initialEntries={[
+        '/customers/a?section=policies&after=policy-page&renewalsAfter=renewal-page',
+      ]}
+    >
+      <Routes>
+        <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByRole('heading', { name: 'Sentetik müşteri' });
+  const policyRetry = await screen.findByRole('button', { name: 'Poliçeleri yeniden dene' });
+  const renewalsRetry = await screen.findByRole('button', { name: 'Yenilemeleri yeniden dene' });
+  const coverageRetry = await screen.findByRole('button', { name: 'Poliçe özetini yeniden dene' });
+  expect(screen.queryByRole('link', { name: 'RELATED-1' })).toBeNull();
+  expect(screen.queryByText('Görüntülenebilir yenileme bulunamadı.')).toBeNull();
+
+  broken = false;
+  fireEvent.click(policyRetry);
+  await screen.findByRole('link', { name: 'RELATED-1' });
+  expect(screen.getByText(/Tarih kontrolü gerekiyor/)).toBeTruthy();
+  expect(fetcher.mock.calls.filter(([url]) => url.includes('/renewals'))).toHaveLength(1);
+  fireEvent.click(renewalsRetry);
+  await screen.findByRole('link', { name: 'RENEWAL-1' });
+  fireEvent.click(coverageRetry);
+  await screen.findByText('25 yürürlükte poliçe');
+  const reads = fetcher.mock.calls.map(([url]) => url);
+  expect(reads.filter((url) => url.startsWith('/api/policies?'))).toEqual([
+    '/api/policies?customerId=a&pageSize=20&includeLabels=true&cursor=policy-page',
+    '/api/policies?customerId=a&pageSize=20&includeLabels=true&cursor=policy-page',
+  ]);
+  expect(reads.filter((url) => url.includes('/renewals'))).toEqual([
+    '/api/customers/a/renewals?cursor=renewal-page',
+    '/api/customers/a/renewals?cursor=renewal-page',
+  ]);
+  expect(reads.filter((url) => url.endsWith('/coverage'))).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Sonraki poliçeler' }));
+  await screen.findByRole('link', { name: 'RELATED-1' });
+  expect(screen.getByRole('link', { name: 'RENEWAL-1' })).toBeTruthy();
+  expect(fetcher.mock.calls.filter(([url]) => url.includes('/renewals'))).toHaveLength(2);
+  expect(fetcher.mock.calls.every(([, request]) => !request?.method)).toBe(true);
 });
 it('restores private search, customer filter and cursor after returning from a profile in the same SPA session', async () => {
   const fetcher = vi.fn(async (url: string) =>
@@ -265,7 +336,7 @@ it('restores private search, customer filter and cursor after returning from a p
   fireEvent.click(screen.getByRole('button', { name: 'Sonraki sayfa' }));
   await screen.findByText('Sayfa 2 · Her sayfada en fazla 20 kayıt');
   fireEvent.click(await screen.findByRole('link', { name: 'Sentetik müşteri' }));
-  await screen.findByRole('region', { name: 'Sigorta özeti' });
+  await screen.findByRole('heading', { name: 'Sentetik müşteri' });
   fireEvent.click(screen.getByRole('link', { name: 'Müşteri listesine dön' }));
   expect(((await screen.findByLabelText('Müşteri ara')) as HTMLInputElement).value).toBe(
     'sentetik@example.invalid',

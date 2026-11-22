@@ -35,6 +35,12 @@ describe('M2-T04 policy route contract', () => {
     registerPolicyRoutes(app);
     const routes = app.routes.map(({ method, path }) => `${method} ${path}`);
     expect(routes).toEqual([
+      'GET /api/policies/:id/cancellation-context',
+      'POST /api/policies/:id/cancel',
+      'GET /api/policies/:id/void-context',
+      'POST /api/policies/:id/void',
+      'GET /api/policies/:id/cancellations',
+      'PUT /api/policies/:id/vehicle',
       'GET /api/policies',
       'POST /api/policies',
       'GET /api/policies/:id',

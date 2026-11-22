@@ -8,6 +8,7 @@ import {
   RENEWAL_CONTINUATION_CRON,
 } from '../src/server/renewals/generation';
 import { createWorker } from '../src/server/index';
+import { archivePolicy } from '../src/server/policies/service';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 let sequence = 0;
 const agency = 'agency-auth-test';
@@ -140,10 +141,26 @@ describe('Bounded renewal continuation on real local D1', () => {
       .prepare('UPDATE policies SET end_date=?,version=version+1 WHERE id=?')
       .bind(`${year}-01-05`, `cont-${year}-4`)
       .run();
-    await f.db
-      .prepare("UPDATE policies SET status='VOIDED',version=version+1 WHERE id=?")
-      .bind(`cont-${year}-5`)
-      .run();
+    await archivePolicy(
+      {
+        userId: 'cont-owner',
+        identityId: 'identity-cont-owner',
+        assurance: 'NORMAL',
+        memberships: [
+          {
+            id: 'membership-cont-owner',
+            agencyId: agency,
+            type: 'OWNER',
+            status: 'ACTIVE',
+            permissionVersion: 2,
+          },
+        ],
+      },
+      f.db,
+      `cont-${year}-5`,
+      { expectedVersion: 1, reasonCode: 'HISTORICAL_RECORD' },
+      `cont-archive-${year}-5`,
+    );
     expect((await runRenewalGenerationForAgency(f.db, agency)).completedThrough).toBeNull();
     expect((await runRenewalGenerationForAgency(f.db, agency)).completedThrough).toBe(
       `${year}-01-02`,

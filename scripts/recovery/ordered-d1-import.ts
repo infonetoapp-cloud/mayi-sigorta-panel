@@ -283,8 +283,15 @@ const safeFunctions = new Set([
   'max',
   'min',
   'strftime',
+  // SQLite prepares this fixed-size builtin for schema defaults even when
+  // INSERT supplies every value. Literal VALUES and complete-column checks
+  // still reject runtime/default-generated source data.
+  'current_timestamp',
   'unixepoch',
   'julianday',
+  // Fixed SQLite calendar CHECKs and bounded financial ledger totals.
+  'date',
+  'sum',
   'replace',
   'char',
 ]);
@@ -495,7 +502,9 @@ export function orderedD1Import(exportSql: string): string {
       timeout: 15000,
       maxBuffer: ORDERED_IMPORT_LIMITS.derivedBytes + 65536,
       env: Object.fromEntries(
-        Object.entries(process.env).filter(([k]) => !/^(?:CLOUDFLARE_|NODE_OPTIONS$)/u.test(k)),
+        Object.entries(process.env).filter(
+          ([k]) => !/^(?:CLOUDFLARE_|MAYI_BACKUP_|NODE_OPTIONS$)/u.test(k),
+        ),
       ),
     },
   );

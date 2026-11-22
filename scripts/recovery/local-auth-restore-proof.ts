@@ -13,7 +13,7 @@ import { verifyOperationalRecovery } from './operational-data-proof';
 
 // Offline SYNTHETIC proof only: no caller-supplied target, account, remote binding or credentials.
 export const AUTH_RESTORE_SCHEMA_HASH =
-  'f7d308266f6376551ba964e0df0089cf2f1a8eca466c9f54dadaf1c29ec4c763';
+  '84be40bb8d3df1c456342270fc87a35da73b6bd4da37ddab268f1696dacdbce5';
 const SOURCE_ID = 'synthetic-local-auth-source';
 const ISO = '2026-09-01T00:00:00.000Z';
 export const SYNTHETIC_AUTH_TIME = Date.parse(ISO);
@@ -44,15 +44,15 @@ const manifestSchema = z.strictObject({
   appVersion: z.literal('0.1.0'),
   createdAt: z.literal(ISO),
   bookmark: z.literal('synthetic-paused-native-export'),
-  schemaVersion: z.literal('0022'),
-  highestMigration: z.literal('0022_renewal_generation_continuation.sql'),
+  schemaVersion: z.literal('0040'),
+  highestMigration: z.literal('0040_branch_vehicle_details.sql'),
   history: z
     .array(z.strictObject({ id: z.number().int(), name: z.string(), sourceSha256: digest }))
-    .length(23),
+    .length(41),
   counts: z.strictObject({
-    table: z.literal(45),
-    index: z.literal(174),
-    trigger: z.literal(180),
+    table: z.literal(63),
+    index: z.literal(243),
+    trigger: z.literal(244),
     view: z.literal(3),
   }),
   schemaHash: digest,
@@ -167,10 +167,10 @@ function manifestFor(artifact: Artifact, artifactJson: string): AuthRestoreManif
     appVersion: '0.1.0',
     createdAt: ISO,
     bookmark: 'synthetic-paused-native-export',
-    schemaVersion: '0022',
-    highestMigration: '0022_renewal_generation_continuation.sql',
+    schemaVersion: '0040',
+    highestMigration: '0040_branch_vehicle_details.sql',
     history: migrations(),
-    counts: { table: 45, index: 174, trigger: 180, view: 3 },
+    counts: { table: 63, index: 243, trigger: 244, view: 3 },
     schemaHash: authSchemaHash(artifact.schema),
     ...summary(artifact),
     artifactSha256: sha(artifactJson),
@@ -416,7 +416,7 @@ async function seedOperationalState(db: D1Database) {
   await db.batch([
     db
       .prepare(
-        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id,created_at,updated_at) VALUES(?,?,'INDIVIDUAL','Synthetic','Syn','Thetic','synthetic-membership-temporary',?,?)",
+        "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id,created_at,updated_at,birth_date,reference_membership_id,reference_name,reference_search_key) VALUES(?,?,'INDIVIDUAL','Synthetic','Syn','Thetic','synthetic-membership-temporary',?,?,'1990-02-28','synthetic-membership-permanent','Sentetik İlk Ad','sentetik ilk ad')",
       )
       .bind(customer, agency, ISO, ISO),
     db
@@ -482,6 +482,53 @@ async function seedOperationalState(db: D1Database) {
       )
       .bind(policy, agency, customer, policy, policy, ISO, ISO)
       .run();
+    if (i === 0) {
+      const details = {
+        plate: '34 SYN 001',
+        brand: 'Sentetik',
+        model: 'İlk model',
+        modelYear: 2020,
+        vin: null,
+        engineNumber: '000123',
+        registrationSerial: null,
+      };
+      await db
+        .prepare(
+          'INSERT INTO customer_vehicles(id,agency_id,customer_id,details_json,normalized_plate,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+        )
+        .bind('synthetic-vehicle', agency, customer, JSON.stringify(details), '34SYN001', ISO, ISO)
+        .run();
+      await db
+        .prepare(
+          'INSERT INTO policy_vehicle_snapshots(policy_id,agency_id,customer_id,vehicle_id,vehicle_version,details_json,created_at,updated_at) VALUES(?,?,?,?,1,?,?,?)',
+        )
+        .bind(policy, agency, customer, 'synthetic-vehicle', JSON.stringify(details), ISO, ISO)
+        .run();
+      await db
+        .prepare('UPDATE customer_vehicles SET details_json=?,version=2 WHERE id=?')
+        .bind(JSON.stringify({ ...details, model: 'Güncel model' }), 'synthetic-vehicle')
+        .run();
+      await db
+        .prepare(
+          'INSERT INTO customer_vehicles(id,agency_id,customer_id,details_json,normalized_plate,created_at,updated_at) VALUES(?,?,?,?,NULL,?,?)',
+        )
+        .bind(
+          'synthetic-empty-vehicle',
+          agency,
+          customer,
+          JSON.stringify({
+            ...details,
+            plate: null,
+            brand: null,
+            model: null,
+            modelYear: null,
+            engineNumber: null,
+          }),
+          ISO,
+          ISO,
+        )
+        .run();
+    }
     if (i >= 4) continue;
     await db.batch([
       db
@@ -526,7 +573,10 @@ async function seedOperationalState(db: D1Database) {
 }
 
 /** Optional explicit test-only seed remains confined to the freshly created local source. */
-export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => Promise<void>) {
+export async function createSyntheticAuthBackup(
+  seedLocal?: (db: D1Database) => Promise<void>,
+  afterSeedLocal?: (db: D1Database) => Promise<void>,
+) {
   const directory = directoryFor('source');
   let platform: Awaited<ReturnType<typeof openLocal>> | undefined;
   try {
@@ -537,6 +587,7 @@ export async function createSyntheticAuthBackup(seedLocal?: (db: D1Database) => 
       await seed(platform.db);
       await seedOperationalState(platform.db);
     }
+    await afterSeedLocal?.(platform.db);
     // Source is offline/quiescent. Native export is the consistent snapshot boundary, not row-by-row live reads.
     await platform.dispose();
     platform = undefined;

@@ -147,8 +147,11 @@ export function registerTaskRoutes(
       const params = new URL(c.req.url).searchParams;
       if ([...params.keys()].some((key) => params.getAll(key).length !== 1))
         return fail(c, 400, 'VALIDATION_ERROR', 'Geçersiz istek.');
-      const { queue = 'WORK' } = z
-        .object({ queue: z.enum(['WORK', 'UNASSIGNED', 'REASSIGNMENT']).optional() })
+      const { queue = 'WORK', unified } = z
+        .object({
+          queue: z.enum(['WORK', 'UNASSIGNED', 'REASSIGNMENT']).optional(),
+          unified: z.literal('true').optional(),
+        })
         .strict()
         .parse(c.req.query());
       const taskId = z
@@ -160,7 +163,11 @@ export function registerTaskRoutes(
       const data = await listTodayTasks(
         authenticated.context,
         c.env.DB,
-        { limit: 1, ...(queue === 'REASSIGNMENT' ? { needsReassignment: 'true' as const } : {}) },
+        {
+          limit: 1,
+          unified,
+          ...(queue === 'REASSIGNMENT' ? { needsReassignment: 'true' as const } : {}),
+        },
         taskId,
       );
       const items = queue === 'UNASSIGNED' ? data.unassignedItems : data.items;

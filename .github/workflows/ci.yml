@@ -1,0 +1,132 @@
+name: CRM CI
+
+on:
+  push:
+    branches: [main, codex/ui-modernization]
+  pull_request:
+    branches: [main, codex/ui-modernization]
+  workflow_dispatch:
+    inputs:
+      full_suite:
+        description: Run the complete Vitest suite as well
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_SEND_METRICS: 'false'
+
+jobs:
+  quality:
+    name: Code and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Check formatting
+        run: npx --no-install prettier --end-of-line auto --check src tests scripts package.json tsconfig.json vite.config.ts README.md .github/workflows/ci.yml
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run release:client
+      - run: npm run verify:release-client
+      - run: npm run verify:boundaries
+      - name: Compile the production Worker locally
+        run: npm run build:worker -- --env production
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
+  tests:
+    name: Application and D1 tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Check daily workflows
+        run: >-
+          npm test -- --maxWorkers=2
+          tests/auth.ui.test.tsx
+          tests/customer-pages.ui.test.tsx
+          tests/customer-contact-edit.ui.test.tsx
+          tests/customer-note-navigation.ui.test.tsx
+          tests/renewal-reopen-form.ui.test.tsx
+          tests/sales-cases.ui.test.tsx
+      - name: Exercise real APIs with disposable D1 databases
+        run: >-
+          npm test -- --maxWorkers=2
+          tests/authorization.evaluator.test.ts
+          tests/api.me.test.ts
+          tests/auth.local.test.ts
+          tests/security.boundary.test.ts
+          tests/db.integration.test.ts
+          tests/customer-coverage.api.test.ts
+          tests/company-contacts.api.test.ts
+          tests/policy-browsing.api.test.ts
+          tests/finance.api.test.ts
+          tests/claims.api.test.ts
+          tests/sales-issue-policy.api.test.ts
+
+  browser:
+    name: Browser smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx --no-install playwright install --with-deps --only-shell chromium
+      - run: npm run test:ui-smoke
+      - name: Preserve evidence on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: customer-profile-smoke
+          path: dist/release-audit/customer-profile/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  full-suite:
+    name: Full Vitest suite (${{ matrix.shard }}/4)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_suite }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:client
+      - run: npm test -- --maxWorkers=2 --shard=${{ matrix.shard }}/4

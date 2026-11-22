@@ -122,7 +122,7 @@ describe('Employee renewal completion', () => {
     fireEvent.change(await screen.findByLabelText('Bağlanacak poliçe: Deneme'), {
       target: { value: policy.id },
     });
-    await screen.findByText('Seçilen poliçe: YENI-42 · 420,50 EUR');
+    await screen.findByText('Seçilen poliçe: YENI-42 · 420,50 €');
     expect(screen.queryByLabelText('Poliçe sürümü: Deneme')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı sonucunu kaydet: Deneme' }));
     await waitFor(() => expect(completed).toHaveBeenCalledOnce());
@@ -345,7 +345,7 @@ describe('Employee renewal completion', () => {
     fireEvent.change(screen.getByLabelText('Bağlanacak poliçe: Deneme'), {
       target: { value: policy.id },
     });
-    await screen.findByText('Seçilen poliçe: YENI-42 · 430,00 EUR');
+    await screen.findByText('Seçilen poliçe: YENI-42 · 430,00 €');
     fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı sonucunu kaydet: Deneme' }));
     await waitFor(() => expect(completed).toHaveBeenCalledOnce());
     expect(JSON.parse(String(posts(fetcher)[1]![1]!.body))).toMatchObject({
@@ -494,7 +494,7 @@ describe('Employee renewal completion', () => {
     fireEvent.change(screen.getByLabelText('Bağlanacak poliçe: Deneme'), {
       target: { value: policy.id },
     });
-    await screen.findByText('Seçilen poliçe: YENI-42 · 420,50 EUR');
+    await screen.findByText('Seçilen poliçe: YENI-42 · 420,50 €');
     expect(screen.queryByLabelText('Ürün/prim farkı nedeni: Deneme')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Kazanıldı sonucunu kaydet: Deneme' }));
     await waitFor(() => expect(completed).toHaveBeenCalledOnce());

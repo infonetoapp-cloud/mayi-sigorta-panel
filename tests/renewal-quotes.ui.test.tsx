@@ -325,7 +325,7 @@ describe('Anadolu-focused renewal quotes', () => {
         validUntil: defaults.validUntil,
       },
     });
-    expect(screen.getByText(/v1: 110,00 TRY/)).toBeTruthy();
+    expect(screen.getByText(/v1: 110,00 ₺/)).toBeTruthy();
   });
 
   it('resolves inactive original labels using existing scoped catalog endpoints', async () => {

@@ -18,7 +18,7 @@ interface Scope {
 }
 function config(text = readFileSync('wrangler.jsonc', 'utf8')) {
   return JSON.parse(text.replace(/^\s*\/\/.*$/gmu, '').replace(/,\s*([}\]])/gu, '$1')) as Scope & {
-    env: { production: Scope; foundation: Scope };
+    env: { production: Scope & { secrets: { required: string[] } }; foundation: Scope };
   };
 }
 it('production internal commissioning keeps public closure, private recovery and legacy environments unchanged', () => {
@@ -68,6 +68,12 @@ it('production internal commissioning keeps public closure, private recovery and
   );
   const unchanged = structuredClone(c);
   unchanged.env.production.triggers.crons = ['*/5 * * * *'];
+  expect(unchanged.env.production.secrets.required).toEqual([
+    ...prior.env.production.secrets.required,
+    'TURNSTILE_SITE_KEY',
+    'TURNSTILE_SECRET',
+  ]);
+  unchanged.env.production.secrets.required = prior.env.production.secrets.required;
   expect(unchanged).toEqual(prior);
   expect(
     readFileSync('wrangler.backup.json', 'utf8').replace(/\r\n/gu, '\n') ===

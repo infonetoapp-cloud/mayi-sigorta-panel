@@ -162,6 +162,132 @@
       "when": 1792235520557,
       "tag": "0022_renewal_generation_continuation",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1794558579825,
+      "tag": "0023_customer_reference_birth_date",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794574927284,
+      "tag": "0024_customer_vehicle_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1794577048376,
+      "tag": "0025_optional_vehicle_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1794582371631,
+      "tag": "0026_agency_receivables",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1794897432390,
+      "tag": "0027_claim_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1794923365154,
+      "tag": "0028_policy_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1794926271232,
+      "tag": "0029_sales_case_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1794983026569,
+      "tag": "0030_sales_renewal_adoption",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1794991448014,
+      "tag": "0031_sales_price_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1794994179806,
+      "tag": "0032_sales_price_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1795039904144,
+      "tag": "0033_sales_loss_cycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1795042517798,
+      "tag": "0034_renewal_loss_cycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1795079500041,
+      "tag": "0035_renewal_cycle_recall",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1795104076104,
+      "tag": "0036_sales_issue_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1795108502156,
+      "tag": "0037_sales_case_void",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1795110170834,
+      "tag": "0038_sales_loss_reopen",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1795112212861,
+      "tag": "0039_sales_won_correction",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1795166335150,
+      "tag": "0040_branch_vehicle_details",
+      "breakpoints": true
     }
   ]
 }

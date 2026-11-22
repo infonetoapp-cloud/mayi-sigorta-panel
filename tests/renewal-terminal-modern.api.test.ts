@@ -156,20 +156,23 @@ beforeAll(async () => {
       );
     cookies[actor] = (await f.session(actor)).cookie;
   }
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('tf-i','agency-auth-test','TF','Sentetik')",
+    )
+    .run();
   customerId = (
     await data<{ id: string }>(
       await post('/api/customers', {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Sonuç',
+        insurerNumber: { insurerId: 'tf-i', customerNumber: 'TF-CUSTOMER' },
       }),
       201,
     )
   ).id;
   await f.db.batch([
-    f.db.prepare(
-      "INSERT INTO insurers(id,agency_id,code,name) VALUES('tf-i','agency-auth-test','TF','Sentetik')",
-    ),
     f.db.prepare(
       "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('tf-b','agency-auth-test','TF','Sentetik','GENERAL')",
     ),
@@ -187,7 +190,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await f?.mf.dispose();
 });
-async function verify(t: TodayTaskDto, r: Result, key: string) {
+async function verify(t: TodayTaskDto, r: Result, key: string, previousTaskIds: string[] = []) {
   expect(r).toMatchObject({
     renewalId: t.renewalId,
     primaryTaskId: t.taskId,
@@ -211,10 +214,13 @@ async function verify(t: TodayTaskDto, r: Result, key: string) {
     await f.db
       .prepare('SELECT id,status,version FROM tasks WHERE renewal_id=?')
       .bind(t.renewalId)
-      .all()
+      .all<{ id: string; status: string; version: number }>()
   ).results;
-  expect(tasks).toHaveLength(1);
-  expect(tasks[0]).toMatchObject({ id: t.taskId, status: 'COMPLETED', version: r.taskVersion });
+  expect(tasks.map(({ id }) => id).sort()).toEqual([t.taskId, ...previousTaskIds].sort());
+  expect(tasks.find(({ id }) => id === t.taskId)).toMatchObject({
+    status: 'COMPLETED',
+    version: r.taskVersion,
+  });
   expect(
     (await f.db
       .prepare('SELECT count(*) n FROM renewal_state_history WHERE renewal_id=?')
@@ -525,9 +531,20 @@ it('reads and closes an authorized later cursor-page task without first-page ass
   );
   const t = later.items[0]!;
   expect(t.taskId).not.toBe(first.items[0]!.taskId);
+  const previousTasks = (
+    await f.db
+      .prepare('SELECT id FROM tasks WHERE renewal_id=? AND id<>?')
+      .bind(t.renewalId, t.taskId)
+      .all<{ id: string }>()
+  ).results;
   const key = crypto.randomUUID(),
     r = await data<Result>(await post(url(t), lost(t), 'tf-owner', key));
-  await verify(t, r, key);
+  await verify(
+    t,
+    r,
+    key,
+    previousTasks.map(({ id }) => id),
+  );
 });
 it.each(['reason', 'permission', 'session'])(
   'rejects live %s revocation at final batch with no business evidence',

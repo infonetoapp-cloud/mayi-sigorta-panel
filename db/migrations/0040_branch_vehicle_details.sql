@@ -1,0 +1,1 @@
+ALTER TABLE `insurance_branches` ADD `supports_vehicle_details` integer DEFAULT false NOT NULL CHECK (supports_vehicle_details IN (0, 1));

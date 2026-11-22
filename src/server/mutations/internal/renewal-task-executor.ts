@@ -1,4 +1,5 @@
 import { buildSafeAuditRecord } from '../audit';
+import { followupReasons } from '../../../shared/followup-reasons';
 import { computePayloadHash } from '../canonical';
 import { IdempotencyConflictError } from '../idempotency';
 import { OptimisticConcurrencyError } from '../../db/optimistic';
@@ -46,6 +47,7 @@ export type RenewalTaskAssignmentReplayLookupInput = Pick<
 >;
 
 export interface ExecuteRenewalTaskReplacementCompletionInput {
+  readonly followupReason?: import('../../../shared/followup-reasons').FollowupReason;
   readonly db: D1Database;
   readonly agencyId: string;
   readonly actorUserId: string;
@@ -756,12 +758,14 @@ function insertReplacementTaskStatement(
   input: ExecuteRenewalTaskReplacementCompletionInput,
   now: string,
 ): D1PreparedStatement {
+  if (input.followupReason && !Object.hasOwn(followupReasons, input.followupReason))
+    throw new TaskValidationError('INVALID_FOLLOWUP_REASON');
   return input.db
     .prepare(
       `INSERT INTO tasks
          (id,agency_id,customer_id,renewal_id,kind,title,due_at,assignee_membership_id,status,
           actor_kind,created_by_user_id,created_by_membership_id,version,created_at,updated_at)
-       SELECT ?,t.agency_id,t.customer_id,t.renewal_id,'RENEWAL_FOLLOWUP','Yenileme takibi',?,
+       SELECT ?,t.agency_id,t.customer_id,t.renewal_id,'RENEWAL_FOLLOWUP',?,?,
           r.assignee_membership_id,'OPEN','USER',?,?,1,?,?
        FROM tasks t JOIN renewal_opportunities r
          ON r.agency_id=t.agency_id AND r.id=t.renewal_id
@@ -776,6 +780,7 @@ function insertReplacementTaskStatement(
     )
     .bind(
       input.replacementTaskId,
+      input.followupReason ? followupReasons[input.followupReason] : 'Yenileme takibi',
       input.replacementDueAt,
       input.actorUserId,
       input.actorMembershipId,
@@ -808,6 +813,7 @@ function completionAuditStatement(
       referenceId: input.replacementTaskId,
       targetVersion: input.expectedTaskVersion + 1,
       changedFields: ['status', 'completedAt', 'replacementTaskId'],
+      ...(input.followupReason ? { reasonCode: input.followupReason } : {}),
     },
     createdAt: now,
   });

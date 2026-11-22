@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { ApiResponse, CustomerDetailDto } from '../../shared/types';
 import { getCsrfToken, invalidateCsrfToken, parseAppError, type AppErrorInfo } from '../App';
+import { Button } from './ui/button';
 
 interface CustomerArchiveSectionProps {
   readonly customer: CustomerDetailDto;
@@ -95,7 +96,7 @@ export const CustomerArchiveSection: React.FC<CustomerArchiveSectionProps> = ({
     const normalizedReason = reasonCode.trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9_]{2,63}$/.test(normalizedReason)) {
       setError({
-        message: 'Arşiv nedeni zorunludur; büyük harf, rakam ve alt çizgi kullanınız.',
+        message: 'Lütfen arşivleme nedenini seçin.',
         isRetryable: false,
         category: 'VALIDATION',
       });
@@ -118,9 +119,9 @@ export const CustomerArchiveSection: React.FC<CustomerArchiveSectionProps> = ({
   return (
     <section style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
       {!open ? (
-        <button type="button" style={buttonStyle} onClick={() => setOpen(true)}>
+        <Button type="button" style={buttonStyle} onClick={() => setOpen(true)}>
           Müşteriyi Arşivle
-        </button>
+        </Button>
       ) : (
         <form onSubmit={submit} style={{ display: 'grid', gap: '0.75rem' }}>
           <strong>Müşteriyi arşivle</strong>
@@ -130,29 +131,40 @@ export const CustomerArchiveSection: React.FC<CustomerArchiveSectionProps> = ({
           </p>
           <label style={{ display: 'grid', gap: '0.25rem', fontSize: '0.8125rem' }}>
             Arşiv Nedeni
-            <input
+            <select
               value={reasonCode}
               onChange={(event) => setReasonCode(event.target.value)}
-              placeholder="Örn: PORTFOLIO_CLOSED"
-              autoComplete="off"
-            />
+              disabled={submitting || !!retryAttempt}
+            >
+              <option value="">Neden seçin</option>
+              <option value="PORTFOLIO_CLOSED">Müşteriyle çalışma sona erdi</option>
+              <option value="DUPLICATE">Mükerrer müşteri kaydı</option>
+              <option value="DATA_CLEANUP">Hatalı veya deneme kaydı</option>
+              <option value="OTHER">Diğer</option>
+            </select>
           </label>
           {error && (
             <div role="alert" style={{ color: '#b91c1c', fontSize: '0.8125rem' }}>
               {error.message}
               {error.isRetryable && retryAttempt && (
-                <button type="button" onClick={() => void execute(retryAttempt)}>
+                <Button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void execute(retryAttempt)}
+                >
                   Tekrar Dene
-                </button>
+                </Button>
               )}
             </div>
           )}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" style={buttonStyle} disabled={submitting}>
+            <Button type="submit" style={buttonStyle} disabled={submitting || !!retryAttempt}>
               {submitting ? 'Arşivleniyor...' : 'Arşivlemeyi Onayla'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              disabled={submitting || !!retryAttempt}
               onClick={() => {
                 setOpen(false);
                 setReasonCode('');
@@ -161,7 +173,7 @@ export const CustomerArchiveSection: React.FC<CustomerArchiveSectionProps> = ({
               }}
             >
               Vazgeç
-            </button>
+            </Button>
           </div>
         </form>
       )}

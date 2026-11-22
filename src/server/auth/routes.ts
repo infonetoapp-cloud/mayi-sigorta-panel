@@ -13,6 +13,7 @@ import {
 import { createDurableObjectPasswordHasher } from './password-do-adapter';
 import { DUMMY_PASSWORD_VERIFIER } from './password-envelope';
 import { PasswordKdfUnavailableError } from './password-kdf-error';
+import { loginTurnstileConfig, verifyLoginTurnstile } from './turnstile';
 import {
   ACTIVATION_LIFETIME_MS,
   NORMAL_ABSOLUTE_MS,
@@ -39,7 +40,10 @@ export class AuthHttpError extends Error {
     super(message);
   }
 }
-export async function readBoundedJson(request: Request, maxBytes = 8192): Promise<unknown> {
+export async function readBoundedJson(
+  request: Pick<Request, 'headers' | 'body'>,
+  maxBytes = 8192,
+): Promise<unknown> {
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
     throw new AuthHttpError(415, 'JSON_REQUIRED', 'JSON gövdesi gerekli.');
   const reader = request.body?.getReader();
@@ -121,11 +125,19 @@ export async function limitPasswordAttempt(
     hashSessionToken(account),
     hashSessionToken(source),
   ]);
-  const [a, s] = await Promise.all([
-    env.AUTH_ACCOUNT_RATE_LIMITER.limit({ key: accountKey }),
-    env.AUTH_SOURCE_RATE_LIMITER.limit({ key: sourceKey }),
-  ]);
-  if (!a.success || !s.success)
+  let allowed: boolean;
+  try {
+    const [accountLimit, sourceLimit] = await Promise.all([
+      env.AUTH_ACCOUNT_RATE_LIMITER.limit({ key: accountKey }),
+      env.AUTH_SOURCE_RATE_LIMITER.limit({ key: sourceKey }),
+    ]);
+    if (typeof accountLimit?.success !== 'boolean' || typeof sourceLimit?.success !== 'boolean')
+      throw new Error('INVALID_AUTH_LIMITER_RESULT');
+    allowed = accountLimit.success && sourceLimit.success;
+  } catch {
+    throw new AuthHttpError(503, 'AUTH_PROTECTION_UNAVAILABLE', 'Giriş koruması kullanılamıyor.');
+  }
+  if (!allowed)
     throw new AuthHttpError(
       429,
       'RATE_LIMITED',
@@ -208,7 +220,11 @@ export async function requireAuthCsrf(
   if (!result.allowed) throw new AuthHttpError(403, result.code, 'Güvenlik doğrulaması başarısız.');
 }
 const loginSchema = z
-  .object({ email: z.string().max(320), password: z.string().max(256) })
+  .object({
+    email: z.string().max(320),
+    password: z.string().max(256),
+    turnstileToken: z.string().min(1).max(2048).optional(),
+  })
   .strict();
 const changeSchema = z
   .object({
@@ -246,6 +262,18 @@ export function registerLocalAuthRoutes(
         throw new AuthHttpError(401, 'LOGIN_FAILED', 'E-posta veya şifre hatalı.');
       }
       await limitPasswordAttempt(c.env, c.req.raw, email);
+      let humanVerified = true;
+      try {
+        const challenge = loginTurnstileConfig(c.env);
+        if (challenge) {
+          const token = parsed.data.turnstileToken;
+          humanVerified = !!token && (await verifyLoginTurnstile(challenge, token));
+        }
+      } catch {
+        throw new AuthHttpError(503, 'TURNSTILE_UNAVAILABLE', 'Robot doğrulaması kullanılamıyor.');
+      }
+      if (!humanVerified)
+        throw new AuthHttpError(403, 'TURNSTILE_REQUIRED', 'Robot doğrulamasını tamamlayın.');
       const hasher =
         dependencies.passwordHasher ?? createDurableObjectPasswordHasher(c.env.PASSWORD_KDF);
       const rows = await c.env.DB.prepare(
@@ -308,6 +336,13 @@ export function registerLocalAuthRoutes(
     }
   });
   app.get('/api/auth/session', async (c) => {
+    // The site key is public. Existing sessions remain usable if login protection is unavailable.
+    try {
+      const challenge = loginTurnstileConfig(c.env);
+      if (challenge) c.header('X-Turnstile-Site-Key', challenge.siteKey);
+    } catch {
+      // Login itself rejects incomplete configuration before looking up any credential.
+    }
     try {
       const row = await loadLocalSession(c.env.DB, c.req.raw, true);
       const member = await c.env.DB.prepare('SELECT type FROM agency_memberships WHERE id=?')

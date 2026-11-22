@@ -58,6 +58,7 @@ async function setup() {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Kabul Süresi',
+        insurerNumber: { insurerId: 'wa-i', customerNumber: `WA-PREFLIGHT` },
       }),
       201,
     )

@@ -1,26 +1,33 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react';
-import { Link, Route, Routes, useNavigate } from 'react-router';
+import { Link, Navigate, Route, Routes, useNavigate } from 'react-router';
 import type { AuthSessionDto } from './AuthShell';
 import type { TabType } from './App';
 import { AppShell } from './components/layout/AppShell';
 import { PageHeader } from './components/layout/PageContainer';
 import { navigation } from './components/layout/navigation';
 import { Button } from './components/ui/button';
-import OverviewPage from './pages/OverviewPage';
 import { WorkNavigationProvider } from './pages/today-work/work-navigation';
 import { CustomerListContextProvider } from './pages/customers/customer-list-context';
-const CompatibilityPage = lazy(() => import('./pages/CompatibilityPage'));
-const CustomerListPage = lazy(() => import('./pages/customers/CustomerListPage'));
+import { workspacePageImports } from './workspace-page-imports';
+
+const CompatibilityPage = lazy(workspacePageImports['/catalogs']);
+const OverviewPage = lazy(workspacePageImports['/']);
+const CustomerListPage = lazy(workspacePageImports['/customers']);
 const CustomerProfilePage = lazy(() => import('./pages/customers/CustomerProfilePage'));
 const CustomerCreatePage = lazy(() => import('./pages/customers/CustomerCreatePage'));
-const PolicyListPage = lazy(() => import('./pages/policies/PolicyListPage'));
+const PolicyListPage = lazy(workspacePageImports['/policies']);
 const PolicyDetailPage = lazy(() => import('./pages/policies/PolicyDetailPage'));
 const PolicyLegacyPage = lazy(() => import('./pages/policies/PolicyLegacyPage'));
 const PolicyFormPage = lazy(() => import('./pages/policies/PolicyFormPage'));
-const TodayWorkPage = lazy(() => import('./pages/today-work/TodayWorkPage'));
-const PersonnelPage = lazy(() =>
-  import('./components/PersonnelPanel').then((module) => ({ default: module.PersonnelPanel })),
-);
+const TodayWorkPage = lazy(workspacePageImports['/today-work']);
+const RenewalListPage = lazy(workspacePageImports['/renewals']);
+const RenewalDetailPage = lazy(() => import('./pages/renewals/RenewalDetailPage'));
+const ClaimsPage = lazy(workspacePageImports['/claims']);
+const SalesCasePage = lazy(() => import('./pages/sales/SalesCases'));
+const GeneralTaskPage = lazy(() => import('./pages/today-work/GeneralTaskPage'));
+const FinancePage = lazy(workspacePageImports['/finance']);
+const PersonnelPage = lazy(workspacePageImports['/personnel']);
+const OperationsReadinessPage = lazy(() => import('./pages/OperationsReadinessPage'));
 
 class PageBoundary extends Component<
   { children: ReactNode; resetKey: string },
@@ -95,7 +102,59 @@ export function AuthenticatedApp({
           {error && <p role="alert">{error}</p>}
           {reauth}
           <Routes>
-            <Route path="/" element={<OverviewPage owner={session.isOwner} />} />
+            <Route
+              path="/tasks/:taskId"
+              element={
+                <PageBoundary resetKey="general-task">
+                  <Suspense fallback={<p role="status">Takip yükleniyor…</p>}>
+                    <GeneralTaskPage />
+                  </Suspense>
+                </PageBoundary>
+              }
+            />
+            <Route
+              path="/sales-cases/:caseId"
+              element={
+                <PageBoundary resetKey="sales-case">
+                  <Suspense fallback={<p role="status">Çalışma yükleniyor…</p>}>
+                    <SalesCasePage />
+                  </Suspense>
+                </PageBoundary>
+              }
+            />
+            <Route
+              path="/claims"
+              element={
+                <PageBoundary resetKey="claims">
+                  <Suspense fallback={<p role="status">Hasar dosyaları yükleniyor…</p>}>
+                    <ClaimsPage />
+                  </Suspense>
+                </PageBoundary>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <PageBoundary resetKey="finance">
+                  <Suspense fallback={<p role="status">Muhasebe yükleniyor…</p>}>
+                    <FinancePage />
+                  </Suspense>
+                </PageBoundary>
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <>
+                  <PageHeader title="Genel Bakış" />
+                  <PageBoundary resetKey="overview">
+                    <Suspense fallback={<p role="status">Genel bakış yükleniyor…</p>}>
+                      <OverviewPage owner={session.isOwner} />
+                    </Suspense>
+                  </PageBoundary>
+                </>
+              }
+            />
             <Route
               path="/today-work"
               element={
@@ -109,21 +168,25 @@ export function AuthenticatedApp({
                 </PageBoundary>
               }
             />
+            <Route path="/today-work/legacy" element={<Navigate to="/today-work" replace />} />
             <Route
-              path="/today-work/legacy"
+              path="/renewals"
               element={
-                <>
-                  <PageHeader title="Bugünkü İşler — klasik çalışma alanı" />
-                  <p>
-                    <Link to="/today-work">Modern iş kuyruğuna dön</Link>. Mevcut tamamlama, atama,
-                    yenileme ve teklif işlemleri bu çalışma alanında korunur.
-                  </p>
-                  <PageBoundary resetKey="today-work-legacy">
-                    <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                      <CompatibilityPage key={session.email} page="today-work" />
-                    </Suspense>
-                  </PageBoundary>
-                </>
+                <PageBoundary resetKey="renewals">
+                  <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                    <RenewalListPage />
+                  </Suspense>
+                </PageBoundary>
+              }
+            />
+            <Route
+              path="/renewals/:renewalId"
+              element={
+                <PageBoundary resetKey="renewal-detail">
+                  <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                    <RenewalDetailPage />
+                  </Suspense>
+                </PageBoundary>
               }
             />
             <Route
@@ -163,14 +226,22 @@ export function AuthenticatedApp({
                   mode === 'advanced' ? '/customers/:customerId/advanced' : `/customers/${mode}`
                 }
                 element={
-                  <>
-                    <PageHeader title="Müşteri işlemleri" />
-                    <PageBoundary resetKey={`customer-${mode}`}>
-                      <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
-                        <CompatibilityPage page="customers" customerMode={mode} />
+                  mode === 'advanced' ? (
+                    <PageBoundary resetKey="customer-management">
+                      <Suspense fallback={<p role="status">Müşteri yükleniyor…</p>}>
+                        <CustomerProfilePage />
                       </Suspense>
                     </PageBoundary>
-                  </>
+                  ) : (
+                    <>
+                      <PageHeader title="Müşteri işlemleri" />
+                      <PageBoundary resetKey={`customer-${mode}`}>
+                        <Suspense fallback={<p role="status">Sayfa yükleniyor…</p>}>
+                          <CompatibilityPage page="customers" customerMode={mode} />
+                        </Suspense>
+                      </PageBoundary>
+                    </>
+                  )
                 }
               />
             ))}
@@ -223,6 +294,20 @@ export function AuthenticatedApp({
                   }
                 />
               ))}
+            <Route
+              path="/ops/readiness"
+              element={
+                session.isOwner ? (
+                  <PageBoundary resetKey="operations-readiness">
+                    <Suspense fallback={<p role="status">İşletim durumu yükleniyor…</p>}>
+                      <OperationsReadinessPage />
+                    </Suspense>
+                  </PageBoundary>
+                ) : (
+                  <DeniedPage />
+                )
+              }
+            />
             <Route
               path="/account/password"
               element={<PasswordPage renderPassword={renderPassword} />}

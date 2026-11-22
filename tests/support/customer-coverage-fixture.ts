@@ -1,8 +1,11 @@
+import assert from 'node:assert/strict';
 import { localAuthFixture } from './local-auth-fixture';
 import { createOnboardingTemplateGrants } from '../../src/shared/permissions';
+import type { PolicyLifecycleContext } from '../../src/shared/policy-cancellation';
 export async function customerCoverageFixture() {
   const f = await localAuthFixture();
   await f.seed('coverage-owner', 'OWNER');
+  const owner = (await f.session('coverage-owner')).cookie;
   await f.seed('coverage-a');
   await f.seed('coverage-b');
   for (const id of ['coverage-a', 'coverage-b'])
@@ -52,12 +55,12 @@ export async function customerCoverageFixture() {
       )
       .run();
   }
-  async function customer(id: string, assignee = 'coverage-owner') {
+  async function customer(id: string, assignee = 'coverage-owner', displayName = id) {
     await f.db
       .prepare(
         "INSERT INTO customers(id,agency_id,type,display_name,first_name,last_name,assignee_membership_id) VALUES(?,'agency-auth-test','INDIVIDUAL',?,'Sentetik','Müşteri',?)",
       )
-      .bind(id, id, 'membership-' + assignee)
+      .bind(id, displayName, 'membership-' + assignee)
       .run();
   }
   const today = new Intl.DateTimeFormat('en-CA', {
@@ -73,7 +76,7 @@ export async function customerCoverageFixture() {
     customerId: string,
     branch = 'kasko',
     opts: {
-      status?: string;
+      status?: 'ACTIVE' | 'CANCELLED' | 'VOIDED';
       start?: string;
       end?: string;
       archived?: boolean;
@@ -94,12 +97,38 @@ export async function customerCoverageFixture() {
         id,
         opts.start ?? day(-100),
         opts.end ?? day(30),
-        opts.status ?? 'ACTIVE',
+        'ACTIVE',
         opts.archived ? new Date().toISOString() : null,
         opts.archived ? 'membership-coverage-owner' : null,
         opts.archived ? 'TEST_ARCHIVE' : null,
       )
       .run();
+    if (opts.status === 'CANCELLED' || opts.status === 'VOIDED') {
+      const isCancellation = opts.status === 'CANCELLED';
+      const path = '/api/policies/' + id;
+      const form = await f.request(
+        path + (isCancellation ? '/cancellation-context' : '/void-context'),
+        'GET',
+        owner,
+      );
+      assert.equal(form.status, 200);
+      const { data } = (await form.json()) as { data: PolicyLifecycleContext };
+      const write = await f.request(
+        path + (isCancellation ? '/cancel' : '/void'),
+        'POST',
+        owner,
+        {
+          expectedPolicyVersion: data.policyVersion,
+          targetSetFingerprint: data.targetSetFingerprint,
+          cancellationDate: today,
+          reasonCode: isCancellation ? 'CUSTOMER_REQUEST' : 'DUPLICATE',
+          reasonNotes: null,
+        },
+        await f.csrf(owner),
+        { 'idempotency-key': crypto.randomUUID() },
+      );
+      assert.equal(write.status, 200);
+    }
   }
   return {
     ...f,
@@ -107,7 +136,25 @@ export async function customerCoverageFixture() {
     policy,
     today,
     day,
-    owner: (await f.session('coverage-owner')).cookie,
+    owner,
     member: (await f.session('coverage-a')).cookie,
+    async editingMember(id: string, area: 'claim' | 'finance') {
+      await f.seed(id);
+      await f.db.batch(
+        [`${area}.read`, `${area}.manage`, 'customer.read', 'policy.read'].map((code) =>
+          f.db
+            .prepare(
+              'INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,?)',
+            )
+            .bind(
+              crypto.randomUUID(),
+              'membership-' + id,
+              code,
+              code.startsWith(area + '.') ? 'UNSCOPED' : 'AGENCY',
+            ),
+        ),
+      );
+      return (await f.session(id)).cookie;
+    },
   };
 }

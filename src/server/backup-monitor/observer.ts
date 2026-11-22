@@ -10,10 +10,17 @@ export interface BackupReader {
   head(key: string, signal?: AbortSignal): Promise<ObjectHead | null>;
   readJSON(key: string, maxBytes: number, signal?: AbortSignal): Promise<unknown>;
 }
-export function hourPrefixes(now: number): string[] {
-  if (!Number.isSafeInteger(now) || now < FRESHNESS_MS) throw Error('INVALID_CLOCK');
+export function hourPrefixes(now: number, freshnessMs = FRESHNESS_MS): string[] {
+  if (
+    !Number.isSafeInteger(now) ||
+    now < freshnessMs ||
+    !Number.isSafeInteger(freshnessMs) ||
+    freshnessMs <= 0 ||
+    freshnessMs > FRESHNESS_MS
+  )
+    throw Error('INVALID_CLOCK');
   const out: string[] = [];
-  for (let t = Math.floor((now - FRESHNESS_MS) / 3600000) * 3600000; t <= now; t += 3600000) {
+  for (let t = Math.floor((now - freshnessMs) / 3600000) * 3600000; t <= now; t += 3600000) {
     const d = new Date(t).toISOString();
     out.push(
       `d1/mayisigorta-crm/${d.slice(0, 4)}/${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(11, 13)}/`,
@@ -28,9 +35,10 @@ async function inspectBackup(
   reader: BackupReader,
   now: number,
   signal: AbortSignal,
+  freshnessMs: number,
 ): Promise<Decision> {
   try {
-    const prefixes = hourPrefixes(now);
+    const prefixes = hourPrefixes(now, freshnessMs);
     let pages = 0,
       objects = 0,
       generations = 0;
@@ -75,6 +83,7 @@ async function inspectBackup(
         const decision = validateBackupEvidence(
           { sql, manifestHead: mh, completeHead: ch, manifest, complete },
           now,
+          freshnessMs,
         );
         if (decision.status === 'QUERY_OR_PROVIDER_FAILURE') return decision;
         decisions.push(decision);
@@ -100,7 +109,11 @@ async function inspectBackup(
     };
   }
 }
-export async function observeBackup(reader: BackupReader, now: number): Promise<Decision> {
+export async function observeBackup(
+  reader: BackupReader,
+  now: number,
+  freshnessMs = FRESHNESS_MS,
+): Promise<Decision> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<Decision>((resolve) => {
@@ -114,7 +127,10 @@ export async function observeBackup(reader: BackupReader, now: number): Promise<
     }, 20000);
   });
   try {
-    return await Promise.race([inspectBackup(reader, now, controller.signal), expired]);
+    return await Promise.race([
+      inspectBackup(reader, now, controller.signal, freshnessMs),
+      expired,
+    ]);
   } finally {
     clearTimeout(timer);
   }

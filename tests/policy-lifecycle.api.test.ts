@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import { ensureRenewalForPolicy } from '../src/server/renewals/generation';
 import type { CustomerDto, PolicyDto, CustomerAssignmentOptionDto } from '../src/shared/types';
@@ -70,6 +74,7 @@ beforeAll(async () => {
     return r.headers.get('set-cookie')!.split(';')[0]!;
   }
   owner = await login('lc-owner', 'OWNER');
+  await enableCompanyRegistration(f, 'membership-lc-owner');
   ahmet = await login('lc-ahmet');
   ayse = await login('lc-ayse');
   foreign = await login('lc-foreign', 'OWNER', 'lc-foreign-agency');
@@ -98,7 +103,12 @@ beforeAll(async () => {
       '/api/customers',
       'POST',
       owner,
-      { type: 'COMPANY', companyTitle: 'Lifecycle Şirket' },
+      {
+        type: 'COMPANY',
+        companyTitle: 'Lifecycle Şirket',
+        taxNumber: '9000000112',
+        insurerNumber: registrationNumber('lc-i'),
+      },
       await f.csrf(owner),
       { 'idempotency-key': crypto.randomUUID() },
     ),

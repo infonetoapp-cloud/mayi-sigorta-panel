@@ -1,18 +1,25 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type { CustomerDto } from '../src/shared/types';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 let owner: string, employee: string, denied: string;
-const body = {
+const insurer = 'everyday-registration-insurer';
+const registration = () => ({
   type: 'INDIVIDUAL',
   firstName: 'Sentetik',
   lastName: 'Müşteri',
   email: null,
   phone: null,
   address: null,
-};
+  insurerNumber: registrationNumber(insurer),
+});
 async function write(
   path: string,
   method: 'POST' | 'PATCH',
@@ -36,6 +43,8 @@ beforeAll(async () => {
         .bind(crypto.randomUUID(), user.membershipId, grant.permission_code, grant.scope),
     ),
   );
+  await enableCompanyRegistration(f, user.membershipId);
+  await seedRegistrationInsurer(f.db, user.agencyId, insurer);
   owner = (await f.session('everyday-owner')).cookie;
   employee = (await f.session('everyday-member')).cookie;
   denied = (await f.session('everyday-denied')).cookie;
@@ -65,7 +74,7 @@ async function state(id: string, key: string) {
 }
 it('holds PATCH after all preflights while a real archive commits, then rolls back all PATCH evidence', async () => {
   const customer = (
-    (await (await write('/api/customers', 'POST', body)).json()) as { data: CustomerDto }
+    (await (await write('/api/customers', 'POST', registration())).json()) as { data: CustomerDto }
   ).data;
   const path = `/api/customers/${customer.id}`,
     key = crypto.randomUUID();
@@ -153,10 +162,12 @@ it('holds PATCH after all preflights while a real archive commits, then rolls ba
 });
 it('creates both customer types with exact replay and rejects changed-key payload reuse', async () => {
   for (const data of [
-    body,
+    registration(),
     {
       type: 'COMPANY',
       companyTitle: 'Sentetik Şirket',
+      taxNumber: '9000000301',
+      insurerNumber: registrationNumber(insurer),
       email: 'fiction@demo.invalid',
       phone: null,
       address: null,
@@ -186,7 +197,7 @@ it('creates both customer types with exact replay and rejects changed-key payloa
   }
 });
 it('preserves CAS conflict, exact PATCH replay, and archive mutation denial', async () => {
-  const created = await write('/api/customers', 'POST', body);
+  const created = await write('/api/customers', 'POST', registration());
   const customer = ((await created.json()) as { data: CustomerDto }).data;
   const path = `/api/customers/${customer.id}`;
   const update = { expectedVersion: customer.version, email: 'updated@demo.invalid' },
@@ -284,12 +295,13 @@ it('preserves CAS conflict, exact PATCH replay, and archive mutation denial', as
   ).toEqual({ email: 'updated@demo.invalid', address: null });
 });
 it('rejects create/update without grants and client-supplied authority fields', async () => {
-  expect((await write('/api/customers', 'POST', body, denied)).status).toBe(403);
-  expect((await write('/api/customers', 'POST', { ...body, agencyId: 'foreign' })).status).toBe(
+  const payload = registration();
+  expect((await write('/api/customers', 'POST', payload, denied)).status).toBe(403);
+  expect((await write('/api/customers', 'POST', { ...payload, agencyId: 'foreign' })).status).toBe(
     400,
   );
   const created = (
-    (await (await write('/api/customers', 'POST', body)).json()) as { data: CustomerDto }
+    (await (await write('/api/customers', 'POST', payload)).json()) as { data: CustomerDto }
   ).data;
   expect(
     (

@@ -1,4 +1,5 @@
-import type { PolicyDetailDto, SelectableCatalogsDto } from '../../../shared/types';
+import type { PolicyDetailDto } from '../../../shared/types';
+import type { PolicyFormCatalogs } from './policy-read-schemas';
 import { parseMoneyInput, MONEY_INPUT_HELP } from '../../lib/monetary';
 export type PolicyDraft = {
   insurerId: string;
@@ -86,7 +87,7 @@ function dateOnly(value: string) {
 /** Helpful client validation only; server remains the business/permission authority. */
 export function validatePolicy(
   draft: PolicyDraft,
-  catalogs: SelectableCatalogsDto,
+  catalogs: PolicyFormCatalogs,
   checkCatalogs: boolean,
 ): Partial<Record<keyof PolicyDraft, string>> {
   const errors: Partial<Record<keyof PolicyDraft, string>> = {};

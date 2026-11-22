@@ -1,5 +1,6 @@
 import { BACKUP_SOURCE, generationPrefix } from '../d1-backup/core';
 export const FRESHNESS_MS = 90 * 60 * 1000;
+export const OPERATIONAL_FRESHNESS_MS = 45 * 60 * 1000;
 export const HEARTBEAT_MS = 15 * 60 * 1000;
 export type EvidenceStatus = 'HEALTHY' | 'BACKUP_STALE' | 'QUERY_OR_PROVIDER_FAILURE';
 export interface Decision {
@@ -33,9 +34,14 @@ function check(v: unknown): asserts v {
   if (!v) throw Error('INVALID');
 }
 /** Metadata-only contract, NOT SQL SHA256, restore, RPO or provider signature proof. */
-export function validateBackupEvidence(e: BackupEvidence, now: number): Decision {
+export function validateBackupEvidence(
+  e: BackupEvidence,
+  now: number,
+  freshnessMs = FRESHNESS_MS,
+): Decision {
   try {
     check(Number.isSafeInteger(now) && now >= 0);
+    check(Number.isSafeInteger(freshnessMs) && freshnessMs > 0 && freshnessMs <= FRESHNESS_MS);
     const m = object(e.manifest),
       c = object(e.complete);
     check(
@@ -105,9 +111,9 @@ export function validateBackupEvidence(e: BackupEvidence, now: number): Decision
     check(sql.customMetadata?.bookmark === (m.bookmark ?? ''));
     const ageMs = now - exportAt;
     return {
-      status: ageMs <= FRESHNESS_MS ? 'HEALTHY' : 'BACKUP_STALE',
+      status: ageMs <= freshnessMs ? 'HEALTHY' : 'BACKUP_STALE',
       checkedAt: now,
-      reason: ageMs <= FRESHNESS_MS ? 'COHERENT_RECENT_COMPLETE' : 'EXPORT_EVIDENCE_TOO_OLD',
+      reason: ageMs <= freshnessMs ? 'COHERENT_RECENT_COMPLETE' : 'EXPORT_EVIDENCE_TOO_OLD',
       generation: m.generation,
       exportAt,
       completeAt: times[2],
@@ -119,7 +125,11 @@ export function validateBackupEvidence(e: BackupEvidence, now: number): Decision
 }
 export type MonitorStatus = EvidenceStatus | 'OBSERVER_FAILURE';
 /** Do not reuse an old healthy result when observation stopped; errors are never healthy. */
-export function monitorStatus(last: Decision | null, now: number): MonitorStatus {
+export function monitorStatus(
+  last: Decision | null,
+  now: number,
+  freshnessMs = FRESHNESS_MS,
+): MonitorStatus {
   if (
     !Number.isSafeInteger(now) ||
     !last ||
@@ -130,7 +140,12 @@ export function monitorStatus(last: Decision | null, now: number): MonitorStatus
     return 'OBSERVER_FAILURE';
   if (last.status !== 'HEALTHY')
     return last.status === 'BACKUP_STALE' ? 'BACKUP_STALE' : 'QUERY_OR_PROVIDER_FAILURE';
-  if (!Number.isSafeInteger(last.exportAt) || last.exportAt! > now)
+  if (
+    last.exportAt === undefined ||
+    !Number.isSafeInteger(last.exportAt) ||
+    last.exportAt < 0 ||
+    last.exportAt > last.checkedAt
+  )
     return 'QUERY_OR_PROVIDER_FAILURE';
-  return now - last.exportAt! <= FRESHNESS_MS ? 'HEALTHY' : 'BACKUP_STALE';
+  return now - last.exportAt <= freshnessMs ? 'HEALTHY' : 'BACKUP_STALE';
 }

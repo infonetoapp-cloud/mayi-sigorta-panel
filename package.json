@@ -7,6 +7,8 @@
     "dev": "vite",
     "demo": "node scripts/demo/start.mjs",
     "build:client": "vite build",
+    "release:client": "node scripts/release-client.mjs build",
+    "verify:release-client": "node scripts/release-client.mjs verify",
     "build:worker": "wrangler deploy --dry-run --outdir dist/server",
     "build": "npm run build:client && npm run build:worker && npm run verify:boundaries",
     "preview": "vite preview",
@@ -26,7 +28,7 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "drizzle-orm": "0.45.2",
-    "hono": "4.13.8",
+    "hono": "4.13.19",
     "jose": "6.2.12",
     "jpeg-js": "0.4.4",
     "lucide-react": "1.59.0",
@@ -34,7 +36,7 @@
     "react-dom": "19.3.0",
     "react-router": "8.4.0",
     "tailwind-merge": "3.7.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260916.1",

@@ -1040,6 +1040,16 @@ export function createDefaultActionRegistry(): ActionRegistry {
 
   normalActions.push(
     validateAndCreateActionDefinition({
+      code: 'catalog.branch.correct_classification',
+      authority: 'MEMBERSHIP_AUTHORIZED',
+      requiredNormalPermissions: ['catalog.manage'],
+      requiredSensitivePermissions: ['sensitive.health.read', 'sensitive.health.write'],
+      assurance: 'NORMAL_SESSION',
+    }),
+  );
+
+  normalActions.push(
+    validateAndCreateActionDefinition({
       code: 'agency.settings.update_operations',
       authority: 'MEMBERSHIP_AUTHORIZED',
       requiredNormalPermissions: ['agency.settings.manage'],

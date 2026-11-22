@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type { CustomerDto, PolicyDto, PolicyPartyDto } from '../src/shared/types';
 let f: Awaited<ReturnType<typeof localAuthFixture>>,
@@ -55,9 +60,11 @@ beforeAll(async () => {
     return r.headers.get('set-cookie')!.split(';')[0]!;
   }
   owner = await login('parties-owner', 'OWNER');
+  await enableCompanyRegistration(f, 'membership-parties-owner');
   ahmet = await login('parties-ahmet');
   ayse = await login('parties-ayse');
   foreign = await login('parties-foreign', 'OWNER', 'foreign-parties');
+  await seedRegistrationInsurer(f.db, 'foreign-parties', 'foreign-party-i');
   denied = await login('parties-denied');
   await f.db.batch([
     f.db.prepare(
@@ -79,7 +86,12 @@ beforeAll(async () => {
     });
   }
   customer = await data<CustomerDto>(
-    await post('/api/customers', { type: 'INDIVIDUAL', firstName: 'Taraf', lastName: 'Müşteri' }),
+    await post('/api/customers', {
+      type: 'INDIVIDUAL',
+      firstName: 'Taraf',
+      lastName: 'Müşteri',
+      insurerNumber: registrationNumber('party-i'),
+    }),
     201,
   );
   const p = await data<PolicyDto>(
@@ -186,7 +198,12 @@ it('rejects inaccessible/missing/archived customers without effects', async () =
     '/api/customers',
     'POST',
     owner,
-    { type: 'COMPANY', companyTitle: 'Archived party' },
+    {
+      type: 'COMPANY',
+      companyTitle: 'Archived party',
+      taxNumber: '9000000115',
+      insurerNumber: registrationNumber('party-i'),
+    },
     await f.csrf(owner),
     { 'idempotency-key': crypto.randomUUID() },
   );
@@ -219,7 +236,12 @@ it('keeps archived policy parties readable but rejects both new mutations', asyn
       '/api/customers',
       'POST',
       foreign,
-      { type: 'INDIVIDUAL', firstName: 'Foreign', lastName: 'Hidden' },
+      {
+        type: 'INDIVIDUAL',
+        firstName: 'Foreign',
+        lastName: 'Hidden',
+        insurerNumber: registrationNumber('foreign-party-i'),
+      },
       await f.csrf(foreign),
       { 'idempotency-key': crypto.randomUUID() },
     ),

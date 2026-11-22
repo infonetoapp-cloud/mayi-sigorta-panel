@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { PolicyDetailDto } from '../src/shared/types';
+import { policyDetailFixture } from './support/policy-detail-fixture';
 import { PolicyAppendSection } from '../src/app/pages/policies/PolicyAppendSection';
 import { invalidateCsrfToken } from '../src/app/csrf';
-const policy = { id: 'a', version: 4, archivedAt: null } as PolicyDetailDto;
+const policy = policyDetailFixture('a', { version: 4 });
 const amendment = {
   id: 'am',
   policyId: 'a',

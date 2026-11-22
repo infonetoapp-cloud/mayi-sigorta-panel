@@ -5,10 +5,7 @@ export function Card({ className, ...props }: ComponentProps<'section'>) {
   return (
     <section
       data-slot="card"
-      className={cn(
-        'rounded-xl border border-border bg-card text-card-foreground shadow-sm',
-        className,
-      )}
+      className={cn('rounded-md border border-border bg-card text-card-foreground', className)}
       {...props}
     />
   );

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import { enableCompanyRegistration } from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import { ensureRenewalForPolicy } from '../src/server/renewals/generation';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
@@ -81,19 +82,31 @@ beforeAll(async () => {
       );
     cookies[who] = (await f.session(who)).cookie;
   }
+  await f.db
+    .prepare(
+      "INSERT INTO insurers(id,agency_id,code,name) VALUES('ix-i','agency-auth-test','IX','IX')",
+    )
+    .run();
+  await enableCompanyRegistration(f, 'membership-ix-owner');
   const individual = (
     await data<{ id: string }>(
       await post('/api/customers', {
         type: 'INDIVIDUAL',
         firstName: 'Sentetik',
         lastName: 'Görüşme',
+        insurerNumber: { insurerId: 'ix-i', customerNumber: 'IX-CUSTOMER' },
       }),
       201,
     )
   ).id;
   company = (
     await data<{ id: string }>(
-      await post('/api/customers', { type: 'COMPANY', companyTitle: 'Sentetik Görüşme Şirketi' }),
+      await post('/api/customers', {
+        type: 'COMPANY',
+        companyTitle: 'Sentetik Görüşme Şirketi',
+        taxNumber: '9000000201',
+        insurerNumber: { insurerId: 'ix-i', customerNumber: 'IX-COMPANY' },
+      }),
       201,
     )
   ).id;
@@ -107,7 +120,12 @@ beforeAll(async () => {
   );
   const other = (
     await data<{ id: string }>(
-      await post('/api/customers', { type: 'COMPANY', companyTitle: 'Diğer Sentetik Şirket' }),
+      await post('/api/customers', {
+        type: 'COMPANY',
+        companyTitle: 'Diğer Sentetik Şirket',
+        taxNumber: '9000000202',
+        insurerNumber: { insurerId: 'ix-i', customerNumber: 'IX-OTHER-COMPANY' },
+      }),
       201,
     )
   ).id;
@@ -121,9 +139,6 @@ beforeAll(async () => {
     )
   ).id;
   await f.db.batch([
-    f.db.prepare(
-      "INSERT INTO insurers(id,agency_id,code,name) VALUES('ix-i','agency-auth-test','IX','IX')",
-    ),
     f.db.prepare(
       "INSERT INTO insurance_branches(id,agency_id,code,name,data_classification) VALUES('ix-b','agency-auth-test','IX','IX','GENERAL')",
     ),

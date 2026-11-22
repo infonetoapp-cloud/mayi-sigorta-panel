@@ -39,7 +39,7 @@ describe('M2-T03 Catalogs & Agency Settings Domain Mutations on Real D1', () => 
     );
     db = await mf.getD1Database('DB');
 
-    // Apply migrations 0000-0007 for the current catalog contract.
+    // Apply the catalog schema and its vehicle-details extension.
 
     for (const file of [
       '0000_good_hammerhead.sql',
@@ -64,7 +64,7 @@ describe('M2-T03 Catalogs & Agency Settings Domain Mutations on Real D1', () => 
       const { readdirSync } = await import('node:fs');
       const migDir = resolve(rootDir, 'db/migrations');
       const generated = readdirSync(migDir)
-        .filter((file) => /^000[67]_.*\.sql$/.test(file))
+        .filter((file) => /^(?:000[67]|0040)_.*\.sql$/.test(file))
         .sort();
       for (const file of generated) {
         const sql = readFileSync(resolve(migDir, file), 'utf8');

@@ -33,6 +33,7 @@ export interface SavedQuoteVersion {
   terms_summary?: string | null;
 }
 interface SavedQuote {
+  versionCount?: number;
   id: string;
   status: string;
   current_version_id: string;
@@ -398,8 +399,11 @@ export function RenewalQuoteForm({
       {quotes.map((quote) => (
         <div key={quote.id}>
           <p>
-            {quote.status} · {quote.versions.length} değiştirilemeyen sürüm
+            {quote.status} · {quote.versionCount ?? quote.versions.length} değiştirilemeyen sürüm
           </p>
+          {quote.versionCount && quote.versionCount > quote.versions.length ? (
+            <p>Bu özette ilk, güncel ve kabul edilen fiyatlar gösterilir.</p>
+          ) : null}
           <ul>
             {quote.versions.map((version) => (
               <li key={version.id}>

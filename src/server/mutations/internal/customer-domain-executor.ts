@@ -27,6 +27,9 @@
  */
 
 import { z } from 'zod';
+import type { EncryptedIdentityEnvelope } from '../../security/identity-crypto';
+import { normalizePlate, type VehicleFields } from '../../../shared/vehicles';
+import { referenceSearchKey, validBirthDate } from '../../../shared/customer-profile';
 import { computePayloadHash } from '../canonical';
 import { IdempotencyConflictError } from '../idempotency';
 import { buildSafeAuditRecord } from '../audit';
@@ -46,7 +49,21 @@ export class DomainConstraintViolationError extends Error {
 
 export type CustomerDomainCommand =
   | {
+      readonly kind: 'customer.vehicle.save';
+      readonly customerId: string;
+      readonly expectedVersion: number;
+      readonly vehicleId: string;
+      readonly expectedVehicleVersion: number | null;
+      readonly details: VehicleFields;
+      readonly status: 'ACTIVE' | 'INACTIVE';
+    }
+  | {
       readonly kind: 'customer.create';
+      readonly identity?: EncryptedIdentityEnvelope;
+      readonly insurerNumber?: { readonly insurerId: string; readonly customerNumber: string };
+      readonly birthDate?: string | null;
+      readonly referenceMembershipId?: string | null;
+      readonly referenceName?: string | null;
       readonly customerId: string;
       readonly type: 'INDIVIDUAL' | 'COMPANY';
       readonly displayName: string;
@@ -61,6 +78,9 @@ export type CustomerDomainCommand =
     }
   | {
       readonly kind: 'customer.update';
+      readonly birthDate?: string | null;
+      readonly referenceMembershipId?: string | null;
+      readonly referenceName?: string | null;
       readonly customerId: string;
       readonly expectedVersion: number;
       readonly displayName?: string;
@@ -137,6 +157,8 @@ export type CustomerDomainCommand =
       readonly expectedVersion: number;
       readonly sourceNamespace: string;
       readonly externalKey: string;
+      readonly insurerId?: string;
+      readonly replaceExisting?: boolean;
     };
 
 export interface ExecuteCustomerDomainCommandInput<TResult = unknown> {
@@ -173,6 +195,8 @@ interface IdempotencyLookup<TResult> {
 
 function actionForCommandKind(kind: CustomerDomainCommandKind): string {
   switch (kind) {
+    case 'customer.vehicle.save':
+      return 'customer.update';
     case 'customer.create':
     case 'customer.update':
     case 'company_contact.create':
@@ -254,6 +278,7 @@ function parseCustomerCreateReceiptDto(
   responseStatus: number,
   agencyId: string,
   actorMembershipId: string,
+  hasIdentity = false,
 ): CustomerDto {
   if (responseStatus !== 201 || typeof responseBody !== 'string') {
     throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
@@ -271,8 +296,22 @@ function parseCustomerCreateReceiptDto(
 
   const dto = parsed as Record<string, unknown>;
   const keys = Object.keys(dto).sort();
-  const expectedKeys = [...CUSTOMER_CREATE_RECEIPT_KEYS].sort();
+  const profileKeys = ['birthDate', 'referenceMembershipId', 'referenceName'];
+  const expectedKeys = [
+    ...CUSTOMER_CREATE_RECEIPT_KEYS,
+    ...profileKeys.filter((key) => Object.hasOwn(dto, key)),
+  ].sort();
   if (
+    (dto.birthDate !== undefined &&
+      dto.birthDate !== null &&
+      (typeof dto.birthDate !== 'string' ||
+        !validBirthDate(dto.birthDate) ||
+        dto.type !== 'INDIVIDUAL')) ||
+    (dto.referenceMembershipId !== undefined &&
+      !isNullableCanonicalTrimmedString(dto.referenceMembershipId, 128)) ||
+    (dto.referenceName !== undefined &&
+      !isNullableCanonicalTrimmedString(dto.referenceName, 120)) ||
+    (dto.referenceMembershipId != null && !dto.referenceName) ||
     keys.length !== expectedKeys.length ||
     keys.some((key, index) => key !== expectedKeys[index]) ||
     typeof dto.id !== 'string' ||
@@ -296,8 +335,8 @@ function parseCustomerCreateReceiptDto(
     dto.archivedAt !== null ||
     dto.archivedByMembershipId !== null ||
     dto.archiveReasonCode !== null ||
-    dto.hasIdentity !== false ||
-    dto.identityMasked !== null ||
+    dto.hasIdentity !== hasIdentity ||
+    dto.identityMasked !== (hasIdentity ? '***' : null) ||
     dto.version !== 1 ||
     !isCanonicalReceiptTimestamp(dto.createdAt) ||
     !isCanonicalReceiptTimestamp(dto.updatedAt) ||
@@ -606,6 +645,7 @@ async function lookupIdempotency<TResult>(input: {
       existingReceipt.response_status,
       input.agencyId,
       input.actorMembershipId,
+      !!command.identity,
     );
     replayCustomerTargetId = await loadCustomerCreateAuditTarget({
       db: input.db,
@@ -741,6 +781,19 @@ async function assertCurrentReplayAuthority(input: {
         assigneeMembershipId: customer.assignee_membership_id,
       },
     });
+    if (command.identity) {
+      const identityAuthorization = await evaluateAuthorization(input.db, {
+        context,
+        action: 'customer.identity.update',
+        resource: {
+          agencyId: input.agencyId,
+          id: customer.id,
+          assigneeMembershipId: customer.assignee_membership_id,
+        },
+      });
+      if (identityAuthorization.decision !== 'ALLOW')
+        throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
+    }
     if (createAuthorization.decision !== 'ALLOW' || recordAuthorization.decision !== 'ALLOW') {
       throw new DomainConstraintViolationError('REPLAY_AUTHORIZATION_DENIED');
     }
@@ -945,14 +998,81 @@ async function planCommand(
   const now = new Date().toISOString();
 
   switch (command.kind) {
+    case 'customer.vehicle.save': {
+      const details = JSON.stringify(command.details),
+        plate = normalizePlate(command.details.plate);
+      const write =
+        command.expectedVehicleVersion === null
+          ? db
+              .prepare(
+                `INSERT INTO customer_vehicles(id,agency_id,customer_id,details_json,normalized_plate,status,version,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?)`,
+              )
+              .bind(
+                command.vehicleId,
+                agencyId,
+                command.customerId,
+                details,
+                plate,
+                command.status,
+                now,
+                now,
+              )
+          : db
+              .prepare(
+                `UPDATE customer_vehicles SET details_json=?,normalized_plate=?,status=?,version=version+1,updated_at=? WHERE id=? AND agency_id=? AND customer_id=? AND version=?`,
+              )
+              .bind(
+                details,
+                plate,
+                command.status,
+                now,
+                command.vehicleId,
+                agencyId,
+                command.customerId,
+                command.expectedVehicleVersion,
+              );
+      return {
+        action: 'customer.update',
+        targetType: 'customer_vehicles',
+        targetId: command.vehicleId,
+        targetCustomerId: command.customerId,
+        isCreate: false,
+        auditCode: 'customer.vehicle.saved',
+        auditMetadata: {
+          customerId: command.customerId,
+          targetVersion: command.expectedVersion + 1,
+        },
+        businessStatements: [
+          {
+            statement: db
+              .prepare(
+                'UPDATE customers SET version=version+1,updated_at=? WHERE id=? AND agency_id=? AND version=? AND archived_at IS NULL',
+              )
+              .bind(now, command.customerId, agencyId, command.expectedVersion),
+            expectedChanges: 1,
+            failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT',
+          },
+          { statement: write, expectedChanges: 1, failureCode: 'OPTIMISTIC_CONCURRENCY_CONFLICT' },
+        ],
+      };
+    }
     case 'customer.create': {
+      if (
+        !command.insurerNumber ||
+        (command.type === 'COMPANY' && !command.identity) ||
+        (command.type !== 'COMPANY' && command.identity)
+      )
+        throw new DomainConstraintViolationError('CUSTOMER_REGISTRATION_REQUIRED');
       // Güvenlik Kuralı: Yeni müşterinin sorumlusu (assignee) her zaman aktörün kendi üyeliğidir.
       const insertStmt = db
         .prepare(
           `INSERT INTO customers (
              id, agency_id, type, display_name, first_name, last_name, company_title,
-             email, phone, address, assignee_membership_id, version, created_at, updated_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+             email, phone, address, assignee_membership_id, version, created_at, updated_at,
+             birth_date, reference_membership_id, reference_name, reference_search_key,
+             identity_type, identity_ciphertext, identity_iv, identity_tag, identity_search_hash, identity_key_version
+           ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+             WHERE EXISTS(SELECT 1 FROM insurers WHERE agency_id=? AND id=? AND status='ACTIVE') AND (? IS NULL OR EXISTS(SELECT 1 FROM agency_memberships m JOIN users u ON u.id=m.user_id WHERE m.agency_id=? AND m.id=? AND m.status='ACTIVE' AND u.status='ACTIVE' AND u.display_name=?))`,
         )
         .bind(
           command.customerId,
@@ -968,6 +1088,22 @@ async function planCommand(
           actorMembershipId,
           now,
           now,
+          command.birthDate ?? null,
+          command.referenceMembershipId ?? null,
+          command.referenceName ?? null,
+          command.referenceName ? referenceSearchKey(command.referenceName) : null,
+          command.identity ? 'VKN' : null,
+          command.identity?.ciphertext ?? null,
+          command.identity?.iv ?? null,
+          command.identity?.tag ?? null,
+          command.identity?.searchHash ?? null,
+          command.identity?.keyVersion ?? null,
+          agencyId,
+          command.insurerNumber.insurerId,
+          command.referenceMembershipId ?? null,
+          agencyId,
+          command.referenceMembershipId ?? null,
+          command.referenceName ?? null,
         );
 
       return {
@@ -988,6 +1124,23 @@ async function planCommand(
             expectedChanges: 1,
             failureCode: 'CUSTOMER_INSERT_FAILED',
           },
+          {
+            statement: db
+              .prepare(
+                `INSERT INTO external_customer_references
+              (id,agency_id,customer_id,source_namespace,external_key,created_at) VALUES(?,?,?,?,?,?)`,
+              )
+              .bind(
+                crypto.randomUUID(),
+                agencyId,
+                command.customerId,
+                'insurer:' + command.insurerNumber.insurerId,
+                command.insurerNumber.customerNumber,
+                now,
+              ),
+            expectedChanges: 1,
+            failureCode: 'DUPLICATE_EXTERNAL_REFERENCE',
+          },
         ],
       };
     }
@@ -1004,6 +1157,17 @@ async function planCommand(
       if (command.email !== undefined) updates.push({ col: 'email', val: command.email });
       if (command.phone !== undefined) updates.push({ col: 'phone', val: command.phone });
       if (command.address !== undefined) updates.push({ col: 'address', val: command.address });
+      if (command.birthDate !== undefined)
+        updates.push({ col: 'birth_date', val: command.birthDate });
+      if (command.referenceMembershipId !== undefined)
+        updates.push({ col: 'reference_membership_id', val: command.referenceMembershipId });
+      if (command.referenceName !== undefined) {
+        updates.push({ col: 'reference_name', val: command.referenceName });
+        updates.push({
+          col: 'reference_search_key',
+          val: command.referenceName ? referenceSearchKey(command.referenceName) : null,
+        });
+      }
 
       const nextVersion = command.expectedVersion + 1;
       const setClauses = updates
@@ -1011,13 +1175,24 @@ async function planCommand(
         .concat(['version = ?', 'updated_at = ?']);
       const bindValues = updates
         .map((u) => u.val)
-        .concat([nextVersion, now, command.customerId, agencyId, command.expectedVersion]);
+        .concat([
+          nextVersion,
+          now,
+          command.customerId,
+          agencyId,
+          command.expectedVersion,
+          command.referenceMembershipId ?? null,
+          agencyId,
+          command.referenceMembershipId ?? null,
+          command.referenceName ?? null,
+        ]);
 
       const updateStmt = db
         .prepare(
           `UPDATE customers
            SET ${setClauses.join(', ')}
-           WHERE id = ? AND agency_id = ? AND version = ? AND archived_at IS NULL`,
+           WHERE id = ? AND agency_id = ? AND version = ? AND archived_at IS NULL
+             AND (? IS NULL OR EXISTS(SELECT 1 FROM agency_memberships m JOIN users u ON u.id=m.user_id WHERE m.agency_id=? AND m.id=? AND m.status='ACTIVE' AND u.status='ACTIVE' AND u.display_name=?))`,
         )
         .bind(...bindValues);
 
@@ -1341,6 +1516,12 @@ async function planCommand(
         throw new DomainConstraintViolationError('CUSTOMER_NOT_FOUND', 'Müşteri kaydı bulunamadı.');
       }
 
+      if (customer.type === 'COMPANY' && command.identityType === null)
+        throw new DomainConstraintViolationError(
+          'COMPANY_TAX_NUMBER_REQUIRED',
+          'Kurumsal müşterinin vergi numarası silinemez; doğru numara ile değiştirin.',
+        );
+
       if (command.identityType !== null) {
         if (customer.type === 'INDIVIDUAL' && command.identityType !== 'TCKN') {
           throw new DomainConstraintViolationError(
@@ -1545,7 +1726,7 @@ async function planCommand(
         .bind(agencyId, command.sourceNamespace, command.externalKey)
         .first<{ id: string }>();
 
-      if (existingRef) {
+      if (existingRef && existingRef.id !== (command.insurerId ? command.referenceId : null)) {
         throw new DomainConstraintViolationError(
           'DUPLICATE_EXTERNAL_REFERENCE',
           'Bu acente için harici kaynak ve referans anahtarı zaten tanımlı.',
@@ -1557,24 +1738,49 @@ async function planCommand(
         .prepare(
           `UPDATE customers
            SET version = ?, updated_at = ?
-           WHERE id = ? AND agency_id = ? AND version = ?`,
-        )
-        .bind(nextVersion, now, command.customerId, agencyId, command.expectedVersion);
-
-      const insertRefStmt = db
-        .prepare(
-          `INSERT INTO external_customer_references (
-             id, agency_id, customer_id, source_namespace, external_key, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?)`,
+           WHERE id = ? AND agency_id = ? AND version = ?
+             AND (? IS NULL OR EXISTS (SELECT 1 FROM insurers WHERE agency_id=? AND id=? AND status='ACTIVE'))`,
         )
         .bind(
-          command.referenceId,
-          agencyId,
-          command.customerId,
-          command.sourceNamespace,
-          command.externalKey,
+          nextVersion,
           now,
+          command.customerId,
+          agencyId,
+          command.expectedVersion,
+          command.insurerId ?? null,
+          agencyId,
+          command.insurerId ?? null,
         );
+
+      const insertRefStmt =
+        command.replaceExisting && command.insurerId
+          ? db
+              .prepare(
+                `UPDATE external_customer_references SET external_key=?,updated_at=?
+          WHERE id=? AND agency_id=? AND customer_id=? AND source_namespace=?`,
+              )
+              .bind(
+                command.externalKey,
+                now,
+                command.referenceId,
+                agencyId,
+                command.customerId,
+                command.sourceNamespace,
+              )
+          : db
+              .prepare(
+                `INSERT INTO external_customer_references (
+             id, agency_id, customer_id, source_namespace, external_key, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?)`,
+              )
+              .bind(
+                command.referenceId,
+                agencyId,
+                command.customerId,
+                command.sourceNamespace,
+                command.externalKey,
+                now,
+              );
 
       return {
         action: 'customer.external_reference.create',
@@ -1582,7 +1788,9 @@ async function planCommand(
         targetId: command.referenceId,
         targetCustomerId: command.customerId,
         isCreate: false,
-        auditCode: 'customer.external_reference.created',
+        auditCode: command.replaceExisting
+          ? 'customer.external_reference.updated'
+          : 'customer.external_reference.created',
         auditMetadata: {
           customerId: command.customerId,
           referenceId: command.referenceId,
@@ -1924,6 +2132,25 @@ export async function executeCustomerDomainCommand<TResult>(
       agencyId,
     );
   batchStatements.push(finalAuthorityRecheckStmt);
+  if (command.kind === 'customer.create' && command.identity) {
+    batchStatements.push(
+      db
+        .prepare(
+          `INSERT INTO d1_cas_assertions(id,expected,actual,failure_code)
+      SELECT ?,1,CASE WHEN EXISTS (
+        SELECT 1 FROM agency_memberships m WHERE m.id=? AND m.agency_id=?
+          AND (m.type='OWNER' OR EXISTS (
+            SELECT 1 FROM membership_permissions pu JOIN membership_permissions pr ON pr.membership_id=pu.membership_id
+            WHERE pu.membership_id=m.id AND pu.permission_code='customer.update' AND pu.scope IN ('ASSIGNED','AGENCY')
+              AND pr.permission_code='customer.read' AND pr.scope IN ('ASSIGNED','AGENCY')
+              AND (pu.scope='ASSIGNED' OR pr.scope='AGENCY')))
+          AND (SELECT count(DISTINCT permission_code) FROM membership_permissions sp WHERE sp.membership_id=m.id
+            AND sp.permission_code IN ('sensitive.identity.read','sensitive.identity.write') AND sp.scope='UNSCOPED')=2
+      ) THEN 1 ELSE 0 END,'FINAL_AUTHORITY_RECHECK_FAILED'`,
+        )
+        .bind(crypto.randomUUID(), actorMembershipId, agencyId),
+    );
+  }
 
   if (command.kind === 'customer.assign') {
     const targetAssigneeAssertionStmt = db
@@ -2023,7 +2250,11 @@ export async function executeCustomerDomainCommand<TResult>(
     agencyId,
     actorUserId,
     actorMembershipId,
-    action: plan.action === 'customer.archive' ? plan.auditCode : plan.action,
+    action:
+      plan.action === 'customer.archive' ||
+      (command.kind === 'customer.external_reference.create' && command.replaceExisting)
+        ? plan.auditCode
+        : plan.action,
     targetType: plan.targetType,
     targetId: plan.targetId,
     correlationId,
@@ -2103,6 +2334,16 @@ export async function executeCustomerDomainCommand<TResult>(
         'Yalnızca aktif acente üyelerine müşteri atanabilir.',
       );
     }
+    if (
+      errorMsg.includes('customer_vehicles_customer_plate_uq') ||
+      errorMsg.includes(
+        'UNIQUE constraint failed: customer_vehicles.agency_id, customer_vehicles.customer_id, customer_vehicles.normalized_plate',
+      )
+    )
+      throw new DomainConstraintViolationError(
+        'DUPLICATE_VEHICLE_PLATE',
+        'Bu müşterinin aynı plakalı aracı zaten kayıtlı.',
+      );
     if (
       errorMsg.includes('DUPLICATE_EXTERNAL_REFERENCE') ||
       errorMsg.includes('ext_cust_refs_agency_source_key_uq') ||

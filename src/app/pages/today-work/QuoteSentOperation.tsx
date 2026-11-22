@@ -4,10 +4,11 @@ import { Button } from '../../components/ui/button';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
-import { formatMoneyMinor } from '../../lib/monetary';
+import { policyMoney } from '../policies/policy-display';
 import { interactionTime } from './interaction-model';
 import {
   quoteMatches,
+  exactQuoteUrl,
   quoteStatuses,
   savedPayload,
   type QuoteHistory,
@@ -180,7 +181,15 @@ export function QuoteSentOperation(props: Props) {
   }
   async function verify(p: Proof, c: AbortController, e: number) {
     try {
-      const h = await readCustomerResource<QuoteHistory>(root, c.signal);
+      const h = await readCustomerResource<QuoteHistory>(
+        exactQuoteUrl(
+          root,
+          p.attempt.target.quoteId,
+          p.attempt.target.version.id,
+          p.result.operationId,
+        ),
+        c.signal,
+      );
       if (!alive(e, c)) return;
       const q = proven(h, p);
       if (!q) throw new Error('SENT_PROOF_MISSING');
@@ -287,7 +296,10 @@ export function QuoteSentOperation(props: Props) {
       c = new AbortController();
     controllers.current.add(c);
     try {
-      const h = await readCustomerResource<QuoteHistory>(root, c.signal);
+      const h = await readCustomerResource<QuoteHistory>(
+        exactQuoteUrl(root, target.quoteId, target.version.id),
+        c.signal,
+      );
       if (!alive(e, c)) return;
       const renewal = await props.compareRenewal(c.signal);
       if (!alive(e, c)) return;
@@ -361,7 +373,15 @@ export function QuoteSentOperation(props: Props) {
   }
   const locked = busy || !!attempt || !!proof;
   const choices = props.renewalOpen ? (props.history?.quotes.filter((q) => eligible(q)) ?? []) : [];
-  const verifiedCurrent = props.history && verified ? proven(props.history, verified) : null;
+  // Initial receipt proof was exact and remains immutable. A bounded current page is not a full event archive.
+  const verifiedCurrent =
+    props.history && verified
+      ? (props.history.quotes.find(
+          (q) =>
+            q.id === verified.attempt.target.quoteId &&
+            q.version >= verified.attempt.target.cas + 1,
+        ) ?? null)
+      : null;
   function summary(v: QuoteVersion) {
     return (
       <dl className="today-task-facts">
@@ -374,7 +394,7 @@ export function QuoteSentOperation(props: Props) {
         </div>
         <div>
           <dt>Brüt prim / para birimi</dt>
-          <dd>{formatMoneyMinor(v.gross_premium_minor, v.currency)}</dd>
+          <dd>{policyMoney(v.gross_premium_minor, v.currency)}</dd>
         </div>
         <div>
           <dt>Geçerlilik sonu (İstanbul)</dt>
@@ -434,7 +454,7 @@ export function QuoteSentOperation(props: Props) {
               setTarget({
                 renewalId: props.renewalId,
                 quoteId: q.id,
-                label: `Teklif ${props.history!.quotes.indexOf(q) + 1} (seçim anındaki sıra)`,
+                label: `${props.insurerNames[v.insurer_id] ?? 'Şirket adı belirtilmemiş'} / ${v.product_name ?? 'Ürün adı belirtilmemiş'}`,
                 openingCas: q.version,
                 cas: q.version,
                 version: structuredClone(v),
@@ -445,8 +465,9 @@ export function QuoteSentOperation(props: Props) {
             <option value="">Teklif ve güncel sürümü açıkça seçin</option>
             {choices.map((q) => (
               <option key={q.id} value={q.id}>
-                Teklif {props.history!.quotes.indexOf(q) + 1} · Sürüm {current(q)!.version_number} ·{' '}
-                {current(q)!.product_name ?? 'Ürün adı mevcut değil'}
+                {props.insurerNames[current(q)!.insurer_id] ?? 'Şirket adı belirtilmemiş'} ·{' '}
+                {current(q)!.product_name ?? 'Ürün adı belirtilmemiş'} ·{' '}
+                {policyMoney(current(q)!.gross_premium_minor, current(q)!.currency)}
               </option>
             ))}
           </select>
@@ -466,9 +487,8 @@ export function QuoteSentOperation(props: Props) {
           {visible ? (
             <>
               <p>
-                {target.label} · Güncel olarak seçilen sürüm {target.version.version_number} · İlk
-                Kayıt sürümü {target.openingCas}, gönderim sürümü {target.cas}. Bu seçim
-                kendiliğinden başka teklif veya sürüme geçmez.
+                {target.label}. Gönderildi kaydı aşağıdaki fiyat içindir; fiyat daha sonra
+                güncellenirse bu kayıt önceki fiyatın geçmişinde korunur.
               </p>
               {summary(target.version)}
             </>

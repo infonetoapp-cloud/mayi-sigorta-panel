@@ -92,11 +92,12 @@ function fixture(
     if (url.endsWith('csrf-token')) return response({ token: 'csrf' });
     if (url === '/api/policies/old') return response({ ...policy, id: 'old', policyNumber: 'OLD' });
     if (url === '/api/policies/new') return response(policy);
+    if (url.endsWith('/won-price-options')) return response({ options: [], nextAfter: null });
     if (url.startsWith('/api/policies?'))
       return response({ items: [policy], nextCursor: null, hasMore: false });
     if (url.startsWith('/api/customers/c/renewals'))
       return response({ items: [{ id: 'r', state: 'WON', version: 4 }], nextCursor: null });
-    if (url.endsWith('/quotes')) return response({ quotes: [], defaultVersion: {} });
+    if (/\/quotes(?:\?.*)?$/.test(url)) return response({ quotes: [], defaultVersion: {} });
     if (init?.method === 'POST') return response(result);
     throw Error(url);
   });
@@ -128,6 +129,56 @@ function confirm() {
 }
 const writes = (f: ReturnType<typeof fixture>) =>
   f.fetcher.mock.calls.filter(([, i]) => i?.method === 'POST');
+it('links the chosen insurer price and records the real policy premium difference', async () => {
+  const source = {
+    kind: 'PRICE_REVISION',
+    caseId: 'case',
+    expectedCaseVersion: 3,
+    revisionId: 'v',
+    acceptanceEventId: 'ev',
+  };
+  const chosen = {
+    source,
+    insurerId: policy.insurerId,
+    insurerName: 'Anadolu Sigorta',
+    branchId: policy.branchId,
+    amountMinor: 9500,
+    currency: 'TRY',
+    startDate: null,
+    endDate: null,
+  };
+  const f = fixture((url, init) => {
+    if (url.endsWith('/won-price-options'))
+      return response({
+        options: [
+          chosen,
+          {
+            ...chosen,
+            source: { ...source, revisionId: 'other' },
+            insurerId: 'other',
+            insurerName: 'Allianz',
+          },
+        ],
+        nextAfter: null,
+      });
+    if (init?.method === 'POST')
+      return response({ ...result, acceptedPriceEvidence: { ...source, policyId: 'new' } });
+  });
+  await choose();
+  const picker = await screen.findByLabelText('İsteğe bağlı kabul edilecek teklif');
+  expect(screen.queryByRole('option', { name: /Allianz/ })).toBeNull();
+  fireEvent.change(picker, { target: { value: 'price:v' } });
+  fireEvent.change(screen.getByLabelText('Teklif farkının nedeni'), {
+    target: { value: 'PREMIUM_CHANGED' },
+  });
+  confirm();
+  await waitFor(() => expect(f.applied).toHaveBeenCalledTimes(1));
+  expect(JSON.parse(writes(f)[0]![1]!.body as string)).toMatchObject({
+    acceptedPriceSource: source,
+    quoteDifferenceReasonCode: 'PREMIUM_CHANGED',
+    result: { kind: 'LINK_POLICY', newPolicyId: 'new' },
+  });
+});
 it('requires independent full allocation and final confirmations; freezes exact task, dual CAS and full policy CAS then verifies authorized GETs', async () => {
   const f = fixture();
   await choose();
@@ -340,7 +391,7 @@ it.each([false, true])(
         posted = true;
         return response({ ...result, acceptedQuoteVersionId: 'v', acceptedPolicyId: 'new' });
       }
-      if (u.endsWith('/quotes'))
+      if (/\/quotes(?:\?.*)?$/.test(u))
         return response({
           quotes: [
             posted
@@ -378,9 +429,9 @@ it.each([false, true])(
     });
     if (different) {
       confirm();
-      await screen.findByText(/Fark için sizin belirlediğiniz/);
+      await screen.findByText('Teklif ile poliçe arasındaki farkın nedenini seçin.');
       expect(writes(f)).toHaveLength(0);
-      fireEvent.change(screen.getByLabelText('Teklif farkı neden kodu'), {
+      fireEvent.change(screen.getByLabelText('Teklif farkının nedeni'), {
         target: { value: 'CUSTOMER_CONFIRMED' },
       });
       fireEvent.click(
@@ -397,7 +448,7 @@ it.each([false, true])(
 it('does not use an expired or noncurrent quote automatically', async () => {
   const q = sentQuote();
   q.versions[0]!.valid_until = '2020-01-01T00:00:00.000Z';
-  const f = fixture((u) => (u.endsWith('/quotes') ? response({ quotes: [q] }) : undefined));
+  const f = fixture((u) => (/\/quotes(?:\?.*)?$/.test(u) ? response({ quotes: [q] }) : undefined));
   await choose();
   fireEvent.click(
     screen.getByRole('button', { name: 'İsteğe bağlı gönderildi kayıtlı teklifleri oku' }),

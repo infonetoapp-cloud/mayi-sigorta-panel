@@ -124,9 +124,15 @@ afterAll(async () => {
   vi.useRealTimers();
 });
 it('keeps Ahmet/Ayşe personal task lists private despite shared customer/policy access and broad legacy grants', async () => {
+  await f.db
+    .prepare(
+      "INSERT INTO external_customer_references(id,agency_id,customer_id,source_namespace,external_key) VALUES('tw-insurer-number','agency-auth-test','tw-c','insurer:tw-i','00012345')",
+    )
+    .run();
   for (const who of ['tw-ahmet', 'tw-ayse']) {
     const data = await list(who);
     expect(data.items).toHaveLength(3);
+    expect(data.items.every((t) => t.policyInsurerCustomerNumber === '00012345')).toBe(true);
     expect(data.items.every((t) => t.assigneeMembershipId === 'membership-' + who)).toBe(true);
     expect(data.unassignedItems).toEqual([]);
     expect(data.canSeeUnassigned).toBe(false);

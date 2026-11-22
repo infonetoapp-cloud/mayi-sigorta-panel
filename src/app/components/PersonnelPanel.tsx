@@ -1,3 +1,4 @@
+import { Button } from './ui/button';
 import { useEffect, useState, useRef } from 'react';
 import {
   PERMISSION_CATALOG,
@@ -21,6 +22,13 @@ interface Person {
   version: number;
   grants: Grant[];
 }
+const personnelStatus: Record<string, string> = {
+  ACTIVE: 'Etkin',
+  INVITED: 'Davet edildi',
+  SUSPENDED: 'Askıda',
+  INACTIVE: 'Pasif',
+};
+
 function PermissionEditor({
   grants,
   onChange,
@@ -193,91 +201,96 @@ export function PersonnelPanel() {
     }
   }
   return (
-    <main className="personnel-page">
+    <section className="personnel-page" aria-label="Personel yönetimi">
       <header>
         <div>
-          <h1>Personel ve İzinler</h1>
-          <p>
-            Giriş e-postası değişmez. İzinler şablondan bağımsız kişi kaydıdır; çalışan sayısı
-            sınırı yoktur.
-          </p>
+          <h2>Çalışan hesapları</h2>
+          <p>Her çalışanın erişim izinlerini ayrı ayrı düzenleyebilirsiniz.</p>
         </div>
-        <button
+        <Button
+          variant="default"
           onClick={() => {
             setCreate(true);
             setSelected(null);
             setGrants([...createOnboardingTemplateGrants('personel')]);
           }}
+          type="button"
         >
           Personel oluştur
-        </button>
+        </Button>
       </header>
       {error && <p role="alert">{error}</p>}
-      <div className="personnel-table">
+      <div className="personnel-table" role="region" aria-label="Çalışan listesi" tabIndex={0}>
         <table>
           <thead>
             <tr>
-              <th>Ad / Giriş e-postası</th>
-              <th>Üyelik / Durum</th>
-              <th>İşlemler</th>
+              <th scope="col">Ad / Giriş e-postası</th>
+              <th scope="col">Üyelik / Durum</th>
+              <th scope="col">İşlemler</th>
             </tr>
           </thead>
           <tbody>
             {items.map((person) => (
               <tr key={person.id}>
-                <td>
+                <th scope="row">
                   {person.display_name ?? 'Tarihsel çalışan'}
                   <small>{person.login_email ?? 'Yerel giriş henüz kurulmadı'}</small>
+                </th>
+                <td data-label="Üyelik / Durum">
+                  {person.type === 'OWNER' ? 'Acente sahibi' : 'Personel'} ·{' '}
+                  {personnelStatus[person.status] ?? 'Durum bilinmiyor'}
                 </td>
-                <td>
-                  {person.type === 'OWNER' ? 'Acente Sahibi' : 'Personel'} · {person.status}
-                </td>
-                <td className="personnel-actions">
-                  {[
-                    'reset',
-                    'permissions',
-                    ...(person.status === 'ACTIVE'
-                      ? [
-                          'suspend',
-                          'inactivate',
-                          person.type === 'MEMBER' ? 'promote' : 'demote',
-                          ...(person.type === 'MEMBER' ? ['transfer'] : []),
-                        ]
-                      : ['reactivate']),
-                  ].map((kind) => (
-                    <button
-                      key={kind}
-                      onClick={() => {
-                        setSelected({ person, kind });
-                        setCreate(false);
-                        setReason('');
-                        setGrants(
-                          kind === 'promote'
-                            ? person.grants.filter(
-                                (g) =>
-                                  PERMISSION_CATALOG.find((p) => p.code === g.permission_code)
-                                    ?.classification === 'SENSITIVE',
-                              )
-                            : kind === 'demote'
-                              ? [...createOnboardingTemplateGrants('personel')]
-                              : person.grants,
-                        );
-                      }}
-                    >
-                      {
+                <td data-label="İşlemler">
+                  <div className="personnel-actions">
+                    {[
+                      'reset',
+                      'permissions',
+                      ...(person.status === 'ACTIVE'
+                        ? [
+                            'suspend',
+                            'inactivate',
+                            person.type === 'MEMBER' ? 'promote' : 'demote',
+                            ...(person.type === 'MEMBER' ? ['transfer'] : []),
+                          ]
+                        : ['reactivate']),
+                    ].map((kind) => (
+                      <Button
+                        variant={kind === 'suspend' || kind === 'inactivate' ? 'danger' : 'outline'}
+                        key={kind}
+                        size="sm"
+                        onClick={() => {
+                          setSelected({ person, kind });
+                          setCreate(false);
+                          setReason('');
+                          setGrants(
+                            kind === 'promote'
+                              ? person.grants.filter(
+                                  (g) =>
+                                    PERMISSION_CATALOG.find((p) => p.code === g.permission_code)
+                                      ?.classification === 'SENSITIVE',
+                                )
+                              : kind === 'demote'
+                                ? [...createOnboardingTemplateGrants('personel')]
+                                : person.grants,
+                          );
+                        }}
+                        type="button"
+                      >
                         {
-                          reset: 'Şifre sıfırla',
-                          permissions: 'İzinleri düzenle',
-                          suspend: 'Askıya al',
-                          inactivate: 'Pasifleştir',
-                          reactivate: 'Yeniden etkinleştir',
-                          promote: 'Sahip yap',
-                          demote: 'Personel yap',
-                          transfer: 'Sahipliği devret',
-                        }[kind]
-                      }
-                    </button>
-                  ))}
+                          {
+                            reset: 'Şifre sıfırla',
+                            permissions: 'İzinleri düzenle',
+                            suspend: 'Askıya al',
+                            inactivate: 'Pasifleştir',
+                            reactivate: 'Yeniden etkinleştir',
+                            promote: 'Sahip yap',
+                            demote: 'Personel yap',
+                            transfer: 'Sahipliği devret',
+                          }[kind]
+                        }
+                      </Button>
+                    ))}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -285,7 +298,8 @@ export function PersonnelPanel() {
         </table>
       </div>
       <nav aria-label="Personel sayfaları" className="auth-actions">
-        <button
+        <Button
+          variant="outline"
           disabled={previous.length === 0 || busy}
           onClick={() => {
             const page = previous.at(-1) ?? null;
@@ -293,10 +307,12 @@ export function PersonnelPanel() {
             setCursor(page);
             void refresh(page);
           }}
+          type="button"
         >
           Önceki sayfa
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
           disabled={!nextCursor || busy}
           onClick={() => {
             if (!nextCursor) return;
@@ -304,12 +320,13 @@ export function PersonnelPanel() {
             setCursor(nextCursor);
             void refresh(nextCursor);
           }}
+          type="button"
         >
           Sonraki sayfa
-        </button>
-        <button disabled={busy} onClick={() => void refresh()}>
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={() => void refresh()} type="button">
           Listeyi yenile
-        </button>
+        </Button>
       </nav>
       {create && (
         <section className="auth-card personnel-form">
@@ -357,10 +374,12 @@ export function PersonnelPanel() {
             <PermissionEditor grants={grants} onChange={setGrants} />
             <p>İlk girişte zorunlu şifre değişimi yapılmadan CRM verisi açılmaz.</p>
             <div className="auth-actions">
-              <button disabled={busy}>Onayla ve oluştur</button>
-              <button type="button" onClick={() => setCreate(false)}>
+              <Button variant="default" disabled={busy} type="submit">
+                Onayla ve oluştur
+              </Button>
+              <Button variant="outline" type="button" onClick={() => setCreate(false)}>
                 Vazgeç
-              </button>
+              </Button>
             </div>
           </form>
         </section>
@@ -416,7 +435,8 @@ export function PersonnelPanel() {
                   Çalışanlar eski AGENCY görev izni bulunsa da yalnız kendi görevlerini görür; atama
                   ve yönetim raporları OWNER'a ayrılmıştır.
                 </p>
-                <button
+                <Button
+                  variant="outline"
                   type="button"
                   onClick={() =>
                     setGrants((current) => {
@@ -430,7 +450,7 @@ export function PersonnelPanel() {
                   }
                 >
                   Standart ortak çalışma izinlerini taslağa uygula
-                </button>
+                </Button>
               </div>
             )}
             {['permissions', 'promote', 'demote'].includes(selected.kind) && (
@@ -444,10 +464,12 @@ export function PersonnelPanel() {
               />
             )}
             <div className="auth-actions">
-              <button disabled={busy}>İşlemi onayla</button>
-              <button type="button" onClick={() => setSelected(null)}>
+              <Button variant="default" disabled={busy} type="submit">
+                İşlemi onayla
+              </Button>
+              <Button variant="outline" type="button" onClick={() => setSelected(null)}>
                 Vazgeç
-              </button>
+              </Button>
             </div>
           </form>
         </section>
@@ -481,12 +503,20 @@ export function PersonnelPanel() {
             </p>
             <output className="temporary-secret">{temporary}</output>
             <div className="auth-actions">
-              <button onClick={() => void navigator.clipboard.writeText(temporary)}>Kopyala</button>
-              <button onClick={() => setTemporary(null)}>Güvenli biçimde kapat</button>
+              <Button
+                variant="outline"
+                onClick={() => void navigator.clipboard.writeText(temporary)}
+                type="button"
+              >
+                Kopyala
+              </Button>
+              <Button variant="outline" onClick={() => setTemporary(null)} type="button">
+                Güvenli biçimde kapat
+              </Button>
             </div>
           </section>
         </div>
       )}
-    </main>
+    </section>
   );
 }

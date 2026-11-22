@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { BRANCH_CLASSIFICATION_CORRECTION_REASONS } from '../../shared/constants';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { evaluateAuthorization } from '../auth/authorization';
 import {
@@ -104,6 +105,7 @@ export const CreateBranchSchema = z
       .trim()
       .min(1, 'İsim boş olamaz')
       .max(255, 'İsim en fazla 255 karakter olabilir'),
+    supportsVehicleDetails: z.boolean().optional(),
     dataClassification: z.enum(['GENERAL', 'HEALTH']).default('GENERAL'),
   })
   .strict();
@@ -116,6 +118,7 @@ export const UpdateBranchSchema = z
       .trim()
       .min(1, 'İsim boş olamaz')
       .max(255, 'İsim en fazla 255 karakter olabilir'),
+    supportsVehicleDetails: z.boolean().optional(),
   })
   .strict();
 
@@ -361,14 +364,14 @@ export async function getInsurer(
 export async function listBranches(
   context: AuthenticatedUserContext,
   db: D1Database,
-  options: { includeInactive?: boolean } = {},
+  options: { includeInactive?: boolean; includeCorrectionAuthority?: boolean } = {},
 ): Promise<InsuranceBranchDto[]> {
   const mem = getActiveMembership(context);
   const statusFilter = options.includeInactive ? '' : "AND status = 'ACTIVE'";
 
   const rows = await db
     .prepare(
-      `SELECT id, agency_id, code, name, data_classification, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, data_classification, supports_vehicle_details, status, version, created_at, updated_at
        FROM insurance_branches
        WHERE agency_id = ? ${statusFilter}
        ORDER BY name ASC`,
@@ -380,18 +383,31 @@ export async function listBranches(
       code: string;
       name: string;
       data_classification: 'GENERAL' | 'HEALTH';
+      supports_vehicle_details: number;
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
       updated_at: string;
     }>();
 
+  const correctionAuthority = options.includeCorrectionAuthority
+    ? await evaluateAuthorization(db, {
+        context,
+        action: 'catalog.branch.correct_classification',
+        agencyId: mem.agencyId,
+      })
+    : null;
   return (rows.results || []).map((r) => ({
     id: r.id,
     agencyId: r.agency_id,
     code: r.code,
     name: r.name,
     dataClassification: r.data_classification,
+    ...(correctionAuthority && {
+      canCorrectClassification:
+        correctionAuthority.decision === 'ALLOW' && r.data_classification === 'GENERAL',
+    }),
+    supportsVehicleDetails: r.supports_vehicle_details === 1,
     status: r.status,
     version: r.version,
     createdAt: r.created_at,
@@ -407,7 +423,7 @@ export async function getBranch(
   const mem = getActiveMembership(context);
   const row = await db
     .prepare(
-      `SELECT id, agency_id, code, name, data_classification, status, version, created_at, updated_at
+      `SELECT id, agency_id, code, name, data_classification, supports_vehicle_details, status, version, created_at, updated_at
        FROM insurance_branches
        WHERE id = ? AND agency_id = ?`,
     )
@@ -418,6 +434,7 @@ export async function getBranch(
       code: string;
       name: string;
       data_classification: 'GENERAL' | 'HEALTH';
+      supports_vehicle_details: number;
       status: CatalogLifecycleStatus;
       version: number;
       created_at: string;
@@ -434,6 +451,7 @@ export async function getBranch(
     code: row.code,
     name: row.name,
     dataClassification: row.data_classification,
+    supportsVehicleDetails: row.supports_vehicle_details === 1,
     status: row.status,
     version: row.version,
     createdAt: row.created_at,
@@ -817,7 +835,7 @@ export async function resolveCatalogItem(
 export async function createInsurer(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof CreateInsurerSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsurerDto }> {
   const mem = getActiveMembership(context);
@@ -872,7 +890,7 @@ export async function updateInsurer(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof UpdateInsurerSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsurerDto }> {
   const mem = getActiveMembership(context);
@@ -925,7 +943,7 @@ export async function deactivateInsurer(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof DeactivateSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsurerDto }> {
   const mem = getActiveMembership(context);
@@ -972,7 +990,7 @@ export async function deactivateInsurer(
 export async function createBranch(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof CreateBranchSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceBranchDto }> {
   const mem = getActiveMembership(context);
@@ -1002,6 +1020,7 @@ export async function createBranch(
       code: parsed.data.code,
       name: parsed.data.name,
       dataClassification: parsed.data.dataClassification,
+      supportsVehicleDetails: parsed.data.supportsVehicleDetails ?? false,
     },
     resultProducer: () => {
       const now = new Date().toISOString();
@@ -1013,6 +1032,7 @@ export async function createBranch(
           code: parsed.data.code,
           name: parsed.data.name,
           dataClassification: parsed.data.dataClassification,
+          supportsVehicleDetails: parsed.data.supportsVehicleDetails ?? false,
           status: 'ACTIVE',
           version: 1,
           createdAt: now,
@@ -1029,7 +1049,7 @@ export async function updateBranch(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof UpdateBranchSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceBranchDto }> {
   const mem = getActiveMembership(context);
@@ -1056,7 +1076,8 @@ export async function updateBranch(
       branchId: id,
       expectedVersion: parsed.data.expectedVersion,
       name: parsed.data.name,
-      changedFields: ['name'],
+      supportsVehicleDetails: parsed.data.supportsVehicleDetails,
+      changedFields: Object.keys(parsed.data).filter((field) => field !== 'expectedVersion'),
     },
     resultProducer: () => {
       const now = new Date().toISOString();
@@ -1065,6 +1086,8 @@ export async function updateBranch(
         body: {
           ...current,
           name: parsed.data.name,
+          supportsVehicleDetails:
+            parsed.data.supportsVehicleDetails ?? current.supportsVehicleDetails,
           version: parsed.data.expectedVersion + 1,
           updatedAt: now,
         },
@@ -1075,11 +1098,55 @@ export async function updateBranch(
   return { status: res.status, data: res.body };
 }
 
+export async function correctBranchClassification(
+  context: AuthenticatedUserContext,
+  db: D1Database,
+  id: string,
+  payload: unknown,
+  idempotencyKey: string,
+): Promise<{ status: number; data: InsuranceBranchDto }> {
+  const mem = getActiveMembership(context);
+  await authorizeAction(db, context, 'catalog.branch.correct_classification', mem.agencyId);
+  const parsed = z
+    .object({
+      expectedVersion: z.number().int().positive(),
+      reasonCode: z.enum(BRANCH_CLASSIFICATION_CORRECTION_REASONS),
+    })
+    .strict()
+    .safeParse(payload);
+  if (!parsed.success) throw new CatalogValidationError('Geçerli bir düzeltme gerekçesi seçin.');
+
+  const current = await getBranch(context, db, id);
+  const { expectedVersion, reasonCode } = parsed.data;
+  const result = await executeCatalogDomainCommand<InsuranceBranchDto>({
+    db,
+    agencyId: mem.agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: mem.id,
+    expectedPermissionVersion: mem.permissionVersion,
+    correlationId: crypto.randomUUID(),
+    idempotencyKey,
+    payload: { branchId: id, expectedVersion, reasonCode },
+    command: { kind: 'branch.correct_classification', branchId: id, expectedVersion, reasonCode },
+    resultProducer: () => ({
+      status: 200,
+      body: {
+        ...current,
+        dataClassification: 'HEALTH',
+        canCorrectClassification: false,
+        version: expectedVersion + 1,
+        updatedAt: new Date().toISOString(),
+      },
+    }),
+  });
+  return { status: result.status, data: result.body };
+}
+
 export async function deactivateBranch(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof DeactivateSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceBranchDto }> {
   const mem = getActiveMembership(context);
@@ -1126,7 +1193,7 @@ export async function deactivateBranch(
 export async function createProduct(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof CreateProductSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceProductDto }> {
   const mem = getActiveMembership(context);
@@ -1185,7 +1252,7 @@ export async function updateProduct(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof UpdateProductSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceProductDto }> {
   const mem = getActiveMembership(context);
@@ -1240,7 +1307,7 @@ export async function deactivateProduct(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof DeactivateSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: InsuranceProductDto }> {
   const mem = getActiveMembership(context);
@@ -1287,7 +1354,7 @@ export async function deactivateProduct(
 export async function createPaymentMethod(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof CreatePaymentMethodSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: PaymentMethodDto }> {
   const mem = getActiveMembership(context);
@@ -1346,7 +1413,7 @@ export async function updatePaymentMethod(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof UpdatePaymentMethodSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: PaymentMethodDto }> {
   const mem = getActiveMembership(context);
@@ -1404,7 +1471,7 @@ export async function deactivatePaymentMethod(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof DeactivateSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: PaymentMethodDto }> {
   const mem = getActiveMembership(context);
@@ -1451,7 +1518,7 @@ export async function deactivatePaymentMethod(
 export async function createLossReason(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof CreateLossReasonSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: LossReasonDto }> {
   const mem = getActiveMembership(context);
@@ -1506,7 +1573,7 @@ export async function updateLossReason(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof UpdateLossReasonSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: LossReasonDto }> {
   const mem = getActiveMembership(context);
@@ -1556,7 +1623,7 @@ export async function deactivateLossReason(
   context: AuthenticatedUserContext,
   db: D1Database,
   id: string,
-  payload: z.infer<typeof DeactivateSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: LossReasonDto }> {
   const mem = getActiveMembership(context);
@@ -1603,7 +1670,7 @@ export async function deactivateLossReason(
 export async function updateAgencySettings(
   context: AuthenticatedUserContext,
   db: D1Database,
-  payload: z.infer<typeof UpdateAgencySettingsSchema>,
+  payload: unknown,
   idempotencyKey: string,
 ): Promise<{ status: number; data: AgencySettingsDto }> {
   const mem = getActiveMembership(context);

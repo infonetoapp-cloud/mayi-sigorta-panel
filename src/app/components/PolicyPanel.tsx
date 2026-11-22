@@ -878,16 +878,12 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
         )}
         <label style={field}>
           Durum
-          <select
-            aria-label="Poliçe Durumu"
-            style={input}
-            value={status}
-            onChange={(e) => setStatus(e.target.value as typeof status)}
-          >
+          <select aria-label="Poliçe Durumu" style={input} value={status} disabled>
             <option value="ACTIVE">Aktif</option>
             <option value="CANCELLED">İptal edildi</option>
             <option value="VOIDED">Geçersiz</option>
           </select>
+          İptal / hatalı kayıt işlemi için poliçe detayını açın.
         </label>
       </div>
       <div style={row}>
@@ -908,7 +904,7 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
   );
 
   return (
-    <div style={{ display: 'grid', gap: '1rem' }}>
+    <div className="policy-legacy-panel" style={{ display: 'grid', gap: '1rem' }}>
       <div
         style={{ ...card, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
       >
@@ -995,7 +991,13 @@ export const PolicyPanel: React.FC<PolicyPanelProps> = ({
           Poliçelerde Ara
         </button>
       </form>
-      <div style={card}>
+      <div
+        className="policy-legacy-table"
+        role="region"
+        aria-label="Klasik poliçe listesi"
+        tabIndex={0}
+        style={card}
+      >
         {listLoading && policies.length === 0 ? (
           'Poliçeler yükleniyor...'
         ) : policies.length === 0 ? (

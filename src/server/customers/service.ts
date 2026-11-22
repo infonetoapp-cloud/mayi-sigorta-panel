@@ -12,6 +12,26 @@
  */
 
 import { z } from 'zod';
+import {
+  taxNumberSchema,
+  registrationInsurerNumberSchema,
+} from '../../shared/customer-registration';
+import {
+  vehicleFieldsSchema,
+  normalizePlate,
+  type CustomerVehicle,
+  type VehiclePage,
+} from '../../shared/vehicles';
+import {
+  insurerNumberNamespace,
+  type InsurerCustomerNumber,
+} from '../../shared/insurer-customer-number';
+import {
+  istanbulToday,
+  validBirthDate,
+  referenceSearchKey,
+  type CustomerReferenceOptions,
+} from '../../shared/customer-profile';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { evaluateAuthorization } from '../auth/authorization';
 import {
@@ -38,6 +58,7 @@ import {
   decryptIdentity,
   computeIdentitySearchHash,
   type IdentityCryptoConfig,
+  IdentityCryptoConfigError,
 } from '../security/identity-crypto';
 
 export class CustomerNotFoundError extends Error {
@@ -73,14 +94,31 @@ export class ValidationError extends Error {
 
 // ---------------------- ZOD DOĞRULAMA ŞEMALARI (STRICT) ----------------------
 
+const customerEmail = z.string().trim().max(254).email('Geçerli bir e-posta giriniz');
+const profileFields = {
+  birthDate: z
+    .string()
+    .refine(
+      (v) => validBirthDate(v) && v <= istanbulToday(),
+      'Geçerli, gelecekte olmayan bir doğum tarihi girin.',
+    )
+    .nullable()
+    .optional(),
+  referenceMembershipId: z.string().trim().min(1).max(128).nullable().optional(),
+  referenceName: z.string().trim().min(1).max(120).nullable().optional(),
+};
+
 export const CreateCustomerSchema = z
   .object({
+    ...profileFields,
+    taxNumber: taxNumberSchema.optional(),
+    insurerNumber: registrationInsurerNumberSchema.optional(),
     type: z.enum(['INDIVIDUAL', 'COMPANY']),
     displayName: z.string().trim().min(1).max(255).optional(),
     firstName: z.string().trim().min(1).max(100).optional().nullable(),
     lastName: z.string().trim().min(1).max(100).optional().nullable(),
     companyTitle: z.string().trim().min(1).max(255).optional().nullable(),
-    email: z.string().trim().email('Geçerli bir e-posta giriniz').optional().nullable(),
+    email: customerEmail.optional().nullable(),
     phone: z.string().trim().min(1).max(50).optional().nullable(),
     address: z.string().trim().max(1000).optional().nullable(),
   })
@@ -88,13 +126,14 @@ export const CreateCustomerSchema = z
 
 export const UpdateCustomerSchema = z
   .object({
+    ...profileFields,
     expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
     type: z.enum(['INDIVIDUAL', 'COMPANY']).optional(),
     displayName: z.string().trim().min(1).max(255).optional(),
     firstName: z.string().trim().min(1).max(100).optional().nullable(),
     lastName: z.string().trim().min(1).max(100).optional().nullable(),
     companyTitle: z.string().trim().min(1).max(255).optional().nullable(),
-    email: z.string().trim().email('Geçerli bir e-posta giriniz').optional().nullable(),
+    email: customerEmail.optional().nullable(),
     phone: z.string().trim().min(1).max(50).optional().nullable(),
     address: z.string().trim().max(1000).optional().nullable(),
   })
@@ -126,7 +165,7 @@ export const SearchSensitiveCustomerSchema = z
 export const AssignCustomerSchema = z
   .object({
     expectedVersion: z.number().int().min(1, 'expectedVersion zorunludur ve en az 1 olmalıdır'),
-    assigneeMembershipId: z.string().trim().min(1, 'assigneeMembershipId zorunludur'),
+    assigneeMembershipId: z.string().trim().min(1, 'assigneeMembershipId zorunludur').max(128),
   })
   .strict();
 
@@ -150,7 +189,7 @@ export const CreateCompanyContactSchema = z
     firstName: z.string().trim().min(1, 'Ad boş olamaz').max(100),
     lastName: z.string().trim().min(1, 'Soyad boş olamaz').max(100),
     role: z.string().trim().max(100).optional().nullable(),
-    email: z.string().trim().email('Geçerli bir e-posta giriniz').optional().nullable(),
+    email: customerEmail.optional().nullable(),
     phone: z.string().trim().min(1).max(50).optional().nullable(),
     isPrimary: z.boolean().optional().default(false),
   })
@@ -162,7 +201,7 @@ export const UpdateCompanyContactSchema = z
     firstName: z.string().trim().min(1).max(100).optional(),
     lastName: z.string().trim().min(1).max(100).optional(),
     role: z.string().trim().max(100).optional().nullable(),
-    email: z.string().trim().email('Geçerli bir e-posta giriniz').optional().nullable(),
+    email: customerEmail.optional().nullable(),
     phone: z.string().trim().min(1).max(50).optional().nullable(),
   })
   .strict();
@@ -218,6 +257,9 @@ export function decodeCursor(
 // ---------------------- DTO DÖNÜŞTÜRÜCÜLER ----------------------
 
 export interface RawCustomerRow {
+  birth_date?: string | null;
+  reference_membership_id?: string | null;
+  reference_name?: string | null;
   id: string;
   agency_id: string;
   type: string;
@@ -262,6 +304,9 @@ export interface RawContactRow {
 export function toCustomerDto(row: RawCustomerRow): CustomerDto {
   const hasIdentity = Boolean(row.identity_ciphertext);
   return {
+    birthDate: row.birth_date ?? null,
+    referenceMembershipId: row.reference_membership_id ?? null,
+    referenceName: row.reference_name ?? null,
     id: row.id,
     agencyId: row.agency_id,
     type: row.type as CustomerType,
@@ -305,8 +350,70 @@ export function toCompanyContactDto(row: RawContactRow): CompanyContactDto {
 // ---------------------- MÜŞTERİ HİZMET FONKSİYONLARI ----------------------
 
 export interface CustomerMutationOptions {
+  identityCryptoConfig?: () => IdentityCryptoConfig;
   correlationId: string;
   idempotencyKey: string;
+}
+
+async function resolveProfileFields(
+  db: D1Database,
+  agencyId: string,
+  type: string,
+  data: z.infer<typeof UpdateCustomerSchema> | z.infer<typeof CreateCustomerSchema>,
+) {
+  if (type !== 'INDIVIDUAL' && data.birthDate != null)
+    throw new ValidationError('Doğum tarihi yalnız bireysel müşteriler içindir.');
+  const profile: {
+    birthDate?: string | null;
+    referenceMembershipId?: string | null;
+    referenceName?: string | null;
+  } = {};
+  if (data.birthDate !== undefined) profile.birthDate = data.birthDate;
+  if (data.referenceMembershipId !== undefined || data.referenceName !== undefined) {
+    profile.referenceMembershipId = data.referenceMembershipId ?? null;
+    profile.referenceName = data.referenceName ?? null;
+    if (profile.referenceMembershipId) {
+      const person = await db
+        .prepare(
+          `SELECT u.display_name FROM agency_memberships m JOIN users u ON u.id=m.user_id WHERE m.agency_id=? AND m.id=? AND m.status='ACTIVE' AND u.status='ACTIVE' AND length(trim(u.display_name)) BETWEEN 1 AND 120`,
+        )
+        .bind(agencyId, profile.referenceMembershipId)
+        .first<{ display_name: string }>();
+      if (!person)
+        throw new ValidationError(
+          'Referans kişi kullanılamıyor. Aktif çalışan seçin veya elle isim girin.',
+        );
+      profile.referenceName = person.display_name;
+    }
+  }
+  return profile;
+}
+
+/** Narrow name directory. No emails, grants, credentials or cross-agency personnel data. */
+export async function listCustomerReferenceOptions(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  cursor?: string,
+): Promise<CustomerReferenceOptions> {
+  const active = context.memberships[0];
+  if (!active || active.status !== 'ACTIVE') throw new CustomerForbiddenError();
+  if (cursor !== undefined && (!cursor.trim() || cursor.length > 128))
+    throw new ValidationError('Geçersiz sayfalama.');
+  const resource = {
+    agencyId: active.agencyId,
+    assigneeMembershipId: active.id,
+    isCollection: true,
+  };
+  const read = await evaluateAuthorization(db, { context, action: 'customer.read', resource });
+  if (read.decision !== 'ALLOW') throw new CustomerForbiddenError();
+  const result = await db
+    .prepare(
+      `SELECT m.id AS membershipId,u.display_name AS displayName FROM agency_memberships m JOIN users u ON u.id=m.user_id WHERE m.agency_id=? AND m.status='ACTIVE' AND u.status='ACTIVE' AND length(trim(u.display_name)) BETWEEN 1 AND 120 AND m.id>? ORDER BY m.id LIMIT 51`,
+    )
+    .bind(active.agencyId, cursor ?? '')
+    .all<{ membershipId: string; displayName: string }>();
+  const items = result.results.slice(0, 50);
+  return { items, nextCursor: result.results.length > 50 ? items.at(-1)!.membershipId : null };
 }
 
 export async function createCustomer(
@@ -371,8 +478,70 @@ export async function createCustomer(
     throw new CustomerForbiddenError('Müşteri oluşturma yetkiniz bulunmamaktadır.');
   }
 
+  if (data.type !== 'COMPANY' && data.taxNumber !== undefined)
+    throw new ValidationError('Vergi no yalnız kurumsal müşteride kullanılır.', {
+      taxNumber: 'Bireysel müşteri için vergi no gönderilemez.',
+    });
+  let identity;
+  if (data.taxNumber !== undefined) {
+    const identityAuth = await evaluateAuthorization(db, {
+      context,
+      action: 'customer.identity.update',
+      resource: { agencyId, assigneeMembershipId, isCreate: true },
+    });
+    if (identityAuth.decision !== 'ALLOW')
+      throw new CustomerForbiddenError(
+        'Kurumsal müşteri kaydı için kimlik bilgisi yazma yetkisi gereklidir.',
+      );
+    if (!options.identityCryptoConfig)
+      throw new IdentityCryptoConfigError('Kimlik şifreleme altyapısı kullanılamıyor.');
+    identity = await encryptIdentity(data.taxNumber, options.identityCryptoConfig());
+  }
+  // Never fingerprint the low-entropy tax number with an unkeyed hash.
+  const safePayload = { ...(rawPayload as Record<string, unknown>) };
+  delete safePayload.taxNumber;
+  const payload = identity
+    ? { ...safePayload, taxNumberSearchHash: identity.searchHash }
+    : rawPayload;
   const now = new Date().toISOString();
+  const replay = await replayCompletedCustomerDomainCommand<CustomerDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload,
+    command: {
+      kind: 'customer.create',
+      identity,
+      insurerNumber: data.insurerNumber,
+      customerId,
+      type: data.type,
+      displayName: computedDisplayName,
+    },
+  });
+  if (replay) return replay.body;
+  // Historical completed requests remain replayable; every NEW registration needs these fields.
+  if (data.type === 'COMPANY' && !identity)
+    throw new ValidationError('Kurumsal müşteride vergi no zorunludur.', {
+      taxNumber: 'Vergi no zorunludur.',
+    });
+  if (!data.insurerNumber)
+    throw new ValidationError('Sigorta şirketi ve müşteri no zorunludur.', {
+      insurerNumber: 'Sigorta şirketi ve müşteri no girin.',
+    });
+  const insurer = await db
+    .prepare("SELECT id FROM insurers WHERE id=? AND agency_id=? AND status='ACTIVE'")
+    .bind(data.insurerNumber.insurerId, agencyId)
+    .first();
+  if (!insurer)
+    throw new ValidationError('Geçerli ve aktif bir sigorta şirketi seçin.', {
+      insurerNumber: 'Sigorta şirketi kullanılamıyor.',
+    });
+  const profile = await resolveProfileFields(db, agencyId, data.type, data);
   const resultDto: CustomerDto = {
+    ...profile,
     id: customerId,
     agencyId,
     type: data.type,
@@ -387,8 +556,8 @@ export async function createCustomer(
     archivedAt: null,
     archivedByMembershipId: null,
     archiveReasonCode: null,
-    hasIdentity: false,
-    identityMasked: null,
+    hasIdentity: !!identity,
+    identityMasked: maskIdentity(!!identity),
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -403,9 +572,12 @@ export async function createCustomer(
     expectedPermissionVersion: activeMembership.permissionVersion,
     correlationId: options.correlationId,
     idempotencyKey: options.idempotencyKey,
-    payload: rawPayload,
+    payload,
     command: {
       kind: 'customer.create',
+      identity,
+      insurerNumber: data.insurerNumber,
+      ...profile,
       customerId,
       type: data.type,
       displayName: computedDisplayName,
@@ -477,6 +649,24 @@ export async function updateCustomer(
     );
   }
 
+  const replay = await replayCompletedCustomerDomainCommand<CustomerDto>({
+    db,
+    agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: activeMembership.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload: rawPayload,
+    command: {
+      kind: 'customer.update',
+      customerId,
+      expectedVersion: data.expectedVersion,
+      changedFields: [],
+    },
+  });
+  if (replay) return replay.body;
+  const profile = await resolveProfileFields(db, agencyId, existing.type, data);
+
   // Tip uyumluluk kontrolleri (INDIVIDUAL vs COMPANY)
   if (existing.type === 'INDIVIDUAL' && data.companyTitle) {
     throw new DomainConstraintViolationError(
@@ -502,6 +692,10 @@ export async function updateCustomer(
       : (finalCompanyTitle ?? existing.display_name));
 
   const changedFields: string[] = [];
+  for (const field of ['birthDate', 'referenceMembershipId', 'referenceName'] as const) {
+    const old = toCustomerDto(existing)[field] ?? null;
+    if (profile[field] !== undefined && profile[field] !== old) changedFields.push(field);
+  }
   if (computedDisplayName !== existing.display_name) {
     changedFields.push('displayName');
   }
@@ -529,6 +723,10 @@ export async function updateCustomer(
 
   const hasIdentity = Boolean(existing.identity_ciphertext);
   const updatedDto: CustomerDto = {
+    birthDate: existing.birth_date ?? null,
+    referenceMembershipId: existing.reference_membership_id ?? null,
+    referenceName: existing.reference_name ?? null,
+    ...profile,
     id: existing.id,
     agencyId: existing.agency_id,
     type: existing.type as CustomerType,
@@ -562,6 +760,7 @@ export async function updateCustomer(
     payload: rawPayload,
     command: {
       kind: 'customer.update',
+      ...profile,
       customerId,
       expectedVersion: data.expectedVersion,
       displayName: computedDisplayName,
@@ -633,6 +832,8 @@ export async function getCustomer(
 }
 
 export interface ListCustomersQuery {
+  referenceMembershipId?: string;
+  reference?: string;
   limit?: number | string;
   cursor?: string;
   sort?: string;
@@ -720,11 +921,27 @@ export async function listCustomers(
     params.push(query.type);
   }
 
-  if (query.search && typeof query.search === 'string' && query.search.trim().length > 0) {
-    const term = query.search.trim().slice(0, 100);
-    conditions.push('(display_name LIKE ? OR email LIKE ? OR phone LIKE ?)');
-    const likePattern = `%${term}%`;
-    params.push(likePattern, likePattern, likePattern);
+  if (query.referenceMembershipId !== undefined) {
+    if (!query.referenceMembershipId.trim() || query.referenceMembershipId.length > 128)
+      throw new ValidationError('Geçersiz referans kişi.');
+    conditions.push('reference_membership_id = ?');
+    params.push(query.referenceMembershipId);
+  }
+  if (query.reference !== undefined) {
+    if (!query.reference.trim() || query.reference.length > 120)
+      throw new ValidationError('Geçersiz referans araması.');
+    conditions.push('instr(reference_search_key, ?) > 0');
+    params.push(referenceSearchKey(query.reference));
+  }
+
+  const term = typeof query.search === 'string' ? query.search.trim() : '';
+  if (term) {
+    if (term.length > 200)
+      throw new ValidationError('Müşteri araması en fazla 200 karakter olabilir.');
+    conditions.push(
+      `(instr(${turkishNameSql('display_name')}, ?) > 0 OR instr(lower(display_name), lower(?)) > 0 OR instr(lower(email), lower(?)) > 0 OR instr(lower(phone), lower(?)) > 0)`,
+    );
+    params.push(turkishNameTerm(term), term, term, term);
   }
 
   // Kararlı imleç (Strict cursor decode & sort/order match)
@@ -1750,6 +1967,7 @@ export async function createExternalReference(
   customerId: string,
   rawPayload: unknown,
   options: CustomerMutationOptions,
+  insurerId?: string,
 ): Promise<ExternalCustomerReferenceDto> {
   const activeMembership = context.memberships[0];
   if (!activeMembership || activeMembership.status !== 'ACTIVE') {
@@ -1757,7 +1975,11 @@ export async function createExternalReference(
   }
   const agencyId = activeMembership.agencyId;
 
-  const parsed = CreateExternalReferenceSchema.safeParse(rawPayload);
+  const parsed = (
+    insurerId
+      ? CreateExternalReferenceSchema.extend({ sourceNamespace: z.string().trim().min(1).max(160) })
+      : CreateExternalReferenceSchema
+  ).safeParse(rawPayload);
   if (!parsed.success) {
     const details: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
@@ -1810,7 +2032,29 @@ export async function createExternalReference(
   });
   if (completedReplay) return completedReplay.body;
 
-  const referenceId = crypto.randomUUID();
+  if (insurerId) {
+    const insurer = await db
+      .prepare("SELECT id FROM insurers WHERE agency_id=? AND id=? AND status='ACTIVE'")
+      .bind(agencyId, insurerId)
+      .first();
+    if (!insurer) throw new ValidationError('Etkin bir sigorta şirketi seçin.', {});
+  } else if (data.sourceNamespace.toLowerCase().startsWith('insurer:')) {
+    throw new ValidationError('Şirket müşteri numarası için şirket seçimi kullanılmalıdır.', {});
+  }
+  const previous = insurerId
+    ? await db
+        .prepare(
+          'SELECT id,created_at FROM external_customer_references WHERE agency_id=? AND customer_id=? AND source_namespace=? ORDER BY id LIMIT 2',
+        )
+        .bind(agencyId, customerId, data.sourceNamespace)
+        .all<{ id: string; created_at: string }>()
+    : null;
+  if (previous && previous.results.length > 1)
+    throw new DomainConstraintViolationError(
+      'DUPLICATE_EXTERNAL_REFERENCE',
+      'Bu şirketin müşteri numaraları kontrol edilmeli.',
+    );
+  const referenceId = previous?.results[0]?.id ?? crypto.randomUUID();
   const now = new Date().toISOString();
 
   const refDto: ExternalCustomerReferenceDto = {
@@ -1819,7 +2063,7 @@ export async function createExternalReference(
     customerId: existing.id,
     sourceNamespace: data.sourceNamespace,
     externalKey: data.externalKey,
-    createdAt: now,
+    createdAt: previous?.results[0]?.created_at ?? now,
   };
 
   const mutationResult = await executeCustomerDomainCommand({
@@ -1839,11 +2083,222 @@ export async function createExternalReference(
       expectedVersion: data.expectedVersion,
       sourceNamespace: data.sourceNamespace,
       externalKey: data.externalKey,
+      insurerId,
+      replaceExisting: !!previous?.results.length,
     },
     resultProducer: () => ({ status: 201, body: refDto }),
   });
 
   return mutationResult.body;
+}
+
+export async function listInsurerCustomerNumbers(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+): Promise<InsurerCustomerNumber[]> {
+  return readInsurerNumbers(db, context, customerId);
+}
+
+export async function listCustomerVehicles(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  after = '',
+): Promise<VehiclePage> {
+  await getCustomer(db, context, customerId);
+  if (after.length > 128) throw new ValidationError('Geçersiz liste konumu.');
+  const rows = await db
+    .prepare(
+      'SELECT id,customer_id,version,status,details_json FROM customer_vehicles WHERE agency_id=? AND customer_id=? AND id>? ORDER BY id LIMIT 51',
+    )
+    .bind(context.memberships[0]!.agencyId, customerId, after)
+    .all<{
+      id: string;
+      customer_id: string;
+      version: number;
+      status: 'ACTIVE' | 'INACTIVE';
+      details_json: string;
+    }>();
+  return {
+    items: rows.results.slice(0, 50).map((row) => ({
+      id: row.id,
+      customerId: row.customer_id,
+      version: row.version,
+      status: row.status,
+      details: vehicleFieldsSchema.parse(JSON.parse(row.details_json)),
+    })),
+    nextCursor: rows.results.length > 50 ? rows.results[49]!.id : null,
+  };
+}
+export async function saveCustomerVehicle(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  vehicleId: string | null,
+  raw: unknown,
+  options: CustomerMutationOptions,
+): Promise<CustomerVehicle> {
+  const parsed = z
+    .object({
+      expectedVersion: z.number().int().min(1),
+      expectedVehicleVersion: z.number().int().min(1).optional(),
+      details: vehicleFieldsSchema,
+      status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+    })
+    .strict()
+    .safeParse(raw);
+  if (!parsed.success || !!vehicleId !== !!parsed.data.expectedVehicleVersion)
+    throw new ValidationError('Geçerli araç bilgilerini girin.');
+  const data = parsed.data,
+    agencyId = context.memberships[0]?.agencyId;
+  const customer = await getCustomer(db, context, customerId);
+  const authz = await evaluateAuthorization(db, {
+    context,
+    action: 'customer.update',
+    resource: { agencyId, id: customer.id, assigneeMembershipId: customer.assigneeMembershipId },
+  });
+  if (authz.decision !== 'ALLOW') throw new CustomerForbiddenError();
+  const command = {
+    kind: 'customer.vehicle.save' as const,
+    customerId,
+    expectedVersion: data.expectedVersion,
+    vehicleId: vehicleId ?? crypto.randomUUID(),
+    expectedVehicleVersion: data.expectedVehicleVersion ?? null,
+    details: data.details,
+    status: data.status,
+  };
+  const payload = { kind: 'vehicle.save', customerId, vehicleId, ...data };
+  const active = context.memberships[0]!;
+  const replay = await replayCompletedCustomerDomainCommand<CustomerVehicle>({
+    db,
+    agencyId: active.agencyId,
+    actorUserId: context.userId,
+    actorMembershipId: active.id,
+    actorIdentityId: context.identityId,
+    idempotencyKey: options.idempotencyKey,
+    payload,
+    command,
+  });
+  if (replay) return replay.body;
+  if (
+    (data.details.modelYear ?? 0) >
+      Number(
+        new Intl.DateTimeFormat('en', { timeZone: 'Europe/Istanbul', year: 'numeric' }).format(
+          new Date(),
+        ),
+      ) +
+        2 ||
+    (data.details.plate !== null && (normalizePlate(data.details.plate)?.length ?? 0) < 2)
+  )
+    throw new ValidationError('Plaka veya model yılını kontrol edin.');
+  const dto: CustomerVehicle = {
+    id: command.vehicleId,
+    customerId,
+    details: data.details,
+    status: data.status,
+    version: (data.expectedVehicleVersion ?? 0) + 1,
+  };
+  return (
+    await executeCustomerDomainCommand({
+      db,
+      agencyId: active.agencyId,
+      actorUserId: context.userId,
+      actorMembershipId: active.id,
+      actorIdentityId: context.identityId,
+      expectedPermissionVersion: active.permissionVersion,
+      correlationId: options.correlationId,
+      idempotencyKey: options.idempotencyKey,
+      payload,
+      command,
+      resultProducer: () => ({ status: vehicleId ? 200 : 201, body: dto }),
+    })
+  ).body;
+}
+
+async function readInsurerNumbers(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+): Promise<InsurerCustomerNumber[]> {
+  // The existing reader enforces the customer's live agency/ASSIGNED read scope.
+  await getCustomer(db, context, customerId);
+  const agencyId = context.memberships[0]!.agencyId;
+  const rows = await db
+    .prepare(
+      `SELECT i.id AS insurerId,i.name AS insurerName,r.external_key AS customerNumber
+    FROM external_customer_references r JOIN insurers i
+      ON i.agency_id=r.agency_id AND r.source_namespace='insurer:'||i.id
+    WHERE r.agency_id=? AND r.customer_id=? ORDER BY i.name,i.id,r.id LIMIT 201`,
+    )
+    .bind(agencyId, customerId)
+    .all<InsurerCustomerNumber>();
+  if (rows.results.length > 200)
+    throw new ValidationError(
+      'Şirket müşteri numaraları kontrol edilmeli: liste sınırı aşıldı.',
+      {},
+    );
+  return rows.results;
+}
+
+export async function listInsurerNumberOptions(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  after: string,
+) {
+  await getCustomer(db, context, customerId);
+  if (after.length > 128) throw new ValidationError('Geçersiz liste konumu.', {});
+  const rows = await db
+    .prepare(
+      "SELECT id,name FROM insurers WHERE agency_id=? AND status='ACTIVE' AND id>? ORDER BY id LIMIT 51",
+    )
+    .bind(context.memberships[0]!.agencyId, after)
+    .all<{ id: string; name: string }>();
+  return {
+    items: rows.results.slice(0, 50),
+    nextCursor: rows.results.length > 50 ? rows.results[49]!.id : null,
+  };
+}
+
+export async function setInsurerCustomerNumber(
+  db: D1Database,
+  context: AuthenticatedUserContext,
+  customerId: string,
+  insurerId: string,
+  raw: unknown,
+  options: CustomerMutationOptions,
+) {
+  const parsed = z
+    .object({
+      expectedVersion: z.number().int().min(1),
+      customerNumber: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .refine((value) =>
+          [...value].every(
+            (character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
+          ),
+        ),
+    })
+    .strict()
+    .safeParse(raw);
+  if (!parsed.success || !/^[a-zA-Z0-9_-]{1,128}$/.test(insurerId))
+    throw new ValidationError('Geçerli şirket ve müşteri numarası girin.', {});
+  return createExternalReference(
+    db,
+    context,
+    customerId,
+    {
+      expectedVersion: parsed.data.expectedVersion,
+      sourceNamespace: insurerNumberNamespace(insurerId),
+      externalKey: parsed.data.customerNumber,
+    },
+    options,
+    insurerId,
+  );
 }
 
 export async function listExternalReferences(
@@ -1906,3 +2361,4 @@ export async function listExternalReferences(
     createdAt: r.created_at,
   }));
 }
+import { turkishNameSql, turkishNameTerm } from '../db/turkish-search';

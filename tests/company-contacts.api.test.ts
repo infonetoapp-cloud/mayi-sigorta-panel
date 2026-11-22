@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import {
+  enableCompanyRegistration,
+  registrationNumber,
+  seedRegistrationInsurer,
+} from './support/customer-registration-fixture';
 import { createOnboardingTemplateGrants } from '../src/shared/permissions';
 import type { CompanyContactDto, CustomerDetailDto } from '../src/shared/types';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
@@ -45,7 +50,9 @@ async function snapshot() {
 }
 beforeAll(async () => {
   f = await localAuthFixture();
-  await f.seed('contacts-owner', 'OWNER');
+  const ownerActor = await f.seed('contacts-owner', 'OWNER');
+  await enableCompanyRegistration(f, ownerActor.membershipId);
+  await seedRegistrationInsurer(f.db, ownerActor.agencyId, 'contacts-registration-insurer');
   for (const id of ['contacts-ahmet', 'contacts-ayse']) {
     const member = await f.seed(id);
     await f.db.batch(
@@ -70,7 +77,12 @@ beforeAll(async () => {
       '/api/customers',
       'POST',
       owner,
-      { type: 'COMPANY', companyTitle: 'Sentetik Ortak Şirket' },
+      {
+        type: 'COMPANY',
+        companyTitle: 'Sentetik Ortak Şirket',
+        taxNumber: '9000000101',
+        insurerNumber: registrationNumber('contacts-registration-insurer'),
+      },
       await f.csrf(owner),
       { 'idempotency-key': crypto.randomUUID() },
     ),

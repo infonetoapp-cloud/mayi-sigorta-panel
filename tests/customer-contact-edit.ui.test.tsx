@@ -80,6 +80,23 @@ afterEach(() => {
 });
 
 describe('Customer contact editing', () => {
+  it('edits the reference and birthday through the existing CAS command', async () => {
+    const fetcher = fixture();
+    await openDetail();
+    fireEvent.change(screen.getByLabelText('Referans kişi'), { target: { value: 'manual' } });
+    fireEvent.change(screen.getByLabelText('Referans kişinin adı soyadı'), {
+      target: { value: 'Dış Referans' },
+    });
+    fireEvent.input(screen.getByLabelText('Doğum tarihi'), { target: { value: '2000-02-29' } });
+    fireEvent.click(screen.getByRole('button', { name: 'İletişim bilgilerini kaydet' }));
+    await screen.findByText('İletişim bilgileri kaydedildi.');
+    const patch = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
+    expect(JSON.parse(String(patch[1]!.body))).toEqual({
+      expectedVersion: 3,
+      referenceName: 'Dış Referans',
+      birthDate: '2000-02-29',
+    });
+  });
   it('edits email from the real detail screen using scoped PATCH and refreshes displayed data', async () => {
     const fetcher = fixture();
     await openDetail();

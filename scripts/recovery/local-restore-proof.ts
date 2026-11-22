@@ -3,6 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { isDeepStrictEqual } from 'node:util';
 
 import { orderedD1Import, OrderedImportFailure } from './ordered-d1-import';
 import { getPlatformProxy } from 'wrangler';
@@ -60,7 +61,7 @@ const moneySchema = z.record(
 const manifestSchema = z.strictObject({
   format: z.literal('mayi-local-restore-v1'),
   appVersion: z.literal('0.1.0'),
-  schemaVersion: z.literal('0022'),
+  schemaVersion: z.literal('0040'),
   createdAt: z.iso.datetime({ precision: 3 }),
   bookmark: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
   dbExportSha256: digest,
@@ -857,10 +858,7 @@ export async function runLocalRestoreProof(input: LocalRestoreInput): Promise<Re
       }
     }
     const db = platform.env.DB;
-    if (
-      canonicalizePayload(await schema(db)) !==
-      canonicalizePayload(await schema(platform.env.REFERENCE))
-    )
+    if (!isDeepStrictEqual(await schema(db), await schema(platform.env.REFERENCE)))
       return fail('SCHEMA_MISMATCH');
     report.checks.schema = true;
     // D1 denies integrity_check. Table CHECKs and all unique indexes are enforced

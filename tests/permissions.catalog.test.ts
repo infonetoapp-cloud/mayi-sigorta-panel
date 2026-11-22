@@ -316,8 +316,8 @@ describe('M1-T04 İzin Kataloğu ve Doğrulama Sözleşmesi', () => {
     }
   });
 
-  it('üretim PERMISSION_CATALOG listesi tam olarak Bölüm 4.2’deki 40 izni içermelidir', () => {
-    expect(PERMISSION_CATALOG.length).toBe(40);
+  it('üretim PERMISSION_CATALOG listesi tam olarak Bölüm 4.2’deki 44 izni içermelidir', () => {
+    expect(PERMISSION_CATALOG.length).toBe(44);
     expect(Object.isFrozen(PERMISSION_CATALOG)).toBe(true);
 
     const codes = new Set(PERMISSION_CATALOG.map((p) => p.code));
@@ -362,16 +362,20 @@ describe('M1-T04 İzin Kataloğu ve Doğrulama Sözleşmesi', () => {
       'audit.read',
       'catalog.manage',
       'agency.settings.manage',
+      'finance.read',
+      'finance.manage',
+      'claim.read',
+      'claim.manage',
     ];
 
-    expect(codes.size).toBe(40);
+    expect(codes.size).toBe(44);
     for (const expected of expectedCodes) {
       expect(codes.has(expected), `Eksik izin kodu: ${expected}`).toBe(true);
     }
 
     // Doğrulama fonksiyonu üretim kataloğunu başarıyla geçmelidir
     const validated = validatePermissionCatalog(PERMISSION_CATALOG);
-    expect(validated.length).toBe(40);
+    expect(validated.length).toBe(44);
   });
 
   it('üretim kataloğundaki SENSITIVE izinler yalnızca kimlik ve sağlık olmalıdır', () => {

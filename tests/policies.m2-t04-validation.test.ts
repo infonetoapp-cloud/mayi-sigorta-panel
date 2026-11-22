@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizePolicyNumber,
   parsePremiumMinor,
+  parseSignedPremiumMinor,
   parsePolicyCreateInput,
   parsePolicyPatchInput,
+  policyAmendmentCreateSchema,
   secureVariantSchema,
 } from '../src/server/policies/validation';
 import {
@@ -39,6 +41,24 @@ describe('M2-T04 policy validation', () => {
     ]) {
       expect(() => parsePremiumMinor(invalid)).toThrow();
     }
+  });
+
+  it('bounds decimal strings before converting them to BigInt', () => {
+    const oversized = '9'.repeat(1_000);
+    expect(parseSignedPremiumMinor('-90071992547409.91')).toBe(Number.MIN_SAFE_INTEGER);
+    expect(() => parsePremiumMinor(oversized)).toThrow('GROSS_PREMIUM_OVERFLOW');
+    expect(() => parseSignedPremiumMinor(`-${oversized}`)).toThrow('PREMIUM_DIFFERENCE_OVERFLOW');
+    expect(() => parsePolicyPatchInput({ expectedVersion: 1, grossPremium: oversized })).toThrow();
+    expect(
+      policyAmendmentCreateSchema.safeParse({
+        expectedVersion: 1,
+        externalReference: 'ZY-1',
+        effectiveDate: '2026-02-28',
+        description: 'Teminat değişikliği',
+        premiumDifference: `-${oversized}`,
+        currency: 'TRY',
+      }).success,
+    ).toBe(false);
   });
 
   it('requires real date-only values, ordered periods, ISO currency, and installment semantics', () => {

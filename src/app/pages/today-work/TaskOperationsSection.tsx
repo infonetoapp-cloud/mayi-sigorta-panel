@@ -12,6 +12,7 @@ import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
 import { readCustomerResource, CustomerReadError } from '../customers/customer-resource';
 import { canonicalOccurrence, interactionTime } from './interaction-model';
+import { followupReasons, type FollowupReason } from '../../../shared/followup-reasons';
 export interface TaskReadback {
   current: TodayTaskDto | undefined;
   apply: () => void;
@@ -21,6 +22,7 @@ export interface TaskOperationRisk {
   unresolved: boolean;
 }
 interface Props {
+  followupOnly?: boolean;
   task: TodayTaskDto;
   read: (signal: AbortSignal) => Promise<TaskReadback>;
   canOperate: () => boolean;
@@ -75,6 +77,7 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
   const [opened, setOpened] = useState(false),
     [snapshot, setSnapshot] = useState<TodayTaskDto | null>(null),
     [due, setDue] = useState(''),
+    [followupReason, setFollowupReason] = useState<FollowupReason | ''>(''),
     [assignee, setAssignee] = useState(''),
     [confirm, setConfirm] = useState(false),
     [compared, setCompared] = useState(false),
@@ -320,7 +323,11 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
         setError('Yeni takip için geçerli ve tek anlamlı İstanbul tarih/saatini açıkça seçin.');
         return;
       }
-      payload = { ...base, replacementDueAt: timestamp };
+      payload = {
+        ...base,
+        replacementDueAt: timestamp,
+        ...(followupReason ? { followupReason } : {}),
+      };
     } else {
       const target = assignee === '__unassigned__' ? null : assignee;
       if (
@@ -360,6 +367,11 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
       setConfirm(false);
     },
     assignee,
+    followupReason,
+    setFollowupReason(value: FollowupReason | '') {
+      setFollowupReason(value);
+      setConfirm(false);
+    },
     setAssignee(value: string) {
       setAssignee(value);
       setConfirm(false);
@@ -431,154 +443,177 @@ export function TaskOperationsSection(props: Props) {
   return (
     <section aria-label="Görev işlemleri" className="renewal-interactions">
       {notice && <p role="alert">{notice}</p>}
-      {(['complete', 'assign'] as const).map((kind) => {
-        const op = kind === 'complete' ? complete : assign,
-          disabled = op.busy || !!op.pending || !!op.saved || op.mustCompare || op.denied;
-        return (
-          <section
-            key={kind}
-            aria-label={
-              kind === 'complete' ? 'Takibi tamamla ve yenisini planla' : 'Görev sorumlusu'
-            }
-            className="interaction-form"
-          >
-            <h3 ref={op.heading} tabIndex={-1}>
-              {kind === 'complete' ? 'Takibi tamamla ve yenisini planla' : 'Görev sorumlusu'}
-            </h3>
-            <p>
-              {kind === 'complete'
-                ? 'Mevcut takip tamamlanır ve yerine yeni takip açılır. Bu işlem yenilemeyi kazanıldı, yenilenmedi veya geçersiz olarak sonuçlandırmaz. Yeni takip mevcut atama kurallarına göre atanır.'
-                : 'Atama yetkiniz ayrıca kontrol edilir. Müşteri ve poliçe sorumlusu ile not yazarı değişmez.'}
-            </p>
-            <p>
-              Mevcut takip: {interactionTime(props.task.dueAt) ?? 'Tarih bilgisi yok'} ·{' '}
-              {props.task.needsReassignment
-                ? 'Tarihsel pasif/askıdaki sorumlu korunuyor; uygun aktif çalışan açıkça seçilmelidir.'
-                : props.task.assigneeMembershipId
-                  ? 'Görev atanmış durumda.'
-                  : 'Görev atanmamış durumda.'}
-            </p>
-            {op.error && <p role="alert">{op.error}</p>}
-            {op.busy && <p role="status">Yetkili işlem sürüyor…</p>}
-            {!op.opened && (
-              <Button variant="outline" onClick={() => void op.open()}>
-                {kind === 'complete' ? 'Yeni takip planını aç' : 'Görev atama seçeneklerini aç'}
-              </Button>
-            )}
-            {op.pending && (
-              <Button disabled={op.busy} onClick={op.retry}>
-                Aynı {kind === 'complete' ? 'tamamlama' : 'atama'} isteğini yeniden dene
-              </Button>
-            )}
-            {op.saved && (
-              <Button disabled={op.busy} onClick={op.recover}>
-                Yalnız {kind === 'complete' ? 'tamamlama' : 'atama'} kuyruğunu yeniden oku
-              </Button>
-            )}
-            {op.opened && (
-              <>
-                <p>
-                  İlk kayıt: yenileme v{op.snapshot?.renewalVersion} / görev v
-                  {op.snapshot?.taskVersion}. Yeni sürümler taslağa sessizce geçirilmez.
-                </p>
-                {(op.mustCompare || op.compared) && (
-                  <>
-                    <Button
-                      variant="outline"
-                      disabled={op.busy || !!op.pending || !!op.saved}
-                      onClick={() => void op.compare()}
+      {(props.followupOnly ? (['complete'] as const) : (['complete', 'assign'] as const)).map(
+        (kind) => {
+          const op = kind === 'complete' ? complete : assign,
+            disabled = op.busy || !!op.pending || !!op.saved || op.mustCompare || op.denied;
+          return (
+            <section
+              key={kind}
+              aria-label={
+                kind === 'complete' ? 'Takibi tamamla ve yenisini planla' : 'Görev sorumlusu'
+              }
+              className="interaction-form"
+            >
+              <h3 ref={op.heading} tabIndex={-1}>
+                {kind === 'complete' ? 'Takibi tamamla ve yenisini planla' : 'Görev sorumlusu'}
+              </h3>
+              <p>
+                {kind === 'complete'
+                  ? 'Mevcut takip tamamlanır ve yerine yeni takip açılır. Bu işlem yenilemeyi kazanıldı, yenilenmedi veya geçersiz olarak sonuçlandırmaz. Yeni takip mevcut atama kurallarına göre atanır.'
+                  : 'Atama yetkiniz ayrıca kontrol edilir. Müşteri ve poliçe sorumlusu ile not yazarı değişmez.'}
+              </p>
+              <p>
+                Mevcut takip: {interactionTime(props.task.dueAt) ?? 'Tarih bilgisi yok'} ·{' '}
+                {props.followupOnly
+                  ? 'Yenileme takipte kalır.'
+                  : props.task.needsReassignment
+                    ? 'Tarihsel pasif/askıdaki sorumlu korunuyor; uygun aktif çalışan açıkça seçilmelidir.'
+                    : props.task.assigneeMembershipId
+                      ? 'Görev atanmış durumda.'
+                      : 'Görev atanmamış durumda.'}
+              </p>
+              {op.error && <p role="alert">{op.error}</p>}
+              {op.busy && <p role="status">Yetkili işlem sürüyor…</p>}
+              {!op.opened && (
+                <Button variant="outline" onClick={() => void op.open()}>
+                  {kind === 'complete' ? 'Yeni takip planını aç' : 'Görev atama seçeneklerini aç'}
+                </Button>
+              )}
+              {op.pending && (
+                <Button disabled={op.busy} onClick={op.retry}>
+                  Aynı {kind === 'complete' ? 'tamamlama' : 'atama'} isteğini yeniden dene
+                </Button>
+              )}
+              {op.saved && (
+                <Button disabled={op.busy} onClick={op.recover}>
+                  Yalnız {kind === 'complete' ? 'tamamlama' : 'atama'} kuyruğunu yeniden oku
+                </Button>
+              )}
+              {op.opened && (
+                <>
+                  {!props.followupOnly && (
+                    <p>
+                      İlk kayıt: yenileme v{op.snapshot?.renewalVersion} / görev v
+                      {op.snapshot?.taskVersion}. Yeni sürümler taslağa sessizce geçirilmez.
+                    </p>
+                  )}
+                  {(op.mustCompare || op.compared) && (
+                    <>
+                      <Button
+                        variant="outline"
+                        disabled={op.busy || !!op.pending || !!op.saved}
+                        onClick={() => void op.compare()}
+                      >
+                        Güncel {kind === 'complete' ? 'tamamlama' : 'atama'} durumunu karşılaştır
+                      </Button>
+                      {op.comparison && (
+                        <p role="status">
+                          Karşılaştırılan: yenileme v{op.comparison.renewalVersion} / görev v
+                          {op.comparison.taskVersion}, takip {interactionTime(op.comparison.dueAt)}.
+                          Aşağıdaki onay bu güncel bilgilerle yeni istek içindir.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {!op.denied && (kind === 'complete' || op.options) && (
+                    <form
+                      className="interaction-form"
+                      aria-label={
+                        kind === 'complete' ? 'Takip tamamlama formu' : 'Görev atama formu'
+                      }
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        op.submit();
+                      }}
                     >
-                      Güncel {kind === 'complete' ? 'tamamlama' : 'atama'} durumunu karşılaştır
-                    </Button>
-                    {op.comparison && (
-                      <p role="status">
-                        Karşılaştırılan: yenileme v{op.comparison.renewalVersion} / görev v
-                        {op.comparison.taskVersion}, takip {interactionTime(op.comparison.dueAt)}.
-                        Aşağıdaki onay bu güncel bilgilerle yeni istek içindir.
-                      </p>
-                    )}
-                  </>
-                )}
-                {!op.denied && (kind === 'complete' || op.options) && (
-                  <form
-                    className="interaction-form"
-                    aria-label={kind === 'complete' ? 'Takip tamamlama formu' : 'Görev atama formu'}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      op.submit();
-                    }}
-                  >
-                    <fieldset disabled={disabled}>
-                      {kind === 'complete' ? (
-                        <>
-                          <label htmlFor="replacement-time">Yeni takip zamanı (İstanbul)</label>
-                          <Input
-                            id="replacement-time"
-                            type="datetime-local"
-                            step="1"
-                            value={op.due}
-                            onChange={(event) => op.setDue(event.target.value)}
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <label htmlFor="task-assignee">Yeni görev sorumlusu</label>
-                          <select
-                            id="task-assignee"
-                            value={op.assignee}
-                            onChange={(event) => op.setAssignee(event.target.value)}
-                          >
-                            <option value="">Sorumluyu açıkça seçin</option>
-                            {!(op.comparison ?? op.snapshot)?.needsReassignment && (
-                              <option value="__unassigned__">
-                                Atanmamış bırak (sunucu kurallarına tabi)
-                              </option>
-                            )}
-                            {op.assignee &&
-                              op.assignee !== '__unassigned__' &&
-                              !op.options?.some((r) => r.membershipId === op.assignee) && (
-                                <option value={op.assignee} disabled>
-                                  Önceki seçim artık uygun değil
+                      <fieldset disabled={disabled}>
+                        {kind === 'complete' ? (
+                          <>
+                            <label htmlFor="followup-reason">Poliçelendirme neden bekliyor?</label>
+                            <select
+                              id="followup-reason"
+                              value={op.followupReason}
+                              onChange={(e) =>
+                                op.setFollowupReason(e.target.value as FollowupReason | '')
+                              }
+                            >
+                              <option value="">Genel takip</option>
+                              {Object.entries(followupReasons).map(([code, label]) => (
+                                <option key={code} value={code}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                            <label htmlFor="replacement-time">Yeni takip zamanı (İstanbul)</label>
+                            <Input
+                              id="replacement-time"
+                              type="datetime-local"
+                              step="1"
+                              value={op.due}
+                              onChange={(event) => op.setDue(event.target.value)}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <label htmlFor="task-assignee">Yeni görev sorumlusu</label>
+                            <select
+                              id="task-assignee"
+                              value={op.assignee}
+                              onChange={(event) => op.setAssignee(event.target.value)}
+                            >
+                              <option value="">Sorumluyu açıkça seçin</option>
+                              {!(op.comparison ?? op.snapshot)?.needsReassignment && (
+                                <option value="__unassigned__">
+                                  Atanmamış bırak (sunucu kurallarına tabi)
                                 </option>
                               )}
-                            {op.options?.map((row) => (
-                              <option key={row.membershipId} value={row.membershipId}>
-                                {row.label}
-                              </option>
-                            ))}
-                          </select>
-                        </>
-                      )}
-                      <label className="interaction-confirm">
-                        <input
-                          type="checkbox"
-                          checked={op.confirm}
-                          onChange={(event) => op.setConfirm(event.target.checked)}
-                        />
+                              {op.assignee &&
+                                op.assignee !== '__unassigned__' &&
+                                !op.options?.some((r) => r.membershipId === op.assignee) && (
+                                  <option value={op.assignee} disabled>
+                                    Önceki seçim artık uygun değil
+                                  </option>
+                                )}
+                              {op.options?.map((row) => (
+                                <option key={row.membershipId} value={row.membershipId}>
+                                  {row.label}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                        <label className="interaction-confirm">
+                          <input
+                            type="checkbox"
+                            checked={op.confirm}
+                            onChange={(event) => op.setConfirm(event.target.checked)}
+                          />
+                          {kind === 'complete'
+                            ? 'Mevcut takibi tamamlayıp yenisini planlamayı onaylıyorum'
+                            : 'Görev ve yenileme sorumlusunu değiştirmeyi onaylıyorum'}
+                        </label>
+                      </fieldset>
+                      <Button type="submit" disabled={disabled}>
                         {kind === 'complete'
-                          ? 'Mevcut takibi tamamlayıp yenisini planlamayı onaylıyorum'
-                          : 'Görev ve yenileme sorumlusunu değiştirmeyi onaylıyorum'}
-                      </label>
-                    </fieldset>
-                    <Button type="submit" disabled={disabled}>
-                      {kind === 'complete'
-                        ? 'Takibi tamamla ve planla'
-                        : 'Görev sorumlusunu kaydet'}
-                    </Button>
-                  </form>
-                )}
-                <Button
-                  variant="outline"
-                  disabled={op.busy || !!op.pending || !!op.saved}
-                  onClick={op.close}
-                >
-                  {kind === 'complete' ? 'Plan taslağını kapat' : 'Atama taslağını kapat'}
-                </Button>
-              </>
-            )}
-          </section>
-        );
-      })}
+                          ? 'Takibi tamamla ve planla'
+                          : 'Görev sorumlusunu kaydet'}
+                      </Button>
+                    </form>
+                  )}
+                  <Button
+                    variant="outline"
+                    disabled={op.busy || !!op.pending || !!op.saved}
+                    onClick={op.close}
+                  >
+                    {kind === 'complete' ? 'Plan taslağını kapat' : 'Atama taslağını kapat'}
+                  </Button>
+                </>
+              )}
+            </section>
+          );
+        },
+      )}
     </section>
   );
 }

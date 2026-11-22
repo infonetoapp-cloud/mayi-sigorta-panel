@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 const checkpoint = 'd4c386b0e825e88394cd401036144562cd5b105d';
 const migration = '0020_local_authentication.sql';
 const files = readdirSync('db/migrations')
-  .filter((n) => /^\d{4}_.*\.sql$/.test(n))
+  .filter((n) => /^\d{4}_.*\.sql$/.test(n) && n <= migration)
   .sort();
 const seed = `INSERT INTO agencies(id,status) VALUES('auth-upgrade','PROVISIONING');
 INSERT INTO users(id,status) VALUES('auth-legacy','ACTIVE');
@@ -108,7 +108,7 @@ describe('0020 additive native D1 migration acceptance', () => {
     },
     180000,
   );
-  it('keeps 39 historical SQL/snapshot files byte-identical and journal prefix immutable with exactly one append', () => {
+  it('keeps 39 historical SQL/snapshot files byte-identical and appends 0020 after the immutable journal prefix', () => {
     let count = 0;
     for (const dir of ['db/migrations', 'db/migrations/meta'])
       for (const n of readdirSync(dir).filter(
@@ -126,8 +126,7 @@ describe('0020 additive native D1 migration acceptance', () => {
     expect(old.status).toBe(0);
     const prefix = JSON.parse(old.stdout).entries;
     const entries = JSON.parse(readFileSync('db/migrations/meta/_journal.json', 'utf8')).entries;
-    expect(entries.length).toBe(prefix.length + 1);
     expect(entries.slice(0, prefix.length)).toEqual(prefix);
-    expect(entries.at(-1).tag).toBe('0020_local_authentication');
+    expect(entries[prefix.length]?.tag).toBe('0020_local_authentication');
   });
 });

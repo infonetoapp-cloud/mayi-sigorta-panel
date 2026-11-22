@@ -77,6 +77,8 @@ it('pins a pending request then retries the identical uncertain body/key once an
   let writes = 0;
   const fetcher = vi.fn((url: string, init?: RequestInit) => {
     if (url.endsWith('csrf-token')) return Promise.resolve(reply({ token: 'csrf' }));
+    if (url === '/api/catalogs/insurers')
+      return Promise.resolve(reply([{ id: 'test-insurer', name: 'Sentetik sigortacı' }]));
     if (init?.method === 'POST' && ++writes === 1)
       return new Promise<Response>((_, fail) => {
         reject = fail;
@@ -86,6 +88,13 @@ it('pins a pending request then retries the identical uncertain body/key once an
   vi.stubGlobal('fetch', fetcher);
   mount();
   fill();
+  await screen.findByRole('option', { name: 'Sentetik sigortacı' });
+  fireEvent.change(screen.getByLabelText('Sigorta şirketi (zorunlu)'), {
+    target: { value: 'test-insurer' },
+  });
+  fireEvent.change(screen.getByLabelText('Şirket müşteri no (zorunlu)'), {
+    target: { value: '000-DRAFT-RETRY' },
+  });
   const submit = screen.getByRole('button', { name: 'Müşteriyi kaydet' });
   fireEvent.click(submit);
   fireEvent.click(submit);

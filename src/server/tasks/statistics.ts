@@ -44,8 +44,13 @@ export async function readTaskStatistics(
     if (
       result.decision !== 'ALLOW' ||
       !['ASSIGNED', 'AGENCY'].includes(result.effectiveScope ?? '')
-    )
+    ) {
+      if (action === 'policy.read' || action === 'renewal.read') {
+        scopes.set(action, 'NONE');
+        continue;
+      }
       throw new TaskForbiddenError();
+    }
     scopes.set(action, result.effectiveScope!);
   }
   const report = team ? 'report.management' : 'report.operations';
@@ -85,7 +90,9 @@ export async function readTaskStatistics(
   const checks = [...scopes].map(([code]) =>
     code === 'sensitive.health.read'
       ? 'EXISTS(SELECT 1 FROM membership_permissions mp WHERE mp.membership_id=m.id AND mp.permission_code=? AND mp.scope=?)'
-      : "(m.type='OWNER' OR EXISTS(SELECT 1 FROM membership_permissions mp WHERE mp.membership_id=m.id AND mp.permission_code=? AND mp.scope=?))",
+      : scopes.get(code) === 'NONE'
+        ? "(? IS NOT NULL AND ?='NONE')"
+        : "(m.type='OWNER' OR EXISTS(SELECT 1 FROM membership_permissions mp WHERE mp.membership_id=m.id AND mp.permission_code=? AND mp.scope=?))",
   );
   const assertion = db
     .prepare(
@@ -119,6 +126,16 @@ export async function readTaskStatistics(
   const completionStart = new Date(start.getTime() - 29 * 86400000).toISOString();
   const bindings: (string | number)[] = [active.agencyId];
   const filters = ['t.agency_id=?'];
+  if (scopes.get('policy.read') === 'NONE') filters.push('p.id IS NULL');
+  if (scopes.get('renewal.read') === 'NONE') filters.push('r.id IS NULL');
+  filters.push(
+    `(s.id IS NULL OR s.context_kind='RENEWAL' OR EXISTS(SELECT 1 FROM agency_memberships actor WHERE actor.id=? AND (actor.type='OWNER' OR EXISTS(SELECT 1 FROM membership_permissions qp WHERE qp.membership_id=actor.id AND qp.permission_code='quote.read' AND (qp.scope='AGENCY' OR(qp.scope='ASSIGNED' AND c.assignee_membership_id=actor.id))))))`,
+  );
+  bindings.push(active.id);
+  filters.push(
+    `(coalesce(s.data_classification,'GENERAL')<>'HEALTH' AND coalesce(sb.data_classification,'GENERAL')<>'HEALTH' OR EXISTS(SELECT 1 FROM membership_permissions hp WHERE hp.membership_id=? AND hp.permission_code='sensitive.health.read' AND hp.scope='UNSCOPED'))`,
+  );
+  bindings.push(active.id);
   if (scopes.get('customer.read') === 'ASSIGNED') {
     filters.push('c.assignee_membership_id=?');
     bindings.push(active.id);
@@ -149,6 +166,9 @@ export async function readTaskStatistics(
     LEFT JOIN renewal_opportunities r ON r.agency_id=t.agency_id AND r.id=t.renewal_id
     LEFT JOIN policies p ON p.agency_id=t.agency_id AND p.id=COALESCE(t.policy_id,r.expiring_policy_id)
     LEFT JOIN insurance_branches b ON b.agency_id=p.agency_id AND b.id=p.branch_id
+    LEFT JOIN sales_case_tasks sl ON sl.agency_id=t.agency_id AND sl.task_id=t.id
+    LEFT JOIN sales_cases s ON s.agency_id=t.agency_id AND ((t.kind='GENERAL' AND s.id=sl.case_id) OR (t.kind='RENEWAL_FOLLOWUP' AND s.renewal_id=r.id))
+    LEFT JOIN insurance_branches sb ON sb.agency_id=s.agency_id AND sb.id=s.branch_id
     WHERE ${filters.join(' AND ')}
       AND (t.status='COMPLETED' OR (c.archived_at IS NULL
         AND (p.id IS NULL OR (p.status='ACTIVE' AND p.archived_at IS NULL))

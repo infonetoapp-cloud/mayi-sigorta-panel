@@ -1,18 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, Link } from 'react-router';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, Link, useNavigate } from 'react-router';
 import CustomerListPage from '../src/app/pages/customers/CustomerListPage';
 import CustomerProfilePage from '../src/app/pages/customers/CustomerProfilePage';
+import { customerDetailFixture } from './support/customer-detail-fixture';
+import { CustomerListContextProvider } from '../src/app/pages/customers/customer-list-context';
+import { WorkNavigationProvider } from '../src/app/pages/today-work/work-navigation';
 const customer = (id: string) => ({
-  id,
-  displayName: id === 'a' ? 'Ahmet Müşteri' : 'Ayşe Müşteri',
-  type: 'INDIVIDUAL',
-  email: 'ornek@demo.invalid',
-  phone: null,
-  address: null,
-  archivedAt: null,
-  version: 1,
-  createdAt: '2026-01-01T00:00:00Z',
+  ...customerDetailFixture(id, {
+    displayName: id === 'a' ? 'Ahmet Müşteri' : 'Ayşe Müşteri',
+    email: 'ornek@demo.invalid',
+  }),
   identityMasked: 'PROTECTED-MASK',
   identityValue: 'PROTECTED-IDENTITY',
 });
@@ -39,7 +37,22 @@ function profile() {
     </MemoryRouter>,
   );
 }
-it('edits contact fields inline and refreshes the profile header only after confirmed readback', async () => {
+it('opens only the selected customer in management without fetching the directory or closed tools', async () => {
+  const fetcher = vi.fn(async () => reply(customer('a')));
+  vi.stubGlobal('fetch', fetcher);
+  render(
+    <MemoryRouter initialEntries={['/customers/a/advanced']}>
+      <Routes>
+        <Route path="/customers/:customerId/advanced" element={<CustomerProfilePage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await screen.findByRole('heading', { name: 'Müşteri işlemleri' });
+  expect(screen.getByRole('heading', { name: 'Ahmet Müşteri' })).toBeTruthy();
+  expect(fetcher.mock.calls).toHaveLength(1);
+  expect(fetcher).toHaveBeenCalledWith('/api/customers/a', expect.anything());
+});
+it('edits contact fields in a dialog and displays the confirmed email once', async () => {
   let current = customer('a');
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith('csrf-token')) return reply({ token: 'synthetic-csrf' });
@@ -53,10 +66,14 @@ it('edits contact fields inline and refreshes the profile header only after conf
   profile();
   fireEvent.click(await screen.findByRole('link', { name: 'İletişim' }));
   fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+  const dialog = screen.getByRole('dialog', { name: 'İletişim bilgilerini düzenle' });
   fireEvent.change(screen.getByLabelText('E-posta'), { target: { value: 'modern@demo.invalid' } });
   fireEvent.click(screen.getByRole('button', { name: 'İletişim bilgilerini kaydet' }));
   await screen.findByText('İletişim bilgileri kaydedildi.');
-  expect(screen.getAllByText('modern@demo.invalid')).toHaveLength(2);
+  expect(dialog.isConnected).toBe(false);
+  expect(screen.getByRole('link', { name: 'modern@demo.invalid' }).getAttribute('href')).toBe(
+    'mailto:modern@demo.invalid',
+  );
   const write = fetcher.mock.calls.find(([, init]) => init?.method === 'PATCH')!;
   expect(JSON.parse(String(write[1]!.body))).toEqual({
     expectedVersion: 1,
@@ -102,7 +119,7 @@ it('retries the exact failed cursor and restarts filtering without old page reco
       requests.push(url);
       return url.includes('cursor=next')
         ? ++second === 1
-          ? reply(null, 503)
+          ? reply({ items: [null], nextCursor: null, hasMore: false })
           : reply({ items: [customer('b')], nextCursor: null, hasMore: false })
         : reply({ items: [customer('a')], nextCursor: 'next', hasMore: true });
     }),
@@ -124,6 +141,100 @@ it('retries the exact failed cursor and restarts filtering without old page reco
   fireEvent.click(screen.getByRole('button', { name: 'Ara' }));
   await screen.findByRole('link', { name: 'Ahmet Müşteri' });
   expect(requests.at(-1)).toBe('/api/customers?limit=20&include=coverage');
+});
+function HistoryBack() {
+  const navigate = useNavigate();
+  return <button onClick={() => void navigate(-1)}>Tarayıcı geri</button>;
+}
+it('fetches only the new customer query, and refreshes once when the same search is repeated', async () => {
+  const fetcher = vi.fn(async (_url: string) =>
+    reply({ items: [customer('a')], nextCursor: null, hasMore: false }),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  render(
+    <MemoryRouter>
+      <CustomerListPage />
+    </MemoryRouter>,
+  );
+  await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+  fireEvent.change(screen.getByLabelText('Müşteri ara'), { target: { value: 'İpek Şahin' } });
+  const search = screen.getByRole('button', { name: 'Ara' });
+  fireEvent.click(search);
+  await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  const target = fetcher.mock.calls[1]![0];
+  expect(new URLSearchParams(target.split('?')[1]).get('search')).toBe('İpek Şahin');
+  fireEvent.click(search);
+  await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+  expect(fetcher.mock.calls.slice(1).map(([url]) => url)).toEqual([target, target]);
+});
+it('restores the filtered second page and the exact profile link through both return paths', async () => {
+  const requests: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      if (url === '/api/customers/b') return reply(customer('b'));
+      if (url === '/api/customers/reference-options')
+        return reply({
+          items: [{ membershipId: 'm1', displayName: 'Abdurrahman' }],
+          nextCursor: null,
+        });
+      if (!url.startsWith('/api/customers?')) return reply({ items: [] });
+      requests.push(url);
+      return url.includes('cursor=next')
+        ? reply({ items: [customer('b')], nextCursor: null, hasMore: false })
+        : reply({ items: [customer('a')], nextCursor: 'next', hasMore: true });
+    }),
+  );
+  const scroll = vi.fn();
+  vi.stubGlobal('scrollTo', scroll);
+  vi.stubGlobal('scrollY', 0);
+  render(
+    <MemoryRouter initialEntries={['/customers']}>
+      <WorkNavigationProvider>
+        <CustomerListContextProvider>
+          <HistoryBack />
+          <Routes>
+            <Route path="/customers" element={<CustomerListPage />} />
+            <Route path="/customers/:customerId" element={<CustomerProfilePage />} />
+          </Routes>
+        </CustomerListContextProvider>
+      </WorkNavigationProvider>
+    </MemoryRouter>,
+  );
+  await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+  fireEvent.focus(screen.getByLabelText('Referans kişi'));
+  await screen.findByRole('option', { name: 'Abdurrahman' });
+  fireEvent.change(screen.getByLabelText('Referans kişi'), { target: { value: 'm1' } });
+  fireEvent.change(screen.getByLabelText('Müşteri ara'), { target: { value: 'Müşteri' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ara' }));
+  await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+  fireEvent.click(screen.getByRole('button', { name: 'Sonraki sayfa' }));
+  const action = () => screen.getByRole('link', { name: 'Ayşe Müşteri profilini aç' });
+  await screen.findByRole('link', { name: 'Ayşe Müşteri profilini aç' });
+  vi.stubGlobal('scrollY', 160);
+  fireEvent.click(action());
+  await screen.findByRole('heading', { name: 'Ayşe Müşteri' });
+  vi.stubGlobal('scrollY', 0);
+  fireEvent.click(screen.getByRole('link', { name: 'Müşteri listesine dön' }));
+  await screen.findByRole('link', { name: 'Ayşe Müşteri profilini aç' });
+  await waitFor(() => expect(document.activeElement).toBe(action()));
+  expect(scroll).toHaveBeenCalledWith(0, 160);
+  expect(screen.getByLabelText('Müşteri ara').getAttribute('value')).toBe('Müşteri');
+  expect(
+    screen.getByLabelText('Referans kişi').querySelector('option:checked')?.getAttribute('value'),
+  ).toBe('m1');
+  const nameLink = () => screen.getByRole('link', { name: 'Ayşe Müşteri' });
+  fireEvent.click(nameLink());
+  await screen.findByRole('heading', { name: 'Ayşe Müşteri' });
+  fireEvent.click(screen.getByRole('button', { name: 'Tarayıcı geri' }));
+  await screen.findByRole('link', { name: 'Ayşe Müşteri' });
+  await waitFor(() => expect(document.activeElement).toBe(nameLink()));
+  expect(requests.slice(-3)).toEqual(
+    Array(3).fill(
+      '/api/customers?limit=20&include=coverage&search=M%C3%BC%C5%9Fteri&referenceMembershipId=m1&cursor=next',
+    ),
+  );
 });
 it('shows empty and permission-denied lists without reflecting server diagnostics', async () => {
   const fetcher = vi.fn(async () => reply({ items: [], nextCursor: null, hasMore: false }));
@@ -219,9 +330,24 @@ it('never renders prior customer data while switching or after a late response',
   });
   expect(screen.queryByText('Ahmet Müşteri')).toBeNull();
   expect(screen.queryByText(/PROTECTED/)).toBeNull();
-  expect(screen.getByRole('link', { name: 'İleri müşteri işlemleri' }).getAttribute('href')).toBe(
+  expect(screen.getByRole('link', { name: 'Diğer müşteri işlemleri' }).getAttribute('href')).toBe(
     '/customers/b/advanced',
   );
+});
+it('rejects a successful response for another customer and reloads only the requested profile', async () => {
+  let broken = true;
+  const fetcher = vi.fn<(url: string, request?: RequestInit) => Promise<Response>>(async (url) =>
+    reply(url.endsWith('/a') ? customer(broken ? 'b' : 'a') : []),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  profile();
+  await screen.findByText('Sunucudan beklenen bilgiler alınamadı. Yeniden deneyin.');
+  expect(screen.queryByText('Ayşe Müşteri')).toBeNull();
+  broken = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Yeniden dene' }));
+  await screen.findByRole('heading', { name: 'Ahmet Müşteri' });
+  expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/a'))).toHaveLength(2);
+  expect(fetcher.mock.calls.every(([, request]) => !request?.method)).toBe(true);
 });
 it.each([403, 404, 500])(
   'renders safe profile denial/error %i without sensitive fields',
@@ -233,7 +359,7 @@ it.each([403, 404, 500])(
     profile();
     await screen.findByRole('alert');
     expect(screen.queryByText('unsafe SQL diagnostic')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'İleri müşteri işlemleri' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Diğer müşteri işlemleri' })).toBeNull();
   },
 );
 it('dispatches session end on unauthorized profile reads', async () => {

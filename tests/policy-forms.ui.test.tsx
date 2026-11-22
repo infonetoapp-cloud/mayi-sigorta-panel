@@ -3,21 +3,27 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import PolicyFormPage from '../src/app/pages/policies/PolicyFormPage';
 import { invalidateCsrfToken } from '../src/app/csrf';
+import { policyDetailFixture } from './support/policy-detail-fixture';
 const customer = (id = 'origin') => ({
   id,
   displayName: id === 'origin' ? 'Kaynak Müşteri' : 'Başka Müşteri',
   type: 'COMPANY',
   archivedAt: null,
 });
-const policy = {
-  id: 'policy-a',
+const policy = policyDetailFixture('policy-a', {
   version: 2,
   customerId: 'origin',
   customer: customer(),
   insurerId: 'i',
   insurer: { id: 'i', name: 'Sigorta Şirketi', status: 'ACTIVE' },
   branchId: 'b',
-  branch: { id: 'b', name: 'Branş', status: 'ACTIVE', dataClassification: 'GENERAL' },
+  branch: {
+    id: 'b',
+    name: 'Branş',
+    status: 'ACTIVE',
+    dataClassification: 'GENERAL',
+    supportsVehicleDetails: false,
+  },
   productId: 'p',
   product: { id: 'p', name: 'Ürün', status: 'ACTIVE' },
   paymentMethodId: 'cash',
@@ -30,7 +36,7 @@ const policy = {
   installmentCount: null as number | null,
   status: 'ACTIVE',
   archivedAt: null,
-};
+});
 const catalogs = {
   insurers: [
     { id: 'i', name: 'Sigorta Şirketi', status: 'ACTIVE' },
@@ -196,6 +202,8 @@ it('preselects the exact authorized origin outside bounded search results and cr
   const fetcher = fixture();
   mount();
   await fill();
+  fireEvent.input(screen.getByLabelText('Başlangıç tarihi'), { target: { value: '2026-02-01' } });
+  fireEvent.input(screen.getByLabelText('Bitiş tarihi'), { target: { value: '2026-05-01' } });
   expect(screen.getByText('Kaynak Müşteri')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
   await screen.findByText('Modern detay');
@@ -208,8 +216,8 @@ it('preselects the exact authorized origin outside bounded search results and cr
     productId: 'p',
     paymentMethodId: 'cash',
     policyNumber: 'NEW-1',
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
+    startDate: '2026-02-01',
+    endDate: '2026-05-01',
     grossPremium: '1234.56',
     currency: 'TRY',
     installmentCount: null,
@@ -225,7 +233,7 @@ it('validates exact decimal premium, ISO currency and dependent product without 
   fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
   await screen.findByText(/12500,50 veya 12500.50/, { selector: '.customer-field-error' });
   fireEvent.change(screen.getByLabelText('Brüt prim'), { target: { value: '90071992547409.92' } });
-  fireEvent.change(screen.getByLabelText('ISO para birimi'), { target: { value: 'ZZZ' } });
+  fireEvent.change(screen.getByLabelText('Para birimi'), { target: { value: 'ZZZ' } });
   fireEvent.change(screen.getByLabelText('Sigorta şirketi'), { target: { value: 'other-i' } });
   expect((screen.getByLabelText('Ürün') as unknown as HTMLSelectElement).value).toBe('');
   fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
@@ -286,7 +294,7 @@ it('keeps the original immutable body/key on lost POST response and blocks dupli
   fireEvent.submit(form);
   await waitFor(() => expect(posts).toBe(1));
   await act(async () => release(response(null, 503)));
-  expect((screen.getByLabelText('Müşteri') as unknown as HTMLSelectElement).disabled).toBe(true);
+  expect(screen.queryByLabelText('Müşteri')).toBeNull();
   expect(
     (screen.getByLabelText('Poliçe numarası') as HTMLInputElement).closest('fieldset')!.disabled,
   ).toBe(true);
@@ -296,17 +304,65 @@ it('keeps the original immutable body/key on lost POST response and blocks dupli
   expect(attempts).toHaveLength(2);
   expect(attempts[0]![1]).toEqual(attempts[1]![1]);
 });
-it('never repeats a successful write when authorized readback failed', async () => {
-  let reads = 0;
-  const fetcher = fixture((url) =>
-    url === '/api/policies/created' && ++reads === 1 ? response(null, 503) : undefined,
-  );
-  mount();
-  await fill();
-  fireEvent.click(screen.getByRole('button', { name: 'Poliçeyi oluştur' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Kaydedilen poliçeyi yeniden oku' }));
-  await screen.findByText('Modern detay');
-  expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+it.each(['POST', 'PATCH'])(
+  'retries only the detail GET after a successful %s and malformed readback',
+  async (method) => {
+    let reads = 0;
+    const urlOfRecord = method === 'POST' ? '/api/policies/created' : '/api/policies/policy-a';
+    const fetcher = fixture((url, init) =>
+      !init?.method && url === urlOfRecord && ++reads === (method === 'POST' ? 1 : 2)
+        ? response({ ...policy, id: url.split('/').at(-1), customer: null })
+        : undefined,
+    );
+    if (method === 'POST') {
+      mount();
+      await fill();
+    } else {
+      mount('/policies/policy-a/edit');
+      fireEvent.change(await screen.findByLabelText('Poliçe numarası'), {
+        target: { value: 'UPDATED' },
+      });
+    }
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: method === 'POST' ? 'Poliçeyi oluştur' : 'Değişiklikleri kaydet',
+      }),
+    );
+    await screen.findByText(
+      'Poliçe kaydedildi. Gelen detay doğrulanamadı. Kaydedilen poliçeyi yeniden okuyun.',
+    );
+    expect(screen.queryByRole('button', { name: 'Aynı işlemi yeniden dene' })).toBeNull();
+    expect(
+      (screen.getByLabelText('Poliçe numarası') as HTMLInputElement).matches(':disabled'),
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydedilen poliçeyi yeniden oku' }));
+    await screen.findByText('Modern detay');
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === method)).toHaveLength(1);
+    expect(reads).toBe(method === 'POST' ? 2 : 3);
+  },
+);
+
+it('rejects a wrong edit target and malformed catalog before enabling the form', async () => {
+  let policyReads = 0,
+    catalogReads = 0;
+  const fetcher = fixture((url) => {
+    if (url === '/api/policies/policy-a' && ++policyReads === 1)
+      return response({ ...policy, id: 'another-policy' });
+    if (url === '/api/catalogs/selectable' && ++catalogReads === 1)
+      return response({ ...catalogs, paymentMethods: [null] });
+  });
+  mount('/policies/policy-a/edit');
+  const retryPolicy = await screen.findByRole('button', { name: 'Yeniden dene' });
+  expect(catalogReads).toBe(0);
+  expect(screen.queryByLabelText('Poliçe numarası')).toBeNull();
+  fireEvent.click(retryPolicy);
+  const retryCatalog = await screen.findByRole('button', { name: 'Yeniden dene' });
+  expect(screen.queryByLabelText('Poliçe numarası')).toBeNull();
+  fireEvent.click(retryCatalog);
+  await screen.findByLabelText('Poliçe numarası');
+  expect(catalogReads).toBe(2);
+  expect(policyReads).toBe(2);
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method)).toBe(true);
 });
 it('requires explicit 409 comparison and sends only originally changed fields at the compared version', async () => {
   let writes = 0;
@@ -340,7 +396,7 @@ it('requires explicit 409 comparison and sends only originally changed fields at
   ).toEqual({ expectedVersion: 7, policyNumber: 'MY-DRAFT' });
 });
 it('preserves missing/inactive historical catalog values and installments on an unrelated basic edit', async () => {
-  const historical = {
+  const historical: typeof policy = {
     ...policy,
     product: { ...policy.product, status: 'INACTIVE' },
     paymentMethod: { ...policy.paymentMethod, status: 'INACTIVE' },

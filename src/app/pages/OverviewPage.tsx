@@ -1,92 +1,113 @@
 import { Link } from 'react-router';
-import { ArrowRight, CalendarCheck, FileCheck2, Users, UserCog } from 'lucide-react';
-import { PageHeader } from '../components/layout/PageContainer';
+import { Activity, ArrowRight, FileCheck2, RefreshCw, UserCog, Users } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { useCustomerResource } from './customers/customer-resource';
+import { taskQueueReadSchema } from './today-work/task-queue-read-schema';
+import { workUrl } from './today-work/work-navigation';
+import type { UnifiedTodayTasksResponseData } from '../../shared/types';
+
+const quickLinks = [
+  { to: '/customers', label: 'Müşterilere git', icon: Users },
+  { to: '/renewals', label: 'Yenilemeleri incele', icon: RefreshCw },
+  { to: '/policies', label: 'Poliçelere git', icon: FileCheck2 },
+];
+
+function priorityTaskUrl(task: UnifiedTodayTasksResponseData['items'][number]) {
+  if (task.kind !== 'GENERAL') return workUrl(task.taskId, 'WORK');
+  return task.caseId
+    ? `/sales-cases/${encodeURIComponent(task.caseId)}`
+    : `/tasks/${encodeURIComponent(task.taskId)}`;
+}
 
 export default function OverviewPage({ owner }: { owner: boolean }) {
+  const { data, error, reload } = useCustomerResource(
+    '/api/tasks/today?limit=20' + (owner ? '&unified=true' : ''),
+    taskQueueReadSchema,
+  );
+  const priorities = data?.items.filter((task) => task.bucket !== 'UPCOMING').slice(0, 4);
+  const dueDate = data
+    ? new Intl.DateTimeFormat('tr-TR', {
+        timeZone: data.timezone,
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : undefined;
+
   return (
-    <>
-      <PageHeader
-        title="Genel Bakış"
-        description="Müşterileriniz, yenilemeleriniz ve günlük işleriniz. Hepsi aynı çalışma alanında."
-      />
-      <section className="overview-welcome" aria-labelledby="welcome-title">
-        <div>
-          <p className="overview-eyebrow">ACENTENİZİN GÜNLÜK AKIŞI</p>
-          <h2 id="welcome-title">Yeni güne, net bir planla.</h2>
-          <p>
-            Öncelikli takiplerinizi gözden geçirin; müşteri görüşmelerinizi ve tekliflerinizi
-            kaldığınız yerden sürdürün.
-          </p>
+    <div className="overview-grid">
+      <section className="overview-panel" aria-labelledby="overview-tasks">
+        <header className="overview-panel-header">
+          <h2 id="overview-tasks">Öncelikli takipler</h2>
           <Button asChild>
             <Link to="/today-work">
               Bugünkü işleri aç <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
-        </div>
-        <CalendarCheck className="overview-illustration" aria-hidden="true" strokeWidth={1} />
+        </header>
+        {error ? (
+          <div className="overview-feedback">
+            <p role="alert">Takipler yüklenemedi.</p>
+            <Button variant="outline" onClick={reload}>
+              Yeniden dene
+            </Button>
+          </div>
+        ) : !data ? (
+          <p className="overview-feedback" role="status">
+            Takipler yükleniyor…
+          </p>
+        ) : priorities?.length ? (
+          <ul className="overview-priorities">
+            {priorities.map((task) => (
+              <li key={task.taskId}>
+                <div>
+                  <Link to={priorityTaskUrl(task)} className="overview-priority-link">
+                    <strong>{task.customerDisplayName}</strong>
+                    <span>{task.title}</span>
+                  </Link>
+                </div>
+                <div className="overview-due">
+                  <span className="overview-status" data-overdue={task.bucket === 'OVERDUE'}>
+                    {task.bucket === 'OVERDUE' ? 'Gecikti' : 'Bugün'}
+                  </span>
+                  <time dateTime={task.dueAt}>{dueDate?.format(new Date(task.dueAt))}</time>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="overview-feedback">Gecikmiş veya bugün yapılacak takip görünmüyor.</p>
+        )}
       </section>
-      <div className="overview-grid">
-        <Card>
-          <CardHeader>
-            <Users className="overview-icon" aria-hidden="true" />
-            <CardTitle>Müşteri ilişkileri</CardTitle>
-            <CardDescription>
-              Müşteri kartları, ortak notlar ve geçmiş görüşmelerle acente hafızasını birlikte
-              güncel tutun.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline">
-              <Link to="/customers">
-                Müşterilere git <ArrowRight aria-hidden="true" />
+      <nav className="overview-panel" aria-labelledby="overview-shortcuts">
+        <header className="overview-panel-header">
+          <h2 id="overview-shortcuts">Hızlı erişim</h2>
+        </header>
+        <ul className="overview-shortcuts">
+          {quickLinks.map(({ to, label, icon: Icon }) => (
+            <li key={to}>
+              <Link to={to}>
+                <Icon aria-hidden="true" /> {label}
               </Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <FileCheck2 className="overview-icon" aria-hidden="true" />
-            <CardTitle>Poliçe takibi</CardTitle>
-            <CardDescription>
-              Poliçe dönemlerini inceleyin, müşteri kayıtlarıyla bağlantılı yeni poliçeler
-              oluşturun.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline">
-              <Link to="/policies">
-                Poliçelere git <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Bir sonraki adımınız</CardTitle>
-          <CardDescription>
-            {owner
-              ? 'Ekip çalışmalarını Bugünkü İşler üzerinden izleyebilir, hesapları ve izinleri yönetim bölümünden düzenleyebilirsiniz.'
-              : 'Size atanmış görevler ve kişisel iş sayımları Bugünkü İşler’de. Ortak müşteri kayıtlarında ekibinizle birlikte çalışabilirsiniz.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {owner ? (
-            <Button asChild variant="ghost">
-              <Link to="/personnel">
-                <UserCog aria-hidden="true" /> Personel ve izinleri yönet{' '}
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-          ) : (
-            <p className="m-0 text-sm text-muted-foreground">
-              Müşteri notu eklerken yalnız iş için gerekli bilgileri paylaşın.
-            </p>
+            </li>
+          ))}
+          {owner && (
+            <>
+              <li>
+                <Link to="/personnel">
+                  <UserCog aria-hidden="true" /> Personel ve izinleri yönet
+                </Link>
+              </li>
+              <li>
+                <Link to="/ops/readiness">
+                  <Activity aria-hidden="true" /> İşletim durumu
+                </Link>
+              </li>
+            </>
           )}
-        </CardContent>
-      </Card>
-    </>
+        </ul>
+      </nav>
+    </div>
   );
 }

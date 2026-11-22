@@ -80,10 +80,13 @@ export async function verifyPolicyLifecycle(page, id, index, db, mark) {
       await page.getByRole('button', { name: 'Sorumluyu değiştir', exact: true }).count(),
       0,
     );
+    mark('archive-denied-open');
     await confirmArchive(page);
     await responsive(page);
+    mark('archive-denied-result');
     await page.getByRole('button', { name: 'Arşivlemeyi onayla', exact: true }).click();
     await page.getByRole('alert').waitFor();
+    mark('archive-denied-readback');
     assert.equal((await read(page, id)).archivedAt, null);
     assert.equal(await page.getByLabel('Arşiv gerekçe kodu', { exact: true }).count(), 0);
   } else {

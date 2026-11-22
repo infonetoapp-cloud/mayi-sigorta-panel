@@ -15,6 +15,8 @@ import { SessionVerificationError } from '../auth/errors';
 import { createLocalSessionVerifier } from '../auth/session';
 import { createApplicationIdentityResolver, IdentityResolutionError } from '../auth/identity';
 import { verifyCsrfMutationGuard } from '../security/csrf';
+import { AuthHttpError } from '../auth/routes';
+import { readCommandJson } from '../security/command-json';
 import { OptimisticConcurrencyError } from '../db/optimistic';
 import { IdempotencyConflictError } from '../mutations/idempotency';
 import {
@@ -27,6 +29,7 @@ import {
   getBranch,
   createBranch,
   updateBranch,
+  correctBranchClassification,
   deactivateBranch,
   listProducts,
   getProduct,
@@ -255,6 +258,11 @@ export function registerCatalogRoutes(
   function handleServiceError(c: Context<CatalogRouteEnv>, err: unknown) {
     c.header('Cache-Control', 'no-store');
 
+    if (err instanceof AuthHttpError)
+      return c.json(
+        { success: false, error: { code: err.code, message: err.message } },
+        err.status,
+      );
     if (err instanceof CatalogValidationError) {
       return c.json(
         {
@@ -292,6 +300,12 @@ export function registerCatalogRoutes(
           },
           timestamp: new Date().toISOString(),
         },
+        403,
+      );
+    }
+    if (err instanceof Error && err.message === 'FINAL_AUTHORITY_RECHECK_FAILED') {
+      return c.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'İşlem yetkiniz değişti.' } },
         403,
       );
     }
@@ -418,21 +432,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await createInsurer(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },
@@ -451,21 +452,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updateInsurer(
         auth.context,
         c.env.DB,
@@ -490,21 +478,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await deactivateInsurer(
         auth.context,
         c.env.DB,
@@ -529,7 +504,10 @@ export function registerCatalogRoutes(
 
     const includeInactive = c.req.query('include_inactive') === 'true';
     try {
-      const data = await listBranches(auth.context, c.env.DB, { includeInactive });
+      const data = await listBranches(auth.context, c.env.DB, {
+        includeInactive,
+        includeCorrectionAuthority: true,
+      });
       return c.json({ success: true, data, timestamp: new Date().toISOString() }, 200);
     } catch (err) {
       return handleServiceError(c, err);
@@ -557,21 +535,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await createBranch(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },
@@ -590,21 +555,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updateBranch(
         auth.context,
         c.env.DB,
@@ -621,6 +573,28 @@ export function registerCatalogRoutes(
     }
   });
 
+  app.post(`${API_PREFIX}/catalogs/branches/:id/correct-classification`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const auth = await authenticateAndResolve(c);
+    if ('error' in auth) return auth.error;
+
+    const guard = await verifyMutationGuard(c, auth.principal);
+    if ('error' in guard) return guard.error;
+
+    try {
+      const result = await correctBranchClassification(
+        auth.context,
+        c.env.DB,
+        c.req.param('id'),
+        await readCommandJson(c.req.raw),
+        guard.idempotencyKey,
+      );
+      return c.json({ success: true, data: result.data }, result.status as 200);
+    } catch (err) {
+      return handleServiceError(c, err);
+    }
+  });
+
   app.post(`${API_PREFIX}/catalogs/branches/:id/deactivate`, async (c) => {
     c.header('Cache-Control', 'no-store');
     const auth = await authenticateAndResolve(c);
@@ -629,21 +603,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await deactivateBranch(
         auth.context,
         c.env.DB,
@@ -696,21 +657,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await createProduct(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },
@@ -729,21 +677,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updateProduct(
         auth.context,
         c.env.DB,
@@ -768,21 +703,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await deactivateProduct(
         auth.context,
         c.env.DB,
@@ -835,21 +757,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await createPaymentMethod(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },
@@ -868,21 +777,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updatePaymentMethod(
         auth.context,
         c.env.DB,
@@ -907,21 +803,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await deactivatePaymentMethod(
         auth.context,
         c.env.DB,
@@ -974,21 +857,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await createLossReason(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },
@@ -1007,21 +877,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updateLossReason(
         auth.context,
         c.env.DB,
@@ -1046,21 +903,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await deactivateLossReason(
         auth.context,
         c.env.DB,
@@ -1099,21 +943,8 @@ export function registerCatalogRoutes(
     const guard = await verifyMutationGuard(c, auth.principal);
     if ('error' in guard) return guard.error;
 
-    let body;
     try {
-      body = await c.req.json();
-    } catch {
-      return c.json(
-        {
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Geçersiz JSON gövdesi.' },
-          timestamp: new Date().toISOString(),
-        },
-        400,
-      );
-    }
-
-    try {
+      const body = await readCommandJson(c.req.raw);
       const result = await updateAgencySettings(auth.context, c.env.DB, body, guard.idempotencyKey);
       return c.json(
         { success: true, data: result.data, timestamp: new Date().toISOString() },

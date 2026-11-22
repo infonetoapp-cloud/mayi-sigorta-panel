@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type {
-  ApiResponse,
-  PolicyDetailDto,
-  PolicyDto,
-  SelectableCatalogsDto,
-} from '../../../shared/types';
+import type { ApiResponse, PolicyDetailDto } from '../../../shared/types';
 import { getCsrfToken, invalidateCsrfToken } from '../../csrf';
 import { parseAppError } from '../../App';
-import { readCustomerResource } from '../customers/customer-resource';
+import { CustomerReadError, readCustomerResource } from '../customers/customer-resource';
+import {
+  policyFormCatalogsSchema,
+  policyFormReceiptSchema,
+  readPolicyDetail,
+  type PolicyFormCatalogs,
+} from './policy-read-schemas';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -37,7 +38,7 @@ export function PolicyForm({
 }: {
   customer: { id: string; displayName: string };
   policy?: PolicyDetailDto;
-  catalogs: SelectableCatalogsDto;
+  catalogs: PolicyFormCatalogs;
   onLockChange?: (locked: boolean) => void;
 }) {
   const navigate = useNavigate();
@@ -87,23 +88,17 @@ export function PolicyForm({
       readers.current.delete(controller);
     }
   }
-  function read<T>(url: string): Promise<T> {
-    return scopedRead((signal) => readCustomerResource<T>(url, signal));
-  }
   async function readback() {
     const target = confirmed.current;
     if (!target) return;
     const epoch = generation.current;
     setBusy(true);
+    setError('');
     try {
-      const current = await read<PolicyDetailDto>(`/api/policies/${encodeURIComponent(target.id)}`);
+      const current = await scopedRead((signal) => readPolicyDetail(target.id, signal));
       if (epoch !== generation.current) return;
-      if (
-        current.id !== target.id ||
-        current.customerId !== customer.id ||
-        current.version < target.version
-      )
-        throw new Error('INVALID_READBACK');
+      if (current.customerId !== customer.id || current.version < target.version)
+        throw new CustomerReadError(502, 'INVALID_RESPONSE');
       void navigate(`/policies/${encodeURIComponent(current.id)}`, {
         replace: true,
         state: { policySaved: current.id },
@@ -115,7 +110,9 @@ export function PolicyForm({
       if (status === 401 || status === 403 || status === 404) setBlocked(true);
       setNeedsRead(true);
       setError(
-        'Poliçe kaydedildi, ancak yetkili detay okunamadı. Yalnız okuma yeniden denenecek; kayıt tekrar gönderilmeyecek.',
+        cause instanceof CustomerReadError && cause.code === 'INVALID_RESPONSE'
+          ? 'Poliçe kaydedildi. Gelen detay doğrulanamadı. Kaydedilen poliçeyi yeniden okuyun.'
+          : 'Poliçe kaydedildi. Yetkili detay okunamadı. Kaydedilen poliçeyi yeniden okuyun.',
       );
     } finally {
       if (epoch === generation.current) setBusy(false);
@@ -147,7 +144,7 @@ export function PolicyForm({
         setError('Oturum sona erdi. Yeniden giriş yapın.');
         return;
       }
-      const envelope = (await result.json().catch(() => null)) as ApiResponse<PolicyDto> | null;
+      const envelope = (await result.json().catch(() => null)) as ApiResponse<unknown> | null;
       if (epoch !== generation.current) return;
       if (!result.ok) {
         if (result.status === 403) invalidateCsrfToken();
@@ -176,16 +173,17 @@ export function PolicyForm({
         }
         return;
       }
+      const receipt = policyFormReceiptSchema.safeParse(
+        envelope?.success === true ? envelope.data : undefined,
+      );
       if (
-        !envelope?.success ||
-        !envelope.data?.id ||
-        !Number.isSafeInteger(envelope.data.version) ||
-        (policy && envelope.data.id !== policy.id) ||
-        envelope.data.customerId !== customer.id
+        !receipt.success ||
+        (policy && receipt.data.id !== policy.id) ||
+        receipt.data.customerId !== customer.id
       )
         throw new Error('UNCERTAIN');
       setPending(null);
-      confirmed.current = { id: envelope.data.id, version: envelope.data.version };
+      confirmed.current = { id: receipt.data.id, version: receipt.data.version };
       setNeedsRead(true);
       await readback();
     } catch {
@@ -206,15 +204,21 @@ export function PolicyForm({
     setBusy(true);
     try {
       const [fresh, choices] = await Promise.all([
-        read<PolicyDetailDto>(`/api/policies/${encodeURIComponent(policy.id)}`),
-        read<SelectableCatalogsDto>('/api/catalogs/selectable'),
+        scopedRead((signal) => readPolicyDetail(policy.id, signal)),
+        scopedRead((signal) =>
+          readCustomerResource('/api/catalogs/selectable', signal, policyFormCatalogsSchema),
+        ),
       ]);
       if (epoch !== generation.current) return;
-      if (fresh.id !== policy.id || fresh.customerId !== customer.id)
+      if (fresh.customerId !== customer.id || fresh.version < (comparison ?? policy).version)
         throw new Error('INVALID_COMPARISON');
-      if (fresh.archivedAt) {
+      if (fresh.archivedAt || fresh.status !== 'ACTIVE') {
         setBlocked(true);
-        setError('Arşivlenmiş poliçe düzenlenemez.');
+        setError(
+          fresh.archivedAt
+            ? 'Arşivlenmiş poliçe düzenlenemez.'
+            : 'Bu durumdaki poliçe düzenlenemez.',
+        );
         return;
       }
       setComparison(fresh);
@@ -295,6 +299,7 @@ export function PolicyForm({
               : undefined
         }
         onChange={(event) => change(key, event.target.value)}
+        onInput={type === 'date' ? (event) => change(key, event.currentTarget.value) : undefined}
       />
       {errors[key] && (
         <p id={`contract-error-${key}`} className="customer-field-error">
@@ -362,7 +367,11 @@ export function PolicyForm({
   const minor = premiumMinor(effective.grossPremium.trim());
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p id="policy-form-error" role="alert">
+          {error}
+        </p>
+      )}
       {busy && <p role="status">İşlem sürüyor…</p>}
       {pending && (
         <Button disabled={busy || blocked} variant="outline" onClick={() => void send(pending)}>
@@ -370,7 +379,12 @@ export function PolicyForm({
         </Button>
       )}
       {needsRead && (
-        <Button disabled={busy} variant="outline" onClick={() => void readback()}>
+        <Button
+          disabled={busy}
+          variant="outline"
+          aria-describedby={error ? 'policy-form-error' : undefined}
+          onClick={() => void readback()}
+        >
           Kaydedilen poliçeyi yeniden oku
         </Button>
       )}
@@ -455,20 +469,13 @@ export function PolicyForm({
                   {field('startDate', 'Başlangıç tarihi', 'date')}
                   {field('endDate', 'Bitiş tarihi', 'date')}
                   {field('grossPremium', 'Brüt prim')}
-                  {field('currency', 'ISO para birimi', 'text', 3)}
+                  {field('currency', 'Para birimi', 'text', 3)}
                   <div>
-                    <label htmlFor="contract-status">Poliçe durumu</label>
-                    <select
-                      id="contract-status"
-                      value={draft.status}
-                      onChange={(event) => change('status', event.target.value)}
-                    >
-                      {Object.entries(policyStatusLabel).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
+                    <span>Poliçe durumu</span>
+                    <p>{policyStatusLabel[draft.status as keyof typeof policyStatusLabel]}</p>
+                    <p className="customer-legacy-hint">
+                      İptal ve hatalı kayıt işlemleri poliçe detayından yapılır.
+                    </p>
                   </div>
                 </div>
                 <p id="contract-premium-help" className="customer-legacy-hint">

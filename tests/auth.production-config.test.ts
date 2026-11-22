@@ -18,10 +18,10 @@ it('preserves public closure while constraining the internal custody-backed Queu
     DOCUMENT_JOBS_ENABLED: 'true',
     DOCUMENT_CRON_ENABLED: 'true',
   });
-  expect(p.secrets.required).toEqual(['CSRF_SECRET']);
+  expect(p.secrets.required).toEqual(['CSRF_SECRET', 'TURNSTILE_SITE_KEY', 'TURNSTILE_SECRET']);
   expect(p.observability.logs.invocation_logs).toBe(true);
   expect(p.observability.traces.enabled).toBe(false);
-  expect(Object.hasOwn(p.vars, 'CSRF_SECRET')).toBe(false);
+  for (const name of p.secrets.required) expect(Object.hasOwn(p.vars, name)).toBe(false);
   expect(p.workers_dev).toBe(false);
   expect(p.preview_urls).toBe(false);
   expect(p.routes).toEqual([{ pattern: 'panel.mayisigorta.com', custom_domain: true }]);
@@ -79,7 +79,7 @@ it('preserves public closure while constraining the internal custody-backed Queu
   expect(without).toEqual(base);
 });
 
-it('adds only the production daily renewal Cron to the accepted release configuration', () => {
+it('adds only the production daily renewal Cron and required Turnstile bindings to the accepted release configuration', () => {
   const current = configuration(readFileSync('wrangler.jsonc', 'utf8'));
   const previous = configuration(
     execFileSync('git', ['show', '37a42375ea161d3d1f00a3eced9da6ac2a25931b:wrangler.jsonc'], {
@@ -87,6 +87,12 @@ it('adds only the production daily renewal Cron to the accepted release configur
     }),
   );
   expect(current.env.production.triggers.crons).toEqual(current.triggers.crons);
+  expect(current.env.production.secrets.required).toEqual([
+    ...previous.env.production.secrets.required,
+    'TURNSTILE_SITE_KEY',
+    'TURNSTILE_SECRET',
+  ]);
+  current.env.production.secrets.required = previous.env.production.secrets.required;
   current.env.production.triggers.crons = ['*/5 * * * *'];
   expect(current).toEqual(previous);
 });

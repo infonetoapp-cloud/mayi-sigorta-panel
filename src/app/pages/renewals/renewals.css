@@ -1,0 +1,182 @@
+.renewal-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  background: var(--card);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.renewal-filters label {
+  display: grid;
+  gap: 0.375rem;
+  flex: 1 1 11rem;
+  font-size: 0.875rem;
+}
+.renewal-date-filters {
+  flex: 1 1 10rem;
+  align-self: center;
+  min-inline-size: 0;
+}
+.renewal-date-filters[open] {
+  flex-basis: 100%;
+}
+.renewal-date-filters summary {
+  padding-block: 0.5rem;
+  cursor: pointer;
+}
+.renewal-date-filters summary small {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--muted-foreground);
+}
+.renewal-date-filters > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-start: 0.5rem;
+}
+.renewal-filters :is(input, select) {
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: 0.625rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 1rem;
+}
+.renewal-table-wrapper {
+  overflow: auto;
+  container-type: inline-size;
+  max-inline-size: 100%;
+  max-block-size: 75dvh;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.renewal-table {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+}
+.renewal-table caption {
+  padding: 1rem;
+  text-align: start;
+  font-weight: 600;
+}
+.renewal-table :is(th, td) {
+  padding: 0.875rem;
+  text-align: start;
+  border-block-end: 1px solid var(--border);
+  vertical-align: middle;
+}
+.renewal-table thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--table-heading);
+}
+.renewal-table tbody th {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--card);
+  min-inline-size: 12rem;
+}
+.renewal-table small {
+  display: block;
+  color: var(--muted-foreground);
+  margin-block-start: 0.25rem;
+}
+.renewal-table td {
+  white-space: nowrap;
+}
+.renewal-record-card {
+  background: var(--card);
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-block: 1rem;
+}
+.renewal-record-card h2 {
+  font-size: 1.125rem;
+  margin-block-start: 0;
+}
+.renewal-section-switch {
+  display: flex;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+  margin-block: 1rem;
+}
+.renewal-section-switch [aria-pressed='true'] {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1e40af;
+}
+.renewal-operation-boundary {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+.renewal-browsing .renewal-interactions {
+  padding: 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.renewal-table-wrapper:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+@container (width < 700px) {
+  .renewal-table,
+  .renewal-table tbody,
+  .renewal-table tr,
+  .renewal-table :is(th, td) {
+    display: block;
+  }
+  .renewal-table thead {
+    display: none;
+  }
+  .renewal-table tr {
+    margin: 0 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .renewal-table tbody th {
+    inset-block-start: 0;
+    z-index: 3;
+    background: #edf3fb;
+    min-inline-size: 0;
+  }
+  .renewal-table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .renewal-table td::before {
+    content: attr(data-label) ': ';
+    font-weight: 600;
+  }
+}
+@media (max-width: 720px) {
+  .renewal-filters label {
+    flex-basis: 100%;
+  }
+  .renewal-section-switch > [data-slot='button'] {
+    flex: 1;
+    min-block-size: 48px;
+  }
+}
+
+.renewal-reopen-form :is(input[type='datetime-local'], select) {
+  box-sizing: border-box;
+  max-inline-size: 100%;
+}
+
+.renewal-reopen-form .issue-confirm input {
+  flex: none;
+}

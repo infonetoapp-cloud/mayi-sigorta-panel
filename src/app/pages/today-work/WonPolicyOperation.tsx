@@ -1,3 +1,4 @@
+import { exactQuoteUrl } from './quote-model';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type {
   ApiResponse,
@@ -14,6 +15,14 @@ import type { TaskOperationRisk, TaskReadback } from './TaskOperationsSection';
 import type { QuoteRecord, QuoteVersion } from './quote-model';
 import { WonCreatePolicyForm, type CreateReview } from './WonCreatePolicyForm';
 import { premiumMinor } from '../policies/policy-form-model';
+import type { AcceptedPriceSource, WonPriceOption } from '../../../shared/renewal-won-price';
+import {
+  priceDifferences,
+  priceOptionKey,
+  useWonPriceOptions,
+  WonPriceChoices,
+  WonPriceOptionStatus,
+} from './won-price-options';
 interface Props {
   mode?: 'LINK_POLICY' | 'CREATE_POLICY';
   task: TodayTaskDto;
@@ -37,6 +46,7 @@ interface Attempt {
   readonly policy: PolicyDetailDto | null;
   readonly create?: CreateReview;
   readonly quote: SelectedQuote | null;
+  readonly price?: WonPriceOption;
   readonly url: string;
   readonly method: 'POST';
   readonly body: string;
@@ -53,6 +63,7 @@ interface WonResult {
   createdPolicyId: string | null;
   acceptedQuoteVersionId: string | null;
   acceptedPolicyId: string | null;
+  acceptedPriceEvidence?: AcceptedPriceSource & { policyId: string };
   newPolicyIds: string[];
   linkIds: string[];
   links: {
@@ -159,6 +170,9 @@ const differences = (p: PolicyDetailDto, q: SelectedQuote) =>
     p.productId !== q.version.product_id ? 'Ürün farklı' : null,
     p.grossPremiumMinor !== q.version.gross_premium_minor ? 'Brüt prim farklı' : null,
     p.currency !== q.version.currency ? 'Para birimi farklı' : null,
+    p.startDate !== q.version.start_date || p.endDate !== q.version.end_date
+      ? 'Poliçe dönemi farklı'
+      : null,
   ].filter(Boolean);
 function proof(value: unknown, a: Attempt): value is WonResult {
   if (!value || typeof value !== 'object') return false;
@@ -179,6 +193,8 @@ function proof(value: unknown, a: Attempt): value is WonResult {
         r.createdPolicyId === t.policyId))
   )
     return false;
+  const evidence = r.acceptedPriceEvidence;
+  const source = a.price?.source;
   return (
     r.renewalId === t.renewalId &&
     r.primaryTaskId === t.taskId &&
@@ -190,6 +206,14 @@ function proof(value: unknown, a: Attempt): value is WonResult {
     (a.create ? r.createdPolicyId === p.id : r.createdPolicyId === null) &&
     r.acceptedQuoteVersionId === (a.quote?.version.id ?? null) &&
     r.acceptedPolicyId === (a.quote ? p.id : null) &&
+    (source
+      ? evidence?.policyId === p.id &&
+        evidence?.kind === source.kind &&
+        evidence.caseId === source.caseId &&
+        evidence.expectedCaseVersion === source.expectedCaseVersion &&
+        evidence.revisionId === source.revisionId &&
+        evidence.acceptanceEventId === source.acceptanceEventId
+      : evidence === undefined) &&
     Array.isArray(r.newPolicyIds) &&
     r.newPolicyIds.length === 1 &&
     r.newPolicyIds[0] === p.id &&
@@ -206,14 +230,24 @@ function proof(value: unknown, a: Attempt): value is WonResult {
     r.links[0].differentPolicyholderReasonCode === null
   );
 }
-async function history(t: TodayTaskDto, signal: AbortSignal) {
-  const d = await readCustomerResource<{ quotes: Quote[] }>(
-    `/api/renewals/${encodeURIComponent(t.renewalId)}/quotes`,
+async function history(
+  t: TodayTaskDto,
+  signal: AbortSignal,
+  selection?: { quoteId: string; versionId: string; operationId?: string },
+  cursor?: string | null,
+) {
+  const root = `/api/renewals/${encodeURIComponent(t.renewalId)}/quotes`;
+  const d = await readCustomerResource<{ quotes: Quote[]; nextCursor?: string | null }>(
+    selection
+      ? exactQuoteUrl(root, selection.quoteId, selection.versionId, selection.operationId)
+      : cursor
+        ? `${root}?cursor=${encodeURIComponent(cursor)}`
+        : root,
     signal,
   );
   if (!Array.isArray(d.quotes) || new Set(d.quotes.map((q) => q.id)).size !== d.quotes.length)
     throw Error('INVALID_QUOTES');
-  return d.quotes;
+  return d;
 }
 async function renewal(a: Attempt, signal: AbortSignal) {
   let cursor: string | null = null;
@@ -256,8 +290,13 @@ export function WonPolicyOperation(props: Props) {
     [appliedSearch, setAppliedSearch] = useState(''),
     [cursor, setCursor] = useState<string | null>(null),
     [failedList, setFailedList] = useState<{ cursor: string | null; search: string } | null>(null),
+    [quoteCursor, setQuoteCursor] = useState<string | null>(null),
+    [quoteNext, setQuoteNext] = useState<string | null>(null),
     [quotes, setQuotes] = useState<Quote[] | null>(null),
     [quote, setQuote] = useState<SelectedQuote | null>(null),
+    [price, setPrice] = useState<WonPriceOption | null>(null),
+    [rejectedPrice, setRejectedPrice] = useState(0),
+    [requiresSourceChoice, setRequiresSourceChoice] = useState(false),
     [reason, setReason] = useState(''),
     [allocation, setAllocation] = useState(false),
     [confirmed, setConfirmed] = useState(false),
@@ -270,6 +309,10 @@ export function WonPolicyOperation(props: Props) {
     ),
     [masked, setMasked] = useState(false),
     [error, setError] = useState('');
+  const prices = useWonPriceOptions(!creating && !masked ? target?.renewalId : undefined);
+  const matchingPrices = prices.options.filter(
+    (option) => option.insurerId === policy?.insurerId && option.branchId === policy.branchId,
+  );
   const lock = useRef(false),
     epoch = useRef(0),
     controllers = useRef(new Set<AbortController>()),
@@ -363,6 +406,7 @@ export function WonPolicyOperation(props: Props) {
     setTarget(t);
     setError('');
     if (creating) return;
+    prices.reload();
     await job(async (e, c) => {
       try {
         const p = await readCustomerResource<PolicyDetailDto>(
@@ -382,6 +426,7 @@ export function WonPolicyOperation(props: Props) {
     if (!target || !original || lock.current || pending || accepted || conflict) return;
     setPolicy(null);
     setQuote(null);
+    setPrice(null);
     setReason('');
     setAllocation(false);
     setConfirmed(false);
@@ -407,7 +452,7 @@ export function WonPolicyOperation(props: Props) {
       }
     });
   }
-  async function loadQuotes() {
+  async function loadQuotes(pageCursor: string | null = null) {
     if (!target || lock.current || pending || accepted || conflict) return;
     setConfirmed(false);
     setQuote(null);
@@ -415,9 +460,11 @@ export function WonPolicyOperation(props: Props) {
     setQuotes(null);
     await job(async (e, c) => {
       try {
-        const rows = await history(target, c.signal);
+        const rows = await history(target, c.signal, undefined, pageCursor);
         if (alive(e, c)) {
-          setQuotes(rows);
+          setQuotes(rows.quotes);
+          setQuoteCursor(pageCursor);
+          setQuoteNext(rows.nextCursor ?? null);
           setError('');
         }
       } catch (cause) {
@@ -442,13 +489,18 @@ export function WonPolicyOperation(props: Props) {
       );
       let quoteVerified = true;
       if (a.quote) {
-        const rows = await history(a.target, c.signal),
+        const rows = (
+            await history(a.target, c.signal, {
+              quoteId: a.quote.quoteId,
+              versionId: a.quote.version.id,
+            })
+          ).quotes,
           q = rows.find((q) => q.id === a.quote!.quoteId);
         quoteVerified =
           !!q &&
           q.status === 'ACCEPTED' &&
           q.accepted_version_id === a.quote.version.id &&
-          q.accepted_policy_id === a.policy!.id &&
+          q.accepted_policy_id === policyId &&
           q.versions.some(
             (v) =>
               v.id === a.quote!.version.id &&
@@ -458,7 +510,7 @@ export function WonPolicyOperation(props: Props) {
             (ev) =>
               ev.event === 'ACCEPTED' &&
               ev.quote_version_id === a.quote!.version.id &&
-              ev.accepted_policy_id === a.policy!.id &&
+              ev.accepted_policy_id === policyId &&
               canonical(ev.occurred_at) &&
               ev.occurred_at === r?.closedAt,
           );
@@ -480,15 +532,21 @@ export function WonPolicyOperation(props: Props) {
       setTarget(null);
       setPolicy(null);
       setQuote(null);
+      setPrice(null);
+      setRejectedPrice(0);
+      setRequiresSourceChoice(false);
       setOriginal(null);
       setConfirmed(false);
       props.onApplied(
-        'Yenileme kazanıldı olarak kaydedildi; poliçe ve yenileme kontrol edildi. ' +
-          (a.quote ? 'Seçili teklif kabul edildi. ' : 'Teklif kabulü kaydedilmedi. ') +
-          (a.create
-            ? 'Yeni aktif poliçe oluşturuldu. '
-            : 'Mevcut poliçe bağlandı; yeni poliçe oluşturulmadı. ') +
-          'Birincil takibin kapatıldığı sunucu tarafından bildirildi.',
+        a.price
+          ? (a.create ? 'Yeni poliçe kaydedildi.' : 'Mevcut poliçe yenilemeye bağlandı.') +
+              ' Müşterinin kabul ettiği fiyat ilişkilendirildi ve takip kapatıldı.'
+          : 'Yenileme kazanıldı olarak kaydedildi; poliçe ve yenileme kontrol edildi. ' +
+              (a.quote ? 'Seçili teklif kabul edildi. ' : 'Teklif kabulü kaydedilmedi. ') +
+              (a.create
+                ? 'Yeni aktif poliçe oluşturuldu. '
+                : 'Mevcut poliçe bağlandı; yeni poliçe oluşturulmadı. ') +
+              'Birincil takibin kapatıldığı sunucu tarafından bildirildi.',
       );
     } catch (cause) {
       if (alive(e, c)) {
@@ -527,6 +585,25 @@ export function WonPolicyOperation(props: Props) {
           setPending(null);
           setConfirmed(false);
           setAllocation(false);
+          const code = d && !d.success ? d.error.code : null;
+          if (
+            a.price &&
+            ['PRICE_ACCEPTANCE_INVALID', 'PRICE_POLICY_MISMATCH'].includes(code ?? '')
+          ) {
+            setPrice(null);
+            setReason('');
+            setRejectedPrice((previous) => previous + 1);
+            if (!creating) {
+              setRequiresSourceChoice(true);
+              prices.reload();
+            }
+            setError(
+              code === 'PRICE_POLICY_MISMATCH'
+                ? 'Kabul edilen fiyat bu poliçenin müşteri, şirket veya branşıyla eşleşmiyor. Seçimi kontrol edin.'
+                : 'Fiyat değişmiş veya müşteri kabulü geri alınmış olabilir. Güncel fiyatı açıkça yeniden seçin. Poliçe bilgileriniz korundu.',
+            );
+            return;
+          }
           setConflict(true);
           setComparison(null);
           if ([401, 403, 404].includes(r.status)) setMasked(true);
@@ -574,6 +651,7 @@ export function WonPolicyOperation(props: Props) {
       pending ||
       accepted ||
       conflict ||
+      requiresSourceChoice ||
       masked ||
       props.blocked() ||
       !props.canOperate()
@@ -588,7 +666,7 @@ export function WonPolicyOperation(props: Props) {
       policy.id === target.policyId
     )
       return;
-    const diff = quote ? differences(policy, quote) : [];
+    const diff = policyDifferences(policy);
     if (
       quote &&
       (!canonical(quote.version.valid_until) || Date.parse(quote.version.valid_until) <= Date.now())
@@ -598,16 +676,19 @@ export function WonPolicyOperation(props: Props) {
       return;
     }
     if (diff.length && !/^[A-Z][A-Z0-9_]{2,63}$/.test(reason)) {
-      setError(
-        'Fark için sizin belirlediğiniz 3–64 karakter A-Z, 0-9 ve alt çizgi içeren neden kodunu girin.',
-      );
+      setError('Teklif ile poliçe arasındaki farkın nedenini seçin.');
       return;
     }
     if (quote) {
       let ok = false;
       await job(async (e, c) => {
         try {
-          const rows = await history(target, c.signal),
+          const rows = (
+              await history(target, c.signal, {
+                quoteId: quote.quoteId,
+                versionId: quote.version.id,
+              })
+            ).quotes,
             fresh = rows.find((q) => q.id === quote.quoteId),
             chosen = fresh ? eligible(fresh) : null;
           if (!alive(e, c)) return;
@@ -631,6 +712,7 @@ export function WonPolicyOperation(props: Props) {
       target: structuredClone(target),
       policy: structuredClone(policy),
       quote: quote ? structuredClone(quote) : null,
+      ...(price ? { price: structuredClone(price) } : {}),
       url: `/api/renewals/${encodeURIComponent(target.renewalId)}/close-won`,
       method: 'POST',
       key: crypto.randomUUID(),
@@ -645,12 +727,9 @@ export function WonPolicyOperation(props: Props) {
           allocatedNewPremiumMinor: policy.grossPremiumMinor,
           currency: policy.currency,
         },
-        ...(quote
-          ? {
-              acceptedQuoteVersionId: quote.version.id,
-              ...(diff.length ? { quoteDifferenceReasonCode: reason } : {}),
-            }
-          : {}),
+        ...(quote ? { acceptedQuoteVersionId: quote.version.id } : {}),
+        ...(price ? { acceptedPriceSource: price.source } : {}),
+        ...(diff.length ? { quoteDifferenceReasonCode: reason } : {}),
       }),
     });
   }
@@ -704,6 +783,9 @@ export function WonPolicyOperation(props: Props) {
     setOriginal(null);
     setPolicy(null);
     setQuote(null);
+    setPrice(null);
+    setRejectedPrice(0);
+    setRequiresSourceChoice(false);
     setQuotes(null);
     setItems([]);
     setSearch('');
@@ -721,7 +803,17 @@ export function WonPolicyOperation(props: Props) {
     setCreateComparison(null);
     setFormBusy(false);
   }
-  const diff = policy && quote ? differences(policy, quote) : [];
+  function policyDifferences(selected: PolicyDetailDto) {
+    if (price)
+      return priceDifferences(price, {
+        premium: BigInt(selected.grossPremiumMinor),
+        currency: selected.currency,
+        startDate: selected.startDate,
+        endDate: selected.endDate,
+      });
+    return quote ? differences(selected, quote) : [];
+  }
+  const diff = policy ? policyDifferences(policy) : [];
   async function compareCreate() {
     if (
       !target ||
@@ -774,33 +866,26 @@ export function WonPolicyOperation(props: Props) {
   if (creating)
     return (
       <>
-        <Button
-          variant="outline"
-          disabled={!!target || unresolved || props.blocked()}
-          onClick={() => void start()}
-        >
-          Kazanıldı — yeni poliçe oluştur
-        </Button>
+        {!target && (
+          <Button
+            variant="default"
+            disabled={!!target || unresolved || props.blocked()}
+            onClick={() => void start()}
+          >
+            Poliçelendir
+          </Button>
+        )}
         {target && (
           <section aria-label="WON yeni poliçe oluşturma" className="today-outcome-form">
             <h4 ref={heading} tabIndex={-1}>
-              Kazanıldı — yeni poliçe oluştur
+              Poliçelendir
             </h4>
-            {!masked && (
-              <details>
-                <summary>Destek ayrıntıları</summary>
-                <p>
-                  Müşteri: {target.customerDisplayName}; eski poliçe {target.policyNumber}; yenileme{' '}
-                  {target.renewalId}; Task {target.taskId}; yenileme/görev CAS{' '}
-                  {target.renewalVersion}/{target.taskVersion}.
-                </p>
-              </details>
-            )}
             <WonCreatePolicyForm
               task={target}
               masked={masked}
               disabled={busy || !!pending || !!accepted || conflict}
               onBusy={setFormBusy}
+              rejectedPrice={rejectedPrice}
               onSubmit={(review) => {
                 if (
                   lock.current ||
@@ -817,7 +902,8 @@ export function WonPolicyOperation(props: Props) {
                   target: structuredClone(target),
                   policy: null,
                   create: structuredClone(review),
-                  quote: null,
+                  quote: review.quote ? structuredClone(review.quote) : null,
+                  ...(review.price ? { price: structuredClone(review.price) } : {}),
                   url: `/api/renewals/${encodeURIComponent(target.renewalId)}/close-won`,
                   method: 'POST',
                   key: crypto.randomUUID(),
@@ -826,6 +912,11 @@ export function WonPolicyOperation(props: Props) {
                     expectedRenewalVersion: target.renewalVersion,
                     expectedTaskVersion: target.taskVersion,
                     result: { kind: 'CREATE_POLICY', policy: review.policy },
+                    ...(review.quote ? { acceptedQuoteVersionId: review.quote.version.id } : {}),
+                    ...(review.price ? { acceptedPriceSource: review.price.source } : {}),
+                    ...(review.differenceReasonCode
+                      ? { quoteDifferenceReasonCode: review.differenceReasonCode }
+                      : {}),
                   }),
                 });
               }}
@@ -870,7 +961,7 @@ export function WonPolicyOperation(props: Props) {
               </>
             )}
             <Button variant="outline" disabled={unresolved} onClick={reset}>
-              Yeni poliçeyle kazanma taslağını açıkça kapat
+              Poliçelendirmeden vazgeç
             </Button>
           </section>
         )}
@@ -902,9 +993,8 @@ export function WonPolicyOperation(props: Props) {
           {!masked && (
             <>
               <p>
-                Müşteri: {target.customerDisplayName} — Eski poliçe: {target.policyNumber}. Sabit
-                yenileme: {target.renewalId}; Task: {target.taskId}. Yenileme sürümü:{' '}
-                {target.renewalVersion}; Görev sürümü: {target.taskVersion}.
+                Müşteri: {target.customerDisplayName} — Eski poliçe: {target.policyNumber}. Yeni
+                dönem poliçesi bu müşteriye bağlanacaktır.
               </p>
               <fieldset disabled={unresolved || conflict}>
                 <legend>Mevcut poliçeyi seç ve doğrula</legend>
@@ -928,6 +1018,7 @@ export function WonPolicyOperation(props: Props) {
                   onClick={() => {
                     setPolicy(null);
                     setQuote(null);
+                    setPrice(null);
                     setReason('');
                     setConfirmed(false);
                     setAllocation(false);
@@ -988,20 +1079,66 @@ export function WonPolicyOperation(props: Props) {
                     <Button type="button" onClick={() => void loadQuotes()}>
                       İsteğe bağlı gönderildi kayıtlı teklifleri oku
                     </Button>
-                    {quotes && (
+                    {(quoteCursor || quoteNext) && (
+                      <div className="customer-form-actions">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy || !!pending || !!accepted}
+                          onClick={() => void loadQuotes(null)}
+                        >
+                          İlk teklif sayfası
+                        </Button>
+                        {quoteNext && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy || !!pending || !!accepted}
+                            onClick={() => void loadQuotes(quoteNext)}
+                          >
+                            Diğer teklifler
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    <WonPriceOptionStatus
+                      prices={prices}
+                      reload={() => {
+                        if (price) setRequiresSourceChoice(true);
+                        setPrice(null);
+                        setConfirmed(false);
+                        setReason('');
+                        prices.reload();
+                      }}
+                    />
+                    {(quotes || matchingPrices.length > 0 || requiresSourceChoice) && (
                       <label>
                         İsteğe bağlı kabul edilecek teklif
                         <select
-                          value={quote?.version.id ?? ''}
+                          value={price ? priceOptionKey(price) : (quote?.version.id ?? '')}
                           onChange={(e) => {
-                            const q = quotes.find((q) => q.current_version_id === e.target.value);
+                            const q = quotes?.find((q) => q.current_version_id === e.target.value);
                             setQuote(q ? eligible(q) : null);
+                            setPrice(
+                              matchingPrices.find(
+                                (option) => priceOptionKey(option) === e.target.value,
+                              ) ?? null,
+                            );
+                            setRequiresSourceChoice(false);
                             setReason('');
                             setConfirmed(false);
                           }}
                         >
-                          <option value="">Teklif ilişkilendirme yok</option>
-                          {quotes.map((q) => {
+                          {requiresSourceChoice && (
+                            <option value="" disabled>
+                              Teklifi yeniden seçin
+                            </option>
+                          )}
+                          <option value={requiresSourceChoice ? 'NONE' : ''}>
+                            Teklif kaydı olmadan devam et
+                          </option>
+                          <WonPriceChoices options={matchingPrices} />
+                          {quotes?.map((q) => {
                             const v = eligible(q);
                             return v ? (
                               <option key={q.id} value={v.version.id}>
@@ -1013,35 +1150,51 @@ export function WonPolicyOperation(props: Props) {
                         </select>
                       </label>
                     )}
-                    {quote ? (
+                    {quote || price ? (
                       <>
-                        <p>
-                          Seçili gönderildi kayıtlı teklif sürümü: {quote.version.id}; ürün:{' '}
-                          {quote.version.product_id}; prim:{' '}
-                          {completionMoney(
-                            quote.version.gross_premium_minor,
-                            quote.version.currency,
-                          )}
-                          ; geçerlilik: {quote.version.valid_until}. Gönderildi kaydı gerçek mesaj
-                          teslimi kanıtı değildir.
-                        </p>
+                        {price && (
+                          <p>
+                            Müşteri kabulü · {price.insurerName} ·{' '}
+                            {completionMoney(price.amountMinor, price.currency)}
+                          </p>
+                        )}
+                        {quote && (
+                          <p>
+                            Seçili gönderildi kayıtlı teklif sürümü: {quote.version.id}; ürün:{' '}
+                            {quote.version.product_id}; prim:{' '}
+                            {completionMoney(
+                              quote.version.gross_premium_minor,
+                              quote.version.currency,
+                            )}
+                            ; geçerlilik: {quote.version.valid_until}. Gönderildi kaydı gerçek mesaj
+                            teslimi kanıtı değildir.
+                          </p>
+                        )}
                         {diff.length > 0 && (
                           <>
                             <p>Teklif/poliçe farkı: {diff.join(' · ')}</p>
                             <label>
-                              Teklif farkı neden kodu
-                              <input
+                              Teklif farkının nedeni
+                              <select
                                 value={reason}
-                                maxLength={64}
                                 onChange={(e) => {
                                   setReason(e.target.value);
                                   setConfirmed(false);
                                 }}
-                              />
+                              >
+                                <option value="">Neden seçin</option>
+                                <option value="CUSTOMER_CONFIRMED">
+                                  Müşterinin onayladığı son poliçe bilgileri farklı
+                                </option>
+                                <option value="PREMIUM_CHANGED">Prim değişti</option>
+                                <option value="CURRENCY_CHANGED">Para birimi değişti</option>
+                                <option value="PRODUCT_CHANGED">Ürün / teminat değişti</option>
+                                <option value="PERIOD_CHANGED">Poliçe dönemi değişti</option>
+                              </select>
                             </label>
                             <p>
-                              Nedeni siz belirleyin; 3–64 karakter, büyük harf/rakam/alt çizgi.
-                              Otomatik genel neden gönderilmez.
+                              Seçtiğiniz neden poliçe ile teklif arasındaki farkla birlikte
+                              kaydedilir.
                             </p>
                           </>
                         )}
@@ -1071,7 +1224,9 @@ export function WonPolicyOperation(props: Props) {
                       />
                       Kazanıldı sonucunu ve seçtiğim kayıtları onaylıyorum
                     </label>
-                    <Button type="submit">Yenilemeyi kazanıldı olarak kaydet</Button>
+                    <Button type="submit" disabled={requiresSourceChoice}>
+                      Yenilemeyi kazanıldı olarak kaydet
+                    </Button>
                   </>
                 )}
               </fieldset>
@@ -1105,6 +1260,7 @@ export function WonPolicyOperation(props: Props) {
                   setComparison(null);
                   setPolicy(null);
                   setQuote(null);
+                  setPrice(null);
                   setQuotes(null);
                   setReason('');
                   setConfirmed(false);

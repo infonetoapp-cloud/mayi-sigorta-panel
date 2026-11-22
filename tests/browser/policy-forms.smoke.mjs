@@ -36,7 +36,7 @@ try {
   });
   const application = await import(pathToFileURL(bundle).href);
   stage = 'demo-open';
-  demo = await application.openDemo(passwords);
+  demo = await application.openDemo(passwords, { companyRegistrationActors: ['owner'] });
   tls = await demoCertificate();
   server = await serveDemo(demo, tls);
   // Synthetic fixtures force the real origin outside the first bounded customer page.
@@ -97,7 +97,12 @@ try {
             'X-CSRF-Token': csrf.data.token,
             'Idempotency-Key': globalThis.crypto.randomUUID(),
           },
-          body: JSON.stringify({ type: 'COMPANY', companyTitle: 'Sentetik Poliçe Şirketi' }),
+          body: JSON.stringify({
+            type: 'COMPANY',
+            companyTitle: 'Sentetik Poliçe Şirketi',
+            taxNumber: '9000000999',
+            insurerNumber: { insurerId: 'demo-insurer', customerNumber: '00-policy-form-smoke' },
+          }),
         });
         if (r.status !== 201) throw new Error('COMPANY_SETUP');
         return (await r.json()).data.id;
@@ -110,9 +115,7 @@ try {
         ),
         false,
       );
-      await page.goto('https://localhost:8443/customers/demo-customer-0/advanced');
-      await page.getByRole('button', { name: '+ Poliçe Ekle', exact: true }).click();
-      await page.waitForURL('**/policies/legacy?customerId=demo-customer-0');
+      await page.goto('https://localhost:8443/policies/legacy?customerId=demo-customer-0');
       await page.getByRole('heading', { name: 'Yeni Poliçe', exact: true }).waitFor();
       assert.equal(
         await page.getByLabel('Müşteri', { exact: true }).inputValue(),
@@ -120,34 +123,38 @@ try {
       );
     }
     let createdId, createdNumber;
-    for (const [kind, origin] of [
-      ['individual', 'demo-customer-0'],
-      ['company', companyId],
+    for (const [kind, origin, customerName] of [
+      ['individual', 'demo-customer-0', 'Deniz Yılmaz'],
+      ['company', companyId, 'Sentetik Poliçe Şirketi'],
     ]) {
       stage = `create-${index}-${kind}`;
       console.info('POLICY_FORM_STAGE', stage);
       await page.goto('https://localhost:8443/customers/' + origin);
       await page.getByRole('link', { name: 'Poliçe ekle', exact: true }).click();
       await page.waitForURL('**/policies/new?customerId=' + origin);
-      await page.getByLabel('Poliçe numarası', { exact: true }).waitFor();
-      assert.equal(await page.getByLabel('Müşteri', { exact: true }).inputValue(), origin);
+      stage = `create-${index}-${kind}-preselect`;
+      const contractForm = page.getByRole('form', { name: 'Poliçe sözleşme formu' });
+      await contractForm.getByText(customerName, { exact: true }).waitFor();
+      assert.equal(await contractForm.getByLabel('Müşteri', { exact: true }).count(), 0);
       const controls = [
         ['Sigorta şirketi', 'demo-insurer'],
         ['Branş', 'demo-branch'],
         ['Ürün', 'demo-product'],
         ['Ödeme yöntemi', kind === 'company' ? 'smoke-card' : 'demo-payment'],
       ];
+      stage = `create-${index}-${kind}-fields`;
       for (const [label, value] of controls)
         await page.getByLabel(label, { exact: true }).selectOption(value);
       if (kind === 'company') {
         await page.getByLabel('Taksit sayısı', { exact: true }).fill('3');
-        await page.getByLabel('ISO para birimi', { exact: true }).fill('EUR');
+        await page.getByLabel('Para birimi', { exact: true }).fill('EUR');
       }
       createdNumber = `FORM-SMOKE-${index}-${kind}`;
       await page.getByLabel('Poliçe numarası', { exact: true }).fill(createdNumber);
       await page.getByLabel('Başlangıç tarihi', { exact: true }).fill('2027-01-01');
       await page.getByLabel('Bitiş tarihi', { exact: true }).fill('2027-12-31');
       await page.getByLabel('Brüt prim', { exact: true }).fill('1234.56');
+      stage = `create-${index}-${kind}-responsive`;
       for (const width of [1440, 768, 360]) {
         await page.setViewportSize({ width, height: 900 });
         assert.equal(
@@ -176,12 +183,18 @@ try {
             });
           return route.fulfill({ response: committed });
         });
+      stage = `create-${index}-${kind}-submit`;
       await page.getByRole('button', { name: 'Poliçeyi oluştur', exact: true }).click();
       if (!index && kind === 'individual') {
+        stage = `create-${index}-${kind}-retry`;
         await page.getByRole('button', { name: 'Aynı işlemi yeniden dene', exact: true }).waitFor();
-        assert.equal(await page.getByLabel('Müşteri', { exact: true }).isDisabled(), true);
+        assert.equal(
+          await contractForm.getByLabel('Poliçe numarası', { exact: true }).isDisabled(),
+          true,
+        );
         await page.getByRole('button', { name: 'Aynı işlemi yeniden dene', exact: true }).click();
       }
+      stage = `create-${index}-${kind}-readback`;
       await page.waitForURL(
         (url) => /^\/policies\/[^/]+$/.test(url.pathname) && url.pathname !== '/policies/new',
       );
@@ -351,8 +364,13 @@ try {
   console.info(
     'POLICY_FORM_BROWSER PASS: OWNER/Ahmet/Ayşe; modern policy create/edit/handoff and insured-party regression; signed/zero/absent amendment differences; external references and duplicate prevention; pinned CAS/exact retries/GET-only readback;1440/768/360; history/reload/back-forward; revocation cleanup; CSP/runtime.',
   );
-} catch {
-  console.error(`POLICY_FORM_BROWSER FAIL at ${stage}. No credentials or raw diagnostics logged.`);
+} catch (error) {
+  const location =
+    error instanceof Error &&
+    error.stack?.match(/(?:policy-forms\.smoke|policy-lifecycle\.walkthrough)\.mjs:\d+:\d+/);
+  console.error(
+    `POLICY_FORM_BROWSER FAIL at ${stage}${location ? ` (${location[0]})` : ''}. No credentials or raw diagnostics logged.`,
+  );
   process.exitCode = 1;
 } finally {
   passwords.fill('');

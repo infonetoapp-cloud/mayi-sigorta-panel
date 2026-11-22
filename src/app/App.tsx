@@ -344,7 +344,15 @@ export const App: React.FC<{
   onPolicyCreate?: (customer: { id: string; displayName: string }) => void;
   initialCustomerId?: string;
   createCustomer?: boolean;
-}> = ({ page, onNavigate, onPolicyCreate, initialCustomerId, createCustomer }) => {
+  onCustomerCreate?: () => void;
+}> = ({
+  page,
+  onNavigate,
+  onPolicyCreate,
+  initialCustomerId,
+  createCustomer,
+  onCustomerCreate,
+}) => {
   const [localTab, setLocalTab] = useState<TabType>('overview');
   const activeTab = page ?? localTab;
   const setActiveTab = onNavigate ?? setLocalTab;
@@ -509,8 +517,11 @@ export const App: React.FC<{
   // customer data still come from the existing server detail endpoint.
   useEffect(() => {
     if (initialCustomerId) void loadCustomerDetail(initialCustomerId);
-    if (createCustomer) setShowCreateModal(true);
-  }, [initialCustomerId, createCustomer]);
+    if (createCustomer) {
+      if (onCustomerCreate) onCustomerCreate();
+      else setShowCreateModal(true);
+    }
+  }, [initialCustomerId, createCustomer, onCustomerCreate]);
 
   const runCreateCustomerAttempt = async (attempt: MutationRequestSnapshot) => {
     setCreateSubmitting(true);
@@ -1003,7 +1014,7 @@ export const App: React.FC<{
                 <button
                   type="button"
                   style={STYLES.btnPrimary}
-                  onClick={() => setShowCreateModal(true)}
+                  onClick={onCustomerCreate ?? (() => setShowCreateModal(true))}
                   data-testid="add-customer-button"
                 >
                   + Yeni Müşteri

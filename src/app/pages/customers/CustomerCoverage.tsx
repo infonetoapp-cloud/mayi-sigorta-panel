@@ -1,12 +1,11 @@
 import { Link, useLocation } from 'react-router';
 import type { CustomerCoverageSummary } from '../../../shared/customer-coverage';
 import { useCustomerResource } from './customer-resource';
+import { customerCoverageSchema } from './customer-read-schemas';
 import { Button } from '../../components/ui/button';
+import { ArrowRight } from 'lucide-react';
+import { policyDate } from '../policies/policy-display';
 
-const date = (value: string) =>
-  new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', dateStyle: 'medium' }).format(
-    new Date(value + 'T00:00:00Z'),
-  );
 export function CoverageBrief({ summary }: { summary?: CustomerCoverageSummary }) {
   if (!summary || typeof summary.available !== 'boolean')
     return <span className="text-muted-foreground">Poliçe özeti alınamadı.</span>;
@@ -33,76 +32,98 @@ export function CoverageBrief({ summary }: { summary?: CustomerCoverageSummary }
       </div>
       {summary.nearestExpiry && (
         <span className="text-muted-foreground">
-          En yakın vade: {date(summary.nearestExpiry.endDate)}
+          En yakın vade: {policyDate(summary.nearestExpiry.endDate)}
         </span>
       )}
     </div>
   );
 }
-export function CustomerCoverage({ customerId }: { customerId: string }) {
+export function CustomerCoverage({
+  customerId,
+  showAllLink,
+}: {
+  customerId: string;
+  showAllLink: boolean;
+}) {
   const route = useLocation();
-  const state = useCustomerResource<CustomerCoverageSummary>(
+  const state = useCustomerResource(
     `/api/customers/${encodeURIComponent(customerId)}/coverage`,
+    customerCoverageSchema,
   );
   const summary = state.data;
-  const valid =
-    summary &&
-    typeof summary.available === 'boolean' &&
-    Array.isArray(summary.types) &&
-    Array.isArray(summary.policies);
   return (
     <section className="coverage-summary" aria-label="Sigorta özeti">
       <h2>Sigorta özeti</h2>
       {state.loading && <p role="status">Poliçe özeti yükleniyor…</p>}
-      {(state.error || (!state.loading && !valid)) && (
+      {state.error && (
         <div role="alert">
           <p>Poliçe özeti alınamadı. Bu durum poliçe bulunmadığı anlamına gelmez.</p>
-          {state.error?.status !== 401 &&
-            state.error?.status !== 403 &&
-            state.error?.status !== 404 && (
-              <Button variant="outline" onClick={state.reload}>
-                Poliçe özetini yeniden dene
-              </Button>
-            )}
+          {state.error.status >= 500 && (
+            <Button variant="outline" onClick={state.reload}>
+              Poliçe özetini yeniden dene
+            </Button>
+          )}
         </div>
       )}
-      {valid && (
+      {summary && (
         <>
-          <CoverageBrief summary={summary} />
-          {summary.available && (
+          {!summary.available ? (
+            <CoverageBrief summary={summary} />
+          ) : (
             <>
+              <div className="customer-coverage-key-facts">
+                <strong>{summary.activePolicyCount} yürürlükte poliçe</strong>
+                {summary.nearestExpiry && (
+                  <span>En yakın vade: {policyDate(summary.nearestExpiry.endDate)}</span>
+                )}
+              </div>
               {summary.activePolicyCount === 0 && (
                 <p>Görüntüleyebildiğiniz kayıtlarda bugün yürürlükte poliçe yok.</p>
               )}
-              {!!summary.expiredPolicyCount && <p>Süresi dolmuş: {summary.expiredPolicyCount}</p>}
-              {!!summary.scheduledPolicyCount && (
-                <p>Başlangıcı beklenen: {summary.scheduledPolicyCount}</p>
+              <div className="customer-coverage-status">
+                {!!summary.expiredPolicyCount && (
+                  <span>Süresi dolmuş: {summary.expiredPolicyCount}</span>
+                )}
+                {!!summary.scheduledPolicyCount && (
+                  <span>Başlangıcı beklenen: {summary.scheduledPolicyCount}</span>
+                )}
+                {!!summary.invalidPeriodPolicyCount && (
+                  <span role="alert">
+                    Tarih kontrolü gereken: {summary.invalidPeriodPolicyCount}
+                  </span>
+                )}
+              </div>
+              {summary.policies.length > 0 && (
+                <ul className="coverage-policies">
+                  {summary.policies.map((policy) => (
+                    <li key={policy.policyId}>
+                      <Link
+                        className="customer-name"
+                        to={`/policies/${encodeURIComponent(policy.policyId)}`}
+                        state={route.state}
+                      >
+                        <strong>{policy.productName}</strong>
+                        <span>
+                          {policy.insurerName} · {policy.policyNumber}
+                        </span>
+                      </Link>
+                      <time dateTime={policy.endDate}>{policyDate(policy.endDate)}</time>
+                    </li>
+                  ))}
+                </ul>
               )}
-              {!!summary.invalidPeriodPolicyCount && (
-                <p role="alert">Tarih kontrolü gereken: {summary.invalidPeriodPolicyCount}</p>
+              {showAllLink && (
+                <Link
+                  className="customer-profile-text-link"
+                  to="?section=policies"
+                  state={route.state}
+                >
+                  Tüm poliçeleri ve yenilemeleri görüntüle{' '}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </Link>
               )}
-              <ul className="coverage-policies">
-                {summary.policies.map((policy, index) => (
-                  <li key={policy.policyId}>
-                    <Link
-                      className="customer-name"
-                      to={`/policies/${encodeURIComponent(policy.policyId)}`}
-                      state={route.state}
-                    >
-                      {policy.productName} · {policy.insurerName} · {policy.policyNumber}
-                    </Link>
-                    <span>
-                      {index === 0 ? 'En yakın vade' : 'Bitiş'}: {date(policy.endDate)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <Link to="?section=policies" state={route.state}>
-                Tüm poliçeleri ve yenilemeleri görüntüle
-              </Link>
               <p className="coverage-scope">
-                Yalnız görüntüleme yetkiniz olan poliçeler · {date(summary.asOfDate)}. Yürürlükte:
-                aktif kayıt, arşivlenmemiş ve sözleşme dönemi bugün devam ediyor.
+                Görüntüleme yetkiniz olan kayıtlar · {policyDate(summary.asOfDate)}
               </p>
             </>
           )}

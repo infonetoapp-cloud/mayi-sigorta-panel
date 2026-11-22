@@ -155,6 +155,7 @@ it('strict sequential1/10/20MiB closed real broker exported-runtime canary; firs
         expiredLeases: 0,
         completedInvestigations: 0,
         overdueBackups: 0,
+        overdueUploads: 0,
       });
       expect(count).toBe(1);
       expect(await control.closedRoutes()).toEqual([404, 404, 404, 404, 404]);

@@ -43,4 +43,5 @@ export interface SecurityHeadersOptions {
   readonly isHttps?: boolean;
   readonly isApi?: boolean;
   readonly hstsMaxAge?: number;
+  readonly allowTurnstile?: boolean;
 }

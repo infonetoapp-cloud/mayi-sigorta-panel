@@ -29,7 +29,11 @@ import { generateIdentityBoundCsrfToken } from './security/csrf';
 import { registerCustomerRoutes } from './customers/routes';
 import { registerCatalogRoutes } from './catalogs/routes';
 import { registerPolicyRoutes } from './policies/routes';
+import { registerClaimRoutes } from './claims/routes';
+import { registerSalesRoutes } from './sales/routes';
+import { registerFinanceRoutes } from './finance/routes';
 import { registerTaskRoutes } from './tasks/routes';
+import { registerGeneralTaskRoutes } from './tasks/general-routes';
 import { registerRenewalCommandRoutes } from './renewals/routes';
 import { runScheduledRenewalGeneration, RENEWAL_CONTINUATION_CRON } from './renewals/generation';
 import { dispatchDueDocumentJobs, type DocumentJobQueueMessage } from './documents/queue';
@@ -43,12 +47,15 @@ import type { DocumentBackupCapability } from './documents/backup-capability-con
 import { registerDocumentRoutes } from './documents/routes';
 import type { DocumentBackupAdapter } from './documents/backup-storage';
 import type { DocumentReconcileStorage } from './documents/reconcile-storage';
+import { OPS_READINESS_PATH, registerOpsReadiness } from './ops/readiness';
+import type { Decision as BackupObservation } from './backup-monitor/evidence';
 
 export interface Env {
   PASSWORD_KDF?: DurableObjectNamespace<PasswordKdfDurableObject>;
   DOCUMENT_UPLOAD_RUNTIME?: DurableObjectNamespace<DocumentUploadDurableObject>;
   ASSETS?: Fetcher;
   DB: D1Database;
+  OPS_BACKUP_STATUS?: Fetcher;
   DOCS_QUARANTINE?: R2Bucket;
   DOCUMENT_QUEUE_CUSTODY?: R2Bucket;
   DOCUMENT_JOB_QUEUE?: Queue<DocumentJobQueueMessage>;
@@ -68,6 +75,7 @@ export interface AppDependencies {
   readonly createSessionVerifier?: (config: LocalSessionConfig) => LocalSessionVerifier;
   readonly passwordHasher?: PasswordHasher;
   readonly createResolver?: (db: D1Database) => ApplicationIdentityResolver;
+  readonly readBackupObservation?: (signal: AbortSignal) => Promise<BackupObservation | null>;
 }
 function apiNotFoundResponse(): Response {
   return Response.json(
@@ -179,6 +187,12 @@ export function createApp(
         };
       await next();
     } catch (error) {
+      if (
+        path === OPS_READINESS_PATH &&
+        (!(error instanceof SessionVerificationError) || error.code === 'CONFIGURATION_ERROR')
+      ) {
+        return c.json({ success: false, error: { code: 'SERVICE_UNAVAILABLE' } }, 503);
+      }
       if (path.startsWith('/secure/')) await auditAuthDenial(c, 'auth.secure.denied');
       if (
         error instanceof SessionVerificationError &&
@@ -209,6 +223,7 @@ export function createApp(
     c.body(REAUTH_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8' }),
   );
   registerPersonnelRoutes(app, dependencies);
+  registerOpsReadiness(app, dependencies);
   app.get(`${API_PREFIX}/health`, (c) =>
     c.json(
       { success: true, data: { status: 'healthy' }, timestamp: new Date().toISOString() },
@@ -285,7 +300,11 @@ export function createApp(
   registerCustomerRoutes(app, dependencies);
   registerCatalogRoutes(app, dependencies);
   registerPolicyRoutes(app, dependencies);
+  registerFinanceRoutes(app, dependencies);
+  registerClaimRoutes(app, dependencies);
+  registerSalesRoutes(app, dependencies);
   registerTaskRoutes(app, dependencies);
+  registerGeneralTaskRoutes(app, dependencies);
   registerRenewalCommandRoutes(app, dependencies);
   registerDocumentRoutes(app, dependencies);
   configureRoutes?.(app);
@@ -404,10 +423,12 @@ export function createWorker(
       }
       if (env.ASSETS) {
         const response = await serveFrontend(request, env.ASSETS, canonicalPath);
+        const isHtml = response.headers.get('content-type')?.includes('text/html') ?? false;
         return applySecurityHeaders(response, {
           appEnv,
           isHttps,
-          isApi: response.headers.get('content-type')?.includes('text/html') ?? false,
+          isApi: isHtml,
+          allowTurnstile: isHtml && typeof env.TURNSTILE_SITE_KEY === 'string',
         });
       }
       return applySecurityHeaders(

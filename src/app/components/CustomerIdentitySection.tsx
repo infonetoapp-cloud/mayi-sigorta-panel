@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import type { CustomerDetailDto, ApiResponse, CustomerIdentityRevealDto } from '../../shared/types';
 import { parseAppError, getCsrfToken, type AppErrorInfo } from '../App';
+import { Button } from './ui/button';
 
 interface MutationSnapshot {
   readonly url: string;
@@ -30,6 +31,7 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [actionError, setActionError] = useState<AppErrorInfo | null>(null);
   const [retryAttempt, setRetryAttempt] = useState<MutationSnapshot | null>(null);
+  const formId = useId();
   const previousCustomerId = useRef(customer.id);
 
   // Müşteri değiştiğinde veya bileşen unmount olduğunda açık kimliği bellekten temizle
@@ -39,10 +41,11 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
     setRevealedIdentity(null);
     setRevealError(null);
     setShowEdit(false);
+    setIdentityType(customer.type === 'COMPANY' ? 'VKN' : 'TCKN');
     setIdentityValue('');
     setActionError(null);
     setRetryAttempt(null);
-  }, [customer.id]);
+  }, [customer.id, customer.type]);
 
   const handleReveal = async () => {
     setRevealLoading(true);
@@ -150,7 +153,7 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
       idempotencyKey: crypto.randomUUID(),
       body: JSON.stringify({
         expectedVersion: customer.version,
-        identityType,
+        identityType: customer.type === 'COMPANY' ? 'VKN' : identityType,
         identityValue: identityValue.trim(),
       }),
     };
@@ -158,6 +161,7 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
   };
 
   const handleClearIdentity = () => {
+    if (customer.type === 'COMPANY') return;
     const snapshot: MutationSnapshot = {
       url: `/api/customers/${customer.id}/identity`,
       idempotencyKey: crypto.randomUUID(),
@@ -190,14 +194,17 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
           marginBottom: '0.75rem',
         }}
       >
-        <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
-          Hassas Kimlik Bilgisi ({customer.type === 'COMPANY' ? 'VKN' : 'TCKN'})
+        <span id={formId} style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>
+          {customer.type === 'COMPANY' ? 'Vergi numarası (VKN)' : 'Hassas Kimlik Bilgisi'}
         </span>
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => {
             if (showEdit) {
               setIdentityValue('');
@@ -206,19 +213,13 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
             setActionError(null);
             setRetryAttempt(null);
           }}
-          style={{
-            backgroundColor: '#f1f5f9',
-            color: '#334155',
-            border: '1px solid #cbd5e1',
-            borderRadius: '0.25rem',
-            padding: '0.25rem 0.625rem',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
         >
-          {showEdit ? 'Kapat' : 'Kimlik Bilgisini Güncelle'}
-        </button>
+          {showEdit
+            ? 'Kapat'
+            : customer.type === 'COMPANY' && !customer.hasIdentity
+              ? 'Vergi numarası ekle'
+              : 'Kimlik Bilgisini Güncelle'}
+        </Button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -288,30 +289,45 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
       {showEdit && (
         <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
           <form
+            aria-labelledby={formId}
+            method="post"
             onSubmit={handleSaveIdentity}
             style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
           >
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select
-                value={identityType}
-                onChange={(e) => setIdentityType(e.target.value as 'TCKN' | 'VKN')}
-                disabled={customer.type === 'COMPANY'}
-                style={{
-                  padding: '0.4rem 0.6rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                <option value="TCKN">TCKN</option>
-                <option value="VKN">VKN</option>
-              </select>
+            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+              {customer.type !== 'COMPANY' && (
+                <>
+                  <label htmlFor={`${formId}-type`}>Kimlik türü</label>
+                  <select
+                    id={`${formId}-type`}
+                    value={identityType}
+                    onChange={(e) => setIdentityType(e.target.value as 'TCKN' | 'VKN')}
+                    style={{
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    <option value="TCKN">TCKN</option>
+                    <option value="VKN">VKN</option>
+                  </select>
+                </>
+              )}
+              <label htmlFor={`${formId}-number`}>
+                {customer.type === 'COMPANY'
+                  ? 'Vergi numarası (10 hane)'
+                  : `${identityType} numarası`}
+              </label>
               <input
                 type="text"
+                id={`${formId}-number`}
+                inputMode="numeric"
+                autoComplete="off"
+                required
                 value={identityValue}
                 onChange={(e) => setIdentityValue(e.target.value)}
-                placeholder="TCKN veya VKN giriniz"
-                maxLength={identityType === 'TCKN' ? 11 : 10}
+                maxLength={customer.type === 'COMPANY' || identityType === 'VKN' ? 10 : 11}
                 style={{
                   flex: 1,
                   padding: '0.4rem 0.6rem',
@@ -320,23 +336,10 @@ export const CustomerIdentitySection: React.FC<CustomerIdentitySectionProps> = (
                   fontSize: '0.8125rem',
                 }}
               />
-              <button
-                type="submit"
-                disabled={submitting}
-                style={{
-                  backgroundColor: '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  padding: '0.4rem 0.75rem',
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <Button type="submit" disabled={submitting} className="self-start">
                 {submitting ? 'Kaydediliyor...' : 'Kimliği Kaydet'}
-              </button>
-              {customer.hasIdentity && (
+              </Button>
+              {customer.hasIdentity && customer.type !== 'COMPANY' && (
                 <button
                   type="button"
                   onClick={handleClearIdentity}
