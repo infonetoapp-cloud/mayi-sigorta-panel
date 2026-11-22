@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { writeMigrationEvidence } from './support/migration-evidence';
 import { it, expect } from 'vitest';
 import { authSchemaHash } from '../scripts/recovery/local-auth-restore-proof';
 it('adds price/revision tables and preserves existing deferred case link SQL', () => {
@@ -37,14 +38,10 @@ it('adds price/revision tables and preserves existing deferred case link SQL', (
       ]),
     );
     expect(counts).toEqual({ table: 60, index: 229, trigger: 228, view: 3 });
-    writeFileSync(
-      'audit-evidence/ux-review-2026-11-17/p03b1-schema.json',
-      JSON.stringify(
-        { hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]), counts },
-        null,
-        2,
-      ),
-    );
+    writeMigrationEvidence('p03b1-schema.json', {
+      hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]),
+      counts,
+    });
   } finally {
     db.close();
   }

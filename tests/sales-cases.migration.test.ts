@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { writeMigrationEvidence } from './support/migration-evidence';
 import { it, expect } from 'vitest';
 import { authSchemaHash } from '../scripts/recovery/local-auth-restore-proof';
 it('adds sales cases without rewriting the existing schema and measures the deferred FK schema', () => {
@@ -35,14 +36,10 @@ it('adds sales cases without rewriting the existing schema and measures the defe
         schema.filter((r) => r.type === type).length,
       ]),
     );
-    writeFileSync(
-      'audit-evidence/ux-review-2026-11-17/p03a-schema.json',
-      JSON.stringify(
-        { hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]), counts },
-        null,
-        2,
-      ),
-    );
+    writeMigrationEvidence('p03a-schema.json', {
+      hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]),
+      counts,
+    });
   } finally {
     db.close();
   }
