@@ -5,6 +5,7 @@ import {
   generationPrefix,
   runBackup,
   EXPORT_URL,
+  MAX_BACKUP_SQL_BYTES,
   MAX_POLLS,
   type BackupEnv,
   type BackupSteps,
@@ -158,6 +159,51 @@ it.each(['immediate', 'changed-bookmark'])('valid %s completion is not rejected'
     expect(f.requests.filter((r) => r.url === EXPORT_URL)).toHaveLength(1);
   }
 });
+it.each([false, true])('accepts exactly 16 MiB (length announced=%s)', async (announced) => {
+  const f = fixture('immediate');
+  const fetch = f.runtime.fetch;
+  f.runtime.fetch = async (input, init) =>
+    String(input) === EXPORT_URL
+      ? fetch(input, init)
+      : new Response(new Uint8Array(MAX_BACKUP_SQL_BYTES).fill(32), {
+          headers: announced ? { 'content-length': String(MAX_BACKUP_SQL_BYTES) } : undefined,
+        });
+  await expect(
+    runBackup(f.env, f.steps, timestamp, 'size-limit', f.runtime),
+  ).resolves.toMatchObject({
+    state: 'COMPLETE',
+    sqlSize: MAX_BACKUP_SQL_BYTES,
+  });
+  expect(f.writes.at(-1)).toMatch(/COMPLETE\.json$/u);
+});
+it.each([false, true])(
+  'rejects an oversized SQL before any R2 write (length announced=%s)',
+  async (announced) => {
+    const f = fixture('immediate');
+    const fetch = f.runtime.fetch;
+    const cancel = vi.fn();
+    f.runtime.fetch = async (input, init) => {
+      if (String(input) === EXPORT_URL) return fetch(input, init);
+      let chunks = 0;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.enqueue(new Uint8Array(chunks++ === 0 ? MAX_BACKUP_SQL_BYTES : 1));
+          },
+          cancel,
+        }),
+        { headers: announced ? { 'content-length': String(MAX_BACKUP_SQL_BYTES + 1) } : undefined },
+      );
+    };
+    await expect(
+      runBackup(f.env, f.steps, timestamp, 'oversized', f.runtime),
+    ).rejects.toMatchObject({
+      diagnostic: { stage: 'download', classification: 'sql-size-limit-exceeded' },
+    });
+    expect(f.writes).toEqual([]);
+    if (!announced) expect(cancel).toHaveBeenCalledOnce();
+  },
+);
 it('transport error raw secret message cannot escape', async () => {
   const f = fixture('transport');
   try {
