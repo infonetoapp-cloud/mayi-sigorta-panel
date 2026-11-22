@@ -5,6 +5,7 @@ import { localAuthFixture } from './support/local-auth-fixture';
 import {
   runRenewalGenerationForAgency,
   runScheduledRenewalGeneration,
+  RENEWAL_GENERATION_BATCH_SIZE,
   RENEWAL_CONTINUATION_CRON,
 } from '../src/server/renewals/generation';
 import { createWorker } from '../src/server/index';
@@ -180,7 +181,7 @@ describe('Bounded renewal continuation on real local D1', () => {
     );
     expect(await counts(year)).toEqual({ renewals: 6, tasks: 6, history: 6, audits: 6 });
   });
-  it('converges concurrent resumes at a barrier with one set of effects and monotonic progress', async () => {
+  it('converges overlapping daily and minute triggers with one set of effects and monotonic progress', async () => {
     const year = await setup(8);
     await runRenewalGenerationForAgency(f.db, agency);
     let arrivals = 0,
@@ -195,8 +196,8 @@ describe('Bounded renewal continuation on real local D1', () => {
       }
     });
     await Promise.all([
-      runRenewalGenerationForAgency(concurrent, agency),
-      runRenewalGenerationForAgency(concurrent, agency),
+      runScheduledRenewalGeneration(concurrent),
+      runScheduledRenewalGeneration(concurrent, true),
     ]);
     expect(arrivals).toBe(2);
     await runRenewalGenerationForAgency(f.db, agency);
@@ -282,51 +283,156 @@ describe('Bounded renewal continuation on real local D1', () => {
     expect(await counts(year)).toEqual({ renewals: 6, tasks: 6, history: 6, audits: 6 });
     expect((await cursor())!.last_successful_local_date).toBe(`${year}-01-02`);
   });
-  it('keeps a cold scheduled invocation including rotation and initialization within 50 statements', async () => {
-    const year = await setup(4);
-    await f.db
-      .prepare('DELETE FROM renewal_generation_cursors WHERE agency_id=?')
-      .bind(agency)
-      .run();
-    let statements = 0,
-      maxRows = 0;
-    function charge(count: number) {
-      statements += count;
-      if (statements > 50) throw new Error('LOCAL_STATEMENT_BUDGET');
-    }
-    function wrap(statement: D1PreparedStatement): D1PreparedStatement {
-      return new Proxy(statement, {
+  it.each([false, true])(
+    'keeps a cold scheduled invocation within 50 statements (minute=%s)',
+    async (minute) => {
+      const year = await setup(4);
+      await f.db
+        .prepare('DELETE FROM renewal_generation_cursors WHERE agency_id=?')
+        .bind(agency)
+        .run();
+      let statements = 0,
+        maxRows = 0;
+      function charge(count: number) {
+        statements += count;
+        if (statements > 50) throw new Error('LOCAL_STATEMENT_BUDGET');
+      }
+      function wrap(statement: D1PreparedStatement): D1PreparedStatement {
+        return new Proxy(statement, {
+          get(target, key) {
+            if (key === 'bind') return (...values: unknown[]) => wrap(target.bind(...values));
+            const value = Reflect.get(target, key, target);
+            if (['all', 'first', 'run', 'raw'].includes(String(key)))
+              return async (...args: unknown[]) => {
+                charge(1);
+                const result = await value.apply(target, args);
+                if (key === 'all') maxRows = Math.max(maxRows, result.results.length);
+                return result;
+              };
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      }
+      const bounded = new Proxy(f.db, {
         get(target, key) {
-          if (key === 'bind') return (...values: unknown[]) => wrap(target.bind(...values));
-          const value = Reflect.get(target, key, target);
-          if (['all', 'first', 'run', 'raw'].includes(String(key)))
-            return async (...args: unknown[]) => {
-              charge(1);
-              const result = await value.apply(target, args);
-              if (key === 'all') maxRows = Math.max(maxRows, result.results.length);
-              return result;
+          if (key === 'prepare') return (sql: string) => wrap(target.prepare(sql));
+          if (key === 'batch')
+            return (batch: D1PreparedStatement[]) => {
+              charge(batch.length);
+              return target.batch(batch);
             };
+          const value = Reflect.get(target, key, target);
           return typeof value === 'function' ? value.bind(target) : value;
         },
       });
-    }
-    const bounded = new Proxy(f.db, {
+      expect((await runScheduledRenewalGeneration(bounded, minute)).createdCount).toBe(
+        RENEWAL_GENERATION_BATCH_SIZE,
+      );
+      expect(statements).toBeLessThanOrEqual(50);
+      expect(maxRows).toBeLessThanOrEqual(4);
+      expect(await counts(year)).toEqual({ renewals: 4, tasks: 4, history: 4, audits: 4 });
+      expect((await cursor())!.last_successful_local_date).toBeNull();
+    },
+  );
+  it('starts at 03:00 local time and leaves the cursor unchanged before opening and after completion', async () => {
+    const year = await setup(1);
+    const original = await cursor();
+    vi.setSystemTime(new Date(`${year}-01-01T23:59:59.999Z`));
+    await expect(runScheduledRenewalGeneration(f.db, true)).resolves.toMatchObject({
+      agenciesProcessed: 0,
+    });
+    expect(await cursor()).toEqual(original);
+
+    vi.setSystemTime(new Date(`${year}-01-02T00:00:00.000Z`));
+    await expect(runScheduledRenewalGeneration(f.db, true)).resolves.toMatchObject({
+      agenciesProcessed: 1,
+      createdCount: 1,
+    });
+    const completed = await cursor();
+    expect(completed?.last_successful_local_date).toBe(`${year}-01-02`);
+    await expect(runScheduledRenewalGeneration(f.db, true)).resolves.toMatchObject({
+      agenciesProcessed: 0,
+    });
+    expect(await cursor()).toEqual(completed);
+  });
+  it('reports a malformed completion date that would otherwise compare as already complete', async () => {
+    const year = await setup(1);
+    await f.db
+      .prepare(
+        'UPDATE renewal_generation_cursors SET last_successful_local_date=? WHERE agency_id=?',
+      )
+      .bind(`${year}-01-32`, agency)
+      .run();
+    await expect(runScheduledRenewalGeneration(f.db, true)).rejects.toThrow(
+      'RENEWAL_GENERATION_CURSOR_INVALID',
+    );
+    expect(await counts(year)).toEqual({ renewals: 0, tasks: 0, history: 0, audits: 0 });
+  });
+  it('continues with normal rotation when the timezone selection budget is exceeded', async () => {
+    const year = await setup(1);
+    const db = new Proxy(f.db, {
       get(target, key) {
-        if (key === 'prepare') return (sql: string) => wrap(target.prepare(sql));
-        if (key === 'batch')
-          return (batch: D1PreparedStatement[]) => {
-            charge(batch.length);
-            return target.batch(batch);
+        if (key === 'prepare')
+          return (sql: string) => {
+            if (!sql.includes('SELECT DISTINCT COALESCE(s.timezone')) return target.prepare(sql);
+            return {
+              bind: (limit: number) => ({
+                async all() {
+                  const results = Intl.supportedValuesOf('timeZone')
+                    .slice(0, limit)
+                    .map((timezone) => ({ timezone }));
+                  return { success: true, results };
+                },
+              }),
+            };
           };
         const value = Reflect.get(target, key, target);
         return typeof value === 'function' ? value.bind(target) : value;
       },
     });
-    expect((await runScheduledRenewalGeneration(bounded)).createdCount).toBe(4);
-    expect(statements).toBeLessThanOrEqual(50);
-    expect(maxRows).toBeLessThanOrEqual(4);
-    expect(await counts(year)).toEqual({ renewals: 4, tasks: 4, history: 4, audits: 4 });
-    expect((await cursor())!.last_successful_local_date).toBeNull();
+    await expect(runScheduledRenewalGeneration(db, true)).resolves.toMatchObject({
+      agenciesProcessed: 1,
+      createdCount: 1,
+    });
+    expect(await counts(year)).toEqual({ renewals: 1, tasks: 1, history: 1, audits: 1 });
+  });
+  it('rechecks local opening time when the timezone changes after selection', async () => {
+    const year = await setup(1);
+    const db = new Proxy(f.db, {
+      get(target, key) {
+        if (key === 'prepare')
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes('COALESCE(MAX(last_attempt_order)')) return statement;
+            return {
+              bind: (...values: unknown[]) => ({
+                async run() {
+                  const marked = await statement.bind(...values).run();
+                  await target
+                    .prepare("UPDATE agency_settings SET timezone='UTC' WHERE agency_id=?")
+                    .bind(agency)
+                    .run();
+                  return marked;
+                },
+              }),
+            };
+          };
+        const value = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    try {
+      await expect(runScheduledRenewalGeneration(db, true)).resolves.toMatchObject({
+        agenciesProcessed: 0,
+      });
+      expect(await counts(year)).toEqual({ renewals: 0, tasks: 0, history: 0, audits: 0 });
+      expect((await cursor())?.last_successful_local_date).toBe(`${year}-01-01`);
+    } finally {
+      await f.db
+        .prepare("UPDATE agency_settings SET timezone='Europe/Istanbul' WHERE agency_id=?")
+        .bind(agency)
+        .run();
+    }
   });
   it('does not starve a partial same-day agency behind an already completed agency', async () => {
     const year = await setup(6);
@@ -337,6 +443,11 @@ describe('Bounded renewal continuation on real local D1', () => {
       .bind(`${year}-01-02`, agency)
       .run();
     await runRenewalGenerationForAgency(f.db, agency);
+    // The finished agency would win the unfiltered round-robin selection.
+    await f.db
+      .prepare('UPDATE renewal_generation_cursors SET last_attempt_order=5 WHERE agency_id=?')
+      .bind(agency)
+      .run();
     await f.seed('other-cont-owner', 'OWNER', false, 'other-completed-agency');
     await f.db
       .prepare(
@@ -358,12 +469,13 @@ describe('Bounded renewal continuation on real local D1', () => {
     expect(
       await f.db
         .prepare(
-          "SELECT last_successful_local_date,updated_at FROM renewal_generation_cursors WHERE agency_id='other-completed-agency'",
+          "SELECT last_successful_local_date,updated_at,last_attempt_order FROM renewal_generation_cursors WHERE agency_id='other-completed-agency'",
         )
         .first(),
     ).toEqual({
       last_successful_local_date: `${year}-01-02`,
       updated_at: `${year}-01-01T00:00:00.000Z`,
+      last_attempt_order: 0,
     });
   });
   it('rotates a permanently broken agency without advancing its completed date or starving healthy work', async () => {
