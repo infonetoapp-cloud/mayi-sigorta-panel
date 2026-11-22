@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { writeMigrationEvidence } from './support/migration-evidence';
 import { expect, it } from 'vitest';
 import { authSchemaHash } from '../scripts/recovery/local-auth-restore-proof';
 
@@ -32,14 +33,10 @@ it('expands renewal admission without rewriting existing sales tables and measur
       ]),
     );
     expect(counts).toEqual({ table: 58, index: 221, trigger: 222, view: 3 });
-    writeFileSync(
-      'audit-evidence/ux-review-2026-11-17/p03a-renewal-schema.json',
-      JSON.stringify(
-        { hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]), counts },
-        null,
-        2,
-      ),
-    );
+    writeMigrationEvidence('p03a-renewal-schema.json', {
+      hash: authSchemaHash(schema as Parameters<typeof authSchemaHash>[0]),
+      counts,
+    });
   } finally {
     db.close();
   }

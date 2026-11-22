@@ -506,6 +506,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
   it('8. Müşteri sorumlusu atama POST /api/customers/:id/assign ile çağrılmalı ve 409 stale conflict doğru gösterilmelidir', async () => {
     let capturedAssignBody: unknown = null;
     let assignStatus = 200;
+    let currentCustomer = baseCustomer;
 
     global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes('/api/csrf-token')) {
@@ -542,7 +543,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: async () => ({ success: true, data: baseCustomer }),
+          json: async () => ({ success: true, data: currentCustomer }),
         });
       }
       if (url === '/api/customers/cust-101/assign' && init?.method === 'POST') {
@@ -560,12 +561,13 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
             }),
           });
         }
+        currentCustomer = { ...baseCustomer, assigneeMembershipId: 'mem-2', version: 4 };
         return Promise.resolve({
           ok: true,
           status: 200,
           json: async () => ({
             success: true,
-            data: { ...baseCustomer, assigneeMembershipId: 'mem-2', version: 4 },
+            data: currentCustomer,
           }),
         });
       }
@@ -582,6 +584,7 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     await screen.findByText('123******01');
 
     // Sorumlu atama kontrolü
+    await screen.findByRole('option', { name: 'agent@test.com (MEMBER)' });
     const assignSelect = await screen.findByTestId('assignee-select');
     fireEvent.change(assignSelect, { target: { value: 'mem-2' } });
 
@@ -596,9 +599,15 @@ describe('M2-T02 UI Kabul Testleri (Customer Identity, Assignment & External Ref
     });
 
     // 409 durumunu test et
+    expect(await screen.findByRole('button', { name: 'Sorumluyu Ata' })).toHaveProperty(
+      'disabled',
+      true,
+    );
     assignStatus = 409;
+    fireEvent.change(assignSelect, { target: { value: 'mem-1' } });
     fireEvent.click(assignSubmitBtn);
     await screen.findByText(/başka bir işlem tarafından güncellenmiş|çakışma/i);
+    expect(capturedAssignBody).toEqual({ expectedVersion: 4, assigneeMembershipId: 'mem-1' });
     expect(screen.queryByRole('button', { name: 'Tekrar Dene' })).toBeNull();
   });
 
