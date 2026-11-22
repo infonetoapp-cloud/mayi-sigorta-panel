@@ -671,21 +671,38 @@ try {
     await page.getByRole('button', { name: 'Filtrele', exact: true }).click();
     await page.getByRole('link', { name: policyNumber, exact: true }).waitFor();
     for (const width of [1440, 768, 360]) {
+      stage = `modern-policies-responsive-${index}-${width}`;
       await page.setViewportSize({ width, height: 900 });
+      const expectedDisplay = width === 1440 ? 'table-row' : 'grid';
+      const rowSelector = '.policy-directory-table tbody tr:last-child';
+      try {
+        await page.waitForFunction(
+          ({ width, expectedDisplay, rowSelector }) => {
+            const row = globalThis.document.querySelector(rowSelector);
+            return (
+              globalThis.innerWidth === width &&
+              row &&
+              globalThis.getComputedStyle(row).display === expectedDisplay
+            );
+          },
+          { width, expectedDisplay, rowSelector },
+        );
+      } catch (error) {
+        const layout = await page.locator(rowSelector).evaluate((row) => ({
+          width: globalThis.innerWidth,
+          display: globalThis.getComputedStyle(row).display,
+        }));
+        console.error('POLICY_LIST_LAYOUT', layout.width, layout.display, expectedDisplay);
+        throw error;
+      }
       assert.equal(
         await page.evaluate(
           () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
         ),
         true,
       );
-      assert.equal(
-        await page
-          .locator('.policy-directory-table tr')
-          .last()
-          .evaluate((row) => globalThis.getComputedStyle(row).display),
-        width === 1440 ? 'table-row' : 'grid',
-      );
     }
+    stage = `modern-policies-${index}`;
     await page.getByRole('link', { name: policyNumber, exact: true }).click();
     await page.getByRole('heading', { name: policyNumber, exact: true }).waitFor();
     await page.reload();
