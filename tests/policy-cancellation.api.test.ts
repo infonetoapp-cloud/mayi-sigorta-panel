@@ -154,8 +154,20 @@ it('cancels with evidence, preserves unrelated work and exactly replays without 
       .bind(p.id)
       .run(),
   ).rejects.toThrow('POLICY_LIFECYCLE_COMMAND_REQUIRED');
-  expect((await write(`/api/policies/${p.id}`,{expectedVersion:2,endDate:'2027-12-30'},crypto.randomUUID(),owner,'PATCH')).status).toBe(409);
-  await expect(f.db.prepare('DELETE FROM policy_cancellations WHERE policy_id=?').bind(p.id).run()).rejects.toThrow('IMMUTABLE_HISTORY');
+  expect(
+    (
+      await write(
+        `/api/policies/${p.id}`,
+        { expectedVersion: 2, endDate: '2027-12-30' },
+        crypto.randomUUID(),
+        owner,
+        'PATCH',
+      )
+    ).status,
+  ).toBe(409);
+  await expect(
+    f.db.prepare('DELETE FROM policy_cancellations WHERE policy_id=?').bind(p.id).run(),
+  ).rejects.toThrow('IMMUTABLE_HISTORY');
 });
 it('closes its real renewal and primary Task atomically, leaving another policy and GENERAL Task intact', async () => {
   const p = await make(true),

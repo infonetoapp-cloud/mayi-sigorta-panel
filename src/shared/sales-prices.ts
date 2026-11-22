@@ -61,7 +61,9 @@ export const salesPriceRevisionSchema = z.strictObject({
   revisionNumber: version,
   termsNote: fields.termsNote,
   offeredPeriod: fields.offeredPeriod,
-  eventState: z.enum(['NOT_SHARED','SHARED','CUSTOMER_ACCEPTED','ACCEPTANCE_REVOKED']).optional(),
+  eventState: z
+    .enum(['NOT_SHARED', 'SHARED', 'CUSTOMER_ACCEPTED', 'ACCEPTANCE_REVOKED'])
+    .optional(),
 });
 export const salesLegacyQuoteSchema = z.strictObject({
   source: z.literal('QUOTE_VERSION'),

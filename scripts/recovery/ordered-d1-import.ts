@@ -502,7 +502,9 @@ export function orderedD1Import(exportSql: string): string {
       timeout: 15000,
       maxBuffer: ORDERED_IMPORT_LIMITS.derivedBytes + 65536,
       env: Object.fromEntries(
-        Object.entries(process.env).filter(([k]) => !/^(?:CLOUDFLARE_|MAYI_BACKUP_|NODE_OPTIONS$)/u.test(k)),
+        Object.entries(process.env).filter(
+          ([k]) => !/^(?:CLOUDFLARE_|MAYI_BACKUP_|NODE_OPTIONS$)/u.test(k),
+        ),
       ),
     },
   );

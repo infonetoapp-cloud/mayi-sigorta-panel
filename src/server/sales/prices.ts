@@ -93,7 +93,7 @@ interface PriceRow {
   endDate: string;
   sortAt: string;
   sortId: string;
-  eventState: 'NOT_SHARED'|'SHARED'|'CUSTOMER_ACCEPTED'|'ACCEPTANCE_REVOKED';
+  eventState: 'NOT_SHARED' | 'SHARED' | 'CUSTOMER_ACCEPTED' | 'ACCEPTANCE_REVOKED';
 }
 function dto(row: PriceRow) {
   const common = {

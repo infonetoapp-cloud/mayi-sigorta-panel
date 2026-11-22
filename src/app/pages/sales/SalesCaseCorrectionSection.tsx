@@ -84,7 +84,9 @@ export function SalesCaseCorrectionSection({
     setError('');
     try {
       const raw = await readCustomerResource(path + '-context');
-      const data = reopening ? salesReopenContextSchema.parse(raw) : salesVoidContextSchema.parse(raw);
+      const data = reopening
+        ? salesReopenContextSchema.parse(raw)
+        : salesVoidContextSchema.parse(raw);
       if (!live.current) return;
       if (
         data.caseId !== caseId ||
@@ -316,7 +318,7 @@ export function SalesCaseCorrectionSection({
                       type="datetime-local"
                       required
                       value={due}
-                    onInput={(e) => setDue(e.currentTarget.value)}
+                      onInput={(e) => setDue(e.currentTarget.value)}
                       onChange={(e) => {
                         setDue(e.target.value);
                         setError('');
