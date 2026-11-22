@@ -84,6 +84,8 @@ jobs:
           tests/finance.api.test.ts
           tests/claims.api.test.ts
           tests/sales-issue-policy.api.test.ts
+          tests/renewals.continuation.test.ts
+          tests/renewals.m3-t01-generation.test.ts
 
   browser:
     name: Browser smoke test
