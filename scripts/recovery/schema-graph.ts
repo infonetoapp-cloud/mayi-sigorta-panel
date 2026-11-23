@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { splitNativeExportStatements, ORDERED_IMPORT_LIMITS } from './ordered-d1-import';
+import { iterateDerivedRestoreStatements, ORDERED_IMPORT_LIMITS } from './ordered-d1-import';
 const ident = /^[a-z][a-z0-9_]*$/u;
 const unquote = (s: string) => s.replace(/^[`"[]|[`"\]]$/gu, '');
 export interface ForeignKeyEdge {
@@ -129,8 +129,8 @@ export function inspectForeignKeyGraph(db: DatabaseSync, materialized = false) {
 export function describeOrderedImport(sql: string) {
   if (Buffer.byteLength(sql) > ORDERED_IMPORT_LIMITS.derivedBytes)
     throw new Error('STRUCTURE_RESOURCE_LIMIT');
-  const statements = splitNativeExportStatements(sql);
-  let createTables = 0,
+  let totalStatements = 0,
+    createTables = 0,
     createIndexes = 0,
     insertStatements = 0,
     triggers = 0,
@@ -143,7 +143,8 @@ export function describeOrderedImport(sql: string) {
     definitions = new Map<string, number>();
   let sqliteSequencePresent = false;
   const viewEntries: Array<{ tokens: string[]; index: number }> = [];
-  statements.forEach((statement, index) => {
+  for (const statement of iterateDerivedRestoreStatements(sql)) {
+    const index = totalStatements++;
     const t = statement.tokens.map((x) => x.toUpperCase());
     maxStatementBytes = Math.max(maxStatementBytes, Buffer.byteLength(statement.sql));
     if (t[0] === 'PRAGMA') pragmas.push(t.join(' '));
@@ -170,7 +171,7 @@ export function describeOrderedImport(sql: string) {
     }
     if (statement.tokens.some((x) => unquote(x) === 'sqlite_sequence'))
       sqliteSequencePresent = true;
-  });
+  }
   let viewsReferenceLaterCreatedObjects = false;
   for (const v of viewEntries)
     for (let i = 0; i < v.tokens.length - 1; i++)
@@ -180,7 +181,7 @@ export function describeOrderedImport(sql: string) {
       }
   return {
     scope: 'SAFE_STRUCTURAL_METADATA_ONLY',
-    totalStatements: statements.length,
+    totalStatements,
     createTables,
     createIndexes,
     insertStatements,

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { orderedD1Import } from '../scripts/recovery/ordered-d1-import';
+import { orderedD1Import, ORDERED_IMPORT_LIMITS } from '../scripts/recovery/ordered-d1-import';
 import {
   prepareNativeD1Restore,
   withPreparedRestoreFile,
@@ -96,7 +96,9 @@ describe('canonical ordered native recovery transport', () => {
   });
 
   it('rejects source byte amplification before the decoder executes', () => {
-    expect(() => orderedD1Import(' '.repeat(8 * 1024 * 1024 + 1))).toThrow(/RESOURCE_LIMIT/);
+    expect(() => orderedD1Import(' '.repeat(ORDERED_IMPORT_LIMITS.sourceBytes + 1))).toThrow(
+      /RESOURCE_LIMIT/,
+    );
   });
 
   it('rejects invalid FK graphs during preparation, not after reporting success', () => {
@@ -195,7 +197,10 @@ describe('canonical ordered native recovery transport', () => {
     ])
       expect(() => orderedD1Import(sql)).toThrow();
     expect(() =>
-      orderedD1Import('CREATE TABLE x(id INTEGER);' + 'INSERT INTO x VALUES(1);'.repeat(10001)),
+      orderedD1Import(
+        'CREATE TABLE x(id INTEGER);' +
+          'INSERT INTO x VALUES(1);'.repeat(ORDERED_IMPORT_LIMITS.rows + 1),
+      ),
     ).toThrow(/RESOURCE_LIMIT/);
   });
 
@@ -204,6 +209,35 @@ describe('canonical ordered native recovery transport', () => {
       'CREATE TABLE ignored_values(id INTEGER PRIMARY KEY ON CONFLICT IGNORE);INSERT INTO ignored_values VALUES(1);INSERT INTO ignored_values VALUES(1);';
     expect(() => orderedD1Import(input)).toThrow();
   });
+
+  it('restores the row budget with every dependent row intact', () => {
+    const pairs = ORDERED_IMPORT_LIMITS.rows / 2;
+    const sql = [
+      'CREATE TABLE child(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES parent(id));',
+      'CREATE TABLE parent(id INTEGER PRIMARY KEY);',
+      'CREATE INDEX child_parent_idx ON child(parent_id);',
+    ];
+    for (let id = 1; id <= pairs; id++) {
+      sql.push(`INSERT INTO child VALUES(${id},${id});`, `INSERT INTO parent VALUES(${id});`);
+    }
+    const source = sql.join('\n');
+    const prepared = prepareNativeD1Restore(Buffer.from(source), receiptFor(source));
+    const target = new DatabaseSync(':memory:');
+    try {
+      target.exec('BEGIN;');
+      target.exec(prepared.sql);
+      target.exec('COMMIT;');
+      expect(target.prepare('SELECT COUNT(*) AS n FROM parent').get()?.n).toBe(pairs);
+      expect(target.prepare('SELECT COUNT(*) AS n FROM child').get()?.n).toBe(pairs);
+      expect(target.prepare('SELECT COUNT(*) AS n FROM child WHERE parent_id<>id').get()?.n).toBe(
+        0,
+      );
+      expect(target.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+      expect(target.prepare('PRAGMA integrity_check').get()?.integrity_check).toBe('ok');
+    } finally {
+      target.close();
+    }
+  }, 60_000);
 
   it('accepts bounded shrinking replacement required by current document UUID constraints', () => {
     const source =
