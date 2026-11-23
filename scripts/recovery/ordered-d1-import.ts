@@ -1,16 +1,19 @@
 import { DatabaseSync, constants, type SQLInputValue } from 'node:sqlite';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 // Recovery-only decoder. Never import from a Worker or pass a live binding here.
 export const ORDERED_IMPORT_LIMITS = Object.freeze({
-  sourceBytes: 8 * 1024 * 1024,
-  derivedBytes: 16 * 1024 * 1024,
-  rows: 10000,
+  // Match the SQL artifact size supported by the backup publisher.
+  sourceBytes: 16 * 1024 * 1024,
+  derivedBytes: 48 * 1024 * 1024,
+  rows: 200000,
   schemaObjects: 1000,
-  tokens: 500000,
+  tokens: 10000000,
+  statementTokens: 200000,
   columns: 256,
   nesting: 64,
   schemaInspectionSteps: 1000000,
@@ -28,12 +31,14 @@ const identifier = /^[a-z][a-z0-9_]*$/u;
 const lexical = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Closed export lexer: full consumption, bounded tokens, no execution during preflight. */
-function statements(source: string): Array<{ tokens: string[]; sql: string }> {
-  const tokens: string[] = [];
-  const offsets: number[] = [];
+function* statements(source: string): Generator<{ tokens: string[]; sql: string }> {
   const pattern =
     /\s+|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"|`(?:``|[^`])*`|\[[^\]]*\]|[xX]'[0-9a-fA-F]*'|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z_0-9]*|[<>!=]=|<>|\|\||[(),;.+*/<>=!|&%~-]/gy;
-  let at = 0;
+  let at = 0,
+    tokenCount = 0,
+    depth = 0,
+    start = 0;
+  let current: string[] = [];
   while (at < source.length) {
     pattern.lastIndex = at;
     const match = pattern.exec(source);
@@ -42,34 +47,32 @@ function statements(source: string): Array<{ tokens: string[]; sql: string }> {
     const token = match[0];
     if (/^\s|^--|^\/\*/u.test(token)) continue;
     // x'...' must precede the string alternative (x is not a keyword).
-    tokens.push(token);
-    offsets.push(match.index);
-    if (tokens.length > ORDERED_IMPORT_LIMITS.tokens) return fail('RESOURCE_LIMIT');
-  }
-  const result: Array<{ tokens: string[]; sql: string }> = [];
-  let current: string[] = [],
-    depth = 0,
-    start = 0;
-  for (const [i, token] of tokens.entries()) {
-    if (!current.length) start = offsets[i]!;
+    if (++tokenCount > ORDERED_IMPORT_LIMITS.tokens) return fail('RESOURCE_LIMIT');
+    if (current.length >= ORDERED_IMPORT_LIMITS.statementTokens) return fail('RESOURCE_LIMIT');
+    if (!current.length) start = match.index;
     current.push(token);
     if (current[0]?.toUpperCase() === 'CREATE' && current[1]?.toUpperCase() === 'TRIGGER') {
       if (['BEGIN', 'CASE'].includes(token.toUpperCase())) depth++;
       if (token.toUpperCase() === 'END') depth--;
     }
     if (token === ';' && depth === 0) {
-      result.push({ tokens: current.slice(0, -1), sql: source.slice(start, offsets[i]! + 1) });
+      current.pop();
+      yield { tokens: current, sql: source.slice(start, at) };
       current = [];
     }
     if (depth < 0) return fail('SOURCE_SQL_INVALID');
   }
   if (current.length || depth) return fail('SOURCE_SQL_TRUNCATED');
-  return result;
 }
 /** Fixture builders may inspect lexical statement boundaries without executing
  * input. Reordering and all decoder execution still have exactly one owner. */
 export function splitNativeExportStatements(source: string) {
   if (Buffer.byteLength(source) > ORDERED_IMPORT_LIMITS.sourceBytes) return fail('RESOURCE_LIMIT');
+  return Array.from(statements(source));
+}
+
+export function iterateDerivedRestoreStatements(source: string) {
+  if (Buffer.byteLength(source) > ORDERED_IMPORT_LIMITS.derivedBytes) return fail('RESOURCE_LIMIT');
   return statements(source);
 }
 // Official native exports encode CR/LF in text as one or two shrinking REPLACE
@@ -313,15 +316,20 @@ const literal = (value: SQLInputValue): string => {
 /** One canonical reorder primitive. Caller verifies immutable source identity first.
  * Tables/indexes precede data; trigger/view code cannot run during source decoding.
  * Output is derived transport, never a replacement backup or a restore PASS. */
-function decodeOrderedD1Import(exportSql: string): string {
+function decodeOrderedD1Import(exportSql: string, stagingPath: string): string {
   preflight(exportSql);
-  const staging = new DatabaseSync(':memory:', {
+  closeSync(openSync(stagingPath, 'wx', 0o600));
+  const staging = new DatabaseSync(stagingPath, {
     enableForeignKeyConstraints: false,
     allowExtension: false,
   });
   let deniedFunction = false;
   try {
     staging.enableDefensive(true);
+    // Bound disk use before running source statements, and keep journal I/O
+    // proportional to the database instead of committing each INSERT.
+    staging.exec('PRAGMA page_size=4096; PRAGMA max_page_count=32768; BEGIN;');
+    const tableColumns = new Map<string, string[]>();
     const authorize = (
       action: number,
       arg1: string | null,
@@ -363,8 +371,15 @@ function decodeOrderedD1Import(exportSql: string): string {
       if (statement[0]?.toUpperCase() === 'INSERT') {
         const table = statement[2]?.replace(/^[`"[]|[`"\]]$/gu, '');
         if (!table || !identifier.test(table)) return fail('SCHEMA_INVALID');
-        staging.setAuthorizer(null);
-        const columns = staging.prepare(`PRAGMA table_info("${table}")`).all();
+        let columns = tableColumns.get(table);
+        if (!columns) {
+          staging.setAuthorizer(null);
+          columns = staging
+            .prepare(`PRAGMA table_info("${table}")`)
+            .all()
+            .map((c) => String(c.name));
+          tableColumns.set(table, columns);
+        }
         if (!columns.length || columns.length > ORDERED_IMPORT_LIMITS.columns)
           return fail('SCHEMA_INVALID');
         const values = statement.findIndex((s) => s.toUpperCase() === 'VALUES');
@@ -376,7 +391,7 @@ function decodeOrderedD1Import(exportSql: string): string {
           if (
             supplied.length !== columns.length ||
             new Set(supplied).size !== columns.length ||
-            columns.some((c) => !supplied.includes(String(c.name)))
+            columns.some((c) => !supplied.includes(c))
           )
             return fail('SOURCE_DEFAULTS_DENIED');
         }
@@ -385,6 +400,7 @@ function decodeOrderedD1Import(exportSql: string): string {
       staging.exec(originalStatement);
     }
     staging.setAuthorizer(null);
+    staging.exec('COMMIT;');
     if (staging.prepare('PRAGMA integrity_check').get()?.integrity_check !== 'ok')
       return fail('DB_CONSTRAINT_FAILED');
     if (staging.prepare('PRAGMA foreign_key_check').all().length)
@@ -476,11 +492,13 @@ function decodeOrderedD1Import(exportSql: string): string {
     return fail(
       deniedFunction
         ? 'SOURCE_FUNCTION_DENIED'
-        : /not authorized|prohibited/iu.test(message)
-          ? 'SOURCE_AUTHORIZER_DENIED'
-          : /no such table/iu.test(message)
-            ? 'SOURCE_MISSING_TABLE'
-            : 'SOURCE_SQL_INVALID',
+        : /database or disk is full/iu.test(message)
+          ? 'RESOURCE_LIMIT'
+          : /not authorized|prohibited/iu.test(message)
+            ? 'SOURCE_AUTHORIZER_DENIED'
+            : /no such table/iu.test(message)
+              ? 'SOURCE_MISSING_TABLE'
+              : 'SOURCE_SQL_INVALID',
     );
   } finally {
     staging.close();
@@ -493,36 +511,47 @@ function decodeOrderedD1Import(exportSql: string): string {
  * row/output bounds remain mandatory. Only fixed decoder code is invoked. */
 export function orderedD1Import(exportSql: string): string {
   preflight(exportSql);
-  const child = spawnSync(
-    process.execPath,
-    ['--no-warnings', '--max-old-space-size=128', fileURLToPath(import.meta.url), '--decode-stdin'],
-    {
-      input: exportSql,
-      encoding: 'utf8',
-      timeout: 15000,
-      maxBuffer: ORDERED_IMPORT_LIMITS.derivedBytes + 65536,
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(
-          ([k]) => !/^(?:CLOUDFLARE_|MAYI_BACKUP_|NODE_OPTIONS$)/u.test(k),
+  const directory = mkdtempSync(join(tmpdir(), 'mayi-ordered-decoder-'));
+  try {
+    const child = spawnSync(
+      process.execPath,
+      [
+        '--no-warnings',
+        '--max-old-space-size=256',
+        fileURLToPath(import.meta.url),
+        '--decode-stdin',
+      ],
+      {
+        cwd: directory,
+        input: exportSql,
+        encoding: 'utf8',
+        timeout: 60000,
+        maxBuffer: ORDERED_IMPORT_LIMITS.derivedBytes + 65536,
+        env: Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([k]) => !/^(?:CLOUDFLARE_|MAYI_BACKUP_|NODE_OPTIONS$)/u.test(k),
+          ),
         ),
-      ),
-    },
-  );
-  if (child.error) return fail('DECODER_RESOURCE_LIMIT');
-  if (child.status !== 0) {
-    const code = child.stderr.trim();
-    return fail(/^[A-Z_]{1,64}$/u.test(code) ? code : 'DECODER_FAILED');
+      },
+    );
+    if (child.error) return fail('DECODER_RESOURCE_LIMIT');
+    if (child.status !== 0) {
+      const code = child.stderr.trim();
+      return fail(/^[A-Z_]{1,64}$/u.test(code) ? code : 'DECODER_FAILED');
+    }
+    if (!child.stdout || Buffer.byteLength(child.stdout) > ORDERED_IMPORT_LIMITS.derivedBytes)
+      return fail('RESOURCE_LIMIT');
+    return child.stdout;
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
-  if (!child.stdout || Buffer.byteLength(child.stdout) > ORDERED_IMPORT_LIMITS.derivedBytes)
-    return fail('RESOURCE_LIMIT');
-  return child.stdout;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 3 || process.argv[2] !== '--decode-stdin') process.exit(2);
   try {
     const source = readFileSync(0, 'utf8');
-    process.stdout.write(decodeOrderedD1Import(source));
+    process.stdout.write(decodeOrderedD1Import(source, resolve('staging.sqlite')));
   } catch (error) {
     process.stderr.write(error instanceof OrderedImportFailure ? error.message : 'DECODER_FAILED');
     process.exitCode = 1;
