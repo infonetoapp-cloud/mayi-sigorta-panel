@@ -250,6 +250,29 @@ it('shows empty and permission-denied lists without reflecting server diagnostic
   await screen.findByRole('heading', { name: 'Erişim izni gerekli' });
   expect(screen.queryByText('unsafe SQL diagnostic')).toBeNull();
 });
+it.each([401, 403])(
+  'clears a populated customer list after a refresh returns %s',
+  async (status) => {
+    const fetcher = vi.fn(async () =>
+      reply({ items: [customer('a')], nextCursor: null, hasMore: false }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <MemoryRouter>
+        <CustomerListPage />
+      </MemoryRouter>,
+    );
+    await screen.findByRole('link', { name: 'Ahmet Müşteri' });
+    fetcher.mockImplementation(async () => reply(null, status));
+    fireEvent.click(screen.getByRole('button', { name: 'Ara' }));
+    await screen.findByRole('heading', {
+      name: status === 403 ? 'Erişim izni gerekli' : 'Müşteriler yüklenemedi',
+    });
+    expect(screen.queryByText('Ahmet Müşteri')).toBeNull();
+    expect(screen.queryByText('ornek@demo.invalid')).toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  },
+);
 it('uses the same notes mutation key/body on an uncertain write in the full-page workspace', async () => {
   let posts = 0;
   const note = {
