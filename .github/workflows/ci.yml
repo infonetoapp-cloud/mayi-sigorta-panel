@@ -69,7 +69,10 @@ jobs:
           tests/customer-contact-edit.ui.test.tsx
           tests/customer-note-navigation.ui.test.tsx
           tests/renewal-reopen-form.ui.test.tsx
+          tests/renewal-won-create.ui.test.tsx
+          tests/renewal-won-modern.ui.test.tsx
           tests/sales-cases.ui.test.tsx
+          tests/task-operations-modern.ui.test.tsx
       - name: Exercise real APIs with disposable D1 databases
         run: >-
           npm test -- --maxWorkers=2
