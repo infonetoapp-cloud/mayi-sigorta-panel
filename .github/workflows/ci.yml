@@ -114,7 +114,7 @@ jobs:
 
   full-suite:
     name: Full Vitest suite (${{ matrix.shard }}/4)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_suite }}
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_suite) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -133,3 +133,15 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build:client
       - run: npm test -- --maxWorkers=2 --shard=${{ matrix.shard }}/4
+
+  full-suite-gate:
+    name: Full Vitest required gate
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: full-suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require all four shards to pass
+        env:
+          FULL_SUITE_RESULT: ${{ needs.full-suite.result }}
+        run: test "$FULL_SUITE_RESULT" = success
