@@ -1,4 +1,4 @@
-import { BackupFailure, parseExportResponse, safeFailure } from './provider';
+import { BackupFailure, parseExportResponse, safeFailure, type Classification } from './provider';
 import { classifyTransport } from './diagnostic';
 export function generationPrefix(timestamp: string, id: string): string {
   if (
@@ -17,6 +17,7 @@ export const BACKUP_SOURCE = Object.freeze({
 });
 export const EXPORT_URL = `https://api.cloudflare.com/client/v4/accounts/${BACKUP_SOURCE.accountId}/d1/database/${BACKUP_SOURCE.databaseId}/export`;
 export const MAX_POLLS = 20;
+export const MAX_BACKUP_SQL_BYTES = 16 * 1024 * 1024;
 export interface BackupEnv {
   CLOUDFLARE_EMAIL: string;
   CLOUDFLARE_API_KEY: string;
@@ -30,6 +31,34 @@ export interface BackupRuntime {
   now: () => number;
   sleep: () => Promise<void>;
 }
+
+async function readBackupSqlWithoutLength(
+  body: ReadableStream<Uint8Array>,
+  downloadFailure: (classification: Classification) => BackupFailure,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const reader = body.getReader();
+  const bytes = new Uint8Array(MAX_BACKUP_SQL_BYTES);
+  let size = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read().catch(() => {
+        throw downloadFailure('transport');
+      });
+      if (chunk.done) break;
+      if (chunk.value.byteLength > bytes.byteLength - size) {
+        void reader.cancel().catch(() => {});
+        throw downloadFailure('sql-size-limit-exceeded');
+      }
+      bytes.set(chunk.value, size);
+      size += chunk.value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (size === 0) throw downloadFailure('invalid-length');
+  return bytes.subarray(0, size);
+}
+
 function requireState(ok: unknown): asserts ok {
   if (!ok) throw new Error('BACKUP_STATE_INVALID');
 }
@@ -189,17 +218,24 @@ export async function runBackup(
             runtime.now() - downloadStart,
             response.status,
           );
-        const downloadMs = runtime.now() - downloadStart,
-          expected = response.headers.get('content-length');
-        if (
-          expected !== null &&
-          (!Number.isSafeInteger(Number(expected)) ||
-            Number(expected) <= 0 ||
-            Number(expected) > 16 * 1024 * 1024)
-        )
-          throw safeFailure('download', 'invalid-length', poll + 1, downloadMs);
+        const downloadMs = runtime.now() - downloadStart;
+        const length = response.headers.get('content-length');
+        const expected = length === null ? null : Number(length);
+        const downloadFailure = (classification: Classification) =>
+          safeFailure('download', classification, poll + 1, runtime.now() - downloadStart);
+        if (expected !== null && (!Number.isSafeInteger(expected) || expected <= 0))
+          throw downloadFailure('invalid-length');
+        if (expected !== null && expected > MAX_BACKUP_SQL_BYTES)
+          throw downloadFailure('sql-size-limit-exceeded');
+        // R2 accepts a streaming body only when its length is known. Buffer an
+        // unannounced body under a hard limit before making any storage write.
+        const sqlBody =
+          expected === null
+            ? await readBackupSqlWithoutLength(response.body, downloadFailure)
+            : response.body;
+        const verifiedLength = sqlBody instanceof Uint8Array ? sqlBody.byteLength : expected;
         const uploadStart = runtime.now();
-        const wrote = await env.RECOVERY.put(prefix + 'database.sql', response.body, {
+        const wrote = await env.RECOVERY.put(prefix + 'database.sql', sqlBody, {
           onlyIf: { etagDoesNotMatch: '*' },
           customMetadata: {
             generation,
@@ -234,12 +270,12 @@ export async function runBackup(
           !head ||
           !Number.isSafeInteger(head.size) ||
           head.size <= 0 ||
-          head.size > 16 * 1024 * 1024 ||
+          head.size > MAX_BACKUP_SQL_BYTES ||
           head.customMetadata?.generation !== generation ||
           head.customMetadata?.source !== BACKUP_SOURCE.databaseId ||
           head.customMetadata?.bookmark !== (currentBookmark ?? '') ||
           head.etag !== wrote.etag ||
-          (expected !== null && Number(expected) !== head.size)
+          verifiedLength !== head.size
         )
           throw safeFailure(
             'storage-verify',
@@ -308,7 +344,15 @@ export async function runBackup(
         sqlEtag: sql.etag,
       };
       await checkedJson(env.RECOVERY, prefix + 'COMPLETE.json', marker, generation);
-      return { ...marker, prefix, ...sql, totalMs: runtime.now() - started, stepCount: 4 };
+      return {
+        ...marker,
+        prefix,
+        ...sql,
+        totalMs: runtime.now() - started,
+        stepCount: 4,
+        capacityWarning: sql.size * 10 > MAX_BACKUP_SQL_BYTES * 7,
+        utilizationPct: Math.round((sql.size / MAX_BACKUP_SQL_BYTES) * 1000) / 10,
+      };
     });
   } catch (error) {
     if (error instanceof BackupFailure) throw error;

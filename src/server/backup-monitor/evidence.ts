@@ -1,4 +1,4 @@
-import { BACKUP_SOURCE, generationPrefix } from '../d1-backup/core';
+import { BACKUP_SOURCE, generationPrefix, MAX_BACKUP_SQL_BYTES } from '../d1-backup/core';
 export const FRESHNESS_MS = 90 * 60 * 1000;
 export const OPERATIONAL_FRESHNESS_MS = 45 * 60 * 1000;
 export const HEARTBEAT_MS = 15 * 60 * 1000;
@@ -89,10 +89,19 @@ export function validateBackupEvidence(
         m.sqlKey === sql.key &&
         c.sqlKey === sql.key,
     );
+    if (
+      typeof sql.size === 'number' &&
+      Number.isSafeInteger(sql.size) &&
+      sql.size > MAX_BACKUP_SQL_BYTES
+    )
+      return {
+        status: 'QUERY_OR_PROVIDER_FAILURE',
+        checkedAt: now,
+        reason: 'BACKUP_SQL_SIZE_LIMIT_EXCEEDED',
+      };
     check(
       Number.isSafeInteger(sql.size) &&
         sql.size! > 0 &&
-        sql.size! <= 16 * 1024 * 1024 &&
         m.sqlSize === sql.size &&
         c.sqlSize === sql.size,
     );

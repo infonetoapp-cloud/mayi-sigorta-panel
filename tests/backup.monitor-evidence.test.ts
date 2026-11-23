@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
 import { validateBackupEvidence, monitorStatus } from '../src/server/backup-monitor/evidence';
-import { BACKUP_SOURCE, generationPrefix } from '../src/server/d1-backup/core';
+import {
+  BACKUP_SOURCE,
+  generationPrefix,
+  MAX_BACKUP_SQL_BYTES,
+} from '../src/server/d1-backup/core';
 export function fixture() {
   const timestamp = '2026-10-13T15:30:07.199Z',
     generation = 'd1-backup-slot-995503',
@@ -100,6 +104,17 @@ it('distinguishes a dead observer from query failure without keeping old healthy
     'QUERY_OR_PROVIDER_FAILURE',
   );
   expect(monitorStatus({ ...d, checkedAt: now + 1 }, now)).toBe('OBSERVER_FAILURE');
+});
+it('uses the same inclusive SQL byte limit as the backup writer', () => {
+  const f = fixture();
+  const now = Date.parse('2026-10-13T15:40:00.000Z');
+  f.sql.size = f.manifest.sqlSize = f.complete.sqlSize = MAX_BACKUP_SQL_BYTES;
+  expect(validateBackupEvidence(f, now).status).toBe('HEALTHY');
+  f.sql.size = f.manifest.sqlSize = f.complete.sqlSize = MAX_BACKUP_SQL_BYTES + 1;
+  expect(validateBackupEvidence(f, now)).toMatchObject({
+    status: 'QUERY_OR_PROVIDER_FAILURE',
+    reason: 'BACKUP_SQL_SIZE_LIMIT_EXCEEDED',
+  });
 });
 it('uses bounded UTC metadata discovery and distinguishes provider errors', async () => {
   const { observeBackup } = await import('../src/server/backup-monitor/observer');
