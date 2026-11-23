@@ -173,6 +173,8 @@ it.each([false, true])('accepts exactly 16 MiB (length announced=%s)', async (an
   ).resolves.toMatchObject({
     state: 'COMPLETE',
     sqlSize: MAX_BACKUP_SQL_BYTES,
+    capacityWarning: true,
+    utilizationPct: 100,
   });
   expect(f.writes.at(-1)).toMatch(/COMPLETE\.json$/u);
 });
@@ -261,6 +263,7 @@ it('backup flow must produce COMPLETE after validated SQL and manifest', async (
   const f = fixture();
   const r = await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);
   expect(r.state).toBe('COMPLETE');
+  expect(r.capacityWarning).toBe(false);
   expect(f.requests.every((request) => request.init?.redirect === 'manual')).toBe(true);
   expect(f.writes.map((k) => k.split('/').pop())).toEqual([
     'database.sql',

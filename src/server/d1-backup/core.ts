@@ -344,7 +344,15 @@ export async function runBackup(
         sqlEtag: sql.etag,
       };
       await checkedJson(env.RECOVERY, prefix + 'COMPLETE.json', marker, generation);
-      return { ...marker, prefix, ...sql, totalMs: runtime.now() - started, stepCount: 4 };
+      return {
+        ...marker,
+        prefix,
+        ...sql,
+        totalMs: runtime.now() - started,
+        stepCount: 4,
+        capacityWarning: sql.size * 10 > MAX_BACKUP_SQL_BYTES * 7,
+        utilizationPct: Math.round((sql.size / MAX_BACKUP_SQL_BYTES) * 1000) / 10,
+      };
     });
   } catch (error) {
     if (error instanceof BackupFailure) throw error;
