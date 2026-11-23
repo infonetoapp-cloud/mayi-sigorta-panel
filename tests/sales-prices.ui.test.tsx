@@ -345,5 +345,5 @@ it('rejects a mismatched exact revision identity despite equal money and version
   expect(f.posts()).toHaveLength(1);
   const reads = f.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/revisions/rev-new'));
   expect(reads).toHaveLength(2);
-  expect(f.risk).toHaveBeenLastCalledWith({ dirty: false, unresolved: false });
+  await waitFor(() => expect(f.risk).toHaveBeenLastCalledWith({ dirty: false, unresolved: false }));
 });

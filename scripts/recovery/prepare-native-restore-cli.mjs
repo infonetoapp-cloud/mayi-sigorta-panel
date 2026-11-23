@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import process from 'node:process';
 import { info as report, error as reportError } from 'node:console';
 import { prepareNativeD1Restore, withPreparedRestoreFile } from './prepare-native-restore.ts';
+import { ORDERED_IMPORT_LIMITS } from './ordered-d1-import.ts';
 
 try {
   const args = process.argv.slice(2);
@@ -14,7 +15,7 @@ try {
     (args[4] !== undefined && args[4] !== '--local-proof')
   )
     throw new Error('REMOTE_EXECUTION_DISABLED');
-  if (statSync(args[1]).size > 8 * 1024 * 1024 || statSync(args[3]).size > 65536)
+  if (statSync(args[1]).size > ORDERED_IMPORT_LIMITS.sourceBytes || statSync(args[3]).size > 65536)
     throw new Error('RESOURCE_LIMIT');
   const prepared = prepareNativeD1Restore(
     readFileSync(args[1]),

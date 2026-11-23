@@ -21,6 +21,7 @@ export type Classification =
   | 'poll-limit'
   | 'invalid-url'
   | 'invalid-length'
+  | 'sql-size-limit-exceeded'
   | 'verification-failed'
   | 'local-failure';
 export interface SafeDiagnostic {

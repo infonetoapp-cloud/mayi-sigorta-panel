@@ -38,6 +38,8 @@ export class D1BackupWorkflow extends WorkflowEntrypoint<BackupEnv> {
                     instanceId: event.instanceId,
                     completedAt: new Date().toISOString(),
                     sqlBytes: result.sqlSize,
+                    capacityWarning: result.capacityWarning,
+                    utilizationPct: result.utilizationPct,
                     totalMs: result.totalMs,
                   });
                 }

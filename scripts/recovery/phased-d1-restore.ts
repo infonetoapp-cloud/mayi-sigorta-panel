@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { prepareNativeD1Restore } from './prepare-native-restore';
-import { splitNativeExportStatements } from './ordered-d1-import';
+import { iterateDerivedRestoreStatements } from './ordered-d1-import';
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const digest = /^[a-f0-9]{64}$/u;
 // Working packages are regenerated from verified native bytes, never executed
@@ -35,7 +35,7 @@ export function preparePhasedD1Restore(source: Uint8Array, receipt: unknown): Ph
   const schema: string[] = [],
     data: string[] = [],
     post: string[] = [];
-  for (const statement of splitNativeExportStatements(prepared.sql)) {
+  for (const statement of iterateDerivedRestoreStatements(prepared.sql)) {
     const t = statement.tokens.map((v) => v.toUpperCase());
     if (t[0] === 'PRAGMA') continue; // Canonical setup is placed at each relevant transaction boundary.
     if (t[0] === 'CREATE') {
