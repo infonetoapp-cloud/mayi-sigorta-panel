@@ -71,9 +71,12 @@ function zonedParts(value: Date, timezone: string) {
   };
 }
 
-function localDate(value: Date, timezone: string): string {
-  const parts = zonedParts(value, timezone);
+function localDateFromParts(parts: ReturnType<typeof zonedParts>): string {
   return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function localDate(value: Date, timezone: string): string {
+  return localDateFromParts(zonedParts(value, timezone));
 }
 
 function addLocalDays(date: string, days: number): string {
@@ -457,6 +460,7 @@ async function loadGenerationWindow(
   db: D1Database,
   agencyId: string,
   now: Date,
+  continuationOnly = false,
 ): Promise<GenerationWindow | null> {
   const settings = await db
     .prepare(
@@ -486,7 +490,8 @@ async function loadGenerationWindow(
   if (lastSuccessfulDate && !isDateOnly(lastSuccessfulDate)) {
     throw new RenewalGenerationError('RENEWAL_GENERATION_CURSOR_INVALID');
   }
-  const today = localDate(now, settings.timezone);
+  const parts = zonedParts(now, settings.timezone);
+  const today = localDateFromParts(parts);
   if (!cursorUpdatedAt) {
     if (lastSuccessfulDate) throw new RenewalGenerationError('RENEWAL_GENERATION_CURSOR_INVALID');
     const initialized = await db
@@ -527,6 +532,13 @@ async function loadGenerationWindow(
     throw new RenewalGenerationError('RENEWAL_GENERATION_CURSOR_INVALID');
   if (continuation && lastSuccessfulDate && continuation.lowerDate !== lastSuccessfulDate)
     throw new RenewalGenerationError('RENEWAL_GENERATION_CURSOR_INVALID');
+  // Recheck the live timezone and cursor after the scheduler's selection.
+  if (
+    continuationOnly &&
+    continuation === null &&
+    (parts.hour < 3 || (lastSuccessfulDate !== null && lastSuccessfulDate >= today))
+  )
+    return null;
   return {
     timezone: settings.timezone,
     today,
@@ -641,6 +653,10 @@ export async function runRenewalGenerationForAgency(
   if (!agencyId.trim()) throw new RenewalGenerationError('AGENCY_REQUIRED');
   const current = await loadGenerationWindow(db, agencyId, new Date());
   if (!current) return { createdCount: 0, existingCount: 0, completedThrough: null };
+  return generateForWindow(db, agencyId, current);
+}
+
+async function generateForWindow(db: D1Database, agencyId: string, current: GenerationWindow) {
   let pending = current.continuation;
   let version = current.cursorVersion;
   if (
@@ -786,6 +802,37 @@ export async function ensureRenewalForPolicy(
   });
 }
 
+// Bound date formatting on the Free plan. Above this threshold, retain durable
+// rotation and the live eligibility check instead of blocking all agencies.
+const MAX_CONTINUATION_TIMEZONES = 32;
+
+async function getContinuationSchedule(db: D1Database, now: Date): Promise<string | null> {
+  const zones = await db
+    .prepare(
+      `SELECT DISTINCT COALESCE(s.timezone,'Europe/Istanbul') AS timezone
+       FROM agencies a LEFT JOIN agency_settings s ON s.agency_id=a.id
+       WHERE a.status='ACTIVE' LIMIT ?`,
+    )
+    .bind(MAX_CONTINUATION_TIMEZONES + 1)
+    .all<{ timezone: string }>();
+  if (!zones.success || !Array.isArray(zones.results))
+    throw new RenewalGenerationError('RENEWAL_GENERATION_AGENCY_QUERY_FAILED');
+  if (zones.results.length > MAX_CONTINUATION_TIMEZONES) return null;
+  return JSON.stringify(
+    zones.results.map(({ timezone }) => {
+      try {
+        const parts = zonedParts(now, timezone);
+        return { timezone, dueDate: parts.hour >= 3 ? localDateFromParts(parts) : null };
+      } catch (error) {
+        if (!(error instanceof RenewalGenerationError) || error.code !== 'TIMEZONE_INVALID')
+          throw error;
+        // Keep corrupt settings visible. The live read fails after marking the turn.
+        return { timezone, invalid: true };
+      }
+    }),
+  );
+}
+
 export async function runScheduledRenewalGeneration(
   db: D1Database,
   continuationOnly = false,
@@ -793,21 +840,41 @@ export async function runScheduledRenewalGeneration(
   // One agency per invocation shares the same conservative statement budget.
   // A durable round-robin turn is independent of progress and wall-clock time:
   // even malformed state or repeatedly failing work must release the next turn.
-  const agencyResult = await db
-    .prepare(
-      `SELECT a.id,COALESCE(s.timezone,'Europe/Istanbul') AS timezone,
-      g.last_successful_local_date,g.continuation_json
-      FROM agencies a LEFT JOIN agency_settings s ON s.agency_id=a.id
-      LEFT JOIN renewal_generation_cursors g ON g.agency_id=a.id
-      WHERE a.status='ACTIVE'
-      ORDER BY COALESCE(g.last_attempt_order,0),a.id LIMIT 1`,
-    )
-    .all<{
-      id: unknown;
-      timezone: string;
-      last_successful_local_date: string | null;
-      continuation_json: string | null;
-    }>();
+  const continuationAt = continuationOnly ? new Date() : null;
+  const schedule = continuationAt ? await getContinuationSchedule(db, continuationAt) : null;
+  const agencyResult = await (
+    schedule === null
+      ? db.prepare(
+          `SELECT a.id FROM agencies a
+         LEFT JOIN renewal_generation_cursors g ON g.agency_id=a.id
+         WHERE a.status='ACTIVE'
+         ORDER BY COALESCE(g.last_attempt_order,0),a.id LIMIT 1`,
+        )
+      : db
+          .prepare(
+            `WITH schedule AS (
+           SELECT json_extract(value,'$.timezone') AS timezone,
+                  json_extract(value,'$.dueDate') AS due_date,
+                  json_extract(value,'$.invalid') AS invalid
+           FROM json_each(?)
+         )
+         SELECT a.id FROM agencies a
+         LEFT JOIN agency_settings s ON s.agency_id=a.id
+         LEFT JOIN renewal_generation_cursors g ON g.agency_id=a.id
+         LEFT JOIN schedule ON schedule.timezone=COALESCE(s.timezone,'Europe/Istanbul')
+         WHERE a.status='ACTIVE' AND (
+           g.continuation_json IS NOT NULL
+           OR schedule.timezone IS NULL
+           OR schedule.invalid=1
+           OR (g.last_successful_local_date IS NOT NULL
+               AND date(g.last_successful_local_date,'+0 days') IS NOT g.last_successful_local_date)
+           OR (schedule.due_date IS NOT NULL
+               AND (g.last_successful_local_date IS NULL OR g.last_successful_local_date<schedule.due_date))
+         )
+         ORDER BY COALESCE(g.last_attempt_order,0),a.id LIMIT 1`,
+          )
+          .bind(schedule)
+  ).all<{ id: unknown }>();
   if (!agencyResult.success || !Array.isArray(agencyResult.results)) {
     throw new RenewalGenerationError('RENEWAL_GENERATION_AGENCY_QUERY_FAILED');
   }
@@ -826,20 +893,21 @@ export async function runScheduledRenewalGeneration(
       SELECT ?,COALESCE(MAX(last_attempt_order),0)+1,? FROM renewal_generation_cursors WHERE true
       ON CONFLICT(agency_id) DO UPDATE SET last_attempt_order=excluded.last_attempt_order`,
       )
-      .bind(row.id, new Date().toISOString())
+      .bind(row.id, (continuationAt ?? new Date()).toISOString())
       .run();
     if (!marked.success)
       throw new RenewalGenerationError('RENEWAL_GENERATION_SCHEDULER_MARK_FAILED');
-    if (continuationOnly && row.continuation_json === null) {
-      const now = new Date();
-      if (
-        zonedParts(now, row.timezone).hour < 3 ||
-        (row.last_successful_local_date !== null &&
-          row.last_successful_local_date >= localDate(now, row.timezone))
-      )
-        continue;
+    const current = await loadGenerationWindow(
+      db,
+      row.id,
+      continuationAt ?? new Date(),
+      continuationOnly,
+    );
+    if (!current) {
+      if (!continuationOnly) agenciesProcessed++;
+      continue;
     }
-    const result = await runRenewalGenerationForAgency(db, row.id);
+    const result = await generateForWindow(db, row.id, current);
     createdCount += result.createdCount;
     existingCount += result.existingCount;
     agenciesProcessed += 1;
