@@ -193,8 +193,10 @@ it('uses an accepted price, protects a stale draft and verifies the updated pric
   choose('v1');
   expect(screen.getByLabelText(/^Sigorta şirketi/).hasAttribute('disabled')).toBe(true);
   expect((screen.getByLabelText(/^Brüt prim/) as HTMLInputElement).value).toBe('1250.50');
+  expect(
+    screen.getByLabelText(/^Ürün/).querySelector('option:checked')?.getAttribute('value'),
+  ).toBe('p');
   for (const [label, value] of [
-    ['Ürün', 'p'],
     ['Ödeme yöntemi', 'm'],
     ['Yeni poliçe numarası', 'NEW-1'],
   ])

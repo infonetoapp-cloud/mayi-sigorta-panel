@@ -182,22 +182,21 @@ export function WonCreatePolicyForm({
   }
   useEffect(() => {
     void work(async (signal) => {
-      const c = await readCatalogs(signal);
+      const [catalogResult, quoteResult] = await Promise.allSettled([
+        readCatalogs(signal),
+        newBusiness ? null : readQuotes(signal),
+      ]);
       if (signal.aborted) return;
-      setCatalogs(c);
-      if (newBusiness) return;
-      try {
-        const rows = await readQuotes(signal);
-        if (!signal.aborted) {
-          setQuotes(rows.quotes);
-          setQuoteCursor(null);
-          setQuoteNext(rows.nextCursor ?? null);
-        }
-      } catch {
-        if (!signal.aborted)
-          setError(
-            'Kayıtlı teklifler okunamadı. Teklif seçimini tekrar yükleyebilir veya teklif kaydı olmadan devam edebilirsiniz.',
-          );
+      if (catalogResult.status === 'fulfilled') setCatalogs(catalogResult.value);
+      else throw catalogResult.reason;
+      if (quoteResult.status === 'rejected') {
+        setError(
+          'Kayıtlı teklifler okunamadı. Teklif seçimini tekrar yükleyebilir veya teklif kaydı olmadan devam edebilirsiniz.',
+        );
+      } else if (quoteResult.value) {
+        setQuotes(quoteResult.value.quotes);
+        setQuoteCursor(null);
+        setQuoteNext(quoteResult.value.nextCursor ?? null);
       }
     });
   }, []);
@@ -328,13 +327,20 @@ export function WonCreatePolicyForm({
       }));
     }
     if (chosenPrice && priceOptionKey(chosenPrice) !== (price && priceOptionKey(price))) {
+      const products = catalogs.products.filter(
+        (p) =>
+          p.status === 'ACTIVE' &&
+          p.insurerId === chosenPrice.insurerId &&
+          p.branchId === chosenPrice.branchId,
+      );
       setDraft((d) => ({
         ...d,
         insurerId: chosenPrice.insurerId,
         branchId: chosenPrice.branchId,
-        productId:
-          d.insurerId === chosenPrice.insurerId && d.branchId === chosenPrice.branchId
-            ? d.productId
+        productId: products.some((p) => p.id === d.productId)
+          ? d.productId
+          : products.length === 1
+            ? products[0]!.id
             : '',
         grossPremium: premiumInput(chosenPrice.amountMinor),
         currency: chosenPrice.currency,
@@ -533,9 +539,11 @@ export function WonCreatePolicyForm({
                 disabled={blocked}
                 onClick={() =>
                   void work(async (signal) => {
-                    const c = await readCatalogs(signal);
-                    if (signal.aborted) return;
-                    setCatalogs(c);
+                    if (!catalogs) {
+                      const c = await readCatalogs(signal);
+                      if (signal.aborted) return;
+                      setCatalogs(c);
+                    }
                     if (newBusiness) return;
                     const rows = await readQuotes(signal);
                     if (!signal.aborted) {

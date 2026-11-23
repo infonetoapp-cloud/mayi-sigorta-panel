@@ -367,6 +367,27 @@ it('cleans protected queue details when authorized readback loses permission', a
   expect(hook.result.current.data).toBeNull();
   expect(hook.result.current.canSeeUnassigned).toBe(false);
 });
+it.each([401, 403])(
+  'clears the displayed modern work queue when refresh returns %s',
+  async (status) => {
+    let allowed = true;
+    const fetcher = vi.fn(async () =>
+      allowed ? response(queueData([task])) : response(null, status),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <MemoryRouter>
+        <TodayWorkPage owner={false} />
+      </MemoryRouter>,
+    );
+    await screen.findByText(task.customerDisplayName);
+    allowed = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Listeyi yenile' }));
+    await screen.findByRole('alert');
+    expect(screen.queryByText(task.customerDisplayName)).toBeNull();
+    expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(2);
+  },
+);
 it('integrates the interaction draft guard and holds the operation key against queue refresh while unresolved', async () => {
   let posts = 0;
   vi.stubGlobal(
