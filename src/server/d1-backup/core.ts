@@ -1,5 +1,14 @@
 import { BackupFailure, parseExportResponse, safeFailure, type Classification } from './provider';
 import { classifyTransport } from './diagnostic';
+import { compressBackupSql } from './compress';
+import {
+  GZIP_INTEGRITY,
+  GZIP_SQL_FILE,
+  LEGACY_SQL_FILE,
+  LEGACY_SQL_BYTES,
+  MAX_RAW_SQL_BYTES,
+  MAX_GZIP_SQL_BYTES,
+} from './format';
 export function generationPrefix(timestamp: string, id: string): string {
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
@@ -17,7 +26,7 @@ export const BACKUP_SOURCE = Object.freeze({
 });
 export const EXPORT_URL = `https://api.cloudflare.com/client/v4/accounts/${BACKUP_SOURCE.accountId}/d1/database/${BACKUP_SOURCE.databaseId}/export`;
 export const MAX_POLLS = 20;
-export const MAX_BACKUP_SQL_BYTES = 16 * 1024 * 1024;
+export const MAX_BACKUP_SQL_BYTES = LEGACY_SQL_BYTES;
 export interface BackupEnv {
   CLOUDFLARE_EMAIL: string;
   CLOUDFLARE_API_KEY: string;
@@ -152,21 +161,25 @@ export async function runBackup(
     now: () => Date.now(),
     sleep: () => new Promise((resolve) => setTimeout(resolve, 1000)),
   },
+  encoding: 'identity' | 'gzip' = 'identity',
 ) {
   try {
     requireState(env.CLOUDFLARE_EMAIL && env.CLOUDFLARE_API_KEY && env.RECOVERY);
     const prefix = generationPrefix(timestamp, generation),
       started = runtime.now();
+    const sqlKey = prefix + (encoding === 'gzip' ? GZIP_SQL_FILE : LEGACY_SQL_FILE);
+    const storedLimit = encoding === 'gzip' ? MAX_GZIP_SQL_BYTES : MAX_BACKUP_SQL_BYTES;
     const begin = await steps.do('start-export-once', async () => {
       requireState(
         (await env.RECOVERY.head(prefix + 'COMPLETE.json')) === null &&
-          (await env.RECOVERY.head(prefix + 'database.sql')) === null,
+          (await env.RECOVERY.head(sqlKey)) === null &&
+          (encoding !== 'gzip' || (await env.RECOVERY.head(prefix + LEGACY_SQL_FILE)) === null),
       );
       const startedAt = runtime.now();
       return { startedAt };
     });
     const sql = await steps.do('poll-download-store-sql', async () => {
-      const existing = await env.RECOVERY.head(prefix + 'database.sql');
+      const existing = await env.RECOVERY.head(sqlKey);
       // A crashed SQL write is not silently accepted without its completed durable step proof.
       requireState(existing === null);
       let currentBookmark: string | undefined;
@@ -225,24 +238,48 @@ export async function runBackup(
           safeFailure('download', classification, poll + 1, runtime.now() - downloadStart);
         if (expected !== null && (!Number.isSafeInteger(expected) || expected <= 0))
           throw downloadFailure('invalid-length');
-        if (expected !== null && expected > MAX_BACKUP_SQL_BYTES)
+        if (
+          expected !== null &&
+          expected > (encoding === 'gzip' ? MAX_RAW_SQL_BYTES : MAX_BACKUP_SQL_BYTES)
+        )
           throw downloadFailure('sql-size-limit-exceeded');
         // R2 accepts a streaming body only when its length is known. Buffer an
         // unannounced body under a hard limit before making any storage write.
+        const compressed =
+          encoding === 'gzip'
+            ? await compressBackupSql(response.body, expected, downloadFailure)
+            : null;
+        const compression = compressed
+          ? {
+              encoding: 'gzip' as const,
+              rawSqlSize: compressed.rawSqlSize,
+              storedSha256: compressed.storedSha256,
+            }
+          : null;
         const sqlBody =
-          expected === null
+          compressed?.data ??
+          (expected === null
             ? await readBackupSqlWithoutLength(response.body, downloadFailure)
-            : response.body;
+            : response.body);
         const verifiedLength = sqlBody instanceof Uint8Array ? sqlBody.byteLength : expected;
         const uploadStart = runtime.now();
-        const wrote = await env.RECOVERY.put(prefix + 'database.sql', sqlBody, {
+        const wrote = await env.RECOVERY.put(sqlKey, sqlBody, {
           onlyIf: { etagDoesNotMatch: '*' },
+          ...(compressed && { sha256: compressed.storedSha256 }),
           customMetadata: {
             generation,
             source: BACKUP_SOURCE.databaseId,
             bookmark: currentBookmark ?? '',
+            ...(compression && {
+              encoding: compression.encoding,
+              rawSqlSize: String(compression.rawSqlSize),
+              storedSha256: compression.storedSha256,
+            }),
           },
-          httpMetadata: { contentType: 'application/sql', cacheControl: 'private, no-store' },
+          httpMetadata: {
+            contentType: compressed ? 'application/gzip' : 'application/sql',
+            cacheControl: 'private, no-store',
+          },
         }).catch(() => {
           throw safeFailure(
             'storage-write',
@@ -258,7 +295,7 @@ export async function runBackup(
             poll + 1,
             runtime.now() - uploadStart,
           );
-        const head = await env.RECOVERY.head(prefix + 'database.sql').catch(() => {
+        const head = await env.RECOVERY.head(sqlKey).catch(() => {
           throw safeFailure(
             'storage-verify',
             'local-failure',
@@ -270,12 +307,16 @@ export async function runBackup(
           !head ||
           !Number.isSafeInteger(head.size) ||
           head.size <= 0 ||
-          head.size > MAX_BACKUP_SQL_BYTES ||
+          head.size > storedLimit ||
           head.customMetadata?.generation !== generation ||
           head.customMetadata?.source !== BACKUP_SOURCE.databaseId ||
           head.customMetadata?.bookmark !== (currentBookmark ?? '') ||
           head.etag !== wrote.etag ||
-          verifiedLength !== head.size
+          verifiedLength !== head.size ||
+          (compression &&
+            (head.customMetadata?.encoding !== compression.encoding ||
+              head.customMetadata?.rawSqlSize !== String(compression.rawSqlSize) ||
+              head.customMetadata?.storedSha256 !== compression.storedSha256))
         )
           throw safeFailure(
             'storage-verify',
@@ -284,7 +325,7 @@ export async function runBackup(
             runtime.now() - uploadStart,
           );
         return {
-          key: prefix + 'database.sql',
+          key: sqlKey,
           size: head.size,
           etag: head.etag,
           bookmark: currentBookmark ?? null,
@@ -292,6 +333,7 @@ export async function runBackup(
           exportMs,
           downloadHeadersMs: downloadMs,
           uploadStreamMs: runtime.now() - uploadStart,
+          ...(compression ?? {}),
         };
       }
       throw safeFailure(
@@ -303,7 +345,7 @@ export async function runBackup(
     });
     const manifest = await steps.do('write-verify-manifest', async () => {
       const value = {
-        version: 'mayi-d1-backup-v1',
+        version: sql.encoding === 'gzip' ? 'mayi-d1-backup-v2' : 'mayi-d1-backup-v1',
         state: 'COMPLETE',
         source: BACKUP_SOURCE.databaseId,
         sourceName: BACKUP_SOURCE.databaseName,
@@ -314,7 +356,13 @@ export async function runBackup(
         sqlKey: sql.key,
         sqlSize: sql.size,
         sqlEtag: sql.etag,
-        integrity: 'R2_HEAD_SIZE_ETAG_METADATA_NOT_SQL_SHA256',
+        integrity:
+          sql.encoding === 'gzip' ? GZIP_INTEGRITY : 'R2_HEAD_SIZE_ETAG_METADATA_NOT_SQL_SHA256',
+        ...(sql.encoding === 'gzip' && {
+          encoding: sql.encoding,
+          rawSqlSize: sql.rawSqlSize,
+          storedSha256: sql.storedSha256,
+        }),
         timings: {
           exportMs: sql.exportMs,
           downloadHeadersMs: sql.downloadHeadersMs,
@@ -335,13 +383,18 @@ export async function runBackup(
       const read = await env.RECOVERY.get(prefix + 'manifest.json');
       requireState(read && (await read.text()) === JSON.stringify(manifest));
       const marker = {
-        version: 'mayi-d1-complete-v1',
+        version: sql.encoding === 'gzip' ? 'mayi-d1-complete-v2' : 'mayi-d1-complete-v1',
         state: 'COMPLETE',
         generation,
         manifestKey: prefix + 'manifest.json',
         sqlKey: sql.key,
         sqlSize: sql.size,
         sqlEtag: sql.etag,
+        ...(sql.encoding === 'gzip' && {
+          encoding: sql.encoding,
+          rawSqlSize: sql.rawSqlSize,
+          storedSha256: sql.storedSha256,
+        }),
       };
       await checkedJson(env.RECOVERY, prefix + 'COMPLETE.json', marker, generation);
       return {
@@ -350,8 +403,12 @@ export async function runBackup(
         ...sql,
         totalMs: runtime.now() - started,
         stepCount: 4,
-        capacityWarning: sql.size * 10 > MAX_BACKUP_SQL_BYTES * 7,
-        utilizationPct: Math.round((sql.size / MAX_BACKUP_SQL_BYTES) * 1000) / 10,
+        capacityWarning:
+          sql.size * 10 > storedLimit * 7 || (sql.rawSqlSize ?? 0) * 10 > MAX_RAW_SQL_BYTES * 7,
+        utilizationPct:
+          Math.round(
+            Math.max(sql.size / storedLimit, (sql.rawSqlSize ?? 0) / MAX_RAW_SQL_BYTES) * 1000,
+          ) / 10,
       };
     });
   } catch (error) {

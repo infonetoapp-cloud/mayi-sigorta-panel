@@ -1,20 +1,28 @@
 // @vitest-environment node
-import { expect, it } from 'vitest';
-import { validateBackupEvidence, monitorStatus } from '../src/server/backup-monitor/evidence';
+import { expect, it, vi } from 'vitest';
+import {
+  DAILY_BACKUP_FRESHNESS_MS,
+  validateBackupEvidence,
+  monitorStatus,
+} from '../src/server/backup-monitor/evidence';
+import { observeBackup } from '../src/server/backup-monitor/observer';
+import { GZIP_INTEGRITY, GZIP_SQL_FILE } from '../src/server/d1-backup/format';
 import {
   BACKUP_SOURCE,
   generationPrefix,
   MAX_BACKUP_SQL_BYTES,
 } from '../src/server/d1-backup/core';
-export function fixture() {
-  const timestamp = '2026-10-13T15:30:07.199Z',
-    generation = 'd1-backup-slot-995503',
-    prefix = generationPrefix(timestamp, generation);
+export function fixture(
+  timestamp = '2026-10-13T15:30:07.199Z',
+  generation = 'd1-backup-slot-995503',
+) {
+  const prefix = generationPrefix(timestamp, generation);
+  const exportAt = Date.parse(timestamp);
   const sql = {
     key: prefix + 'database.sql',
     size: 227547,
     etag: 'provider-etag',
-    uploaded: new Date('2026-10-13T15:30:10.000Z'),
+    uploaded: new Date(exportAt + 2801),
     customMetadata: { generation, source: BACKUP_SOURCE.databaseId, bookmark: '' },
   };
   const manifest = {
@@ -46,12 +54,12 @@ export function fixture() {
     sql,
     manifestHead: {
       key: complete.manifestKey,
-      uploaded: new Date('2026-10-13T15:30:12.000Z'),
+      uploaded: new Date(exportAt + 4801),
       customMetadata: { generation },
     },
     completeHead: {
       key: prefix + 'COMPLETE.json',
-      uploaded: new Date('2026-10-13T15:30:16.339Z'),
+      uploaded: new Date(exportAt + 9140),
       customMetadata: { generation },
     },
   };
@@ -65,6 +73,88 @@ it('accepts coherent COMPLETE-last evidence with writer-compatible null bookmark
     ageMs: 5400000,
   });
   expect(validateBackupEvidence(f, now + 1)).toMatchObject({ status: 'BACKUP_STALE' });
+});
+it('verifies the daily gzip marker without reading SQL content', async () => {
+  const timestamp = '2026-11-24T21:00:00.000Z';
+  const generation = 'd1-backup-daily-2026-11-25';
+  const f = fixture(timestamp, generation);
+  const at = Date.parse(timestamp);
+  const sqlKey = generationPrefix(timestamp, generation) + GZIP_SQL_FILE;
+  const gzip = { encoding: 'gzip', rawSqlSize: 625621, storedSha256: 'a'.repeat(64) };
+  const sql = {
+    ...f.sql,
+    key: sqlKey,
+    customMetadata: { ...f.sql.customMetadata, ...gzip, rawSqlSize: String(gzip.rawSqlSize) },
+  };
+  const manifest = {
+    ...f.manifest,
+    ...gzip,
+    version: 'mayi-d1-backup-v2',
+    sqlKey,
+    integrity: GZIP_INTEGRITY,
+  };
+  const complete = { ...f.complete, ...gzip, version: 'mayi-d1-complete-v2', sqlKey };
+  const heads = new Map([sql, f.manifestHead, f.completeHead].map((head) => [head.key, head]));
+  const json = new Map<string, unknown>([
+    [f.manifestHead.key, manifest],
+    [f.completeHead.key, complete],
+  ]);
+  const reader = {
+    list: vi.fn(async (prefix: string) => ({
+      keys: [...heads.keys()].filter((key) => key.startsWith(prefix)),
+    })),
+    head: async (key: string) => heads.get(key) ?? null,
+    readJSON: vi.fn(async (key: string) => {
+      if (!json.has(key)) throw Error('SQL_BODY_FORBIDDEN');
+      return json.get(key);
+    }),
+  };
+  const checkedAt = at + 24 * 60 * 60_000;
+  const observe = () => observeBackup(reader, checkedAt, DAILY_BACKUP_FRESHNESS_MS);
+  expect(await observe()).toMatchObject({
+    status: 'HEALTHY',
+    generation,
+    checkedAt,
+    exportAt: at,
+    completeAt: f.completeHead.uploaded.getTime(),
+  });
+  expect(reader.readJSON.mock.calls.map(([key]) => key)).toEqual([
+    f.manifestHead.key,
+    f.completeHead.key,
+  ]);
+  heads.delete(f.completeHead.key);
+  expect(await observe()).toMatchObject({ status: 'BACKUP_STALE' });
+  reader.list.mockRejectedValueOnce(new Error('synthetic provider outage'));
+  expect(await observe()).toMatchObject({ status: 'QUERY_OR_PROVIDER_FAILURE' });
+});
+
+it('discovers all valid markers at the 20-minute cadence across three hourly prefixes', async () => {
+  const { observeBackup } = await import('../src/server/backup-monitor/observer');
+  const batches = Array.from({ length: 7 }, (_, index) => {
+    const timestamp = new Date(Date.parse('2026-10-13T13:00:00.000Z') + index * 20 * 60 * 1000);
+    return fixture(timestamp.toISOString(), 'd1-backup-slot-' + (1500000 + index));
+  });
+  const heads = new Map(
+    batches.flatMap((f) => [f.sql, f.manifestHead, f.completeHead]).map((head) => [head.key, head]),
+  );
+  const json = new Map<string, unknown>(
+    batches.flatMap((f) => [
+      [f.manifestHead.key, f.manifest] as const,
+      [f.completeHead.key, f.complete] as const,
+    ]),
+  );
+  const result = await observeBackup(
+    {
+      list: async (prefix) => ({ keys: [...heads.keys()].filter((key) => key.startsWith(prefix)) }),
+      head: async (key) => heads.get(key) ?? null,
+      readJSON: async (key) => {
+        if (!json.has(key)) throw Error('SQL_BODY_FORBIDDEN');
+        return json.get(key);
+      },
+    },
+    Date.parse('2026-10-13T15:10:00.000Z'),
+  );
+  expect(result).toMatchObject({ status: 'HEALTHY', generation: 'd1-backup-slot-1500006' });
 });
 it.each([
   'source',

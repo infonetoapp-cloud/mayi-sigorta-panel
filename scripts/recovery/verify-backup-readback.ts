@@ -4,12 +4,18 @@ import process from 'node:process';
 import { info, error as reportError } from 'node:console';
 import { BACKUP_SOURCE, generationPrefix } from '../../src/server/d1-backup/core';
 import {
+  backupSqlFilename,
+  DAILY_BACKUP_FRESHNESS_MS,
   OPERATIONAL_FRESHNESS_MS,
   type ObjectHead,
 } from '../../src/server/backup-monitor/evidence';
 import { observeBackup, type BackupReader } from '../../src/server/backup-monitor/observer';
 import { nativeExportSha256, prepareNativeD1Restore } from './prepare-native-restore';
-import { ORDERED_IMPORT_LIMITS } from './ordered-d1-import';
+import {
+  GZIP_SQL_FILE,
+  LEGACY_SQL_BYTES,
+  MAX_GZIP_SQL_BYTES,
+} from '../../src/server/d1-backup/format';
 import { verifyOperationalRecovery } from './operational-data-proof';
 
 const args = new Set(process.argv.slice(2));
@@ -52,7 +58,12 @@ async function bytes(response: Response, limit: number) {
 }
 
 async function main() {
-  if ([...args].some((arg) => arg !== '--restore-in-memory' && arg !== '--existing-read-profile'))
+  if (
+    [...args].some(
+      (arg) =>
+        arg !== '--restore-in-memory' && arg !== '--existing-read-profile' && arg !== '--daily',
+    )
+  )
     throw new Error('CLI_ARGUMENTS_INVALID');
   const headers = readHeaders();
   async function get(path: string, signal?: AbortSignal) {
@@ -121,7 +132,11 @@ async function main() {
   };
   const started = performance.now();
   const now = Date.now();
-  const observation = await observeBackup(reader, now, OPERATIONAL_FRESHNESS_MS);
+  const observation = await observeBackup(
+    reader,
+    now,
+    args.has('--daily') ? DAILY_BACKUP_FRESHNESS_MS : OPERATIONAL_FRESHNESS_MS,
+  );
   const summary = { ...observation, checkedAt: new Date(now).toISOString() };
   if (observation.status !== 'HEALTHY') {
     info(JSON.stringify(summary));
@@ -135,15 +150,21 @@ async function main() {
 
   const generation = observation.generation!;
   const prefix = generationPrefix(new Date(observation.exportAt!).toISOString(), generation);
-  const key = `${prefix}database.sql`;
-  const [sql, manifestInfo, completeInfo, manifest, complete] = await Promise.all([
-    head(key),
+  const [manifestInfo, completeInfo, manifest, complete] = await Promise.all([
     head(`${prefix}manifest.json`),
     head(`${prefix}COMPLETE.json`),
     readJSON(`${prefix}manifest.json`, 8192),
     readJSON(`${prefix}COMPLETE.json`, 8192),
   ]);
-  if (!sql?.size || sql.size > ORDERED_IMPORT_LIMITS.sourceBytes || !manifestInfo || !completeInfo)
+  const filename = backupSqlFilename(manifest);
+  const key = prefix + filename;
+  const sql = await head(key);
+  if (
+    !sql?.size ||
+    sql.size > (filename === GZIP_SQL_FILE ? MAX_GZIP_SQL_BYTES : LEGACY_SQL_BYTES) ||
+    !manifestInfo ||
+    !completeInfo
+  )
     throw new Error('BACKUP_RESTORE_EVIDENCE_MISSING');
   const download = await get(`${url}/${encodeURIComponent(key)}`);
   if (download.headers.get('etag')?.replace(/^"|"$/g, '') !== sql.etag)
@@ -166,6 +187,11 @@ async function main() {
       generation: sql.customMetadata?.generation,
       source: sql.customMetadata?.source,
       bookmark: sql.customMetadata?.bookmark,
+      ...(filename === GZIP_SQL_FILE && {
+        encoding: sql.customMetadata?.encoding,
+        rawSqlSize: sql.customMetadata?.rawSqlSize,
+        storedSha256: sql.customMetadata?.storedSha256,
+      }),
     },
     sqlUploadedAt: sql.uploaded.toISOString(),
     manifestUploadedAt: manifestInfo.uploaded.toISOString(),

@@ -1,6 +1,15 @@
 import { BACKUP_SOURCE, generationPrefix, MAX_BACKUP_SQL_BYTES } from '../d1-backup/core';
+import {
+  GZIP_INTEGRITY,
+  GZIP_SQL_FILE,
+  LEGACY_SQL_FILE,
+  MAX_GZIP_SQL_BYTES,
+  MAX_RAW_SQL_BYTES,
+  SHA256_HEX,
+} from '../d1-backup/format';
 export const FRESHNESS_MS = 90 * 60 * 1000;
 export const OPERATIONAL_FRESHNESS_MS = 45 * 60 * 1000;
+export const DAILY_BACKUP_FRESHNESS_MS = 26 * 60 * 60 * 1000;
 export const HEARTBEAT_MS = 15 * 60 * 1000;
 export type EvidenceStatus = 'HEALTHY' | 'BACKUP_STALE' | 'QUERY_OR_PROVIDER_FAILURE';
 export interface Decision {
@@ -26,6 +35,9 @@ export interface BackupEvidence {
   manifestHead: ObjectHead;
   completeHead: ObjectHead;
 }
+export function backupSqlFilename(manifest: unknown) {
+  return object(manifest).version === 'mayi-d1-backup-v2' ? GZIP_SQL_FILE : LEGACY_SQL_FILE;
+}
 function object(v: unknown): Record<string, unknown> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw Error('INVALID');
   return v as Record<string, unknown>;
@@ -41,12 +53,18 @@ export function validateBackupEvidence(
 ): Decision {
   try {
     check(Number.isSafeInteger(now) && now >= 0);
-    check(Number.isSafeInteger(freshnessMs) && freshnessMs > 0 && freshnessMs <= FRESHNESS_MS);
+    check(
+      Number.isSafeInteger(freshnessMs) &&
+        freshnessMs > 0 &&
+        freshnessMs <= DAILY_BACKUP_FRESHNESS_MS,
+    );
     const m = object(e.manifest),
       c = object(e.complete);
+    const gzip = m.version === 'mayi-d1-backup-v2';
     check(
-      m.version === 'mayi-d1-backup-v1' &&
-        c.version === 'mayi-d1-complete-v1' &&
+      (gzip
+        ? c.version === 'mayi-d1-complete-v2'
+        : m.version === 'mayi-d1-backup-v1' && c.version === 'mayi-d1-complete-v1') &&
         m.state === 'COMPLETE' &&
         c.state === 'COMPLETE',
     );
@@ -57,7 +75,9 @@ export function validateBackupEvidence(
     );
     check(
       typeof m.generation === 'string' &&
-        /^d1-backup-slot-[0-9]+$/u.test(m.generation) &&
+        /^d1-backup-(?:slot-[0-9]+|daily-[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-retry)?)$/u.test(
+          m.generation,
+        ) &&
         typeof m.exportTimestamp === 'string',
     );
     const prefix = generationPrefix(m.exportTimestamp, m.generation),
@@ -82,7 +102,7 @@ export function validateBackupEvidence(
         [sql, mh, ch].every((h) => h.customMetadata?.generation === m.generation),
     );
     check(
-      sql.key === prefix + 'database.sql' &&
+      sql.key === prefix + backupSqlFilename(m) &&
         mh.key === prefix + 'manifest.json' &&
         ch.key === prefix + 'COMPLETE.json' &&
         c.manifestKey === mh.key &&
@@ -92,7 +112,7 @@ export function validateBackupEvidence(
     if (
       typeof sql.size === 'number' &&
       Number.isSafeInteger(sql.size) &&
-      sql.size > MAX_BACKUP_SQL_BYTES
+      sql.size > (gzip ? MAX_GZIP_SQL_BYTES : MAX_BACKUP_SQL_BYTES)
     )
       return {
         status: 'QUERY_OR_PROVIDER_FAILURE',
@@ -113,10 +133,26 @@ export function validateBackupEvidence(
         sql.customMetadata?.source === BACKUP_SOURCE.databaseId,
     );
     check(
-      m.integrity === 'R2_HEAD_SIZE_ETAG_METADATA_NOT_SQL_SHA256' &&
+      m.integrity === (gzip ? GZIP_INTEGRITY : 'R2_HEAD_SIZE_ETAG_METADATA_NOT_SQL_SHA256') &&
         (m.bookmark === null ||
           (typeof m.bookmark === 'string' && /^[A-Za-z0-9_-]{1,256}$/u.test(m.bookmark))),
     );
+    if (gzip)
+      check(
+        m.encoding === 'gzip' &&
+          c.encoding === m.encoding &&
+          sql.customMetadata?.encoding === m.encoding &&
+          typeof m.rawSqlSize === 'number' &&
+          Number.isSafeInteger(m.rawSqlSize) &&
+          m.rawSqlSize > 0 &&
+          m.rawSqlSize <= MAX_RAW_SQL_BYTES &&
+          c.rawSqlSize === m.rawSqlSize &&
+          sql.customMetadata?.rawSqlSize === String(m.rawSqlSize) &&
+          typeof m.storedSha256 === 'string' &&
+          SHA256_HEX.test(m.storedSha256) &&
+          c.storedSha256 === m.storedSha256 &&
+          sql.customMetadata?.storedSha256 === m.storedSha256,
+      );
     check(sql.customMetadata?.bookmark === (m.bookmark ?? ''));
     const ageMs = now - exportAt;
     return {

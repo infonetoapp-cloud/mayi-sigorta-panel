@@ -3,6 +3,7 @@ import { expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import ts from 'typescript';
+import { BACKUP_CRONS } from '../src/server/d1-backup/scheduler';
 interface Scope {
   vars: {
     DOCUMENTS_ENABLED: string;
@@ -75,14 +76,15 @@ it('production internal commissioning keeps public closure, private recovery and
   ]);
   unchanged.env.production.secrets.required = prior.env.production.secrets.required;
   expect(unchanged).toEqual(prior);
-  expect(
-    readFileSync('wrangler.backup.json', 'utf8').replace(/\r\n/gu, '\n') ===
-      execFileSync(
-        'git',
-        ['show', '9c0fb032375a14611d6f945d2ce4fc6ca29ecd50:wrangler.backup.json'],
-        { encoding: 'utf8' },
-      ),
-  ).toBe(true);
+  const previousBackup = JSON.parse(
+    execFileSync('git', ['show', '9c0fb032375a14611d6f945d2ce4fc6ca29ecd50:wrangler.backup.json'], {
+      encoding: 'utf8',
+    }),
+  );
+  expect(JSON.parse(readFileSync('wrangler.backup.json', 'utf8'))).toEqual({
+    ...previousBackup,
+    triggers: { crons: BACKUP_CRONS },
+  });
 });
 it('production leaf has one EU document recovery binding and no additional authority or exposure', () => {
   const leaf = config(readFileSync('wrangler.document-backup.jsonc', 'utf8'));
