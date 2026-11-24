@@ -407,7 +407,9 @@ it('shows one creation heading and keeps collection ahead of balance corrections
   expect(form.contains(screen.getByRole('button', { name: 'Alacağı kaydet' }))).toBe(true);
   expect(form.contains(screen.getByRole('button', { name: 'Vazgeç' }))).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Detayı aç' }));
+  const detail = await screen.findByRole<HTMLButtonElement>('button', { name: 'Detayı aç' });
+  await waitFor(() => expect(detail.disabled).toBe(false));
+  fireEvent.click(detail);
   const actions = await screen.findByRole('group', { name: 'Alacak işlemleri' });
   expect(Array.from(actions.querySelectorAll('button'), (button) => button.textContent)).toEqual([
     'Tahsilat kaydet',
