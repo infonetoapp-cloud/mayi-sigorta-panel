@@ -22,7 +22,13 @@ function Counts({ counts }: { readonly counts: TaskStatisticsCounts }) {
     </dl>
   );
 }
-function Statistics({ refreshKey }: { readonly refreshKey: number }) {
+function Statistics({
+  refreshKey,
+  summaryOnly = false,
+}: {
+  readonly refreshKey: number;
+  readonly summaryOnly?: boolean;
+}) {
   const [view, setView] = useState<'self' | 'team'>('self');
   const [data, setData] = useState<TaskStatisticsData | null>(null);
   const [canSeeTeam, setCanSeeTeam] = useState(false);
@@ -136,14 +142,20 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
               timeStyle: 'short',
             }).format(new Date(visible.now))}
           </p>
-          <h4>{view === 'team' ? 'Tüm ekip (atanmamış dahil)' : 'Kendi görev özetim'}</h4>
+          <h4>
+            {view === 'team'
+              ? summaryOnly
+                ? 'Tüm ekip'
+                : 'Tüm ekip (atanmamış dahil)'
+              : 'Kendi görev özetim'}
+          </h4>
           <Counts counts={visible.summary} />
           <details className="workload-definitions">
             <summary>Metrik tanımları ve kapsam</summary>
             <p>
-              Güncel atanmış iş yükü: Geciken, bugünün 00:00 sınırından önce vadeli açık görevler;
-              bugün, 00:00–ertesi gün 00:00 aralığı; yaklaşan, ertesi gün ve sonrası. İş listesi ise
-              geçmiş saatli takipleri de gecikmiş gösterebilir.
+              Açık takipler: Geciken, bugünün 00:00 sınırından önce vadeli açık görevler; bugün,
+              00:00–ertesi gün 00:00 aralığı; yaklaşan, ertesi gün ve sonrası. İş listesi ise geçmiş
+              saatli takipleri de gecikmiş gösterebilir.
             </p>
             <p>
               Tamamlayan çalışana göre: Bugün dahil son 30 İstanbul takvim gününde, hesaplama anına
@@ -152,16 +164,16 @@ function Statistics({ refreshKey }: { readonly refreshKey: number }) {
                 timeZone: 'Europe/Istanbul',
                 dateStyle: 'medium',
               }).format(new Date(visible.completionStart))}{' '}
-              00:00. Güncel sorumlu değil, kaydedilmiş tamamlayan esas alınır.
+              00:00. Kayıtlı işlem geçmişi esas alınır.
             </p>
             <p>
               Yalnız mevcut kayıt ve hassasiyet izinleri kapsamındaki görevler sayılır. Açık işlerde
               arşivli müşteri/poliçe, aktif olmayan poliçe ve kapanmış yenileme dışarıdadır.
               Tamamlanan faaliyet geçmişi, kayıt sonradan arşivlense veya personel pasifleşse de
-              yetki kapsamındaysa korunur. Atama değişikliği geçmiş tamamlayanı değiştirmez.
+              yetki kapsamındaysa korunur.
             </p>
           </details>
-          {view === 'team' && (
+          {view === 'team' && !summaryOnly && (
             <>
               <h4>Çalışan bazında</h4>
               {visible.employees.map((employee) => (
@@ -224,7 +236,7 @@ export function TaskStatisticsPanel({
   readonly embedded?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  if (embedded) return <Statistics refreshKey={refreshKey} />;
+  if (embedded) return <Statistics refreshKey={refreshKey} summaryOnly />;
   return (
     <div>
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>

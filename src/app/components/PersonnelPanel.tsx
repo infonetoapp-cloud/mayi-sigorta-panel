@@ -3,7 +3,9 @@ import { useEffect, useState, useRef } from 'react';
 import {
   PERMISSION_CATALOG,
   createOnboardingTemplateGrants,
-  type OnboardingTemplateId,
+  createFullPersonnelGrants,
+  FULL_PERSONNEL_TEMPLATE,
+  isOwnerOnlyPermission,
 } from '../../shared/permissions';
 import { ReauthForm } from '../AuthShell';
 import { invalidateCsrfToken } from '../App';
@@ -40,7 +42,9 @@ function PermissionEditor({
 }) {
   return (
     <div className="permission-list">
-      {PERMISSION_CATALOG.filter((p) => !owner || p.classification === 'SENSITIVE').map((p) => {
+      {PERMISSION_CATALOG.filter((p) =>
+        owner ? p.classification === 'SENSITIVE' : !isOwnerOnlyPermission(p.code),
+      ).map((p) => {
         const g = grants.find((x) => x.permission_code === p.code);
         return (
           <label key={p.code} className="permission-row">
@@ -103,7 +107,9 @@ export function PersonnelPanel() {
     [create, setCreate] = useState(false),
     [name, setName] = useState(''),
     [email, setEmail] = useState(''),
-    [template, setTemplate] = useState<OnboardingTemplateId>('personel'),
+    [template, setTemplate] = useState<typeof FULL_PERSONNEL_TEMPLATE | 'personel'>(
+      FULL_PERSONNEL_TEMPLATE,
+    ),
     [grants, setGrants] = useState<Grant[]>(() => [...createOnboardingTemplateGrants('personel')]);
   const [selected, setSelected] = useState<{ person: Person; kind: string } | null>(null),
     [reason, setReason] = useState(''),
@@ -212,7 +218,8 @@ export function PersonnelPanel() {
           onClick={() => {
             setCreate(true);
             setSelected(null);
-            setGrants([...createOnboardingTemplateGrants('personel')]);
+            setTemplate(FULL_PERSONNEL_TEMPLATE);
+            setGrants(createOnboardingTemplateGrants('personel'));
           }}
           type="button"
         >
@@ -334,7 +341,13 @@ export function PersonnelPanel() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void execute({ kind: 'create', name, email, template, grants });
+              void execute({
+                kind: 'create',
+                name,
+                email,
+                template,
+                grants: template === FULL_PERSONNEL_TEMPLATE ? createFullPersonnelGrants() : grants,
+              });
             }}
           >
             <label>
@@ -357,21 +370,35 @@ export function PersonnelPanel() {
                 required
               />
             </label>
-            <label>
-              Başlangıç şablonu
-              <select
-                value={template}
-                onChange={(e) => {
-                  const id = e.target.value as OnboardingTemplateId;
-                  setTemplate(id);
-                  setGrants([...createOnboardingTemplateGrants(id)]);
-                }}
-              >
-                <option value="personel">Personel</option>
-                <option value="yetkili_personel">Yetkili Personel</option>
-              </select>
-            </label>
-            <PermissionEditor grants={grants} onChange={setGrants} />
+            <fieldset className="personnel-permission-mode" disabled={busy}>
+              <legend>Çalışan yetkileri</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="personnel-permission-mode"
+                  checked={template === FULL_PERSONNEL_TEMPLATE}
+                  onChange={() => setTemplate(FULL_PERSONNEL_TEMPLATE)}
+                />
+                <span>Tüm yetkileri ver</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="personnel-permission-mode"
+                  checked={template === 'personel'}
+                  onChange={() => setTemplate('personel')}
+                />
+                <span>Kısıtlı yetkiler ver</span>
+              </label>
+            </fieldset>
+            {template === FULL_PERSONNEL_TEMPLATE ? (
+              <p>
+                Kimlik ve sağlık verileri dahil çalışan yetkileri açılır. Çalışan hesaplarını acente
+                sahibi yönetir.
+              </p>
+            ) : (
+              <PermissionEditor grants={grants} onChange={setGrants} />
+            )}
             <p>İlk girişte zorunlu şifre değişimi yapılmadan CRM verisi açılmaz.</p>
             <div className="auth-actions">
               <Button variant="default" disabled={busy} type="submit">
@@ -429,28 +456,34 @@ export function PersonnelPanel() {
             {selected.kind === 'permissions' && selected.person.type === 'MEMBER' && (
               <div>
                 <p>
-                  Mevcut izinler otomatik değiştirilmez. Aşağıdaki işlem ortak
-                  müşteri/poliçe/yenileme izinlerini taslağa ekler; kişisel kısıtları inceleyip
-                  gerekçeli güvenli onay vermeden kaydedilmez. Hassas veri izinleri eklenmez.
-                  Çalışanlar eski AGENCY görev izni bulunsa da yalnız kendi görevlerini görür; atama
-                  ve yönetim raporları OWNER'a ayrılmıştır.
+                  Standart seçim temel iş izinlerini taslağa ekler. Tüm yetkiler seçimi kimlik ve
+                  sağlık izinlerini de içerir. Değişiklikler gerekçeli onayla kaydedilir.
                 </p>
-                <Button
-                  variant="outline"
-                  type="button"
-                  onClick={() =>
-                    setGrants((current) => {
-                      const merged = new Map(
-                        current.map((grant) => [grant.permission_code, grant]),
-                      );
-                      for (const grant of createOnboardingTemplateGrants('personel'))
-                        merged.set(grant.permission_code, grant);
-                      return [...merged.values()];
-                    })
-                  }
-                >
-                  Standart ortak çalışma izinlerini taslağa uygula
-                </Button>
+                <div className="auth-actions">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() =>
+                      setGrants((current) => {
+                        const merged = new Map(
+                          current.map((grant) => [grant.permission_code, grant]),
+                        );
+                        for (const grant of createOnboardingTemplateGrants('personel'))
+                          merged.set(grant.permission_code, grant);
+                        return [...merged.values()];
+                      })
+                    }
+                  >
+                    Standart ortak çalışma izinlerini taslağa uygula
+                  </Button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => setGrants(createFullPersonnelGrants())}
+                  >
+                    Tüm yetkileri taslağa uygula
+                  </Button>
+                </div>
               </div>
             )}
             {['permissions', 'promote', 'demote'].includes(selected.kind) && (

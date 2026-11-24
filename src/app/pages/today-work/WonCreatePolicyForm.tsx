@@ -306,11 +306,39 @@ export function WonCreatePolicyForm({
       setError('Bu teklif artık geçerli değil. Kayıtlı teklifleri yenileyin.');
       return;
     }
+    const matchingProducts = chosenPrice
+      ? catalogs.products.filter(
+          (product) =>
+            product.status === 'ACTIVE' &&
+            product.insurerId === chosenPrice.insurerId &&
+            product.branchId === chosenPrice.branchId,
+        )
+      : [];
+    if (chosenPrice && matchingProducts.length === 0) {
+      setError(
+        'Bu şirket ve branş için etkin ürün bulunamadı. Kataloglar → Ürünler bölümünde eşleşmeyi ekleyin, ardından poliçe seçeneklerini yenileyin.',
+      );
+      return;
+    }
     setQuote(q);
     setPrice(chosenPrice);
     setReason('');
     setConfirmed(false);
     setError('');
+    if (selected === 'NONE' && catalogs.defaultInsurerId) {
+      const defaultInsurerId = catalogs.defaultInsurerId;
+      setDraft((d) => {
+        const canUseDefault =
+          !d.branchId ||
+          catalogs.products.some(
+            (product) =>
+              product.status === 'ACTIVE' &&
+              product.insurerId === defaultInsurerId &&
+              product.branchId === d.branchId,
+          );
+        return !d.insurerId && canUseDefault ? { ...d, insurerId: defaultInsurerId } : d;
+      });
+    }
     if (q && q.version.id !== quote?.version.id) {
       const v = q.version;
       setDraft((d) => ({
@@ -327,20 +355,14 @@ export function WonCreatePolicyForm({
       }));
     }
     if (chosenPrice && priceOptionKey(chosenPrice) !== (price && priceOptionKey(price))) {
-      const products = catalogs.products.filter(
-        (p) =>
-          p.status === 'ACTIVE' &&
-          p.insurerId === chosenPrice.insurerId &&
-          p.branchId === chosenPrice.branchId,
-      );
       setDraft((d) => ({
         ...d,
         insurerId: chosenPrice.insurerId,
         branchId: chosenPrice.branchId,
-        productId: products.some((p) => p.id === d.productId)
+        productId: matchingProducts.some((p) => p.id === d.productId)
           ? d.productId
-          : products.length === 1
-            ? products[0]!.id
+          : matchingProducts.length === 1
+            ? matchingProducts[0]!.id
             : '',
         grossPremium: premiumInput(chosenPrice.amountMinor),
         currency: chosenPrice.currency,
@@ -372,7 +394,7 @@ export function WonCreatePolicyForm({
   const select = (
     key: 'insurerId' | 'branchId' | 'productId' | 'paymentMethodId',
     label: string,
-    rows: readonly { id: string; name: string; status: string }[],
+    rows: readonly { id: string; name: string; status: string; isDefault?: boolean }[],
   ) => (
     <div>
       <label htmlFor={'issue-' + key}>{label} *</label>
@@ -392,6 +414,7 @@ export function WonCreatePolicyForm({
           .map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
+              {r.isDefault ? ' (Varsayılan)' : ''}
             </option>
           ))}
       </select>
@@ -533,13 +556,13 @@ export function WonCreatePolicyForm({
                 ? 'Poliçeye bağlanacak kabul edilmiş fiyatı seçin.'
                 : 'Müşterinin kabul ettiği fiyatlar ve geçerli gönderilmiş teklifler listelenir.'}
             </p>
-            {(!newBusiness || !catalogs) && (
+            {(!newBusiness || !catalogs || error) && (
               <Button
                 variant="outline"
                 disabled={blocked}
                 onClick={() =>
                   void work(async (signal) => {
-                    if (!catalogs) {
+                    if (!catalogs || error) {
                       const c = await readCatalogs(signal);
                       if (signal.aborted) return;
                       setCatalogs(c);

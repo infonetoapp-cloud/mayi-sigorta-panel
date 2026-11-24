@@ -10,6 +10,7 @@ export interface WorkBookmark {
   returnFocus?: 'customer' | 'policy';
   operationScroll?: number;
   queueSearch?: string;
+  appliedSearch?: string;
   queueBucket?: string;
   sections: Record<string, boolean>;
 }

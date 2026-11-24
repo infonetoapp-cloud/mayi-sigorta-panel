@@ -1,5 +1,7 @@
 import { evaluateAuthorization, type EffectiveScope } from '../auth/authorization';
 import { generalTaskSelect } from './general';
+import { literalTurkishSearch } from '../db/literal-search';
+import { computePayloadHash } from '../mutations/canonical';
 import type { WorkTaskDto } from '../../shared/types';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import type {
@@ -205,6 +207,7 @@ interface TaskCursorBinding {
   readonly customerReadScope: 'ASSIGNED' | 'AGENCY';
   readonly policyReadScope: 'ASSIGNED' | 'AGENCY';
   readonly policyHealthReadScope: 'ASSIGNED' | 'AGENCY' | null;
+  readonly searchFingerprint?: string;
 }
 
 interface TaskCursor extends TaskCursorBinding {
@@ -218,7 +221,7 @@ function parseCursor(cursor: string | undefined, expected: TaskCursorBinding): T
     const tuple: unknown = JSON.parse(atob(cursor));
     if (
       !Array.isArray(tuple) ||
-      tuple.length !== 11 ||
+      tuple.length !== (expected.searchFingerprint ? 12 : 11) ||
       tuple[0] !== expected.queue ||
       tuple[1] !== expected.agencyId ||
       tuple[2] !== expected.membershipId ||
@@ -234,7 +237,8 @@ function parseCursor(cursor: string | undefined, expected: TaskCursorBinding): T
       new Date(tuple[9]).toISOString() !== tuple[9] ||
       tuple[10].trim() !== tuple[10] ||
       tuple[10].length === 0 ||
-      tuple[10].length > 128
+      tuple[10].length > 128 ||
+      tuple[11] !== expected.searchFingerprint
     ) {
       throw new Error('INVALID_CURSOR');
     }
@@ -278,6 +282,7 @@ function cursorFor(row: TodayTaskRow, binding: TaskCursorBinding): string {
       binding.policyHealthReadScope,
       row.due_at,
       row.task_id,
+      ...(binding.searchFingerprint ? [binding.searchFingerprint] : []),
     ]),
   );
 }
@@ -307,6 +312,8 @@ async function loadTaskPage(input: {
   readonly policyHealthReadScope: 'ASSIGNED' | 'AGENCY' | null;
   readonly canSeeUnassigned: boolean;
   readonly cursor: TaskCursor | null;
+  readonly search?: { predicate: string; needle: string };
+  readonly searchFingerprint?: string;
   readonly limit: number;
   readonly queue: 'WORK' | 'UNASSIGNED' | 'REASSIGNMENT' | 'UNIFIED';
   readonly now: Date;
@@ -402,9 +409,6 @@ async function loadTaskPage(input: {
     where.push('(t.due_at>? OR (t.due_at=? AND t.id>?))');
     values.push(input.cursor.dueAt, input.cursor.dueAt, input.cursor.taskId);
   }
-  values.push(input.limit + 1);
-
-  values.pop();
   const general = generalTaskSelect(input.context, input.queue, input.cursor, input.exactTaskId);
   const statement = input.db
     .prepare(
@@ -437,9 +441,16 @@ async function loadTaskPage(input: {
        LEFT JOIN company_contacts cc ON cc.agency_id=c.agency_id AND cc.customer_id=c.id
          AND cc.status='ACTIVE' AND cc.is_primary=1
        WHERE ${where.join(' AND ')}
-       UNION ALL ${general.sql}) ORDER BY due_at ASC,task_id ASC LIMIT ?`,
+       UNION ALL ${general.sql})
+       ${input.search ? `WHERE ${input.search.predicate}` : ''}
+       ORDER BY due_at ASC,task_id ASC LIMIT ?`,
     )
-    .bind(...values, ...general.args, input.limit + 1);
+    .bind(
+      ...values,
+      ...general.args,
+      ...(input.search ? [input.search.needle] : []),
+      input.limit + 1,
+    );
   // The exact-context read uses the request-bound batch's live session assertion.
   // Ordinary queue semantics are unchanged; no portfolio scan or alternate-ID lookup.
   const result =
@@ -467,6 +478,7 @@ async function loadTaskPage(input: {
             customerReadScope: input.customerReadScope as 'ASSIGNED' | 'AGENCY',
             policyReadScope: input.policyReadScope as 'ASSIGNED' | 'AGENCY',
             policyHealthReadScope: input.policyHealthReadScope,
+            searchFingerprint: input.searchFingerprint,
           })
         : null,
   };
@@ -609,6 +621,17 @@ export async function listTodayTasks(
   const now = new Date();
   const nowIso = now.toISOString();
   const todayLocalDate = localDate(now, agency.timezone);
+  // Search only fields that the matching queue row can disclose.
+  const search = query.q
+    ? literalTurkishSearch(
+        `customer_display_name || ' ' ||
+         COALESCE(CASE WHEN can_read_policy=1 THEN policy_number END, '') || ' ' ||
+         task_title || ' ' ||
+         COALESCE(CASE WHEN can_read_policy=1 OR task_kind='GENERAL' THEN policy_branch_name END, '')`,
+        query.q,
+      )
+    : undefined;
+  const searchFingerprint = search && (await computePayloadHash(search.needle));
   const cursorScopes = {
     agencyId: active.agencyId,
     membershipId: active.id,
@@ -618,6 +641,7 @@ export async function listTodayTasks(
     customerReadScope: customerRead.effectiveScope as 'ASSIGNED' | 'AGENCY',
     policyReadScope: policyRead.effectiveScope as 'ASSIGNED' | 'AGENCY',
     policyHealthReadScope,
+    searchFingerprint,
   };
   const workQueue = query.needsReassignment ? 'REASSIGNMENT' : query.unified ? 'UNIFIED' : 'WORK';
   const workCursor = parseCursor(query.cursor, { ...cursorScopes, queue: workQueue });
@@ -638,6 +662,8 @@ export async function listTodayTasks(
     policyReadScope: policyRead.effectiveScope as EffectiveScope,
     policyHealthReadScope,
     canSeeUnassigned,
+    search,
+    searchFingerprint,
     limit: query.limit,
     now,
     todayLocalDate,

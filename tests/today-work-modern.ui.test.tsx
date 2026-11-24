@@ -378,6 +378,10 @@ it('shows assigned and unassigned work together without team selectors or automa
   expect(screen.queryByRole('button', { name: 'Yeniden atama gerekenler' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: /Müşteri u/ }));
   expect(screen.getByText('u@example.test')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Görev işlemleri' }));
+  expect(screen.getByRole('button', { name: 'Yeni takip planını aç' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Görev atama seçeneklerini aç' })).toBeNull();
+  expect(screen.queryByText(/Görev atanmamış durumda/)).toBeNull();
   expect(f).toHaveBeenCalledTimes(1);
 });
 it('ignores late401 paging after refresh without clearing the current session or new selection', async () => {
@@ -438,6 +442,39 @@ it('filters only the loaded authorized queue without additional reads or changin
   expect(screen.getByText('b@example.test')).toBeTruthy();
   expect(screen.queryByRole('button', { name: /Müşteri b/ })).toBeNull();
   expect(f.mock.calls).toHaveLength(1);
+});
+it('submits an authorized queue search beyond loaded rows and keeps search focus and pagination', async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    const q = new URL(url, 'https://panel.example.test').searchParams;
+    if (!q.has('q')) return response(base);
+    return response({
+      ...base,
+      items: [task(q.has('cursor') ? 'sonuç-iki' : 'sonuç-bir')],
+      hasMore: !q.has('cursor'),
+      nextCursor: q.has('cursor') ? null : 'search-next',
+    });
+  });
+  vi.stubGlobal('fetch', fetcher);
+  mount(false);
+  await screen.findByRole('button', { name: /Müşteri a/ });
+  const input = screen.getByRole('searchbox');
+  input.focus();
+  fireEvent.change(input, { target: { value: 'Görüşme' } });
+  expect(fetcher.mock.calls).toHaveLength(1);
+  fireEvent.submit(input.closest('form')!);
+  await screen.findByRole('button', { name: /Müşteri sonuç-bir/ });
+  expect(document.activeElement).toBe(input);
+  expect(screen.queryByRole('button', { name: /Müşteri a/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Daha fazla sonuç yükle' }));
+  await screen.findByRole('button', { name: /Müşteri sonuç-iki/ });
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+    '/api/tasks/today?limit=20',
+    '/api/tasks/today?limit=20&q=G%C3%B6r%C3%BC%C5%9Fme',
+    '/api/tasks/today?limit=20&q=G%C3%B6r%C3%BC%C5%9Fme&cursor=search-next',
+  ]);
+  fireEvent.change(input, { target: { value: '' } });
+  fireEvent.submit(input.closest('form')!);
+  await screen.findByRole('button', { name: /Müşteri a/ });
 });
 it('supports keyboard focus and switches selected overview without detail requests', async () => {
   const f = vi.fn(async () => response(base));

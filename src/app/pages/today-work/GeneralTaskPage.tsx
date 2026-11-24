@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router';
 import {
   generalTaskContextSchema,
   generalTaskCommandResultSchema,
-  generalAssignmentOptionsSchema,
   type GeneralTaskCommandResult,
 } from '../../../shared/task-general';
 import type { ApiResponse } from '../../../shared/types';
@@ -17,12 +16,11 @@ import { canonicalOccurrence } from './interaction-model';
 import { ReturnToWork } from './work-navigation';
 import { SalesIssueSection } from '../sales/SalesIssueSection';
 
-type Kind = 'reschedule' | 'complete' | 'assign';
+type Kind = 'reschedule' | 'complete';
 type Attempt = { kind: Kind; body: string; key: string; result?: GeneralTaskCommandResult };
 const labels = {
   reschedule: 'Takip zamanını değiştir',
   complete: 'İşi tamamla',
-  assign: 'Başka çalışana aktar',
 };
 const reasons = {
   reschedule: [
@@ -52,9 +50,7 @@ function GeneralTask({ id }: { id: string }) {
   const [mode, setMode] = useState<Kind | null>(null),
     [due, setDue] = useState(''),
     [reason, setReason] = useState('CALL_AGAIN'),
-    [notes, setNotes] = useState(''),
-    [assignee, setAssignee] = useState(''),
-    [cursor, setCursor] = useState<string | null>(null);
+    [notes, setNotes] = useState('');
   const [pending, setPending] = useState<Attempt | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
@@ -79,12 +75,6 @@ function GeneralTask({ id }: { id: string }) {
   useEffect(() => {
     if (mode) formHeading.current?.focus();
   }, [mode]);
-  const options = useCustomerResource<unknown>(
-    mode === 'assign' && current?.canAssign
-      ? `/api/tasks/${encodeURIComponent(id)}/assignment-options?limit=20${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`
-      : null,
-  );
-  const candidates = generalAssignmentOptionsSchema.safeParse(options.data);
   const locked = busy || !!pending;
   async function send(attempt: Attempt) {
     if (writing.current) return;
@@ -125,15 +115,12 @@ function GeneralTask({ id }: { id: string }) {
         const command = JSON.parse(attempt.body) as {
           expectedTaskVersion: number;
           dueAt?: string;
-          assigneeMembershipId?: string;
         };
         if (
           result.taskId !== id ||
           result.taskVersion !== command.expectedTaskVersion + 1 ||
           result.status !== (attempt.kind === 'complete' ? 'COMPLETED' : 'OPEN') ||
-          (attempt.kind === 'reschedule' && result.dueAt !== command.dueAt) ||
-          (attempt.kind === 'assign' &&
-            result.assigneeMembershipId !== command.assigneeMembershipId)
+          (attempt.kind === 'reschedule' && result.dueAt !== command.dueAt)
         )
           throw Error('İşlem yanıtı gönderilen takiple eşleşmedi.');
         accepted = { ...attempt, result };
@@ -147,21 +134,15 @@ function GeneralTask({ id }: { id: string }) {
       );
       if (JSON.stringify(proof) !== JSON.stringify(result))
         throw Error('Kayıtlı işlem sonucu eşleşmedi.');
-      // An assignment may remove the caller's read access; the exact receipt proves success independently.
       record.reload();
       if (live.current) {
         setPending(null);
         setMode(null);
         setDue('');
         setNotes('');
-        setAssignee('');
         setConflict(false);
         setMessage(
-          attempt.kind === 'complete'
-            ? 'Müşteri takibi tamamlandı.'
-            : attempt.kind === 'assign'
-              ? 'Takip seçilen çalışana aktarıldı.'
-              : 'Takip zamanı güncellendi.',
+          attempt.kind === 'complete' ? 'Müşteri takibi tamamlandı.' : 'Takip zamanı güncellendi.',
         );
       }
     } catch (e) {
@@ -178,8 +159,6 @@ function GeneralTask({ id }: { id: string }) {
     setReason(kind === 'complete' ? 'COMPLETED' : 'CALL_AGAIN');
     setDue('');
     setNotes('');
-    setAssignee('');
-    setCursor(null);
   }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -192,12 +171,8 @@ function GeneralTask({ id }: { id: string }) {
     const command = {
       expectedTaskVersion: current.taskVersion,
       notes: notes.trim() || null,
-      reasonCode: mode === 'assign' ? 'REASSIGN' : reason,
-      ...(mode === 'reschedule'
-        ? { dueAt: when }
-        : mode === 'assign'
-          ? { assigneeMembershipId: assignee }
-          : {}),
+      reasonCode: reason,
+      ...(mode === 'reschedule' ? { dueAt: when } : {}),
     };
     const attempt = { kind: mode, body: JSON.stringify(command), key: crypto.randomUUID() };
     setPending(attempt);
@@ -304,11 +279,6 @@ function GeneralTask({ id }: { id: string }) {
                     {labels.complete}
                   </Button>
                 )}
-                {current.canAssign && (
-                  <Button variant="outline" onClick={() => open('assign')}>
-                    {labels.assign}
-                  </Button>
-                )}
               </div>
             )}
             {mode && (
@@ -338,9 +308,7 @@ function GeneralTask({ id }: { id: string }) {
                   </div>
                 )}
                 <fieldset disabled={locked || conflict}>
-                  <legend>
-                    {mode === 'assign' ? 'Takibi devralacak çalışan' : 'Takip bilgileri'}
-                  </legend>
+                  <legend>Takip bilgileri</legend>
                   {mode === 'reschedule' && (
                     <>
                       <label htmlFor="general-due">Yeni takip zamanı · İstanbul (zorunlu)</label>
@@ -357,83 +325,22 @@ function GeneralTask({ id }: { id: string }) {
                       />
                     </>
                   )}
-                  {mode === 'assign' ? (
-                    <>
-                      <p>Listede bu müşteri takibini görmeye yetkili aktif çalışanlar bulunur.</p>
-                      {options.loading && <p role="status">Çalışanlar yükleniyor…</p>}
-                      {(options.error || (!options.loading && !candidates.success)) && (
-                        <p role="alert">
-                          Çalışan listesi okunamadı.{' '}
-                          <Button onClick={options.reload} variant="outline">
-                            Tekrar dene
-                          </Button>
-                        </p>
-                      )}
-                      {candidates.success && (
-                        <>
-                          <div className="general-task-options">
-                            {candidates.data.memberships.map((m) => (
-                              <label key={m.membershipId}>
-                                <input
-                                  type="radio"
-                                  name="assigneeMembershipId"
-                                  value={m.membershipId}
-                                  required
-                                  checked={assignee === m.membershipId}
-                                  onChange={() => setAssignee(m.membershipId)}
-                                />
-                                <span>{m.displayName}</span>
-                              </label>
-                            ))}
-                          </div>
-                          {!candidates.data.memberships.length && (
-                            <p>Takibi devralabilecek çalışan bulunmuyor.</p>
-                          )}
-                          {(cursor || candidates.data.hasMore) && (
-                            <div className="customer-form-actions">
-                              <Button
-                                variant="outline"
-                                disabled={!cursor}
-                                onClick={() => {
-                                  setCursor(null);
-                                  setAssignee('');
-                                }}
-                              >
-                                İlk sayfa
-                              </Button>
-                              <Button
-                                variant="outline"
-                                disabled={!candidates.data.nextCursor}
-                                onClick={() => {
-                                  setCursor(candidates.data.nextCursor);
-                                  setAssignee('');
-                                }}
-                              >
-                                Sonraki çalışanlar
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <fieldset className="general-task-options">
-                      <legend>{mode === 'complete' ? 'Tamamlama nedeni' : 'Takip nedeni'}</legend>
-                      {reasons[mode].map(([value, label]) => (
-                        <label key={value}>
-                          <input
-                            type="radio"
-                            name="reasonCode"
-                            value={value}
-                            required
-                            checked={reason === value}
-                            onChange={() => setReason(value!)}
-                          />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </fieldset>
-                  )}
+                  <fieldset className="general-task-options">
+                    <legend>{mode === 'complete' ? 'Tamamlama nedeni' : 'Takip nedeni'}</legend>
+                    {reasons[mode].map(([value, label]) => (
+                      <label key={value}>
+                        <input
+                          type="radio"
+                          name="reasonCode"
+                          value={value}
+                          required
+                          checked={reason === value}
+                          onChange={() => setReason(value!)}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
+                  </fieldset>
                   <label htmlFor="general-notes">Kısa not (isteğe bağlı)</label>
                   <textarea
                     id="general-notes"
@@ -448,29 +355,15 @@ function GeneralTask({ id }: { id: string }) {
                     <p>
                       {mode === 'complete'
                         ? 'Bu müşteri takibi tamamlandı olarak kaydedilecek.'
-                        : mode === 'reschedule'
-                          ? canonicalOccurrence(due)
-                            ? 'Yeni takip: ' + date(canonicalOccurrence(due)!)
-                            : 'Yeni takip zamanını seçin.'
-                          : 'Seçilen çalışana bu takip aktarılacak.'}
+                        : canonicalOccurrence(due)
+                          ? 'Yeni takip: ' + date(canonicalOccurrence(due)!)
+                          : 'Yeni takip zamanını seçin.'}
                     </p>
                   </div>
                 </fieldset>
                 <div className="customer-form-actions">
-                  <Button
-                    type="submit"
-                    disabled={
-                      locked ||
-                      conflict ||
-                      (mode === 'assign' &&
-                        (!candidates.success || !candidates.data.memberships.length))
-                    }
-                  >
-                    {mode === 'complete'
-                      ? 'Tamamlandığını kaydet'
-                      : mode === 'assign'
-                        ? 'Takibi aktar'
-                        : 'Takip zamanını kaydet'}
+                  <Button type="submit" disabled={locked || conflict}>
+                    {mode === 'complete' ? 'Tamamlandığını kaydet' : 'Takip zamanını kaydet'}
                   </Button>
                   <Button
                     variant="outline"

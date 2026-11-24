@@ -43,7 +43,16 @@ export function PolicyForm({
 }) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState<PolicyDraft>(() =>
-    policy ? policyDraft(policy) : { ...blankPolicyDraft },
+    policy
+      ? policyDraft(policy)
+      : {
+          ...blankPolicyDraft,
+          insurerId:
+            initialCatalogs.insurers.find(
+              (insurer) =>
+                insurer.id === initialCatalogs.defaultInsurerId && insurer.status === 'ACTIVE',
+            )?.id ?? '',
+        },
   );
   const [catalogs, setCatalogs] = useState(initialCatalogs);
   const [errors, setErrors] = useState<Partial<Record<keyof PolicyDraft, string>>>({});
@@ -311,7 +320,7 @@ export function PolicyForm({
   function select(
     key: 'insurerId' | 'branchId' | 'productId' | 'paymentMethodId',
     label: string,
-    options: ReadonlyArray<{ id: string; name: string }>,
+    options: ReadonlyArray<{ id: string; name: string; isDefault?: boolean }>,
   ) {
     const previous =
       key === 'insurerId'
@@ -353,6 +362,7 @@ export function PolicyForm({
           {options.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
+              {item.isDefault ? ' (Varsayılan)' : ''}
             </option>
           ))}
         </select>

@@ -164,22 +164,15 @@ it('preserves an uncertain body/key and blocks leaving before the same request i
   expect(posts[0]![1]!.body).toBe(posts[1]![1]!.body);
   expect(posts[0]![1]!.headers).toEqual(posts[1]![1]!.headers);
 });
-it('keeps case outcome controls in the case and assigns only a real returned employee', async () => {
+it('keeps case outcome controls in the case and omits reassignment for capable users', async () => {
   const { fetcher } = setup({ case: true });
   await screen.findByRole('link', { name: 'Teklif çalışmasını aç' });
   expect(screen.queryByRole('button', { name: 'İşi tamamla' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Takip zamanını değiştir' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Başka çalışana aktar' }));
-  fireEvent.click(await screen.findByRole('radio', { name: 'Abdurrahman Örnek' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Takibi aktar' }));
-  await screen.findByText('Takip seçilen çalışana aktarıldı.');
-  const post = fetcher.mock.calls.find(([, init]) => init?.method === 'POST')!;
-  expect(JSON.parse(String(post[1]?.body))).toEqual({
-    expectedTaskVersion: 3,
-    assigneeMembershipId: 'm2',
-    reasonCode: 'REASSIGN',
-    notes: null,
-  });
+  expect(screen.queryByRole('button', { name: 'Başka çalışana aktar' })).toBeNull();
+  expect(fetcher.mock.calls.some(([url]) => String(url).includes('/assignment-options'))).toBe(
+    false,
+  );
 });
 it('keeps a stale draft, refreshes explicitly and never sends a new version automatically', async () => {
   const { fetcher, postCount } = setup({ conflict: true });

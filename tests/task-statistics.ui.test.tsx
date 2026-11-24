@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { TodayWorkPanel } from '../src/app/components/TodayWorkPanel';
+import { TaskStatisticsPanel } from '../src/app/components/TaskStatisticsPanel';
 import type { TaskStatisticsData } from '../src/shared/task-statistics';
 const stats: TaskStatisticsData = {
   view: 'self',
@@ -39,6 +40,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('Operational task statistics in Today Work', () => {
+  it('shows only the existing team totals in the daily workspace', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        response(
+          url.includes('view=team')
+            ? {
+                ...stats,
+                view: 'team',
+                canSeeTeam: true,
+                unassigned: { overdue: 1, dueToday: 1, upcoming: 1 },
+                nextCursor: 'another-page',
+              }
+            : { ...stats, canSeeTeam: true },
+        ),
+      ),
+    );
+    render(<TaskStatisticsPanel refreshKey={0} embedded />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Ekip özeti' }));
+    const title = await screen.findByRole('heading', { name: /^Tüm ekip$/ });
+    expect(title.nextElementSibling?.textContent).toContain('Son 30 günde tamamlanan6');
+    expect(screen.queryByRole('heading', { name: /Atanmamış/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Diğer çalışanları göster' })).toBeNull();
+  });
   it('retries the exact failed employee page without dropping earlier employees or adding totals twice', async () => {
     const employee = (id: string) => ({
       membershipId: id,
@@ -178,7 +203,7 @@ describe('Operational task statistics in Today Work', () => {
     expect(await within(region).findByText('6')).toBeTruthy();
     expect(within(region).getByText(/Tamamlayan çalışana göre/)).toBeTruthy();
     expect(within(region).getByText(/Europe\/Istanbul/)).toBeTruthy();
-    expect(within(region).getByText(/Güncel atanmış iş yükü: Geciken, bugünün 00:00/)).toBeTruthy();
+    expect(within(region).getByText(/Açık takipler: Geciken, bugünün 00:00/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Ekip özeti' })).toBeNull();
     expect(mock.mock.calls.some(([url]) => url === '/api/tasks/statistics')).toBe(true);
   });

@@ -1,4 +1,4 @@
-import { evaluateAuthorization } from '../auth/authorization';
+import { evaluatePortfolioRead } from '../auth/authorization';
 import type { AuthenticatedUserContext } from '../auth/identity';
 import type { CustomerCoverageSummary, CoveragePolicy } from '../../shared/customer-coverage';
 export class CustomerCoverageError extends Error {
@@ -33,26 +33,26 @@ export async function readCustomerCoverage(
     userId: original.userId,
     identityId: original.identityId,
     assurance: original.assurance,
+    ...(original.sessionHash ? { sessionHash: original.sessionHash } : {}),
     memberships: [{ ...member }],
   };
   const active = context.memberships[0]!;
   const ids = [...new Set(customerIds)];
   if (ids.length > 20 || ids.some((id) => !/^[A-Za-z0-9_.:-]{1,128}$/.test(id)))
     throw new CustomerCoverageError(400);
-  const resource = { agencyId: active.agencyId, isCollection: true };
-  const customer = await evaluateAuthorization(db, { context, action: 'customer.read', resource });
+  const {
+    primary: customer,
+    related: policy,
+    health,
+  } = await evaluatePortfolioRead(db, context, active.agencyId, 'coverage');
   if (
     customer.decision !== 'ALLOW' ||
     !['ASSIGNED', 'AGENCY'].includes(customer.effectiveScope ?? '')
   )
     throw new CustomerCoverageError(404);
-  const policy = await evaluateAuthorization(db, { context, action: 'policy.read', resource });
   const allowed =
-    policy.decision === 'ALLOW' && ['ASSIGNED', 'AGENCY'].includes(policy.effectiveScope ?? '');
-  const health = allowed
-    ? await evaluateAuthorization(db, { context, action: 'policy.health.read', resource })
-    : null;
-  const healthAllowed = health?.decision === 'ALLOW';
+    policy?.decision === 'ALLOW' && ['ASSIGNED', 'AGENCY'].includes(policy.effectiveScope ?? '');
+  const healthAllowed = allowed && health?.decision === 'ALLOW';
   const settings = await db
     .prepare(
       "SELECT COALESCE(s.timezone,'Europe/Istanbul') AS timezone FROM agencies a LEFT JOIN agency_settings s ON s.agency_id=a.id WHERE a.id=? AND a.status='ACTIVE'",
@@ -129,7 +129,7 @@ export async function readCustomerCoverage(
     predicates.push('c.assignee_membership_id=?');
     bindings.push(active.id);
   }
-  if (policy.effectiveScope === 'ASSIGNED') {
+  if (policy?.effectiveScope === 'ASSIGNED') {
     predicates.push('(p.assignee_membership_id=? OR c.assignee_membership_id=?)');
     bindings.push(active.id, active.id);
   }

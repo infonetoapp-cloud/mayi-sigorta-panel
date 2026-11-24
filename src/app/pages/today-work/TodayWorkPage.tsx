@@ -53,21 +53,20 @@ function Workspace({ owner }: { owner: boolean }) {
   const [bookmark] = useState<WorkBookmark | undefined>(() => {
     const key: unknown = route.state?.workContext;
     const saved = navigation?.entries.get(typeof key === 'string' ? key : route.key);
-    if (saved) return saved;
+    if (saved) return saved.queue === 'WORK' ? saved : { ...saved, queue: 'WORK', pageUrls: [] };
     const params = new URLSearchParams(route.search);
     const taskId = params.get('task');
     if (!taskId) return undefined;
-    const mode = params.get('queue');
     const matching = [...(navigation?.entries.values() ?? [])]
       .reverse()
-      .find((entry) => entry.taskId === taskId && entry.queue === mode);
+      .find((entry) => entry.taskId === taskId && entry.queue === 'WORK');
     if (matching) return matching;
     const section = Object.entries(workSectionLabels).find(
       ([id]) => id === params.get('work'),
     )?.[1];
     return {
       taskId,
-      queue: mode === 'UNASSIGNED' || mode === 'REASSIGNMENT' ? mode : 'WORK',
+      queue: 'WORK',
       pageUrls: [],
       pageScroll: 0,
       queueScroll: 0,
@@ -146,6 +145,7 @@ function Workspace({ owner }: { owner: boolean }) {
       operationScroll: document.querySelector('.crm-operation-region')?.scrollTop ?? 0,
       sections,
       queueSearch,
+      appliedSearch: queue.searchTerm,
       queueBucket,
     });
     if (navigation.entries.size > 10)
@@ -162,6 +162,7 @@ function Workspace({ owner }: { owner: boolean }) {
         document.querySelector('.today-queue > [data-slot="card-content"]')?.scrollTop ?? 0,
       sections: {},
       queueSearch,
+      appliedSearch: queue.searchTerm,
       queueBucket,
     });
     if (navigation.entries.size > 10)
@@ -389,17 +390,6 @@ function Workspace({ owner }: { owner: boolean }) {
       heading.current?.focus();
     }
   }, [selected, bookmark]);
-  function change(next: WorkQueue) {
-    const menu = document.querySelector<HTMLDetailsElement>('.employee-team-tools');
-    if (menu) menu.open = false;
-    if (next !== queue.view) {
-      guarded(() => {
-        setSelection(null);
-        queue.change(next);
-        void navigate('/today-work?' + new URLSearchParams({ queue: next }), { replace: true });
-      });
-    }
-  }
   function keyboard(event: KeyboardEvent<HTMLElement>, task: (typeof items)[number]) {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     const renderedItems = workQueueBuckets.flatMap((bucket) =>
@@ -420,12 +410,15 @@ function Workspace({ owner }: { owner: boolean }) {
     buttons.current.get(row.taskId)?.focus();
   }
   const hasMore = queue.view === 'UNASSIGNED' ? queue.data?.unassignedHasMore : queue.data?.hasMore;
+  const draftSearch = queueSearch.trim().toLocaleLowerCase('tr-TR');
+  const appliedSearch = queueSearch.trim() === queue.searchTerm;
   const visibleItems = items.filter(
     (task) =>
       (queueBucket === 'ALL' || task.bucket === queueBucket) &&
-      `${task.customerDisplayName} ${task.policyNumber ?? ''} ${task.title} ${task.kind === 'GENERAL' ? (task.branchName ?? '') : (task.policyBranchName ?? '')}`
-        .toLocaleLowerCase('tr-TR')
-        .includes(queueSearch.trim().toLocaleLowerCase('tr-TR')),
+      (appliedSearch ||
+        `${task.customerDisplayName} ${task.policyNumber ?? ''} ${task.title} ${task.kind === 'GENERAL' ? (task.branchName ?? '') : (task.policyBranchName ?? '')}`
+          .toLocaleLowerCase('tr-TR')
+          .includes(draftSearch)),
   );
   const operationIds: Array<keyof typeof workSectionLabels> = [
     'communication',
@@ -472,11 +465,6 @@ function Workspace({ owner }: { owner: boolean }) {
         </div>
       )}
       <div className="today-toolbar">
-        {queue.view !== 'WORK' && (
-          <Button variant="outline" onClick={() => change('WORK')}>
-            Takip listesine dön
-          </Button>
-        )}
         <Button
           variant="outline"
           onClick={() => {
@@ -489,6 +477,65 @@ function Workspace({ owner }: { owner: boolean }) {
           Listeyi yenile
         </Button>
       </div>
+      <search className="work-queue-search" aria-label="Takip araması" hidden={!!selected}>
+        <form
+          className="crm-queue-filters"
+          method="get"
+          action="/today-work"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (queueSearch.trim() === queue.searchTerm) return;
+            guarded(() => {
+              setSelection(null);
+              if (selected) {
+                void navigate('/today-work?' + new URLSearchParams({ queue: queue.view }), {
+                  replace: true,
+                });
+              }
+              queue.search(queueSearch);
+            });
+          }}
+        >
+          <label htmlFor="work-queue-search">Yüklü takiplerde ara</label>
+          <div className="work-queue-search-controls">
+            <input
+              id="work-queue-search"
+              name="q"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={80}
+              value={queueSearch}
+              onChange={(event) => setQueueSearch(event.target.value)}
+              placeholder="Müşteri, branş veya poliçe"
+            />
+            <Button type="submit" variant="outline" aria-label="Tüm yetkili takiplerde ara">
+              Ara
+            </Button>
+          </div>
+          <label className="sr-only" htmlFor="work-queue-filter">
+            Takip zamanı
+          </label>
+          <select
+            id="work-queue-filter"
+            value={queueBucket}
+            onChange={(event) => setQueueBucket(event.target.value)}
+          >
+            <option value="ALL">Tüm zamanlar</option>
+            <option value="OVERDUE">Geciken</option>
+            <option value="TODAY">Bugün</option>
+            <option value="UPCOMING">Yaklaşan</option>
+          </select>
+          <small role="status">
+            {queue.loading
+              ? 'Takipler yükleniyor'
+              : queue.data
+                ? `${items.length} ${queue.searchTerm ? 'eşleşen' : 'yüklü'} takip`
+                : ''}
+          </small>
+        </form>
+      </search>
       {queue.unavailable && <p role="alert">{queue.unavailable}</p>}
       {leave && (
         <NavigationDecision onStay={stay}>
@@ -571,12 +618,6 @@ function Workspace({ owner }: { owner: boolean }) {
       )}
       {queue.data && (
         <>
-          {queue.view === 'REASSIGNMENT' && (
-            <p>
-              Etkin olmayan veya askıya alınmış sorumlulardaki açık takipler. Tarihsel atama
-              korunur; otomatik atama yapılmaz.
-            </p>
-          )}
           <div className="today-workspace" data-selected={!!selected}>
             <Card className="today-queue" aria-label="Görev kuyruğu">
               <CardHeader>
@@ -585,32 +626,6 @@ function Workspace({ owner }: { owner: boolean }) {
                     {owner ? 'Açık işler' : 'Kendi işlerim'}
                   </span>
                 </CardTitle>
-                <div className="crm-queue-filters">
-                  <label htmlFor="work-queue-search">Yüklü takiplerde ara</label>
-                  <input
-                    id="work-queue-search"
-                    type="search"
-                    value={queueSearch}
-                    onChange={(event) => setQueueSearch(event.target.value)}
-                    placeholder="Müşteri, branş veya poliçe"
-                  />
-                  <label className="sr-only" htmlFor="work-queue-filter">
-                    Takip zamanı
-                  </label>
-                  <select
-                    id="work-queue-filter"
-                    value={queueBucket}
-                    onChange={(event) => setQueueBucket(event.target.value)}
-                  >
-                    <option value="ALL">Tüm zamanlar</option>
-                    <option value="OVERDUE">Geciken</option>
-                    <option value="TODAY">Bugün</option>
-                    <option value="UPCOMING">Yaklaşan</option>
-                  </select>
-                  <small>
-                    {visibleItems.length} yüklü takip · {queue.data.todayLocalDate}
-                  </small>
-                </div>
               </CardHeader>
               <CardContent>
                 <WorkQueueTable
@@ -634,13 +649,18 @@ function Workspace({ owner }: { owner: boolean }) {
                     })
                   }
                 />
-                {!items.length && <p>Bu kuyrukta gösterilecek takip bulunmuyor.</p>}
+                {!items.length && (
+                  <p>
+                    {queue.searchTerm
+                      ? 'Aramanızla eşleşen takip bulunamadı.'
+                      : 'Bu kuyrukta gösterilecek takip bulunmuyor.'}
+                  </p>
+                )}
                 {!!items.length && !visibleItems.length && (
                   <p>
-                    Yüklü takiplerde eşleşme yok.
-                    {hasMore && queueSearch.trim()
-                      ? ' Sonraki sayfada arayabilirsiniz.'
-                      : ' Aramayı veya zaman filtresini değiştirin.'}
+                    {!appliedSearch && draftSearch
+                      ? 'Yüklü takiplerde eşleşme yok. Ara ile tüm yetkili takipleri tarayın.'
+                      : 'Bu sayfada seçilen zamana uygun takip yok.'}
                   </p>
                 )}
                 {hasMore && !queue.failure && (
@@ -674,9 +694,7 @@ function Workspace({ owner }: { owner: boolean }) {
                       queue.more();
                     }}
                   >
-                    {queueSearch.trim() && !visibleItems.length
-                      ? 'Sonraki yetkili işlerde ara'
-                      : 'Daha fazla iş yükle'}
+                    {queue.searchTerm ? 'Daha fazla sonuç yükle' : 'Daha fazla iş yükle'}
                   </Button>
                 )}
               </CardContent>
@@ -804,12 +822,6 @@ function Workspace({ owner }: { owner: boolean }) {
                           aşamayı otomatik değiştirmez.
                         </p>
                       </RecordDetails>
-                      {selected.needsReassignment && (
-                        <p>
-                          Sorumlunun yeniden atanması gerekiyor. Mevcut atama otomatik
-                          değiştirilmez.
-                        </p>
-                      )}
                     </section>
                     <OperationSelector
                       active={activeOperation}
@@ -866,6 +878,7 @@ function Workspace({ owner }: { owner: boolean }) {
                         >
                           <legend className="sr-only">Görev işlemleri alanı</legend>
                           <TaskOperationsSection
+                            followupOnly
                             key={'operations:' + interactionKey}
                             task={selected}
                             read={(signal) => queue.readOperation(selected.taskId, signal)}

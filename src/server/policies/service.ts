@@ -1,7 +1,11 @@
 import type { AuthenticatedUserContext } from '../auth/identity';
 import { z } from 'zod';
 import { vehicleFieldsSchema, type PolicyVehicle } from '../../shared/vehicles';
-import { evaluateAuthorization, type AuthorizationResult } from '../auth/authorization';
+import {
+  evaluateAuthorization,
+  evaluatePortfolioRead,
+  type AuthorizationResult,
+} from '../auth/authorization';
 import type {
   PolicyAmendmentDto,
   PolicyDetailDto,
@@ -1127,22 +1131,18 @@ export async function listPolicies(
 ): Promise<PolicyListResponseData> {
   const active = membership(context),
     query = policyListQuerySchema.parse(raw);
-  const access = await authorize(db, context, 'policy.read', {
-    agencyId: active.agencyId,
-    isCollection: true,
-  });
-  const healthAccess = await evaluateAuthorization(db, {
+  const {
+    primary: access,
+    related: customerAccess,
+    health: healthAccess,
+  } = await evaluatePortfolioRead(
+    db,
     context,
-    action: 'policy.health.read',
-    resource: { agencyId: active.agencyId, isCollection: true },
-  });
-  const customerAccess = query.includeLabels
-    ? await evaluateAuthorization(db, {
-        context,
-        action: 'customer.read',
-        resource: { agencyId: active.agencyId, isCollection: true },
-      })
-    : null;
+    active.agencyId,
+    'policy',
+    query.includeLabels === 'true',
+  );
+  if (access.decision !== 'ALLOW') throw new PolicyForbiddenError(access.code);
   const customerScope =
     customerAccess?.decision === 'ALLOW' ? (customerAccess.effectiveScope ?? 'NONE') : 'NONE';
   const where = ['p.agency_id=?'],
@@ -1151,7 +1151,7 @@ export async function listPolicies(
     where.push('(p.assignee_membership_id=? OR c.assignee_membership_id=?)');
     values.push(active.id, active.id);
   }
-  if (healthAccess.decision !== 'ALLOW') where.push("b.data_classification='GENERAL'");
+  if (healthAccess?.decision !== 'ALLOW') where.push("b.data_classification='GENERAL'");
   if (query.customerId) {
     where.push('p.customer_id=?');
     values.push(query.customerId);

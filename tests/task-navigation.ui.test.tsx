@@ -102,6 +102,16 @@ function mount(entry = '/today-work', denied = false) {
   );
   return fetcher;
 }
+it.each(['UNASSIGNED', 'REASSIGNMENT'])(
+  'opens an old %s task link through the current work queue',
+  async (oldQueue) => {
+    const fetcher = mount('/today-work?task=a&queue=' + oldQueue);
+    await screen.findByText('a@demo.invalid');
+    expect(
+      fetcher.mock.calls.map(([url]) => url).filter((url) => url.startsWith('/api/tasks/')),
+    ).toEqual(['/api/tasks/today?limit=20', '/api/tasks/a/context?queue=WORK']);
+  },
+);
 it('restores exactly Task A after customer navigation and browser Back', async () => {
   const fetcher = mount();
   fireEvent.click(await screen.findByRole('button', { name: /Müşteri a/ }));

@@ -151,12 +151,8 @@ try {
   let selectedId = await selectFirst();
   if (!before && !preview) {
     await returnQueue();
-    if (actor === 'owner') {
-      await button('Atanmamış işler').click();
-      await page.getByText('Bu kuyrukta gösterilecek takip bulunmuyor.', { exact: true }).waitFor();
-      await button('Açık işler').click();
-      await page.locator('.today-task-row').first().waitFor();
-    } else assert.equal(await button('Atanmamış işler').count(), 0);
+    assert.equal(await button('Atanmamış işler').count(), 0);
+    assert.equal(await button('Yeniden atama gerekenler').count(), 0);
     let reads = 0;
     const observe = (request) => {
       if (new URL(request.url()).pathname === '/api/tasks/today') reads++;
@@ -512,28 +508,12 @@ try {
         'VOIDED',
       );
       result.checks.push('real-owner-VOIDED-technical-reason-not-LOST');
-      stage = 'assignment';
-      selectedId = await selectFirst();
+      stage = 'followup-controls';
+      await selectFirst();
       await op('Görev işlemleri');
-      await button('Görev atama seçeneklerini aç').click();
-      await page
-        .getByLabel('Yeni görev sorumlusu', { exact: true })
-        .selectOption('demo-member-ayse');
-      await page
-        .getByLabel('Görev ve yenileme sorumlusunu değiştirmeyi onaylıyorum', { exact: true })
-        .check();
-      await button('Görev sorumlusunu kaydet').click();
-      await page.getByText(/Görev ve yenileme sorumlusu değiştirildi/).waitFor();
-      assert.equal(
-        (
-          await demo.db
-            .prepare('SELECT assignee_membership_id FROM tasks WHERE id=?')
-            .bind(selectedId)
-            .first()
-        ).assignee_membership_id,
-        'demo-member-ayse',
-      );
-      result.checks.push('real-owner-reassignment');
+      await button('Yeni takip planını aç').waitFor();
+      assert.equal(await button('Görev atama seçeneklerini aç').count(), 0);
+      result.checks.push('real-owner-followup-without-assignment-controls');
     }
     assert.deepEqual(
       await page.evaluate(() => ({

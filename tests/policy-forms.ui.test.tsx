@@ -136,6 +136,27 @@ async function fill() {
   ])
     fireEvent.change(screen.getByLabelText(label!), { target: { value } });
 }
+
+it('preselects and labels the active agency default on a new policy', async () => {
+  fixture((url) => {
+    if (url === '/api/catalogs/selectable')
+      return response({
+        ...catalogs,
+        defaultInsurerId: 'i',
+        insurers: catalogs.insurers.map((insurer) => ({
+          ...insurer,
+          isDefault: insurer.id === 'i',
+        })),
+      });
+  });
+  mount();
+  const select = await screen.findByLabelText('Sigorta şirketi');
+  expect(select).toHaveProperty('value', 'i');
+  expect(screen.getByRole('option', { name: /Varsayılan/ })).toHaveProperty('selected', true);
+  fireEvent.change(select, { target: { value: 'other-i' } });
+  expect(select).toHaveProperty('value', 'other-i');
+});
+
 it.each(['12500,50', '12500.50', '12.500,50'])(
   'sends canonical decimal policy creation from employee input %s',
   async (value) => {

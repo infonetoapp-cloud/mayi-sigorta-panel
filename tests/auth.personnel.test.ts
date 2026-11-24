@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { localAuthFixture } from './support/local-auth-fixture';
+import { createFullPersonnelGrants, FULL_PERSONNEL_TEMPLATE } from '../src/shared/permissions';
 let f: Awaited<ReturnType<typeof localAuthFixture>>;
 let owner: Awaited<ReturnType<typeof f.seed>>;
 beforeAll(async () => {
@@ -219,6 +220,42 @@ describe('F-27 personnel atomic commands', () => {
     expect(identity?.issuer).toBe('urn:mayisigorta:local-auth:v1');
     expect(identity?.email_provenance).toBe('OWNER_PROVISIONED');
     expect(identity?.subject === 'new.employee@example.invalid').toBe(false);
+  });
+  it('provisions the complete grant snapshot and keeps personnel creation owner-only', async () => {
+    const session = await f.session(owner.id, true);
+    const grants = createFullPersonnelGrants();
+    const payload = {
+      kind: 'create',
+      name: 'Synthetic Full Employee',
+      email: 'full.employee@example.invalid',
+      template: FULL_PERSONNEL_TEMPLATE,
+      grants,
+    };
+    expect((await command(session.cookie, { ...payload, grants: [] })).status).toBe(400);
+    const created = await command(session.cookie, payload);
+    expect(created.status, await created.clone().text()).toBe(201);
+    const { data } = (await created.json()) as { data: { membershipId: string } };
+    const stored = await f.db
+      .prepare('SELECT permission_code,scope FROM membership_permissions WHERE membership_id=?')
+      .bind(data.membershipId)
+      .all<{ permission_code: string; scope: string }>();
+    expect(stored.results).toHaveLength(grants.length);
+    expect(stored.results).toEqual(expect.arrayContaining(grants));
+    expect(grants).toContainEqual({ permission_code: 'sensitive.health.read', scope: 'UNSCOPED' });
+    expect(grants).toContainEqual({ permission_code: 'task.read', scope: 'ASSIGNED' });
+
+    const actor = await f.seed('full-member-denied');
+    await f.db
+      .prepare(
+        `INSERT INTO membership_permissions(id,membership_id,permission_code,scope)
+        SELECT lower(hex(randomblob(16))),?,permission_code,scope FROM membership_permissions WHERE membership_id=?`,
+      )
+      .bind(actor.membershipId, data.membershipId)
+      .run();
+    const member = await f.session(actor.id, true);
+    const denied = await command(member.cookie, { ...payload, email: 'blocked@example.invalid' });
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toMatchObject({ error: { code: 'OWNER_REQUIRED' } });
   });
   it('reset revokes every target session while preserving inactive status and permissions', async () => {
     const employee = await f.seed('reset-employee');

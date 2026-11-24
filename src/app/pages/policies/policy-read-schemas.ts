@@ -103,7 +103,8 @@ export const policyFormCustomersSchema = z.object({
 });
 
 export const policyFormCatalogsSchema = z.object({
-  insurers: z.array(catalog),
+  insurers: z.array(catalog.extend({ isDefault: z.boolean().optional() })),
+  defaultInsurerId: id.nullish(),
   branches: z.array(catalog),
   products: z.array(catalog.extend({ insurerId: id, branchId: id })),
   paymentMethods: z.array(
