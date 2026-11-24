@@ -1,11 +1,19 @@
 // @vitest-environment node
 import { expect, it } from 'vitest';
 import { hourPrefixes, observeBackup } from '../src/server/backup-monitor/observer';
+import { DAILY_BACKUP_FRESHNESS_MS } from '../src/server/backup-monitor/evidence';
 it('enumerates three rollover-safe UTC hour prefixes when required', () => {
   expect(hourPrefixes(Date.parse('2027-01-01T00:10:00.000Z'))).toEqual([
     'd1/mayisigorta-crm/2026/12/31/22/',
     'd1/mayisigorta-crm/2026/12/31/23/',
     'd1/mayisigorta-crm/2027/01/01/00/',
+  ]);
+});
+it('daily observations query only the midnight and retry hours across UTC year rollover', () => {
+  expect(hourPrefixes(Date.parse('2027-01-01T21:45:00Z'), DAILY_BACKUP_FRESHNESS_MS)).toEqual([
+    'd1/mayisigorta-crm/2026/12/31/21/',
+    'd1/mayisigorta-crm/2026/12/31/22/',
+    'd1/mayisigorta-crm/2027/01/01/21/',
   ]);
 });
 it.each(['cursor-cycle', 'outside-key', 'objects-budget', 'missing-markers', 'provider-rejection'])(

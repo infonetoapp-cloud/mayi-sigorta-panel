@@ -19,7 +19,10 @@ it.each([
   ).toThrow('BACKUP_FAILED');
 });
 import { scheduledBackup } from '../src/server/d1-backup/scheduler';
-vi.mock('cloudflare:workers', () => ({ WorkflowEntrypoint: class {} }));
+vi.mock('cloudflare:workers', () => ({
+  WorkerEntrypoint: class {},
+  WorkflowEntrypoint: class {},
+}));
 import worker from '../src/server/d1-backup/worker';
 it('initial already-completed response needs no invented bookmark', () => {
   expect(
@@ -56,13 +59,57 @@ it('actual scheduled handler only dispatches deterministic Workflow creation', a
   const create = vi.fn(async ({ id }: { id: string }) => ({ id }));
   const get = vi.fn();
   await worker.scheduled(
-    { scheduledTime: 1800000 } as ScheduledController,
+    {
+      scheduledTime: Date.parse('2026-11-24T21:00:00Z'),
+      cron: '0 21 * * *',
+    } as ScheduledController,
     { BACKUP_WORKFLOW: { create, get } } as never,
   );
-  expect(create).toHaveBeenCalledWith({ id: 'd1-backup-slot-1' });
+  expect(create).toHaveBeenCalledWith({
+    id: 'd1-backup-daily-2026-11-25',
+    params: { scheduledAt: '2026-11-24T21:00:00.000Z' },
+  });
   expect(get).not.toHaveBeenCalled();
   expect('fetch' in worker).toBe(false);
 });
+it.each([200, 503] as const)(
+  '02:00 check emits a missing-backup signal and a separate capacity signal with metrics HTTP %i',
+  async (status) => {
+    const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const create = vi.fn();
+    vi.stubGlobal('fetch', async () =>
+      Response.json(
+        {
+          success: status === 200,
+          result: {
+            standard: {
+              published: { payloadSize: 7_000_000_000, metadataSize: 0 },
+              uploaded: { payloadSize: 0, metadataSize: 0 },
+            },
+          },
+        },
+        { status },
+      ),
+    );
+    try {
+      await worker.scheduled(
+        {
+          scheduledTime: Date.parse('2026-11-24T23:00:00Z'),
+          cron: '0 23 * * *',
+        } as ScheduledController,
+        { BACKUP_WORKFLOW: { create }, RECOVERY: { head: async () => null } } as never,
+      );
+      expect(warnings.mock.calls.map(([record]) => record.event)).toEqual([
+        'MAYI_D1_DAILY_BACKUP_MISSING',
+        status === 200 ? 'MAYI_R2_CAPACITY_WARNING' : 'MAYI_R2_CAPACITY_UNAVAILABLE',
+      ]);
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      warnings.mockRestore();
+    }
+  },
+);
 const parse = (result: unknown) =>
   parseExportResponse({ success: true, result }, 200, 'export-poll', 2, 40, 'previous');
 it.each([
@@ -122,29 +169,34 @@ it('scheduled event duplicate uses same deterministic create ID then get; no sec
   const create = vi.fn(async ({ id }: { id: string }) => {
     if (ids.has(id)) throw new Error('provider secret duplicate');
     ids.add(id);
-    return { id };
+    return { id, status: async () => ({ status: 'queued' }) };
   });
   const get = vi.fn(async (id: string) => {
     if (!ids.has(id)) throw new Error('not found');
-    return { id };
+    return { id, status: async () => ({ status: 'queued' }) };
   });
   const binding = { create, get };
-  const time = Date.parse('2026-10-08T12:30:00Z');
-  await scheduledBackup(time, binding);
-  await scheduledBackup(time, binding);
+  const time = Date.parse('2026-10-08T21:00:00Z');
+  await scheduledBackup(time, '0 21 * * *', binding, { head: async () => null });
+  await scheduledBackup(time, '0 21 * * *', binding, { head: async () => null });
   expect(ids.size).toBe(1);
   expect(create.mock.calls[0]![0].id).toBe(create.mock.calls[1]![0].id);
   expect(get).toHaveBeenCalledOnce();
 });
 it('Cron create error never treated as successful duplicate without get confirmation', async () => {
   await expect(
-    scheduledBackup(0, {
-      create: async () => {
-        throw new Error('secret signed URL');
+    scheduledBackup(
+      Date.parse('2026-10-08T21:00:00Z'),
+      '0 21 * * *',
+      {
+        create: async () => {
+          throw new Error('secret signed URL');
+        },
+        get: async () => {
+          throw new Error('secret');
+        },
       },
-      get: async () => {
-        throw new Error('secret');
-      },
-    }),
+      { head: async () => null },
+    ),
   ).rejects.toThrow('cron-create');
 });

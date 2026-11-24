@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
+import { DatabaseSync } from 'node:sqlite';
 import {
   generationPrefix,
   runBackup,
+  BACKUP_SOURCE,
   EXPORT_URL,
   MAX_BACKUP_SQL_BYTES,
   MAX_POLLS,
@@ -11,7 +15,15 @@ import {
   type BackupSteps,
   type BackupRuntime,
 } from '../src/server/d1-backup/core';
+import { BACKUP_CRONS } from '../src/server/d1-backup/scheduler';
+import { MAX_GZIP_SQL_BYTES, MAX_RAW_SQL_BYTES } from '../src/server/d1-backup/format';
+import { validateBackupEvidence } from '../src/server/backup-monitor/evidence';
+import {
+  nativeExportSha256,
+  prepareNativeD1Restore,
+} from '../scripts/recovery/prepare-native-restore';
 const timestamp = '2026-10-08T00:00:00.000Z';
+const syntheticSql = 'CREATE TABLE synthetic(id TEXT PRIMARY KEY);';
 it('default runtime invokes global fetch with correct receiver on export and signed download', async () => {
   const f = fixture('immediate');
   vi.stubGlobal('fetch', function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
@@ -31,7 +43,13 @@ it('default runtime invokes global fetch with correct receiver on export and sig
 function fixture(failure = '') {
   const objects = new Map<
       string,
-      { text: string; size: number; etag: string; customMetadata: Record<string, string> }
+      {
+        bytes: Buffer;
+        text: string;
+        size: number;
+        etag: string;
+        customMetadata: Record<string, string>;
+      }
     >(),
     writes: string[] = [],
     requests: Array<{ url: string; init?: RequestInit }> = [],
@@ -57,11 +75,15 @@ function fixture(failure = '') {
         (failure === 'manifest-write' && key.endsWith('manifest.json'))
       )
         throw new Error('synthetic key must not escape');
-      const text = typeof data === 'string' ? data : await new Response(data as BodyInit).text();
+      const bytes =
+        typeof data === 'string'
+          ? Buffer.from(data)
+          : Buffer.from(await new Response(data as BodyInit).arrayBuffer());
       const record = {
-        text,
-        size: new TextEncoder().encode(text).length,
-        etag: 'synthetic-etag',
+        bytes,
+        text: bytes.toString('utf8'),
+        size: bytes.length,
+        etag: 'bc10c5406a88755ebc7446ab5c4e5b39',
         customMetadata: options.customMetadata,
       };
       objects.set(key, record);
@@ -114,9 +136,9 @@ function fixture(failure = '') {
         },
       });
     }
-    return new Response(failure === 'empty' ? '' : 'CREATE TABLE synthetic(id TEXT);', {
+    return new Response(failure === 'empty' ? '' : syntheticSql, {
       status: failure === 'download' ? 503 : 200,
-      headers: { 'content-length': failure === 'empty' ? '0' : '32' },
+      headers: { 'content-length': failure === 'empty' ? '0' : String(syntheticSql.length) },
     });
   }) as typeof fetch;
   // Synthetic download intentionally has exact independent byte count.
@@ -149,6 +171,116 @@ function fixture(failure = '') {
   };
   return { env, steps, runtime, objects, writes, requests, outputs };
 }
+it('publishes gzip metadata and restores the exact compressed export', async () => {
+  const f = fixture('immediate');
+  const generation = 'd1-backup-slot-1496303';
+  const result = await runBackup(f.env, f.steps, timestamp, generation, f.runtime, 'gzip');
+  expect(f.writes.map((key) => key.split('/').at(-1))).toEqual([
+    'database.sql.gz',
+    'manifest.json',
+    'COMPLETE.json',
+  ]);
+  const [sqlKey, manifestKey, completeKey] = f.writes as [string, string, string];
+  const object = f.objects.get(sqlKey)!;
+  const raw = gunzipSync(object.bytes);
+  expect(raw.toString()).toBe(syntheticSql);
+  expect(result.rawSqlSize).toBe(raw.length);
+  const manifest = JSON.parse(f.objects.get(manifestKey)!.text) as Record<string, unknown>;
+  const complete = JSON.parse(f.objects.get(completeKey)!.text) as Record<string, unknown>;
+  const t = Date.parse(timestamp);
+  const head = (key: string, offset: number) => ({
+    ...f.objects.get(key)!,
+    key,
+    uploaded: new Date(t + offset),
+  });
+  const evidence = {
+    manifest,
+    complete,
+    sql: head(sqlKey, 1000),
+    manifestHead: head(manifestKey, 2000),
+    completeHead: head(completeKey, 3000),
+  };
+  expect(validateBackupEvidence(evidence, t + 4000).status).toBe('HEALTHY');
+  const receipt = {
+    format: 'mayi-recovery-source-acceptance-v1',
+    expectedGeneration: generation,
+    expectedSource: BACKUP_SOURCE.databaseId,
+    expectedSourceName: BACKUP_SOURCE.databaseName,
+    expectedSourceAccount: BACKUP_SOURCE.accountId,
+    expectedObjectKey: sqlKey,
+    sourceExportSha256: nativeExportSha256(object.bytes),
+    manifest,
+    complete,
+    object: { key: sqlKey, size: object.size, etag: object.etag, ...object.customMetadata },
+    sqlUploadedAt: evidence.sql.uploaded.toISOString(),
+    manifestUploadedAt: evidence.manifestHead.uploaded.toISOString(),
+    completeUploadedAt: evidence.completeHead.uploaded.toISOString(),
+  };
+  const prepared = prepareNativeD1Restore(object.bytes, receipt);
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(prepared.sql);
+    expect(db.prepare("SELECT name FROM sqlite_schema WHERE name='synthetic'").get()).toEqual({
+      name: 'synthetic',
+    });
+  } finally {
+    db.close();
+  }
+  const changed = Buffer.from(object.bytes);
+  changed[changed.length - 1] = changed.at(-1)! ^ 1;
+  expect(() => prepareNativeD1Restore(changed, receipt)).toThrow('SOURCE_IDENTITY_MISMATCH');
+  expect(() =>
+    prepareNativeD1Restore(object.bytes, {
+      ...receipt,
+      manifest: { ...manifest, rawSqlSize: 1 },
+      complete: { ...complete, rawSqlSize: 1 },
+      object: { ...receipt.object, rawSqlSize: '1' },
+    }),
+  ).toThrow('SOURCE_GZIP_INVALID');
+  expect(
+    validateBackupEvidence(
+      {
+        ...evidence,
+        sql: { ...evidence.sql, customMetadata: { ...object.customMetadata, rawSqlSize: '1' } },
+      },
+      t + 4000,
+    ).status,
+  ).toBe('QUERY_OR_PROVIDER_FAILURE');
+});
+
+it.each([
+  [String(MAX_RAW_SQL_BYTES + 1), 'sql-size-limit-exceeded'],
+  ['90', 'invalid-length'],
+])('rejects invalid gzip input length without publishing objects', async (length, expected) => {
+  const f = fixture('immediate');
+  const runtime: BackupRuntime = {
+    ...f.runtime,
+    fetch: (input, init) =>
+      String(input) === EXPORT_URL
+        ? f.runtime.fetch(input, init)
+        : Promise.resolve(new Response('short', { headers: { 'content-length': length } })),
+  };
+  await expect(
+    runBackup(f.env, f.steps, timestamp, 'synthetic-gzip', runtime, 'gzip'),
+  ).rejects.toMatchObject({ diagnostic: { classification: expected } });
+  expect(f.writes).toEqual([]);
+});
+
+it('stops before uploading a gzip artifact above the compressed object limit', async () => {
+  const f = fixture('immediate');
+  const data = randomBytes(MAX_GZIP_SQL_BYTES + 65536);
+  const runtime: BackupRuntime = {
+    ...f.runtime,
+    fetch: (input, init) =>
+      String(input) === EXPORT_URL
+        ? f.runtime.fetch(input, init)
+        : Promise.resolve(new Response(data)),
+  };
+  await expect(
+    runBackup(f.env, f.steps, timestamp, 'synthetic-gzip', runtime, 'gzip'),
+  ).rejects.toMatchObject({ diagnostic: { classification: 'gzip-size-limit-exceeded' } });
+  expect(f.writes).toEqual([]);
+});
 it.each(['immediate', 'changed-bookmark'])('valid %s completion is not rejected', async (mode) => {
   const f = fixture(mode);
   const result = await runBackup(f.env, f.steps, timestamp, 'synthetic-run', f.runtime);
@@ -329,7 +461,7 @@ it('duplicate completed generation is not overwritten or re-exported', async () 
 it.each(['../escape', '', 'a/b'])('invalid generation %s rejected', (id) => {
   expect(() => generationPrefix(timestamp, id)).toThrow();
 });
-it('dedicated config has exact EU R2 binding, no D1/app route and schedule disabled until acceptance', () => {
+it('dedicated config uses the daily schedule, exact EU R2 binding and no D1/app route', () => {
   const c = JSON.parse(readFileSync('wrangler.backup.json', 'utf8'));
   expect(c.account_id).toBe('af9fc98cb8d5f5508d58057bc794d863');
   expect(c.workers_dev).toBe(false);
@@ -339,11 +471,12 @@ it('dedicated config has exact EU R2 binding, no D1/app route and schedule disab
     { binding: 'RECOVERY', bucket_name: 'mayisigorta-crm-recovery', jurisdiction: 'eu' },
   ]);
   expect(c.d1_databases).toBeUndefined();
+  expect(c.triggers.crons).toEqual(BACKUP_CRONS);
   expect(c.workflows[0].schedules).toBeUndefined();
   const entry = readFileSync('src/server/d1-backup/worker.ts', 'utf8');
   expect(entry).toContain('scheduled');
   expect(entry).not.toContain('async fetch');
-  expect(entry.match(/console\.info\(/g)).toHaveLength(1);
+  expect(entry).toContain('MAYI_R2_CAPACITY');
   expect(entry).toContain('MAYI_D1_BACKUP_COMPLETE');
   expect(entry).toContain("name === 'poll-download-store-sql' ? 0 : 1");
 });

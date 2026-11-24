@@ -4,15 +4,16 @@ import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
+// @ts-expect-error Native Node decoder needs an explicit extension.
+import { MAX_RAW_SQL_BYTES } from '../../src/server/d1-backup/format.ts';
 
 // Recovery-only decoder. Never import from a Worker or pass a live binding here.
 export const ORDERED_IMPORT_LIMITS = Object.freeze({
-  // Match the SQL artifact size supported by the backup publisher.
-  sourceBytes: 16 * 1024 * 1024,
-  derivedBytes: 48 * 1024 * 1024,
+  sourceBytes: MAX_RAW_SQL_BYTES,
+  derivedBytes: 144 * 1024 * 1024,
   rows: 200000,
   schemaObjects: 1000,
-  tokens: 10000000,
+  tokens: 16000000,
   statementTokens: 200000,
   columns: 256,
   nesting: 64,

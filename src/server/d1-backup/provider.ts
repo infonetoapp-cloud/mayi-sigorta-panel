@@ -22,6 +22,7 @@ export type Classification =
   | 'invalid-url'
   | 'invalid-length'
   | 'sql-size-limit-exceeded'
+  | 'gzip-size-limit-exceeded'
   | 'verification-failed'
   | 'local-failure';
 export interface SafeDiagnostic {

@@ -1,4 +1,11 @@
-import { FRESHNESS_MS, validateBackupEvidence, type Decision, type ObjectHead } from './evidence';
+import {
+  backupSqlFilename,
+  DAILY_BACKUP_FRESHNESS_MS,
+  FRESHNESS_MS,
+  validateBackupEvidence,
+  type Decision,
+  type ObjectHead,
+} from './evidence';
 /** This interface is a code capability, not IAM proof. A deployed reader must use
  * exact-bucket Object Read credentials. No backup-binding/credential bootstrap here. */
 export interface BackupReader {
@@ -16,12 +23,13 @@ export function hourPrefixes(now: number, freshnessMs = FRESHNESS_MS): string[] 
     now < freshnessMs ||
     !Number.isSafeInteger(freshnessMs) ||
     freshnessMs <= 0 ||
-    freshnessMs > FRESHNESS_MS
+    (freshnessMs > FRESHNESS_MS && freshnessMs !== DAILY_BACKUP_FRESHNESS_MS)
   )
     throw Error('INVALID_CLOCK');
   const out: string[] = [];
   for (let t = Math.floor((now - freshnessMs) / 3600000) * 3600000; t <= now; t += 3600000) {
     const d = new Date(t).toISOString();
+    if (freshnessMs === DAILY_BACKUP_FRESHNESS_MS && !/T2[12]:/u.test(d)) continue;
     out.push(
       `d1/mayisigorta-crm/${d.slice(0, 4)}/${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(11, 13)}/`,
     );
@@ -42,6 +50,9 @@ async function inspectBackup(
     let pages = 0,
       objects = 0,
       generations = 0;
+    // A 90-minute window can straddle three UTC hours, with three slots per hour.
+    // Reserve the same budget for the bounded re-list if no healthy marker is found.
+    const maxGenerations = prefixes.length * 3 * 2;
     for (let pass = 0; pass < 2; pass++) {
       const keys = new Set<string>();
       for (const prefix of prefixes) {
@@ -57,7 +68,12 @@ async function inspectBackup(
           for (const key of page.keys) {
             if (typeof key !== 'string' || !key.startsWith(prefix) || key.length > 512)
               throw Error('KEY_SCOPE');
-            if (key.endsWith('/COMPLETE.json')) keys.add(key);
+            if (
+              key.endsWith('/COMPLETE.json') &&
+              (freshnessMs !== DAILY_BACKUP_FRESHNESS_MS ||
+                /-d1-backup-daily-\d{4}-\d{2}-\d{2}(?:-retry)?\/COMPLETE\.json$/u.test(key))
+            )
+              keys.add(key);
           }
           cursor = page.cursor;
           if (cursor !== undefined) {
@@ -69,16 +85,18 @@ async function inspectBackup(
       }
       const decisions: Decision[] = [];
       for (const key of [...keys].sort().reverse()) {
-        if (++generations > 6 || signal.aborted) throw Error('GENERATION_BUDGET_OR_DEADLINE');
+        if (++generations > maxGenerations || signal.aborted)
+          throw Error('GENERATION_BUDGET_OR_DEADLINE');
         const prefix = key.slice(0, -'COMPLETE.json'.length);
-        const sql = await reader.head(prefix + 'database.sql', signal),
-          mh = await reader.head(prefix + 'manifest.json', signal),
+        const mh = await reader.head(prefix + 'manifest.json', signal),
           ch = await reader.head(key, signal);
         if (signal.aborted) throw Error('DEADLINE');
         if (!ch) continue; // marker disappeared/racing listing; never accepted without current exact HEAD
-        if (!sql || !mh) throw Error('INCOMPLETE_PUBLISHED_GENERATION');
+        if (!mh) throw Error('INCOMPLETE_PUBLISHED_GENERATION');
         const manifest = await reader.readJSON(prefix + 'manifest.json', 8192, signal),
           complete = await reader.readJSON(key, 8192, signal);
+        const sql = await reader.head(prefix + backupSqlFilename(manifest), signal);
+        if (!sql) throw Error('INCOMPLETE_PUBLISHED_GENERATION');
         if (signal.aborted) throw Error('DEADLINE');
         const decision = validateBackupEvidence(
           { sql, manifestHead: mh, completeHead: ch, manifest, complete },
