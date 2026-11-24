@@ -9,6 +9,19 @@ let f: Awaited<ReturnType<typeof localAuthFixture>>,
   member: string,
   customerId: string;
 let serial = 0;
+const agencyToday = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Istanbul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
+function agencyDateAfter(days: number) {
+  const date = new Date(`${agencyToday}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+const cancellationDate = agencyDateAfter(-7);
+const expiringPolicyDays = 7;
 beforeAll(async () => {
   f = await localAuthFixture();
   await f.seed('cancel-owner', 'OWNER');
@@ -82,8 +95,8 @@ async function make(open = false) {
     branchId: 'cancel-b',
     paymentMethodId: 'cancel-pay',
     policyNumber: 'CANCEL-' + ++serial,
-    startDate: '2026-01-01',
-    endDate: open ? '2026-11-25' : '2027-12-31',
+    startDate: agencyDateAfter(-180),
+    endDate: agencyDateAfter(open ? expiringPolicyDays : 365),
     grossPremium: '1234.56',
     currency: 'TRY',
     installmentCount: null,
@@ -103,7 +116,7 @@ async function context(id: string, kind = 'cancel', cookie = owner) {
 function input(c: Record<string, unknown>, kind = 'cancel') {
   return {
     expectedPolicyVersion: c.policyVersion,
-    cancellationDate: '2026-11-17',
+    cancellationDate,
     reasonCode: kind === 'cancel' ? 'VEHICLE_SOLD' : 'DUPLICATE',
     reasonNotes: null,
     targetSetFingerprint: c.targetSetFingerprint,
@@ -140,7 +153,7 @@ it('cancels with evidence, preserves unrelated work and exactly replays without 
   expect((await write(`/api/policies/${p.id}/cancel`, body)).status).toBe(409);
   const h = await f.request(`/api/policies/${p.id}/cancellations`, 'GET', owner);
   expect(await h.json()).toMatchObject({
-    data: [{ reasonCode: 'VEHICLE_SOLD', eventDate: '2026-11-17', status: 'CANCELLED' }],
+    data: [{ reasonCode: 'VEHICLE_SOLD', eventDate: cancellationDate, status: 'CANCELLED' }],
   });
   expect(
     (await f.db
@@ -158,7 +171,7 @@ it('cancels with evidence, preserves unrelated work and exactly replays without 
     (
       await write(
         `/api/policies/${p.id}`,
-        { expectedVersion: 2, endDate: '2027-12-30' },
+        { expectedVersion: 2, endDate: agencyDateAfter(364) },
         crypto.randomUUID(),
         owner,
         'PATCH',
@@ -217,8 +230,12 @@ it('rejects stale context, invalid dates/reasons, missing CSRF, oversized JSON a
     c = await context(p.id),
     body = input(c);
   expect(
-    (await write(`/api/policies/${p.id}/cancel`, { ...body, cancellationDate: '2028-01-01' }))
-      .status,
+    (
+      await write(`/api/policies/${p.id}/cancel`, {
+        ...body,
+        cancellationDate: agencyDateAfter(400),
+      })
+    ).status,
   ).toBe(400);
   expect(
     (await write(`/api/policies/${p.id}/cancel`, { ...body, reasonCode: 'OTHER' })).status,
@@ -373,8 +390,8 @@ it('preserves a real WON renewal and its issued policy when cancelling the expir
         branchId: 'cancel-b',
         paymentMethodId: 'cancel-pay',
         policyNumber: 'CANCEL-WON-' + ++serial,
-        startDate: '2026-11-26',
-        endDate: '2027-11-25',
+        startDate: agencyDateAfter(expiringPolicyDays + 1),
+        endDate: agencyDateAfter(expiringPolicyDays + 365),
         grossPremium: '1234.56',
         currency: 'TRY',
         installmentCount: null,
@@ -412,7 +429,7 @@ it('validates imported evidence and rejects forged or missing targets despite a 
     verifyPolicyLifecycleRecovery(async (sql) => {
       const rows = await query(sql);
       return sql.includes("SELECT *,'CANCELLED'")
-        ? rows.map((r, i) => (i ? r : { ...r, event_date: '2026-01-02' }))
+        ? rows.map((r, i) => (i ? r : { ...r, event_date: agencyDateAfter(-8) }))
         : rows;
     }),
   ).rejects.toThrow('OPERATIONAL_RECOVERY_INVALID');
