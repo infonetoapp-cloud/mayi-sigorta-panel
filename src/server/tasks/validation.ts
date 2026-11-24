@@ -22,6 +22,7 @@ export const todayTasksQuerySchema = z
     unassignedCursor: z.string().trim().min(1).max(1024).optional(),
     needsReassignment: z.literal('true').optional(),
     unified: z.literal('true').optional(),
+    q: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 

@@ -414,6 +414,52 @@ it('denies foreign, ungranted and revoked actors without policy fields on every 
   expect((await f.request(path, 'GET', ayse)).status).toBe(401);
 });
 
+it('uses current portfolio scopes on the next request and rejects a revoked list session', async () => {
+  const actor = await f.seed('browse-list-scope');
+  await f.db.batch(
+    ['customer.read', 'policy.read'].map((permission) =>
+      f.db
+        .prepare(
+          "INSERT INTO membership_permissions(id,membership_id,permission_code,scope) VALUES(?,?,?,'AGENCY')",
+        )
+        .bind(crypto.randomUUID(), actor.membershipId, permission),
+    ),
+  );
+  const session = await f.session(actor.id);
+  const paths = [
+    '/api/policies?includeLabels=true&searchMode=exact&search=BROWSE-0',
+    '/api/customers?include=coverage&limit=20',
+  ];
+  for (const path of paths) {
+    const result = await data<{ items: { id: string }[] }>(
+      await f.request(path, 'GET', session.cookie),
+    );
+    expect(result.items.map(({ id }) => id)).toContain(
+      path.startsWith('/api/policies') ? policies[0]!.id : customer.id,
+    );
+  }
+
+  await f.db
+    .prepare("UPDATE membership_permissions SET scope='ASSIGNED' WHERE membership_id=?")
+    .bind(actor.membershipId)
+    .run();
+
+  for (const path of paths) {
+    const result = await data<{ items: unknown[] }>(await f.request(path, 'GET', session.cookie));
+    expect(result.items).toEqual([]);
+  }
+
+  await f.db
+    .prepare('UPDATE local_sessions SET revoked_at=? WHERE token_hash=?')
+    .bind(Date.now(), session.hash)
+    .run();
+  for (const path of paths) {
+    const result = await f.request(path, 'GET', session.cookie);
+    expect(result.status).toBe(401);
+    expect(await result.json()).not.toHaveProperty('data');
+  }
+});
+
 it('searches a multibyte policy prefix across insurer partitions and respects the exact boundary', async () => {
   const prefix = 'Ş'.repeat(45) + '\u{10400}';
   const lowercase = 'ş'.repeat(45) + '\u{10428}';

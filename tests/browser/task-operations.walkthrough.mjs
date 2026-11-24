@@ -175,77 +175,11 @@ export async function taskOperationsWalkthrough(page, index, mark, demo) {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('https://localhost:8443/today-work');
   await page.locator('.today-task-row').first().click();
-  await page.getByRole('button', { name: 'Görev atama seçeneklerini aç', exact: true }).click();
-  if (index) {
-    await page
-      .getByText('Bu görev için atama dizini yetkili olarak açılamadı.', { exact: true })
-      .waitFor();
-    assert.equal(await page.getByLabel('Yeni görev sorumlusu', { exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Atama taslağını kapat', exact: true }).click();
-    return;
-  }
-  const options = page.getByLabel('Yeni görev sorumlusu', { exact: true });
-  await options.waitFor();
-  assert.equal(await options.inputValue(), '');
-  for (const width of [1440, 768, 360]) {
-    await page.setViewportSize({ width, height: 950 });
-    await options.scrollIntoViewIfNeeded();
-    assert.equal(
-      await page.evaluate(
-        () => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth,
-      ),
-      true,
-    );
-  }
-  await options.selectOption('demo-member-ayse');
-  await page
-    .getByLabel('Görev ve yenileme sorumlusunu değiştirmeyi onaylıyorum', { exact: true })
-    .check();
-  await page.getByRole('button', { name: 'Görev sorumlusunu kaydet', exact: true }).click();
-  await page.getByText(/Görev\/yenileme sorumlusu sunucu sonucu/).waitFor();
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  mark('task-reassignment-history');
-  await page.goto('https://localhost:8443/today-work');
-  await page.locator('.today-task-row').first().waitFor();
-  const old = (await read(page, '/api/tasks/today?limit=20')).items.find(
-    (t) => t.assigneeMembershipId === 'demo-member-ahmet',
+  await openWorkspaceSections(page);
+  await page.getByRole('button', { name: 'Yeni takip planını aç', exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole('button', { name: 'Görev atama seçeneklerini aç', exact: true }).count(),
+    0,
   );
-  assert.ok(old);
-  await demo.db
-    .prepare(
-      "UPDATE agency_memberships SET status='SUSPENDED',suspended_at=?,version=version+1,permission_version=permission_version+1 WHERE id='demo-member-ahmet'",
-    )
-    .bind(new Date().toISOString())
-    .run();
-  try {
-    await page.getByRole('button', { name: 'Yeniden atama gerekenler', exact: true }).click();
-    await page.locator('.today-task-row').first().click();
-    await page.getByRole('button', { name: 'Görev atama seçeneklerini aç', exact: true }).click();
-    const select = page.getByLabel('Yeni görev sorumlusu', { exact: true });
-    await select.waitFor();
-    assert.equal(await select.inputValue(), '');
-    assert.equal(await select.locator('option[value="demo-member-ahmet"]').count(), 0);
-    assert.equal(await select.locator('option[value="__unassigned__"]').count(), 0);
-    await select.selectOption('demo-member-ayse');
-    await page
-      .getByLabel('Görev ve yenileme sorumlusunu değiştirmeyi onaylıyorum', { exact: true })
-      .check();
-    await page.getByRole('button', { name: 'Görev sorumlusunu kaydet', exact: true }).click();
-    await page.getByText(/Görev\/yenileme sorumlusu sunucu sonucu/).waitFor();
-  } finally {
-    await demo.db
-      .prepare(
-        "UPDATE agency_memberships SET status='ACTIVE',suspended_at=NULL,version=version+1,permission_version=permission_version+1 WHERE id='demo-member-ahmet'",
-      )
-      .run();
-    // Disposable fixture only: suspension deliberately disables local login and revokes
-    // sessions. Re-enable this synthetic credential for the next canonical password login;
-    // do not restore any revoked session or touch a verifier/password.
-    await demo.db
-      .prepare(
-        "UPDATE local_credentials SET login_enabled=1,credential_version=credential_version+1,updated_at=? WHERE user_id='demo-user-ahmet'",
-      )
-      .bind(Date.now())
-      .run();
-  }
+  assert.equal(await page.getByRole('button', { name: 'Atanmamış işler', exact: true }).count(), 0);
 }

@@ -140,6 +140,24 @@ it('creates through the existing policy form with the real price, current case, 
   });
 });
 
+it('explains a missing insurer and branch product before opening policy details', async () => {
+  const catalogWithoutMatch = {
+    ...catalogs,
+    products: [{ ...catalogs.products[0], insurerId: 'another-company' }],
+  };
+  const f = setup((url) => {
+    if (url.endsWith('catalogs/selectable')) return ok(catalogWithoutMatch);
+  });
+  fireEvent.click(await screen.findByRole('button', { name: 'Yeni poliçe kaydet' }));
+  await screen.findByRole('option', { name: /Anadolu Sigorta ·/ });
+  fireEvent.change(screen.getByLabelText('Kayıtlı teklif *'), { target: { value: 'price:rev' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Devam et' }));
+  expect(screen.getByText(/Bu şirket ve branş için etkin ürün bulunamadı/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Poliçe seçeneklerini yenile' })).toBeTruthy();
+  expect(screen.queryByLabelText('Ürün *')).toBeNull();
+  expect(f.writes()).toHaveLength(0);
+});
+
 it('links with an explicit no-quote reason, retries ambiguous POST exactly, and then uses only GET verification', async () => {
   let posts = 0,
     reads = 0;

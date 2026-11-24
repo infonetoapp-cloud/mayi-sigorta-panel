@@ -269,7 +269,7 @@ function useOperation(kind: Kind, props: Props, blocked: () => boolean) {
         }
         setError(
           r.status === 409
-            ? 'Sürümler veya atama uygunluğu değişti. Taslak korundu; özgün kuyruk sayfasını karşılaştırıp yeniden açıkça onaylayın.'
+            ? 'Takip bilgileri değişti. Taslağınız korundu. Güncel takibi karşılaştırıp yeniden onaylayın.'
             : parseAppError(r.status, result && !result.success ? result.error : undefined).message,
         );
         return;
@@ -460,7 +460,7 @@ export function TaskOperationsSection(props: Props) {
               </h3>
               <p>
                 {kind === 'complete'
-                  ? 'Mevcut takip tamamlanır ve yerine yeni takip açılır. Bu işlem yenilemeyi kazanıldı, yenilenmedi veya geçersiz olarak sonuçlandırmaz. Yeni takip mevcut atama kurallarına göre atanır.'
+                  ? 'Mevcut takip tamamlanır ve yerine seçtiğiniz tarihte yeni takip açılır. Yenileme takipte kalır.'
                   : 'Atama yetkiniz ayrıca kontrol edilir. Müşteri ve poliçe sorumlusu ile not yazarı değişmez.'}
               </p>
               <p>

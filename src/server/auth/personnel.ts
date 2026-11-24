@@ -24,7 +24,12 @@ import { generateTemporaryPassword, normalizeLoginEmail } from './password';
 import { createDurableObjectPasswordHasher } from './password-do-adapter';
 import { computePayloadHash } from '../mutations/canonical';
 import { canonicalizeTargetIds, computeEvidenceHash } from '../mutations/grants';
-import { getPermissionDefinition } from '../../shared/permissions';
+import {
+  createFullPersonnelGrants,
+  FULL_PERSONNEL_TEMPLATE,
+  getPermissionDefinition,
+  isOwnerOnlyPermission,
+} from '../../shared/permissions';
 import { parseCsrfConfig } from '../config';
 import {
   safeJustification,
@@ -51,7 +56,7 @@ export const personnelCommandSchema = z.discriminatedUnion('kind', [
       kind: z.literal('create'),
       name: z.string().trim().min(2).max(120),
       email: z.string().max(320),
-      template: z.enum(['personel', 'yetkili_personel']),
+      template: z.enum(['personel', 'yetkili_personel', FULL_PERSONNEL_TEMPLATE]),
       grants: grantsSchema,
     })
     .strict(),
@@ -208,6 +213,17 @@ async function parseCommand(raw: unknown): Promise<Command> {
   if (command.kind === 'create') {
     command.email = normalizeLoginEmail(command.email);
     validateGrants(command.grants, 'MEMBER');
+    if (command.grants.some(({ permission_code }) => isOwnerOnlyPermission(permission_code)))
+      throw new AuthHttpError(400, 'INVALID_GRANTS', 'Bu izin yalnız acente sahibine açıktır.');
+    if (command.template === FULL_PERSONNEL_TEMPLATE) {
+      const submitted = new Map(command.grants.map((g) => [g.permission_code, g.scope]));
+      const required = createFullPersonnelGrants();
+      if (
+        submitted.size !== required.length ||
+        required.some(({ permission_code, scope }) => submitted.get(permission_code) !== scope)
+      )
+        throw new AuthHttpError(400, 'INVALID_GRANTS', 'Tüm yetkiler seçimi güncel değil.');
+    }
   } else if ('grants' in command && command.kind !== 'permissions')
     validateGrants(command.grants, command.kind === 'promote' ? 'OWNER' : 'MEMBER');
   else if (command.kind === 'transfer') {

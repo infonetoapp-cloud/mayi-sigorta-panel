@@ -276,14 +276,16 @@ export async function listInsurers(
   options: { includeInactive?: boolean } = {},
 ): Promise<InsurerDto[]> {
   const mem = getActiveMembership(context);
-  const statusFilter = options.includeInactive ? '' : "AND status = 'ACTIVE'";
+  const statusFilter = options.includeInactive ? '' : "AND i.status = 'ACTIVE'";
 
   const rows = await db
     .prepare(
-      `SELECT id, agency_id, code, name, status, version, created_at, updated_at
-       FROM insurers
-       WHERE agency_id = ? ${statusFilter}
-       ORDER BY name ASC`,
+      `SELECT i.id, i.agency_id, i.code, i.name, i.status, i.version, i.created_at, i.updated_at,
+              i.id IS s.default_insurer_id AS is_default
+       FROM insurers i
+       LEFT JOIN agency_settings s ON s.agency_id = i.agency_id
+       WHERE i.agency_id = ? ${statusFilter}
+       ORDER BY is_default DESC, i.name ASC, i.id ASC`,
     )
     .bind(mem.agencyId)
     .all<{
@@ -292,15 +294,11 @@ export async function listInsurers(
       code: string;
       name: string;
       status: CatalogLifecycleStatus;
+      is_default: number;
       version: number;
       created_at: string;
       updated_at: string;
     }>();
-
-  const settings = await db
-    .prepare('SELECT default_insurer_id FROM agency_settings WHERE agency_id = ?')
-    .bind(mem.agencyId)
-    .first<{ default_insurer_id: string | null }>();
 
   return (rows.results || []).map((r) => ({
     id: r.id,
@@ -308,7 +306,7 @@ export async function listInsurers(
     code: r.code,
     name: r.name,
     status: r.status,
-    isDefault: settings?.default_insurer_id === r.id,
+    isDefault: r.is_default === 1,
     version: r.version,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -777,13 +775,12 @@ export async function getSelectableCatalogs(
   db: D1Database,
 ): Promise<SelectableCatalogsDto> {
   getActiveMembership(context);
-  const [insurers, branches, products, paymentMethods, lossReasons, settings] = await Promise.all([
+  const [insurers, branches, products, paymentMethods, lossReasons] = await Promise.all([
     listInsurers(context, db, { includeInactive: false }),
     listBranches(context, db, { includeInactive: false }),
     listProducts(context, db, { includeInactive: false }),
     listPaymentMethods(context, db, { includeInactive: false }),
     listLossReasons(context, db, { includeInactive: false }),
-    getAgencySettings(context, db),
   ]);
 
   return {
@@ -792,7 +789,7 @@ export async function getSelectableCatalogs(
     products,
     paymentMethods,
     lossReasons,
-    defaultInsurerId: settings.defaultInsurerId,
+    defaultInsurerId: insurers.find((insurer) => insurer.isDefault)?.id ?? null,
   };
 }
 

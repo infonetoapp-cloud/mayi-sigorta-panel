@@ -33,6 +33,7 @@ const insurerSchema = z
       .object({
         id: z.string().min(1),
         name: z.string().min(1),
+        isDefault: z.boolean().optional(),
         status: z.enum(['ACTIVE', 'INACTIVE']),
       })
       .passthrough(),
@@ -665,6 +666,7 @@ export function SalesPricesSection({
                         .map((i) => (
                           <option key={i.id} value={i.id}>
                             {i.name}
+                            {i.isDefault ? ' (Varsayılan)' : ''}
                           </option>
                         ))}
                   </select>

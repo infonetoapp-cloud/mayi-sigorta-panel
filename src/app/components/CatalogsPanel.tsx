@@ -20,6 +20,7 @@ interface GenericCatalogItem {
   readonly name: string;
   readonly status: 'ACTIVE' | 'INACTIVE';
   readonly version: number;
+  readonly isDefault?: boolean;
   readonly insurerId?: string;
   readonly branchId?: string;
   readonly supportsInstallments?: boolean;
@@ -588,6 +589,9 @@ export const CatalogsPanel: React.FC = () => {
                 <tr key={item.id}>
                   <th scope="row">
                     {item.name}
+                    {activeCatalog === 'insurers' && item.isDefault && (
+                      <small className="catalog-row-detail">Varsayılan</small>
+                    )}
                     {activeCatalog === 'payment-methods' && (
                       <small className="catalog-row-detail">
                         {item.supportsInstallments

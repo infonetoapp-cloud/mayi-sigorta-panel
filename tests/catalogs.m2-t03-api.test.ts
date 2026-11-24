@@ -566,5 +566,37 @@ describe('M2-T03 Catalogs & Agency Settings API & Auth Tests (Miniflare D1)', ()
       expect(resolvedData.code).toBe('MAPFRE');
       expect(resolvedData.status).toBe('INACTIVE');
     });
+
+    it('returns the active default insurer before alphabetically earlier insurers', async () => {
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO insurers (id,agency_id,code,name) VALUES (?,?,'ALLIANZ','Allianz Sigorta')",
+          )
+          .bind('order-allianz', AGENCY_A),
+        db
+          .prepare(
+            "INSERT INTO insurers (id,agency_id,code,name) VALUES (?,?,'ANADOLU','Anadolu Sigorta')",
+          )
+          .bind('order-anadolu', AGENCY_A),
+        db
+          .prepare(
+            `INSERT INTO agency_settings (id,agency_id,default_insurer_id) VALUES (?,?,?)
+          ON CONFLICT (agency_id) DO UPDATE SET default_insurer_id=excluded.default_insurer_id,
+          version=agency_settings.version+1`,
+          )
+          .bind('order-settings', AGENCY_A, 'order-anadolu'),
+      ]);
+      const ownerJwt = await createSessionCookie(OWNER_SUB, 'owner@test.com');
+      const response = await testApp.fetch(
+        queryRequest(`${TRUSTED_ORIGIN}/api/catalogs/selectable`, ownerJwt),
+        env(),
+      );
+      expect(response.status).toBe(200);
+      const { data } = asSuccess<SelectableCatalogsDto>(await response.json());
+      expect(data.defaultInsurerId).toBe('order-anadolu');
+      expect(data.insurers[0]).toMatchObject({ id: 'order-anadolu', isDefault: true });
+      expect(data.insurers.find((item) => item.id === 'order-allianz')?.isDefault).toBe(false);
+    });
   });
 });

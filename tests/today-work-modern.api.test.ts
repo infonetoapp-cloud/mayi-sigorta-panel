@@ -148,6 +148,31 @@ it('keeps Ahmet/Ayşe personal task lists private despite shared customer/policy
     (await list('tw-ahmet')).items.every((t) => t.assigneeMembershipId === 'membership-tw-ahmet'),
   ).toBe(true);
 });
+it('searches beyond the first page without expanding employee, health or agency visibility', async () => {
+  const first = await list('tw-ahmet', '?limit=1');
+  expect(first.items.map((item) => item.policyNumber)).toEqual(['tw-ahmet-0']);
+  expect(
+    (await list('tw-ahmet', '?limit=1&q=TW-AHMET-2')).items.map((item) => item.policyNumber),
+  ).toEqual(['tw-ahmet-2']);
+  expect((await list('tw-ahmet', '?q=tw-ayse')).items).toEqual([]);
+  expect((await list('tw-foreign', '?q=tw-ahmet')).items).toEqual([]);
+  expect((await list('tw-ahmet', '?q=HIDDEN-HEALTH')).items).toEqual([]);
+  expect((await list('tw-ahmet', '?q=%25_')).items).toEqual([]);
+  const match = await list('tw-ahmet', '?limit=1&q=mustEri');
+  expect(match.items).toHaveLength(1);
+  expect(match.nextCursor).toBeTruthy();
+  const cursor = encodeURIComponent(match.nextCursor!);
+  const next = await list('tw-ahmet', '?limit=1&q=mustEri&cursor=' + cursor);
+  expect(next.items.map((item) => item.policyNumber)).toEqual(['tw-ahmet-1']);
+  const different = await f.request(
+    root + '?q=tw-ayse&cursor=' + cursor,
+    'GET',
+    cookies['tw-ahmet'],
+  );
+  expect(different.status).toBe(400);
+  const overlong = await f.request(root + '?q=' + 'a'.repeat(81), 'GET', cookies['tw-ahmet']);
+  expect(overlong.status).toBe(400);
+});
 it('preserves instant buckets across the Istanbul midnight statistical boundary', async () => {
   const data = await list('tw-ayse');
   expect(data.timezone).toBe('Europe/Istanbul');

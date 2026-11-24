@@ -28,6 +28,7 @@ const initial: State = { data: null, failures: {}, loading: null, authority: 0 }
 export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
   const boot = useRef(bookmark);
   const [view, setView] = useState<WorkQueue>(bookmark?.queue ?? 'WORK'),
+    [searchTerm, setSearchTerm] = useState(bookmark?.appliedSearch ?? ''),
     [state, setState] = useState(initial),
     [capabilities, setCapabilities] = useState({ unassigned: false, reassignment: false });
   const generation = useRef(0),
@@ -224,7 +225,8 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
   );
   const base =
     '/api/tasks/today?limit=20' +
-    (reassignment ? '&needsReassignment=true' : owner && view === 'WORK' ? '&unified=true' : '');
+    (reassignment ? '&needsReassignment=true' : owner && view === 'WORK' ? '&unified=true' : '') +
+    (searchTerm ? '&q=' + encodeURIComponent(searchTerm) : '');
   useEffect(() => {
     const saved = boot.current;
     boot.current = undefined;
@@ -235,17 +237,24 @@ export function useTaskQueue(owner: boolean, bookmark?: WorkBookmark) {
           ? url + '&unified=true'
           : url,
       ),
-      saved?.queue ?? (reassignment ? 'REASSIGNMENT' : 'WORK'),
+      saved?.queue ?? view,
       false,
       saved?.taskId,
     );
     return cancel;
-  }, [base, reassignment, owner, restorePages, cancel]);
+  }, [base, view, owner, restorePages, cancel]);
   const failure =
     state.failures[view] ?? (!state.data ? Object.values(state.failures).find(Boolean) : undefined);
   return {
     ...state,
     view,
+    searchTerm,
+    search(value: string) {
+      const next = value.trim();
+      if (next === searchTerm) return;
+      cancel();
+      setSearchTerm(next);
+    },
     failure,
     canSeeUnassigned: owner && capabilities.unassigned,
     canSeeReassignment: owner && capabilities.reassignment,

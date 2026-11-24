@@ -1,5 +1,6 @@
 import {
   getPermissionDefinition,
+  isOwnerOnlyPermission,
   PERMISSION_CATALOG,
   STABLE_SCOPE_RESOLVERS,
   type PermissionDefinition,
@@ -2333,6 +2334,68 @@ export async function evaluateAuthorization(
   request: AuthorizationRequest,
   options?: AuthorizationOptions,
 ): Promise<AuthorizationResult> {
+  return evaluate(db, request, options);
+}
+
+function once<T>() {
+  let result: Promise<T> | undefined;
+  return (read: () => Promise<T>) => (result ??= read());
+}
+
+interface PortfolioReadChecks {
+  session: (
+    read: () => Promise<AuthorizationReasonCode | null>,
+  ) => Promise<AuthorizationReasonCode | null>;
+  lifecycle: (
+    read: () => ReturnType<typeof verifyLiveLifecycle>,
+  ) => ReturnType<typeof verifyLiveLifecycle>;
+  grants: (
+    read: () => ReturnType<typeof loadAndValidateMembershipPermissions>,
+  ) => ReturnType<typeof loadAndValidateMembershipPermissions>;
+}
+
+/**
+ * Each portfolio read shares its live checks only across the fixed collection actions
+ * below. Record reads, secure grants, mutations and later requests use fresh checks.
+ */
+export async function evaluatePortfolioRead(
+  db: D1Database,
+  input: AuthenticatedUserContext,
+  agencyId: string,
+  kind: 'policy' | 'coverage',
+  includeCustomerLabel = false,
+) {
+  const validated = validateAuthenticatedUserContext(input);
+  if (!validated.valid) return { primary: deny('INVALID_CONTEXT'), related: null, health: null };
+  const context = validated.ctx;
+  const resource = { agencyId, isCollection: true };
+  const checks: PortfolioReadChecks = {
+    session: once(),
+    lifecycle: once(),
+    grants: once(),
+  };
+  const read = (action: 'policy.read' | 'policy.health.read' | 'customer.read') =>
+    evaluate(db, { context, action, resource }, undefined, checks);
+  const primary = await read(kind === 'policy' ? 'policy.read' : 'customer.read');
+  if (primary.decision !== 'ALLOW') return { primary, related: null, health: null };
+
+  if (kind === 'coverage') {
+    const related = await read('policy.read');
+    const health = related.decision === 'ALLOW' ? await read('policy.health.read') : null;
+    return { primary, related, health };
+  }
+
+  const health = await read('policy.health.read');
+  const related = includeCustomerLabel ? await read('customer.read') : null;
+  return { primary, related, health };
+}
+
+async function evaluate(
+  db: D1Database,
+  request: AuthorizationRequest,
+  options?: AuthorizationOptions,
+  portfolioChecks?: PortfolioReadChecks,
+): Promise<AuthorizationResult> {
   let stableDb: D1Database;
   try {
     stableDb = createDatabaseAdapterSnapshot(db);
@@ -2626,31 +2689,38 @@ export async function evaluateAuthorization(
   }
   const activeMembership = matchingMemberships[0]!;
   if (userContext.sessionHash) {
-    try {
-      const now = Date.now();
-      const session = await db
-        .prepare(
-          `SELECT s.token_hash FROM local_sessions s JOIN local_credentials c ON c.user_id=s.user_id AND c.identity_id=s.identity_id JOIN auth_identities i ON i.id=s.identity_id AND i.user_id=s.user_id JOIN users u ON u.id=s.user_id JOIN agency_memberships m ON m.id=s.membership_id AND m.user_id=s.user_id JOIN agencies a ON a.id=m.agency_id
+    const readSession = async (): Promise<AuthorizationReasonCode | null> => {
+      try {
+        const now = Date.now();
+        const session = await db
+          .prepare(
+            `SELECT s.token_hash FROM local_sessions s JOIN local_credentials c ON c.user_id=s.user_id AND c.identity_id=s.identity_id JOIN auth_identities i ON i.id=s.identity_id AND i.user_id=s.user_id JOIN users u ON u.id=s.user_id JOIN agency_memberships m ON m.id=s.membership_id AND m.user_id=s.user_id JOIN agencies a ON a.id=m.agency_id
         WHERE s.token_hash=? AND s.user_id=? AND s.identity_id=? AND m.id=? AND a.id=? AND s.revoked_at IS NULL AND s.kind='NORMAL' AND s.expires_at>? AND s.last_seen_at>? AND s.credential_version=c.credential_version AND s.permission_version=m.permission_version AND m.permission_version=? AND c.login_enabled=1 AND c.must_change_password=0 AND i.status='ACTIVE' AND u.status='ACTIVE' AND m.status='ACTIVE' AND a.status='ACTIVE' AND (?=0 OR (s.recent_password_at<=? AND s.recent_password_at>?))`,
-        )
-        .bind(
-          userContext.sessionHash,
-          userContext.userId,
-          userContext.identityId,
-          activeMembership.id,
-          targetAgencyId,
-          now,
-          now - 28800000,
-          activeMembership.permissionVersion,
-          requiresSecureGrant ? 1 : 0,
-          now,
-          now - 300000,
-        )
-        .first();
-      if (!session) return deny('INVALID_CONTEXT');
-    } catch {
-      return deny('DATABASE_ERROR');
-    }
+          )
+          .bind(
+            userContext.sessionHash,
+            userContext.userId,
+            userContext.identityId,
+            activeMembership.id,
+            targetAgencyId,
+            now,
+            now - 28800000,
+            activeMembership.permissionVersion,
+            requiresSecureGrant ? 1 : 0,
+            now,
+            now - 300000,
+          )
+          .first();
+        return session ? null : 'INVALID_CONTEXT';
+      } catch {
+        return 'DATABASE_ERROR';
+      }
+    };
+    const failure =
+      portfolioChecks && !requiresSecureGrant
+        ? await portfolioChecks.session(readSession)
+        : await readSession();
+    if (failure) return deny(failure);
   }
 
   // Kaynak verilmişse acente sınırını yakalanan meta veri üzerinden kesin olarak doğrula
@@ -2664,15 +2734,19 @@ export async function evaluateAuthorization(
   }
 
   // 6. Canlı Yaşam Döngüsü ve İlişki Doğrulaması (I-01 & I-05)
-  const lifecycleResult = await verifyLiveLifecycle(
-    stableDb,
-    userContext.identityId,
-    userContext.userId,
-    activeMembership.id,
-    targetAgencyId,
-    activeMembership.type,
-    activeMembership.permissionVersion,
-  );
+  const readLifecycle = () =>
+    verifyLiveLifecycle(
+      stableDb,
+      userContext.identityId,
+      userContext.userId,
+      activeMembership.id,
+      targetAgencyId,
+      activeMembership.type,
+      activeMembership.permissionVersion,
+    );
+  const lifecycleResult = portfolioChecks
+    ? await portfolioChecks.lifecycle(readLifecycle)
+    : await readLifecycle();
   if (!lifecycleResult.success) {
     return deny(lifecycleResult.reason);
   }
@@ -2834,8 +2908,7 @@ export async function evaluateAuthorization(
   // Legacy AGENCY grants cannot override task privacy, including composite/export actions.
   if (activeMembership.type !== 'OWNER') {
     for (const code of graph.keys()) {
-      if (['task.assign', 'renewal.assign', 'report.management'].includes(code))
-        return deny('OWNER_REQUIRED');
+      if (isOwnerOnlyPermission(code)) return deny('OWNER_REQUIRED');
       if (
         (code.startsWith('task.') || code === 'report.operations') &&
         resourceSnapshot?.isCollection !== true &&
@@ -2851,14 +2924,13 @@ export async function evaluateAuthorization(
   const hasSensitiveInGraph = Array.from(graph.values()).some(
     (d) => d.classification === 'SENSITIVE',
   );
+  const readGrants = () =>
+    loadAndValidateMembershipPermissions(stableDb, activeMembership.id, activeMembership.type);
+  const loadGrants = () => (portfolioChecks ? portfolioChecks.grants(readGrants) : readGrants());
 
   if (activeMembership.type === 'MEMBER') {
     // MEMBER için D1'deki saklanan tüm izin kümesini yükle ve doğrula
-    const dbResult = await loadAndValidateMembershipPermissions(
-      stableDb,
-      activeMembership.id,
-      'MEMBER',
-    );
+    const dbResult = await loadGrants();
     if (!dbResult.success) {
       return deny(dbResult.reason);
     }
@@ -2893,11 +2965,7 @@ export async function evaluateAuthorization(
 
     // 2. Hassas izinler açık D1 kaydı gerektirir (Finding 3)
     if (hasSensitiveInGraph) {
-      const dbResult = await loadAndValidateMembershipPermissions(
-        stableDb,
-        activeMembership.id,
-        'OWNER',
-      );
+      const dbResult = await loadGrants();
       if (!dbResult.success) {
         return deny(dbResult.reason);
       }

@@ -78,7 +78,7 @@ export function WorkQueueTable({
                   {rows.map((task) =>
                     task.kind === 'GENERAL' ? (
                       <tr key={task.taskId}>
-                        <td data-label="Müşteri / Ünvan">
+                        <td data-label="Müşteri / Ünvan" className="work-row-customer">
                           <Link
                             className="customer-name"
                             ref={(node) => register(task.taskId, node)}
@@ -91,10 +91,17 @@ export function WorkQueueTable({
                                 : `/tasks/${encodeURIComponent(task.taskId)}`
                             }
                           >
-                            {task.customerDisplayName}
+                            <span className="work-row-customer-name">
+                              {task.customerDisplayName}
+                            </span>
+                            <span className="work-mobile-action" aria-hidden="true">
+                              İşi aç ›
+                            </span>
                           </Link>
                         </td>
-                        <td data-label="İş konusu">{task.title}</td>
+                        <td data-label="İş konusu" className="work-row-topic">
+                          {task.title}
+                        </td>
                         <td data-label="Branş">{task.branchName ?? 'Genel takip'}</td>
                         <td data-label="Poliçe no" className="work-policy-placeholder">
                           —
@@ -102,17 +109,17 @@ export function WorkQueueTable({
                         <td data-label="Poliçe bitişi" className="work-policy-placeholder">
                           —
                         </td>
-                        <td data-label="Takip zamanı">
+                        <td data-label="Takip zamanı" className="work-row-due">
                           <time dateTime={task.dueAt}>{date(task.dueAt, true)}</time>
                         </td>
-                        <td data-label="Durum">
+                        <td data-label="Durum" className="work-row-status">
                           {bucket === 'OVERDUE'
                             ? 'Takip gecikti'
                             : bucket === 'TODAY'
                               ? 'Bugün'
                               : 'Planlandı'}
                         </td>
-                        <td data-label="İşlem">
+                        <td data-label="İşlem" className="work-row-secondary-action">
                           <Link
                             className="work-row-action"
                             state={{ workReturn: route.key }}
@@ -129,7 +136,7 @@ export function WorkQueueTable({
                       </tr>
                     ) : (
                       <tr key={task.taskId} data-selected={task.taskId === selectedId}>
-                        <td data-label="Müşteri">
+                        <td data-label="Müşteri" className="work-row-customer">
                           <button
                             type="button"
                             className="today-task-row"
@@ -139,10 +146,17 @@ export function WorkQueueTable({
                             onKeyDown={(event) => onKeyDown(event, task)}
                             onClick={() => onSelect(task)}
                           >
-                            <strong>{task.customerDisplayName}</strong>
+                            <strong className="work-row-customer-name">
+                              {task.customerDisplayName}
+                            </strong>
+                            <span className="work-mobile-action" aria-hidden="true">
+                              Takibi aç ›
+                            </span>
                           </button>
                         </td>
-                        <td data-label="İş konusu">{task.title}</td>
+                        <td data-label="İş konusu" className="work-row-topic">
+                          {task.title}
+                        </td>
                         <td data-label="Branş">
                           <span
                             className="work-branch"
@@ -151,8 +165,16 @@ export function WorkQueueTable({
                             {task.policyBranchName ?? 'Belirtilmedi'}
                           </span>
                         </td>
-                        <td data-label="Poliçe no">{task.policyNumber ?? '—'}</td>
-                        <td data-label="Poliçe bitişi">
+                        <td
+                          data-label="Poliçe no"
+                          className={task.policyNumber ? undefined : 'work-policy-placeholder'}
+                        >
+                          {task.policyNumber ?? '—'}
+                        </td>
+                        <td
+                          data-label="Poliçe bitişi"
+                          className={task.policyEndDate ? undefined : 'work-policy-placeholder'}
+                        >
                           {task.policyEndDate ? (
                             <time dateTime={task.policyEndDate}>
                               {date(task.policyEndDate + 'T12:00:00Z')}
@@ -161,10 +183,10 @@ export function WorkQueueTable({
                             '—'
                           )}
                         </td>
-                        <td data-label="Takip zamanı">
+                        <td data-label="Takip zamanı" className="work-row-due">
                           <time dateTime={task.dueAt}>{date(task.dueAt, true)}</time>
                         </td>
-                        <td data-label="Durum">
+                        <td data-label="Durum" className="work-row-status">
                           <span className="work-state">
                             {bucket === 'OVERDUE'
                               ? 'Takip gecikti'
@@ -173,7 +195,7 @@ export function WorkQueueTable({
                                 : 'Planlandı'}
                           </span>
                         </td>
-                        <td data-label="İşlem">
+                        <td data-label="İşlem" className="work-row-secondary-action">
                           <button
                             className="work-row-action"
                             type="button"

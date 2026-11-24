@@ -891,6 +891,36 @@ export interface OnboardingTemplateGrant {
   readonly scope: 'UNSCOPED' | 'ASSIGNED' | 'AGENCY';
 }
 
+export const FULL_PERSONNEL_TEMPLATE = 'tum_yetkiler' as const;
+const ownerOnlyPermissions: ReadonlySet<string> = new Set([
+  'task.assign',
+  'renewal.assign',
+  'report.management',
+]);
+const privateMemberScopes: ReadonlySet<string> = new Set([
+  'task.read',
+  'task.update',
+  'report.operations',
+]);
+
+export function isOwnerOnlyPermission(code: string): boolean {
+  return ownerOnlyPermissions.has(code);
+}
+
+export function createFullPersonnelGrants(): OnboardingTemplateGrant[] {
+  return PERMISSION_CATALOG.filter(({ code }) => !isOwnerOnlyPermission(code)).map(
+    ({ code, scopeKind }) => ({
+      permission_code: code as PermissionCode,
+      scope:
+        scopeKind === 'UNSCOPED'
+          ? 'UNSCOPED'
+          : privateMemberScopes.has(code)
+            ? 'ASSIGNED'
+            : 'AGENCY',
+    }),
+  );
+}
+
 export interface OnboardingTemplateDefinition {
   readonly id: OnboardingTemplateId;
   readonly targetMembershipType: 'MEMBER';
